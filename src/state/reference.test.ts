@@ -201,4 +201,33 @@ describe('a dismissed layout-only project', () => {
     expect(st().reference).toBe('a.MSI');
     expect(st().view.deltaVsReference).toBe(true);
   });
+
+  it('drops the state kept under the dismissed paths, so the next project does not carry it and a later file starts fresh', () => {
+    load();
+    const parsed = parseProject(serializeProject(st(), false));
+    if (!parsed.ok) throw new Error(parsed.error);
+    st().clear();
+    st().loadProject(parsed.project);
+    const sim = st().view.simulation;
+    useStore.setState({
+      names: { 'b.MSI': 'Mine' },
+      tagOverrides: { 'b.MSI': { band: 'x' } as never },
+      visible: { ...st().visible, 'b.MSI': true },
+      membership: { 'b.MSI': 'g1' },
+      view: { ...st().view, simulation: { ...sim, offsets: { 'b.MSI': { electricalDeg: 0, mechanicalDeg: 3, azimuthDeg: 0 } } } },
+    });
+    expect(serializeProject(st(), false)).toContain('Mine');
+    expect(st().pendingFiles.map((p) => p.path)).toContain('b.MSI');
+    st().dismissPending();
+    expect(st().names['b.MSI']).toBeUndefined();
+    expect(st().tagOverrides['b.MSI']).toBeUndefined();
+    expect(st().visible['b.MSI']).toBeUndefined();
+    expect(st().membership['b.MSI']).toBeUndefined();
+    expect(st().view.simulation.offsets['b.MSI']).toBeUndefined();
+    const saved = serializeProject(st(), false);
+    expect(saved).not.toContain('Mine');
+    st().addFiles([input('b.MSI', msi(1900))]);
+    expect(st().names['b.MSI']).toBeUndefined();
+    expect(st().view.simulation.offsets['b.MSI']).toBeUndefined();
+  });
 });

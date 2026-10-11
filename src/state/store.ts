@@ -499,16 +499,22 @@ export const useStore = create<State>()((rawSet, get) => {
     }),
 
   // What the project was still waiting for goes with the waiting list: copies of those files, their per-file state,
-  // and a reference to any of them (the difference view goes with the reference).
+  // and a reference to any of them (the difference view goes with the reference). So does the state kept under the
+  // pending paths themselves (names, tags, ticks, membership, offsets): it must not be saved into the next project,
+  // and a file loaded later under such a path starts from the defaults.
   dismissPending: () =>
     set((s) => {
       if (s.pendingFiles.length === 0) return s;
       const loaded = (id: string) => s.files.some((f) => f.id === id && f.result.ok);
       const orphans = Object.keys(s.copies).filter((c) => !loaded(s.copies[c].sourceId));
       const refGone = s.reference !== null && !loaded(s.reference) && !(s.copies[s.reference] && !orphans.includes(s.reference));
-      if (orphans.length === 0 && !refGone) return { pendingFiles: [] };
+      const stalePaths = s.pendingFiles.map((p) => p.path).filter((p) => !s.files.some((f) => f.id === p));
+      const gone = [...new Set([...orphans, ...stalePaths])];
+      const hasState = (x: string) =>
+        x in s.names || x in s.tagOverrides || x in s.visible || x in s.membership || x in s.view.simulation.offsets;
+      if (!gone.some(hasState) && orphans.length === 0 && !refGone) return { pendingFiles: [] };
       const d = draftOf(s);
-      for (const x of orphans) {
+      for (const x of gone) {
         delete d.copies[x];
         delete d.names[x];
         delete d.tagOverrides[x];
@@ -520,8 +526,8 @@ export const useStore = create<State>()((rawSet, get) => {
       return {
         ...next,
         pendingFiles: [],
-        highlighted: s.highlighted !== null && orphans.includes(s.highlighted) ? null : s.highlighted,
-        selected: s.selected?.kind === 'file' && orphans.includes(s.selected.id) ? null : s.selected,
+        highlighted: s.highlighted !== null && gone.includes(s.highlighted) ? null : s.highlighted,
+        selected: s.selected?.kind === 'file' && gone.includes(s.selected.id) ? null : s.selected,
         ...(refGone ? { reference: null, view: { ...next.view!, deltaVsReference: false } } : {}),
       };
     }),
