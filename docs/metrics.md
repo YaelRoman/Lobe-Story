@@ -90,8 +90,8 @@ the beam peak.
 
 ## Declared Δ
 
-Computed value minus the value declared in the file header: ΔH-HPBW (H-HPBW), ΔV-HPBW (V-HPBW)
-and ΔF/B (F/B 180°). Not available when the header lacks the value, and not computed for tilted
+Computed value minus the value declared in the file header, headed "H-HPBW − decl.", "V-HPBW − decl."
+and "F/B − decl." (computed F/B 180° minus declared); with Δ vs reference they read "Δ H-HPBW − decl.". Not available when the header lacks the value, and not computed for tilted
 files in a tilt simulation (the declared values describe the measured pattern). Hidden by default.
 Not a BASTA parameter (tool-defined).
 

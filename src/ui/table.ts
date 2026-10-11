@@ -46,9 +46,9 @@ const COLUMN_INFO: Record<MetricColumn, { label: string; unit: string; group: Co
   du16: { label: 'D/U 16QAM', unit: '°', group: 'sector' },
   du64: { label: 'D/U 64QAM', unit: '°', group: 'sector' },
   du256: { label: 'D/U 256QAM', unit: '°', group: 'sector' },
-  dH: { label: 'ΔH-HPBW', unit: '°', group: 'declared' },
-  dV: { label: 'ΔV-HPBW', unit: '°', group: 'declared' },
-  dFb: { label: 'ΔF/B', unit: 'dB', group: 'declared' },
+  dH: { label: 'H-HPBW − decl.', unit: '°', group: 'declared' },
+  dV: { label: 'V-HPBW − decl.', unit: '°', group: 'declared' },
+  dFb: { label: 'F/B − decl.', unit: 'dB', group: 'declared' },
 };
 
 /** The metric columns, in the order of `METRIC_KEYS` (the one list of keys; see state/metricKeys.ts). */
@@ -62,8 +62,8 @@ export function visibleColumns(groups: Record<ColumnGroupKey, boolean>): typeof 
 export function columnLabel(c: { key: MetricColumn; label: string }, fbWindowDeg: number, uslsRangeDeg = 20, levelDb = 3): string {
   if (c.key === 'hHpbw') return `H-${bwName(levelDb)}`;
   if (c.key === 'vHpbw') return `V-${bwName(levelDb)}`;
-  if (c.key === 'dH') return `ΔH-${bwName(levelDb)}`;
-  if (c.key === 'dV') return `ΔV-${bwName(levelDb)}`;
+  if (c.key === 'dH') return `H-${bwName(levelDb)} − decl.`;
+  if (c.key === 'dV') return `V-${bwName(levelDb)} − decl.`;
   if (c.key === 'fbWindow') return `F/B ±${fbWindowDeg}°`;
   if (c.key === 'usls') return `USLS peak to ${uslsRangeDeg}°`;
   if (c.key === 'uslsHorizon') return `USLS horizon to ${uslsRangeDeg}°`;

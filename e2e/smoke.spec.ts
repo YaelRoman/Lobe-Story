@@ -28,9 +28,9 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await expect(page.getByRole('columnheader', { name: /^USLS peak to 20°/ })).toBeVisible();
   const declared = page.getByRole('checkbox', { name: 'Show Declared Δ columns' });
   await expect(declared).not.toBeChecked();
-  await expect(page.getByRole('columnheader', { name: /^ΔH-HPBW/ })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: /^H-HPBW − decl\./ })).toHaveCount(0);
   await declared.check();
-  await expect(page.getByRole('columnheader', { name: /^ΔH-HPBW/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^H-HPBW − decl\./ })).toBeVisible();
   const sectorCols = page.getByRole('checkbox', { name: 'Show Sector columns' });
   await sectorCols.uncheck();
   await expect(page.getByRole('columnheader', { name: /^SPR/ })).toHaveCount(0);

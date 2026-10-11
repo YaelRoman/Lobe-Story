@@ -399,7 +399,7 @@ describe('sidelobe columns', () => {
   it('exports the declared columns although the group is hidden by default', () => {
     expect(DEFAULT_TABLE_GROUPS.declared).toBe(false);
     const [header] = toCsv(rows, 'dBd', 30).trimEnd().split('\r\n');
-    expect(header).toContain('ΔH-HPBW (°),ΔV-HPBW (°),ΔF/B (dB)');
+    expect(header).toContain('H-HPBW − decl. (°),V-HPBW − decl. (°),F/B − decl. (dB)');
   });
 });
 
@@ -565,8 +565,8 @@ describe('beamwidth labels follow the level', () => {
     expect(columnLabel(col('hHpbw'), 30)).toBe('H-HPBW');
     expect(columnLabel(col('hHpbw'), 30, 20, 10)).toBe('H-BW@10 dB');
     expect(columnLabel(col('vHpbw'), 30, 20, 1.5)).toBe('V-BW@1.5 dB');
-    expect(columnLabel(col('dH'), 30, 20, 10)).toBe('ΔH-BW@10 dB');
-    expect(columnLabel(col('dV'), 30, 20, 3)).toBe('ΔV-HPBW');
+    expect(columnLabel(col('dH'), 30, 20, 10)).toBe('H-BW@10 dB − decl.');
+    expect(columnLabel(col('dV'), 30, 20, 3)).toBe('V-HPBW − decl.');
     expect(columnLabel(col('hBw10'), 30, 20, 10)).toBe('H-BW 10 dB');
   });
   it('writes the level into the CSV header too', () => {
@@ -623,7 +623,7 @@ const PINNED_KEYS = [
   'dFb',
 ];
 const PINNED_HEADER =
-  'File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),H-BW 10 dB (°),V-BW 10 dB (°),Squint (°),Peak az (°),Tilt (°),Peak tilt (°),Tilt error (°),F/B 180° (dB),F/B ±30° (dB),First USLS (dB),USLS peak to 20° (dB),USLS horizon to 20° (dB),USLS max (dB),Null fill (dB),First LSLS (dB),H-SLS (dB),P2P tracking (dB),SPR (%),AIR (dB),Roll-off (dB),D/U 16QAM (°),D/U 64QAM (°),D/U 256QAM (°),ΔH-HPBW (°),ΔV-HPBW (°),ΔF/B (dB)';
+  'File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),H-BW 10 dB (°),V-BW 10 dB (°),Squint (°),Peak az (°),Tilt (°),Peak tilt (°),Tilt error (°),F/B 180° (dB),F/B ±30° (dB),First USLS (dB),USLS peak to 20° (dB),USLS horizon to 20° (dB),USLS max (dB),Null fill (dB),First LSLS (dB),H-SLS (dB),P2P tracking (dB),SPR (%),AIR (dB),Roll-off (dB),D/U 16QAM (°),D/U 64QAM (°),D/U 256QAM (°),H-HPBW − decl. (°),V-HPBW − decl. (°),F/B − decl. (dB)';
 
 it('pins the order of the metric columns and of the CSV header', () => {
   // An accidental reorder (or rename) of a column changes saved views, exports and the copy-to-spreadsheet layout: update on purpose.
@@ -717,5 +717,17 @@ describe('the formula guard and the own group labels of the app', () => {
 
   it('keeps the band CSV guard for the antenna label, which carries a group name', () => {
     expect(csvText('+cmd|x')).toBe("'+cmd|x");
+  });
+});
+
+describe('the declared columns in the difference view', () => {
+  it('read "Δ H-HPBW − decl." in the CSV header, not "Δ ΔH-HPBW"', () => {
+    const p = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a', fileName: 'a.MSI' });
+    const tagged = [{ pattern: p, tags: {} }];
+    const rows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
+    const header = toCsv(rows, 'dBi', 30, undefined, 20, 3, 'ref').split('\r\n')[0];
+    expect(header).toContain('H-HPBW − decl. Δ vs ref (°)');
+    expect(header).not.toContain('ΔΔ');
+    expect(header).not.toContain('Δ ΔH');
   });
 });
