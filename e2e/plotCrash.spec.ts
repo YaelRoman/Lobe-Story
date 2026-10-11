@@ -81,3 +81,39 @@ test('a file name full of selector characters survives plot redraws, hover previ
   await expectRectangularPlot(page, 1);
   expect(errors).toEqual([]);
 });
+
+test('a plot that throws while it redraws is replaced by a message; the rest of the page stays and "Try again" redraws it', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', 1910), file('b.msi', 1930)]);
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  await showAll(page, 2);
+  await expect(page.getByTestId('plot-h').locator('.polarlayer')).toHaveCount(1);
+
+  // Make the charting library fail as it did on an unsafe trace id: the selector it clears a plot with throws.
+  await page.evaluate(() => {
+    const original = Element.prototype.querySelector;
+    const w = window as unknown as { restoreQuerySelector: () => void };
+    w.restoreQuerySelector = () => {
+      Element.prototype.querySelector = original;
+    };
+    Element.prototype.querySelector = function (this: Element, selector: string) {
+      if (selector.startsWith('.cb')) throw new SyntaxError('injected: not a valid selector');
+      return original.call(this, selector);
+    } as typeof original;
+  });
+  await page.getByRole('button', { name: 'Rectangular', exact: true }).click();
+
+  const failed = page.getByRole('alert').filter({ hasText: 'This plot could not be drawn' });
+  await expect(failed.first()).toBeVisible();
+  await expect(failed.first()).toContainText('injected: not a valid selector');
+  // The toolbar, the file panel, the plot controls and the table are still there and still work.
+  await expect(page.getByRole('button', { name: 'Save project' })).toBeVisible();
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  await expect(page.locator('.metrics tbody tr')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rectangular', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.evaluate(() => (window as unknown as { restoreQuerySelector: () => void }).restoreQuerySelector());
+  while ((await failed.count()) > 0) await failed.first().getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByTestId('plot-h').locator('.scatterlayer .trace .lines path')).toHaveCount(2);
+});

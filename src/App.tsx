@@ -17,6 +17,7 @@ import { useUnsavedGuard } from './ui/useUnsavedGuard';
 import { EmptyState } from './ui/EmptyState';
 import { HelpDialog, type OpenHelp } from './ui/HelpDialog';
 import { useEscapeClear } from './ui/useEscapeClear';
+import { PlotBoundary } from './ui/ErrorBoundary';
 
 export default function App() {
   const files = useStore((s) => s.files);
@@ -90,8 +91,13 @@ export default function App() {
             <EmptyState onHelp={openHelp} />
           ) : (
             <>
-              <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} />
-              <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
+              {/* Each chart has its own boundary (see PlotlyChart); these also catch an error while a figure is built. */}
+              <PlotBoundary className="plot">
+                <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} />
+              </PlotBoundary>
+              <PlotBoundary className="plot wide">
+                <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
+              </PlotBoundary>
               <MetricsTable groups={groups} metrics={metrics} colors={colors} sim={sim} onHelp={openHelp} />
               <BandStats tagged={tagged} metrics={metrics} sim={sim} onHelp={openHelp} />
             </>

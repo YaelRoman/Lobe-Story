@@ -3,6 +3,7 @@ import Plotly from 'plotly.js-dist-min';
 import type { Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
+import { PlotBoundary } from './ErrorBoundary';
 import { appliedAfterRedraw, createRedrawGate, hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
 const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
@@ -31,7 +32,19 @@ interface Props {
   previewBase?: string | null;
 }
 
-export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, labelledExport, previewBase }: Props) {
+/**
+ * A chart, inside its own error boundary: an error thrown by the charting library while it draws (or clears) this
+ * chart shows "This plot could not be drawn" in the chart's place and leaves the rest of the page alone.
+ */
+export function PlotlyChart(props: Props) {
+  return (
+    <PlotBoundary className={props.className}>
+      <Chart {...props} />
+    </PlotBoundary>
+  );
+}
+
+function Chart({ figure, className, testId, ariaLabel, onRelayout, labelledExport, previewBase }: Props) {
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +158,12 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
   useEffect(() => {
     const el = ref.current;
     return () => {
-      if (el) Plotly.purge(el);
+      if (!el) return;
+      try {
+        Plotly.purge(el);
+      } catch {
+        // A plot that failed to draw can fail to clear as well; the element is leaving the page anyway.
+      }
     };
   }, []);
 
