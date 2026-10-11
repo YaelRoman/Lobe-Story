@@ -13,6 +13,8 @@ import { BandStats } from './ui/BandStats';
 import { Dialog } from './ui/Dialog';
 import { pendingLabel } from './state/project';
 import { useSimulation } from './ui/useSimulation';
+import { UndoToast } from './ui/UndoToast';
+import { useUnsavedGuard } from './ui/useUnsavedGuard';
 
 /** Scrolls the panel's Errors section into view and moves focus to it. */
 function showErrors() {
@@ -58,6 +60,7 @@ export default function App() {
   );
   const colors = useMemo(() => colorMap(visibleIds), [visibleIds]);
   const dragging = useWindowDrop();
+  useUnsavedGuard();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -75,6 +78,7 @@ export default function App() {
           </button>
         </div>
       )}
+      <UndoToast />
       {pendingFiles.length > 0 && (
         <div className="load-message" role="status">
           <span>{pendingLabel(pendingFiles)}</span>

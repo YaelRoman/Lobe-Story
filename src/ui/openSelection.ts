@@ -26,7 +26,7 @@ export async function openSelection(read: ReadInputsResult): Promise<void> {
     useStore.getState().loadProject(project);
   }
   if (read.inputs.length > 0 || (!project && !firstError) || read.failed > 0) {
-    useStore.getState().addFiles(read.inputs, { unreadable: read.failed });
+    useStore.getState().addFiles(read.inputs, { unreadable: read.failed, keepUndo: project !== null });
   } else if (!project && firstError) {
     // A .json that is not a project, with nothing else in the selection.
     store.setLoadMessage(firstError);

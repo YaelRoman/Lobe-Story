@@ -8,6 +8,7 @@ import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
 import { matchPending, projectToState, type ProjectFile } from './project';
 import { hasSameNameAndText, loadSummary, numberedPath } from './duplicates';
+import { markOf, takeSnapshot, type SavedMark, type UndoEntry } from './undo';
 import { clampSim, SIM_LIMITS, type OffsetState, type SimulationKey } from './simLimits';
 
 export { clampSim, SIM_LIMITS };
@@ -69,6 +70,7 @@ export type DialogState =
   | { kind: 'confirm'; message: string; confirmLabel: string }
   | { kind: 'prompt'; message: string; initial: string; confirmLabel: string }
   | { kind: 'save-project' }
+  | { kind: 'choice'; message: string; choices: { value: string; label: string }[] }
   | null;
 
 export interface StoreData {
@@ -82,6 +84,10 @@ export interface StoreData {
   loadMessage: string | null;
   /** How many files failed to parse in the load `loadMessage` describes (drives its "Show" button). */
   loadFailed: number;
+  /** The last destructive action's snapshot, offered for undo for a short time. */
+  undo: UndoEntry | null;
+  /** The edits as of the last Save project / Open project; null = never saved. See undo.ts `isDirty`. */
+  saved: SavedMark | null;
   /** Copy id (`path#copy-n`) → its source path, in insertion order. */
   copies: Record<string, { sourceId: string }>;
   /** Instance id → display name (renames). */
@@ -100,10 +106,15 @@ export interface StoreData {
 export interface AddFilesOptions {
   /** Files the browser failed to read before they reached the store. */
   unreadable?: number;
+  /** Keep the undo offered by the project that was just opened (its pattern files arrive right after). */
+  keepUndo?: boolean;
 }
 
 export interface StoreActions {
   addFiles(inputs: FileInput[], options?: AddFilesOptions): void;
+  undoLast(): void;
+  dismissUndo(): void;
+  markSaved(): void;
   loadProject(project: ProjectFile): void;
   dismissPending(): void;
   openDialog(dialog: NonNullable<DialogState>): void;
@@ -118,7 +129,7 @@ export interface StoreActions {
   updateView(partial: Partial<ViewState>): void;
   setLoadMessage(message: string | null): void;
   updateSimulation(partial: Partial<SimulationState>): void;
-  resetSimulation(): void;
+  resetSimulation(scope?: 'sliders' | 'all'): void;
   setOffset(id: string, partial: Partial<OffsetState>): void;
   clearOffsets(id: string): void;
   duplicate(id: string): string | null;
@@ -151,6 +162,8 @@ export function initialState(): StoreData {
     settings: { ...DEFAULT_SETTINGS },
     loadMessage: null,
     loadFailed: 0,
+    undo: null,
+    saved: null,
     copies: {},
     names: {},
     customGroups: [],
@@ -268,6 +281,12 @@ const nextGroupName = (groups: CustomGroup[], prefix: string): string => {
   return `${prefix} ${k}`;
 };
 
+let undoSeq = 0;
+/** The `undo` field for an action about to change `s`: its snapshot, labelled for the toast. */
+const undoEntry = (s: StoreData, label: string): { undo: UndoEntry } => ({
+  undo: { id: ++undoSeq, label, snapshot: takeSnapshot(s) },
+});
+
 const ZERO_OFFSET: OffsetState = { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0 };
 const isZeroOffset = (o: OffsetState) => o.electricalDeg === 0 && o.mechanicalDeg === 0 && o.azimuthDeg === 0;
 
@@ -324,12 +343,14 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
         loadMessage: loadSummary({ loaded: loaded.length - failed, failed, skipped, renamed, unreadable }),
       };
       if (loaded.length === 0) return report;
+      const undo = options.keepUndo ? state.undo : null;
       // Matched files keep the visibility/selection saved in the project.
       const firstOk = loaded.find((f) => f.result.ok && !matched.has(f.id));
-      if (!firstOk) return { files, pendingFiles, ...report };
+      if (!firstOk) return { files, pendingFiles, undo, ...report };
       return {
         files,
         pendingFiles,
+        undo,
         visible: { ...state.visible, [firstOk.id]: true },
         highlighted: firstOk.id,
         selected: { kind: 'file', id: firstOk.id },
@@ -337,12 +358,30 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
       };
     }),
 
+  undoLast: () =>
+    set((s) => {
+      if (!s.undo) return {};
+      const { snapshot } = s.undo;
+      // The theme is a display preference, not part of the session being restored.
+      return { ...snapshot, view: { ...snapshot.view, theme: s.view.theme }, undo: null, loadMessage: null, loadFailed: 0 };
+    }),
+
+  dismissUndo: () => set({ undo: null }),
+
+  markSaved: () => set((s) => ({ saved: markOf(s) })),
+
   loadProject: (project) =>
-    set((s) => ({
-      ...projectToState(project, initialState(), s.view.theme, loadText),
-      loadFailed: 0,
-      loadMessage: null,
-    })),
+    set((s) => {
+      const next = projectToState(project, initialState(), s.view.theme, loadText);
+      const hadSession = s.files.length > 0 || s.pendingFiles.length > 0;
+      return {
+        ...next,
+        saved: markOf({ ...s, ...next }),
+        loadFailed: 0,
+        loadMessage: null,
+        ...(hadSession ? undoEntry(s, 'Replaced the session with the project') : { undo: null }),
+      };
+    }),
 
   dismissPending: () => set({ pendingFiles: [] }),
   openDialog: (dialog) => set({ dialog }),
@@ -350,6 +389,7 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
 
   removeFile: (id) =>
     set((s) => {
+      if (!s.copies[id] && !s.files.some((f) => f.id === id)) return {};
       const isCopy = !!s.copies[id];
       const ids = isCopy ? [id] : [id, ...Object.keys(s.copies).filter((c) => s.copies[c].sourceId === id)];
       const d = draftOf(s);
@@ -366,17 +406,22 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
         files: isCopy ? s.files : s.files.filter((f) => f.id !== id),
         highlighted: s.highlighted !== null && ids.includes(s.highlighted) ? null : s.highlighted,
         selected: s.selected?.kind === 'file' && ids.includes(s.selected.id) ? null : s.selected,
+        ...undoEntry(s, `Removed ${s.names[id] ?? baseName(id)}${ids.length > 1 ? ' and its copies' : ''}`),
       };
     }),
 
   clear: () =>
     set((s) => ({
+      ...(s.files.length > 0 || s.pendingFiles.length > 0
+        ? undoEntry(s, `Cleared ${s.files.length} file${s.files.length === 1 ? '' : 's'}`)
+        : { undo: null }),
+      loadFailed: 0,
+      saved: null,
       files: [],
       visible: {},
       tagOverrides: {},
       highlighted: null,
       loadMessage: null,
-      loadFailed: 0,
       copies: {},
       names: {},
       customGroups: [],
@@ -413,7 +458,7 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
       return { view: { ...state.view, simulation: next } };
     }),
 
-  resetSimulation: () =>
+  resetSimulation: (scope = 'all') =>
     set((state) => ({
       view: {
         ...state.view,
@@ -422,8 +467,7 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
           electricalDeg: 0,
           mechanicalDeg: 0,
           azimuthDeg: 0,
-          offsets: {},
-          groupOffsets: {},
+          ...(scope === 'all' ? { offsets: {}, groupOffsets: {} } : {}),
         },
       },
     })),
@@ -477,6 +521,8 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
 
   deleteGroup: (id) =>
     set((s) => {
+      const group = s.customGroups.find((g) => g.id === id);
+      if (!group) return {};
       const d = draftOf(s);
       d.customGroups = d.customGroups.filter((g) => g.id !== id);
       for (const k of Object.keys(d.membership)) if (d.membership[k] === id) delete d.membership[k];
@@ -484,6 +530,7 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
       return {
         ...commit(s, d),
         selected: s.selected?.kind === 'group' && s.selected.id === id ? null : s.selected,
+        ...undoEntry(s, `Deleted group ${group.name}`),
       };
     }),
 

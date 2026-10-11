@@ -4,7 +4,7 @@ import type { Method3d } from '../core/analysis/pattern3d';
 import { anyTilted, combineOffsets } from '../core/analysis/tilt';
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
-import { confirmDialog } from './dialogs';
+import { choiceDialog } from './dialogs';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
   { key: 'electricalDeg', label: 'Electrical tilt Δ (°)' },
@@ -198,8 +198,11 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
             n > 0 ? `${n} file${n === 1 ? '' : 's'}` : '',
             m > 0 ? `${m} group${m === 1 ? '' : 's'}` : '',
           ].filter(Boolean);
-          void confirmDialog(`Also clear per-file offsets on ${parts.join(' and ')}?`, 'Clear').then((ok) => {
-            if (ok) resetSimulation();
+          void choiceDialog(`Reset the global sliders. Per-file offsets are set on ${parts.join(' and ')}.`, [
+            { value: 'sliders', label: 'Reset sliders only' },
+            { value: 'all', label: 'Reset everything' },
+          ]).then((choice) => {
+            if (choice === 'sliders' || choice === 'all') resetSimulation(choice);
           });
         }}
       >

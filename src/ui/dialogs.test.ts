@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   cancelDialog,
+  choiceDialog,
   confirmDialog,
   promptDialog,
   saveProjectDialog,
@@ -24,6 +25,19 @@ describe('dialog helpers', () => {
     const q = confirmDialog('Again?');
     cancelDialog();
     expect(await q).toBe(false);
+  });
+
+  it('choice resolves the picked value, or null when cancelled', async () => {
+    const p = choiceDialog('Which?', [
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+    ]);
+    expect(useStore.getState().dialog).toMatchObject({ kind: 'choice', message: 'Which?' });
+    settleDialog('b');
+    expect(await p).toBe('b');
+    const q = choiceDialog('Which?', [{ value: 'a', label: 'A' }]);
+    cancelDialog();
+    expect(await q).toBeNull();
   });
 
   it('prompt validates and resolves the text or null', async () => {

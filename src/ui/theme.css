@@ -76,6 +76,7 @@ th[scope='row'] { text-align: left; white-space: nowrap; }
 .load-message { display: flex; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--panel); color: var(--warn); font-size: 13px; }
 .load-message button { padding: 0 6px; }
 .load-message button:last-child { margin-left: auto; }
+.undo-toast { color: var(--fg); }
 .drop-overlay { position: fixed; inset: 0; display: grid; place-items: center; font-size: 20px; background: rgb(9 105 218 / 15%); border: 3px dashed var(--accent); pointer-events: none; }
 .settings { position: absolute; right: 12px; top: 100%; z-index: 10; display: grid; grid-template-columns: auto 90px; gap: 6px 12px; align-items: center; padding: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
 .tag-editor { width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 4px 6px; padding: 6px; }
@@ -138,6 +139,5 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
   .metrics-wrap { max-height: 60vh; }
   .metrics td:first-child { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
 }
-
 .errors-list { max-height: 200px; overflow: auto; }
 .errors:focus { outline: 2px solid var(--danger); outline-offset: 1px; }

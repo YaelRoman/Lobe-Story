@@ -236,6 +236,7 @@ test('saves a project and opens it again', async ({ page }) => {
   const projectPath = await download.path();
 
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
   await expect(page.getByText('Open or drop Planet pattern files')).toBeVisible();
 
   await page.getByTestId('project-input').setInputFiles(projectPath);

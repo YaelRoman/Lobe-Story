@@ -3,6 +3,7 @@ import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
 import { initialState, useStore, clampSim, loadText } from './store';
 import { groupPatterns, selectErrors, selectTagged, selectWarnings, selectInstances, buildPanelGroups, instanceIds, instanceName, warningsFor } from './selectors';
+import { clearNeedsConfirm, isDirty } from './undo';
 import { DEFAULT_HEADERS, planetText, points } from '../test/planetText';
 
 const enc = new TextEncoder();
@@ -495,5 +496,174 @@ describe('instances and panel groups', () => {
     expect(instanceName('p#copy-3', 'p.MSI', {})).toBe('p.MSI (copy 3)');
     expect(instanceName('p', 'p.MSI', {})).toBeUndefined();
     expect(instanceName('p#copy-3', 'p.MSI', { 'p#copy-3': 'X' })).toBe('X');
+  });
+});
+
+describe('undo of destructive actions', () => {
+  const st = useStore.getState;
+  const data = () => {
+    const { files, tagOverrides, visible, highlighted, settings, view, copies, names, customGroups, membership, selected, pendingFiles } = st();
+    return { files, tagOverrides, visible, highlighted, settings, view, copies, names, customGroups, membership, selected, pendingFiles };
+  };
+  const session = () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    const c = st().duplicate('a.MSI')!;
+    const g = st().createGroup('Mine');
+    st().setMembership(c, g);
+    st().rename('b.MSI', 'Beta');
+    st().setOffset('a.MSI', { electricalDeg: 2 });
+    st().setGroupOffset(g, { azimuthDeg: 10 });
+    st().setTags('b.MSI', { band: '1900' } as never);
+    st().toggleVisible('b.MSI');
+    st().select({ kind: 'group', id: g });
+    return { c, g };
+  };
+
+  it('restores everything exactly after Clear, sharing the parsed objects (no deep copy)', () => {
+    session();
+    const before = data();
+    const parsed = st().files[0].result;
+    st().clear();
+    expect(st().files).toEqual([]);
+    expect(st().undo?.label).toBe('Cleared 2 files');
+    st().undoLast();
+    expect(data()).toEqual(before);
+    expect(st().files[0].result).toBe(parsed);
+    expect(st().undo).toBeNull();
+  });
+
+  it('restores a removed file with its copies, names, groups, offsets and visibility', () => {
+    session();
+    const before = data();
+    st().removeFile('a.MSI');
+    expect(st().files.map((f) => f.id)).toEqual(['b.MSI']);
+    expect(st().undo?.label).toBe('Removed a.MSI and its copies');
+    st().undoLast();
+    expect(data()).toEqual(before);
+  });
+
+  it('restores a deleted group and its offsets and members', () => {
+    const { g } = session();
+    const before = data();
+    st().deleteGroup(g);
+    expect(st().customGroups).toEqual([]);
+    expect(st().undo?.label).toBe('Deleted group Mine');
+    st().undoLast();
+    expect(data()).toEqual(before);
+  });
+
+  it('restores the previous session after a project replaced it', () => {
+    session();
+    const before = data();
+    st().loadProject({
+      format: 'lobe-story-project',
+      version: 1,
+      savedAt: '2026-01-01T00:00:00Z',
+      files: [{ path: 'p.MSI', text: msi(2100) }],
+      state: {},
+    } as never);
+    expect(st().files.map((f) => f.id)).toEqual(['p.MSI']);
+    expect(st().undo?.label).toBe('Replaced the session with the project');
+    st().undoLast();
+    expect(data()).toEqual(before);
+  });
+
+  it('offers no undo when nothing was loaded, or when the action changed nothing', () => {
+    st().clear();
+    expect(st().undo).toBeNull();
+    st().removeFile('nope');
+    st().deleteGroup('nope');
+    expect(st().undo).toBeNull();
+    st().undoLast();
+    expect(st().files).toEqual([]);
+  });
+
+  it('is a single level: a second destructive action replaces the first, and loading files drops it', () => {
+    session();
+    st().removeFile('b.MSI');
+    st().clear();
+    expect(st().undo?.label).toBe('Cleared 1 file');
+    st().undoLast();
+    expect(st().files.map((f) => f.id)).toEqual(['a.MSI']);
+    st().removeFile('a.MSI');
+    st().addFiles([input('z.MSI', msi(1700))]);
+    expect(st().undo).toBeNull();
+  });
+
+  it('keeps the current theme and dismisses on demand', () => {
+    session();
+    st().clear();
+    st().updateView({ theme: st().view.theme === 'dark' ? 'light' : 'dark' });
+    const theme = st().view.theme;
+    st().undoLast();
+    expect(st().view.theme).toBe(theme);
+    st().clear();
+    st().dismissUndo();
+    expect(st().undo).toBeNull();
+  });
+});
+
+describe('unsaved work', () => {
+  const st = useStore.getState;
+
+  it('is unsaved while files are loaded and nothing was saved, and never when empty', () => {
+    expect(isDirty(st())).toBe(false);
+    st().addFiles([input('a.MSI', msi(1800))]);
+    expect(isDirty(st())).toBe(true);
+  });
+
+  it('is clean after a save, dirty again after an edit, clean again after undoing back to the saved state', () => {
+    st().addFiles([input('a.MSI', msi(1800))]);
+    st().markSaved();
+    expect(isDirty(st())).toBe(false);
+    st().addFiles([input('b.MSI', msi(1900))]);
+    st().toggleVisible('b.MSI');
+    expect(isDirty(st())).toBe(false); // more files and visibility are not edits
+    st().rename('a.MSI', 'Alpha');
+    expect(isDirty(st())).toBe(true);
+    st().markSaved();
+    expect(isDirty(st())).toBe(false);
+    st().clear();
+    expect(isDirty(st())).toBe(false);
+    st().undoLast();
+    expect(isDirty(st())).toBe(false);
+  });
+
+  it('treats an opened project as saved', () => {
+    st().loadProject({
+      format: 'lobe-story-project',
+      version: 1,
+      savedAt: '2026-01-01T00:00:00Z',
+      files: [{ path: 'p.MSI', text: msi(2100) }],
+      state: { names: { 'p.MSI': 'P' } },
+    } as never);
+    expect(st().files).toHaveLength(1);
+    expect(isDirty(st())).toBe(false);
+    st().setOffset('p.MSI', { azimuthDeg: 5 });
+    expect(isDirty(st())).toBe(true);
+  });
+
+  it('asks before Clear only when there is more than one plain file or any edit', () => {
+    st().addFiles([input('a.MSI', msi(1800))]);
+    expect(clearNeedsConfirm(st())).toBe(false);
+    st().rename('a.MSI', 'A');
+    expect(clearNeedsConfirm(st())).toBe(true);
+    st().clear();
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    expect(clearNeedsConfirm(st())).toBe(true);
+  });
+});
+
+describe('simulation reset scope', () => {
+  it('"sliders" keeps per-file offsets, "all" clears them', () => {
+    const st = useStore.getState;
+    st().addFiles([input('a.MSI', msi(1800))]);
+    st().updateSimulation({ electricalDeg: 3 });
+    st().setOffset('a.MSI', { azimuthDeg: 20 });
+    st().resetSimulation('sliders');
+    expect(st().view.simulation.electricalDeg).toBe(0);
+    expect(st().view.simulation.offsets).toEqual({ 'a.MSI': { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 20 } });
+    st().resetSimulation('all');
+    expect(st().view.simulation.offsets).toEqual({});
   });
 });

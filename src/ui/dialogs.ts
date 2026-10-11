@@ -18,6 +18,11 @@ export function confirmDialog(message: string, confirmLabel = 'OK'): Promise<boo
   return open({ kind: 'confirm', message, confirmLabel }, false);
 }
 
+/** Several named outcomes plus Cancel: resolves with the chosen value, or null when cancelled. */
+export function choiceDialog(message: string, choices: { value: string; label: string }[]): Promise<string | null> {
+  return open<string | null>({ kind: 'choice', message, choices }, null);
+}
+
 export function promptDialog(
   message: string,
   initial = '',

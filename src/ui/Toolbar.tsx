@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useStore } from '../state/store';
 import { inputsFromFileList } from '../state/files';
 import { serializeProject } from '../state/project';
+import { clearNeedsConfirm } from '../state/undo';
 import { openSelection } from './openSelection';
 import { SettingsPanel } from './SettingsPanel';
-import { saveProjectDialog } from './dialogs';
+import { confirmDialog, saveProjectDialog } from './dialogs';
 import { downloadText } from './download';
 
 export function Toolbar() {
@@ -27,6 +28,19 @@ export function Toolbar() {
     }
   };
 
+  const onClear = async () => {
+    const state = useStore.getState();
+    if (clearNeedsConfirm(state)) {
+      const n = state.files.length;
+      const ok = await confirmDialog(
+        `Clear ${n} file${n === 1 ? '' : 's'} and all groups, names and offsets? You can undo this for a few seconds.`,
+        'Clear',
+      );
+      if (!ok) return;
+    }
+    clear();
+  };
+
   const onSaveProject = async () => {
     const options = await saveProjectDialog();
     if (!options) return;
@@ -37,6 +51,7 @@ export function Toolbar() {
         serializeProject(useStore.getState(), options.includeFiles),
         'application/json',
       );
+      useStore.getState().markSaved();
     } catch {
       setLoadMessage('Could not save the project');
     }
@@ -106,7 +121,7 @@ export function Toolbar() {
       <button aria-expanded={showSettings} onClick={() => setShowSettings((v) => !v)}>
         Settings
       </button>
-      {hasSessionState && <button onClick={clear}>Clear</button>}
+      {hasSessionState && <button onClick={() => void onClear()}>Clear</button>}
       {showSettings && <SettingsPanel />}
     </header>
   );

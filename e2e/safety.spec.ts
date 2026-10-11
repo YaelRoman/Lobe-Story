@@ -66,4 +66,100 @@ test('a project chosen through Open files opens as a project', async ({ page }) 
   await page.getByRole('dialog').getByRole('button', { name: 'Replace' }).click();
   await expect(page.locator('.panel').getByText('2200 MHz')).toBeVisible();
   await expect(page.locator('.panel').getByText('2100 MHz')).toHaveCount(0);
+  await expect(page.getByTestId('undo-toast')).toBeVisible();
+});
+
+test('Clear asks first, then Undo and Ctrl+Z bring the whole session back', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900))]);
+  const panel = page.locator('.panel');
+  await page.getByLabel('Actions for a.msi').click();
+  await page.getByRole('menuitem', { name: 'Rename…' }).click();
+  await page.getByLabel('Name for a.msi').fill('Alpha');
+  await page.getByLabel('Name for a.msi').press('Enter');
+  await expect(panel.getByText('Alpha', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+  await expect(panel.getByText('Alpha', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(page.getByText('Open or drop Planet pattern files')).toBeVisible();
+  const toast = page.getByTestId('undo-toast');
+  await expect(toast).toContainText('Cleared 2 files');
+  await toast.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(panel.getByText('Alpha', { exact: true })).toBeVisible();
+  await expect(panel.getByText('1900 MHz')).toBeVisible();
+  await expect(toast).toHaveCount(0);
+
+  // Ctrl+Z, but not while typing in a text field.
+  await page.getByLabel('Actions for b.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  await expect(toast).toContainText('Removed b.msi');
+  await expect(panel.getByText('1900 MHz')).toHaveCount(0);
+  await page.getByLabel('Mechanical tilt (°) value').focus();
+  await page.keyboard.press('Control+z');
+  await expect(panel.getByText('1900 MHz')).toHaveCount(0);
+  await page.locator('h1').click();
+  await page.keyboard.press('Control+z');
+  await expect(panel.getByText('1900 MHz')).toBeVisible();
+});
+
+test('Delete group can be undone', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800))]);
+  await page.getByLabel('Actions for a.msi').click();
+  await page.getByRole('menuitem', { name: 'Create site…' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'OK' }).click();
+  const panel = page.locator('.panel');
+  await expect(panel.getByText('Site 1', { exact: true })).toBeVisible();
+  await page.getByLabel('Actions for group Site 1').click();
+  await page.getByRole('menuitem', { name: 'Delete group' }).click();
+  await expect(panel.getByText('Site 1', { exact: true })).toHaveCount(0);
+  await page.getByTestId('undo-toast').getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(panel.getByText('Site 1', { exact: true })).toBeVisible();
+  await expect(panel.getByText('Sector A', { exact: true })).toBeVisible();
+});
+
+test('the page asks before unloading only while there is unsaved work', async ({ page }) => {
+  await page.goto('/');
+  // Dispatch the event ourselves: a real reload would raise a dialog and could hang the test.
+  const prevented = () =>
+    page.evaluate(() => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+  expect(await prevented()).toBe(false);
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800))]);
+  await expect(page.locator('.panel')).toBeVisible();
+  expect(await prevented()).toBe(true);
+
+  await page.getByRole('button', { name: 'Save project' }).click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
+  await download;
+  expect(await prevented()).toBe(false);
+  await page.getByLabel('Actions for a.msi').click();
+  await page.getByRole('menuitem', { name: 'Duplicate' }).click();
+  expect(await prevented()).toBe(true);
+});
+
+test('Reset offers sliders only or everything', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800))]);
+  const mech = page.getByLabel('Mechanical tilt (°) value');
+  await mech.fill('4');
+  await mech.press('Enter');
+  const offset = page.getByLabel('Azimuth offset (°) value');
+  await offset.fill('20');
+  await offset.press('Enter');
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Reset sliders only' }).click();
+  await expect(mech).toHaveValue('0');
+  await expect(page.getByLabel('Offsets: az +20°')).toBeVisible();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Reset everything' }).click();
+  await expect(page.getByLabel('Offsets: az +20°')).toHaveCount(0);
 });

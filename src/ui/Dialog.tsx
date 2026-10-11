@@ -16,9 +16,10 @@ function DialogBody({ dialog }: { dialog: NonNullable<DialogState> }) {
 
   const error = dialog.kind === 'prompt' ? validateDialogInput(text) : null;
   const title = dialog.kind === 'save-project' ? 'Save project' : dialog.message;
-  const confirmLabel = dialog.kind === 'save-project' ? 'Save' : dialog.confirmLabel;
+  const confirmLabel = dialog.kind === 'save-project' ? 'Save' : dialog.kind === 'choice' ? '' : dialog.confirmLabel;
 
   const confirm = () => {
+    if (dialog.kind === 'choice') return;
     if (dialog.kind === 'confirm') settleDialog(true);
     else if (dialog.kind === 'save-project') settleDialog({ includeFiles });
     else if (error === null) settleDialog(text);
@@ -58,9 +59,17 @@ function DialogBody({ dialog }: { dialog: NonNullable<DialogState> }) {
           <button type="button" onClick={cancelDialog}>
             Cancel
           </button>
-          <button type="submit" autoFocus={dialog.kind !== 'prompt'} disabled={error !== null}>
-            {confirmLabel}
-          </button>
+          {dialog.kind === 'choice' ? (
+            dialog.choices.map((c, i) => (
+              <button key={c.value} type="button" autoFocus={i === 0} onClick={() => settleDialog(c.value)}>
+                {c.label}
+              </button>
+            ))
+          ) : (
+            <button type="submit" autoFocus={dialog.kind !== 'prompt'} disabled={error !== null}>
+              {confirmLabel}
+            </button>
+          )}
         </div>
       </form>
     </div>
