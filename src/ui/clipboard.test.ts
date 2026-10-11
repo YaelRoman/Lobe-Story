@@ -46,11 +46,11 @@ describe('copyAndAnnounce', () => {
     const announce = vi.fn();
     setClipboard({ writeText: vi.fn().mockResolvedValue(undefined) });
     await copyAndAnnounce('t', copiedRows(24), announce);
-    expect(announce).toHaveBeenLastCalledWith('Copied 24 rows', 'info');
+    expect(announce).toHaveBeenLastCalledWith('Copied 24 rows');
     setClipboard({ writeText: vi.fn().mockRejectedValue(new Error('x')) });
     document.execCommand = vi.fn(() => false);
     await copyAndAnnounce('t', 'ok', announce);
-    expect(announce).toHaveBeenLastCalledWith('Could not copy to the clipboard', 'warn');
+    expect(announce).toHaveBeenLastCalledWith('Could not copy to the clipboard');
     expect(copiedRows(1)).toBe('Copied 1 row');
   });
 });

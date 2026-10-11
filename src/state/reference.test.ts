@@ -163,6 +163,36 @@ describe('a dismissed layout-only project', () => {
     expect(st().view.deltaVsReference).toBe(false);
   });
 
+  it('takes a reference that is a copy of a never-loaded file, and the orphan copy with its state', () => {
+    load();
+    const parsed = parseProject(serializeProject(st(), false));
+    if (!parsed.ok) throw new Error(parsed.error);
+    st().clear();
+    st().loadProject(parsed.project);
+    const c = 'b.MSI#copy-2';
+    useStore.setState({ copies: { [c]: { sourceId: 'b.MSI' } }, visible: { ...st().visible, [c]: true }, names: { [c]: 'mine' } });
+    st().setReference(c);
+    st().updateView({ deltaVsReference: true });
+    expect(st().pendingFiles.length).toBeGreaterThan(0);
+    st().dismissPending();
+    expect(st().reference).toBeNull();
+    expect(st().view.deltaVsReference).toBe(false);
+    expect(st().copies).toEqual({});
+    expect(st().visible[c]).toBeUndefined();
+    expect(st().names[c]).toBeUndefined();
+  });
+
+  it('keeps a reference that is a copy of a loaded file', () => {
+    load();
+    st().addFiles([input('c.MSI', msi(2100))]);
+    const c = st().duplicate('a.MSI')!;
+    useStore.setState({ pendingFiles: [{ path: 'z.MSI' } as never] });
+    st().setReference(c);
+    st().dismissPending();
+    expect(st().reference).toBe(c);
+    expect(st().copies[c]).toBeDefined();
+  });
+
   it('keeps a reference that is a loaded file', () => {
     load();
     st().setReference('a.MSI');

@@ -24,6 +24,8 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const loadTone = useStore((s) => s.loadTone);
   const loadFailed = useStore((s) => s.loadFailed);
   const loadSeq = useStore((s) => s.loadSeq);
+  const copyNote = useStore((s) => s.copyNote);
+  const copySeq = useStore((s) => s.copySeq);
   const setLoadMessage = useStore((s) => s.setLoadMessage);
   const undoLabel = useStore((s) => s.undo?.label);
   const pendingFiles = useStore((s) => s.pendingFiles);
@@ -58,6 +60,11 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
           </button>
         </div>
       )}
+      {copyNote && (
+        <div className="load-message info" data-testid="copy-note">
+          <span>{copyNote}</span>
+        </div>
+      )}
       <UndoToast />
       {pending && (
         <div className="load-message" data-testid="pending-files">
@@ -68,6 +75,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
       <div className="visually-hidden" role="status" aria-atomic="false" data-testid="announcer">
         {/* Keyed by the message count: an identical message is a new node and is read again. */}
         {loadMessage && <span key={loadSeq}>{loadMessage} </span>}
+        {copyNote && <span key={`copy-${copySeq}`}>{copyNote} </span>}
         {undoLabel && (
           <span>
             {undoLabel}. Undo: {undoShortcut()}.{' '}

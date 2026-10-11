@@ -45,7 +45,7 @@ export const BandStats = memo(function BandStats({
   const gainUnit = useStore((s) => s.view.gainUnit);
   const settings = useStore((s) => s.settings);
   const updateView = useStore((s) => s.updateView);
-  const setLoadMessage = useStore((s) => s.setLoadMessage);
+  const setCopyNote = useStore((s) => s.setCopyNote);
   const [chosen, setChosen] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);
@@ -160,7 +160,7 @@ export const BandStats = memo(function BandStats({
         <button onClick={exportCsv}>Export band CSV</button>
         <button
           title="Copy the table below as shown to paste into a spreadsheet"
-          onClick={() => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings), `Copied the band statistics of ${dataset.label}`, setLoadMessage)}
+          onClick={() => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings), `Copied the band statistics of ${dataset.label}`, setCopyNote)}
         >
           Copy table
         </button>

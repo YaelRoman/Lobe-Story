@@ -47,7 +47,7 @@ export const MetricsTable = memo(function MetricsTable({
   const highlighted = useStore((s) => s.highlighted);
   const pickFile = useStore((s) => s.pickFile);
   const setVisible = useStore((s) => s.setVisible);
-  const setLoadMessage = useStore((s) => s.setLoadMessage);
+  const setCopyNote = useStore((s) => s.setCopyNote);
   const reference = useStore((s) => s.reference);
   const setReference = useStore((s) => s.setReference);
   const deltaChosen = useStore((s) => s.view.deltaVsReference);
@@ -103,7 +103,7 @@ export const MetricsTable = memo(function MetricsTable({
   const setHoverId = useTablePreview(rowIds);
   const stop = tabStopKey(rows.map((r) => r.id), activeRow);
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
-  const copy = (text: string, done: string) => void copyAndAnnounce(text, done, setLoadMessage);
+  const copy = (text: string, done: string) => void copyAndAnnounce(text, done, setCopyNote);
   const copyRow = (id: string) => {
     const r = rowById.get(id);
     if (r) copy(rowToTsv(r, columns), copiedRow(r.file));
@@ -116,7 +116,13 @@ export const MetricsTable = memo(function MetricsTable({
     }
   };
   const onBodyKeys = (e: KeyboardEvent<HTMLElement>) => {
-    const target = e.target as HTMLElement;
+    let target = e.target as HTMLElement;
+    // On the Copy value button the keys act as on its cell, except Enter and Space: those stay the button's own click.
+    if (target.classList.contains('copy-cell')) {
+      const cell = target.closest<HTMLElement>('td[data-col]');
+      if (!cell || e.key === 'Enter' || e.key === ' ') return;
+      target = cell;
+    }
     const tr = target.closest<HTMLElement>('tr');
     if (target.hasAttribute('data-nav')) {
       if (copyShortcut(e) && tr?.dataset.rowId) {

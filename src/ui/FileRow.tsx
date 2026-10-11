@@ -128,6 +128,7 @@ export const FileRow = memo(function FileRow({
           data-nav
           tabIndex={tabStop ? 0 : -1}
           aria-current={highlighted || undefined}
+          aria-description={isReference ? `Reference file: drawn in the 2D cuts as a thick dashed line${shown ? '' : ', although it is not ticked'}` : undefined}
           title={
             (isReference
               ? `Reference file: drawn in the 2D cuts as a thick dashed line in the text colour${shown ? '' : ' although it is not ticked'}\n`

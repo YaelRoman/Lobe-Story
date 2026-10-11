@@ -44,7 +44,7 @@ test.describe('copy to the clipboard', () => {
     await page.getByRole('button', { name: /^F\/B 180°/ }).click();
     await page.getByRole('button', { name: /^F\/B 180°/ }).click(); // descending
     await page.getByRole('button', { name: 'Copy table' }).first().click();
-    await expect(page.getByTestId('load-status')).toContainText('Copied 24 rows');
+    await expect(page.getByTestId('copy-note')).toContainText('Copied 24 rows');
     const lines = (await clip(page)).trimEnd().split('\r\n');
     expect(lines).toHaveLength(25);
     const header = lines[0].split('\t');
@@ -66,7 +66,7 @@ test.describe('copy to the clipboard', () => {
     await row.hover();
     await row.getByRole('button', { name: /^Copy row / }).click();
     const rowName = (await row.locator('.file-cell').innerText()).trim();
-    await expect(page.getByTestId('load-status')).toContainText(`Copied row ${rowName}`);
+    await expect(page.getByTestId('copy-note')).toContainText(`Copied row ${rowName}`);
     expect((await clip(page)).split('\t').slice(4)).toEqual(await rowTexts(page, 2));
     expect(await highlighted.getAttribute('data-row-id')).toBe(before);
 
@@ -80,15 +80,13 @@ test.describe('copy to the clipboard', () => {
     await expect(button).toHaveCount(1);
     await expect(button).toHaveAccessibleName(`Copy value ${text}`);
     await button.click();
-    await expect(page.getByTestId('load-status')).toContainText(`Copied ${text}`);
+    await expect(page.getByTestId('copy-note')).toContainText(`Copied ${text}`);
     expect(await clip(page)).toBe(text);
     // The button is not a click on the row: the highlight is still there. Copying again says so again (the line is re-shown).
     await expect(highlighted).toHaveAttribute('data-row-id', (await row.getAttribute('data-row-id')) ?? '');
-    await page.getByRole('button', { name: 'Dismiss message' }).click();
-    await expect(page.getByTestId('load-status')).toHaveCount(0);
     await cell.focus();
     await button.click();
-    await expect(page.getByTestId('load-status')).toContainText(`Copied ${text}`);
+    await expect(page.getByTestId('copy-note')).toContainText(`Copied ${text}`);
     // A second click on the cell itself is an ordinary row click: it clears the highlight.
     await cell.click({ position: { x: 40, y: 8 } });
     await expect(highlighted).toHaveCount(0);
@@ -96,8 +94,16 @@ test.describe('copy to the clipboard', () => {
     await cell.focus();
     await page.keyboard.press('Tab');
     await expect(button).toBeFocused();
+    await page.evaluate(() => navigator.clipboard.writeText('sentinel'));
+    expect(await clip(page)).toBe('sentinel');
     await page.keyboard.press('Enter');
     await expect.poll(() => clip(page)).toBe(text);
+    // Arrows and Ctrl+C work from the button too, as on its cell.
+    await page.evaluate(() => navigator.clipboard.writeText('sentinel'));
+    await page.keyboard.press('Control+c');
+    await expect.poll(() => clip(page)).toBe(text);
+    await page.keyboard.press('ArrowLeft');
+    await expect(cell.locator('xpath=preceding-sibling::td[1]')).toBeFocused();
     // Keyboard: the file name button, Right arrow into the cells, Ctrl+C copies the focused value.
     await row.locator('.file-cell').focus();
     await page.keyboard.press('ArrowRight');
@@ -116,7 +122,7 @@ test.describe('copy to the clipboard', () => {
   test('band statistics Copy table, and file names are guarded against spreadsheet formulas', async ({ page }) => {
     await loadExample(page);
     await page.getByTestId('band-stats').getByRole('button', { name: 'Copy table' }).click();
-    await expect(page.getByTestId('load-status')).toContainText('Copied the band statistics of');
+    await expect(page.getByTestId('copy-note')).toContainText('Copied the band statistics of');
     const lines = (await clip(page)).trimEnd().split('\r\n');
     expect(lines[0].startsWith('Parameter\t')).toBe(true);
     expect(lines.length).toBeGreaterThan(5);
@@ -130,7 +136,7 @@ test.describe('copy to the clipboard', () => {
     await page.getByTestId('file-input').setInputFiles([{ name: '=SUM(1+1).msi', mimeType: 'text/plain', buffer: Buffer.from(text) }]);
     await expect(page.locator('.metrics tbody tr')).toHaveCount(1);
     await page.getByRole('button', { name: 'Copy table' }).first().click();
-    await expect(page.getByTestId('load-status')).toContainText('Copied 1 row');
+    await expect(page.getByTestId('copy-note')).toContainText('Copied 1 row');
     expect((await clip(page)).split('\r\n')[1].split('\t')[0]).toBe("'=SUM(1+1).msi");
   });
 });
@@ -180,7 +186,7 @@ test.describe('reference file', () => {
     if (testInfo.project.name === 'chromium') {
       await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
       await page.getByRole('button', { name: 'Copy table' }).first().click();
-      await expect(page.getByTestId('load-status')).toContainText('Copied 24 rows');
+      await expect(page.getByTestId('copy-note')).toContainText('Copied 24 rows');
       const text = await page.evaluate(() => navigator.clipboard.readText());
       expect(text.split('\r\n')[0]).toContain(`F/B 180° Δ vs ${name} (dB)`);
       expect(text.split('\r\n')[0].split('\t').slice(0, 3)).toEqual(['File', 'Group', 'Row']);

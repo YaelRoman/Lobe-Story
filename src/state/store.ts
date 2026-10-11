@@ -106,6 +106,10 @@ export interface StoreData {
   loadFailed: number;
   /** Counts every status message, so an identical one is still a change (re-announced, fade timer restarted). */
   loadSeq: number;
+  /** A transient line about a copy ("Copied 65.0"). Separate from the load status so a copy never costs a standing warning. Not part of undo, saved projects or the unsaved-work check. */
+  copyNote: string | null;
+  /** Counts every copy note, so an identical one is re-announced and restarts the fade. */
+  copySeq: number;
   /** The last destructive action's snapshot, offered for undo for a short time. */
   undo: UndoEntry | null;
   /** The saveable state as of the last Save project / Open project; null = never saved. See undo.ts `isDirty`. */
@@ -166,6 +170,8 @@ export interface StoreActions {
   updateSettings(partial: Partial<AnalysisSettings>): void;
   updateView(partial: Partial<ViewState>): void;
   setLoadMessage(message: string | null, tone?: 'info' | 'warn'): void;
+  /** Shows a transient copy line (it fades by itself after COPY_NOTE_MS); the load status is left alone. */
+  setCopyNote(message: string | null): void;
   updateSimulation(partial: Partial<SimulationState>): void;
   resetSimulation(scope?: 'sliders' | 'all'): void;
   setOffset(id: string, partial: Partial<OffsetState>): void;
@@ -211,6 +217,8 @@ export function initialState(): StoreData {
     loadTone: 'info',
     loadFailed: 0,
     loadSeq: 0,
+    copyNote: null,
+    copySeq: 0,
     undo: null,
     saved: null,
     copies: {},
@@ -317,6 +325,10 @@ const commit = (s: StoreData, d: Draft): Partial<StoreData> => ({
 
 const instanceExists = (s: StoreData, id: string): boolean =>
   !!s.copies[id] || s.files.some((f) => f.id === id && f.result.ok);
+
+/** How long a copy line stays. */
+export const COPY_NOTE_MS = 6_000;
+let copyTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Adds a copy of `id` to the draft (state copied from `id`) and returns the copy id. */
 function duplicateInto(d: Draft, id: string, name?: string): string {
@@ -469,12 +481,32 @@ export const useStore = create<State>()((rawSet, get) => {
       };
     }),
 
-  // A reference to a file the project was still waiting for goes with the waiting list.
+  // What the project was still waiting for goes with the waiting list: copies of those files, their per-file state,
+  // and a reference to any of them (the difference view goes with the reference).
   dismissPending: () =>
     set((s) => {
       if (s.pendingFiles.length === 0) return s;
-      if (s.reference === null || instanceExists(s, s.reference)) return { pendingFiles: [] };
-      return { pendingFiles: [], reference: null, view: { ...s.view, deltaVsReference: false } };
+      const loaded = (id: string) => s.files.some((f) => f.id === id && f.result.ok);
+      const orphans = Object.keys(s.copies).filter((c) => !loaded(s.copies[c].sourceId));
+      const refGone = s.reference !== null && !loaded(s.reference) && !(s.copies[s.reference] && !orphans.includes(s.reference));
+      if (orphans.length === 0 && !refGone) return { pendingFiles: [] };
+      const d = draftOf(s);
+      for (const x of orphans) {
+        delete d.copies[x];
+        delete d.names[x];
+        delete d.tagOverrides[x];
+        delete d.visible[x];
+        delete d.membership[x];
+        delete d.offsets[x];
+      }
+      const next = commit(s, d);
+      return {
+        ...next,
+        pendingFiles: [],
+        highlighted: s.highlighted !== null && orphans.includes(s.highlighted) ? null : s.highlighted,
+        selected: s.selected?.kind === 'file' && orphans.includes(s.selected.id) ? null : s.selected,
+        ...(refGone ? { reference: null, view: { ...next.view!, deltaVsReference: false } } : {}),
+      };
     }),
   openDialog: (dialog) => set({ dialog }),
   closeDialog: () => set({ dialog: null }),
@@ -568,9 +600,22 @@ export const useStore = create<State>()((rawSet, get) => {
 
   updateView: (partial) => set((state) => (sameValues(state.view, partial) ? state : { view: { ...state.view, ...partial } })),
 
-  // A transient info message (a copy) must not take the "Show errors" button away from a failed load.
   setLoadMessage: (message, tone = 'warn') =>
     set((s) => ({ loadMessage: message, loadTone: tone, loadSeq: s.loadSeq + 1, ...(tone === 'info' && message !== null ? {} : { loadFailed: 0 }) })),
+
+  // A copy has its own line and fade: the standing load status (and its "Show errors" button) is not touched.
+  setCopyNote: (message) => {
+    if (copyTimer !== undefined) clearTimeout(copyTimer);
+    copyTimer = undefined;
+    set((s) => ({ copyNote: message, copySeq: s.copySeq + 1 }));
+    if (message !== null) {
+      const seq = useStore.getState().copySeq;
+      copyTimer = setTimeout(() => {
+        copyTimer = undefined;
+        if (useStore.getState().copySeq === seq) useStore.setState({ copyNote: null });
+      }, COPY_NOTE_MS);
+    }
+  },
 
   updateSimulation: (partial) =>
     set((state) => {

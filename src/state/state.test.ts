@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
-import { initialState, useStore, clampSim } from './store';
+import { COPY_NOTE_MS, initialState, useStore, clampSim } from './store';
 import { groupPatterns, selectErrors, selectTagged, selectWarnings, selectInstances, buildPanelGroups, instanceIds, instanceName, warningsFor } from './selectors';
-import { changesSession, clearNeedsConfirm, isDirty, markOf, stableStringify } from './undo';
+import { changesSession, clearNeedsConfirm, isDirty, markOf, stableStringify, takeSnapshot } from './undo';
 import { parseProject, serializeProject } from './project';
 import { DEFAULT_HEADERS, planetText, points } from '../test/planetText';
 
@@ -1292,22 +1292,42 @@ describe('opening a project together with its pattern files', () => {
 });
 
 describe('the status line after a copy', () => {
-  beforeEach(() => useStore.setState(initialState()));
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useStore.setState(initialState());
+  });
+  afterEach(() => vi.useRealTimers());
 
-  it('counts every message, so an identical one is a change the status region and its fade timer see', () => {
-    const a = useStore.getState().loadSeq;
-    useStore.getState().setLoadMessage('Copied 65.0', 'info');
-    const b = useStore.getState().loadSeq;
-    useStore.getState().setLoadMessage('Copied 65.0', 'info');
+  it('counts every copy note, so an identical one is a change the status region sees and the fade restarts', () => {
+    const a = useStore.getState().copySeq;
+    useStore.getState().setCopyNote('Copied 65.0');
+    const b = useStore.getState().copySeq;
+    vi.advanceTimersByTime(COPY_NOTE_MS - 1000);
+    useStore.getState().setCopyNote('Copied 65.0');
     expect(b).toBeGreaterThan(a);
-    expect(useStore.getState().loadSeq).toBeGreaterThan(b);
+    expect(useStore.getState().copySeq).toBeGreaterThan(b);
+    vi.advanceTimersByTime(COPY_NOTE_MS - 1000);
+    expect(useStore.getState().copyNote).toBe('Copied 65.0'); // the first timer did not clear the second note
+    vi.advanceTimersByTime(1000);
+    expect(useStore.getState().copyNote).toBeNull();
   });
 
-  it('keeps the "Show errors" count of a failed load when an info message (a copy) replaces its line', () => {
+  it('keeps a failed load warning, its tone and its "Show errors" count through a copy and its fade', () => {
     useStore.setState({ loadFailed: 2, loadMessage: '2 files could not be read', loadTone: 'warn' });
-    useStore.getState().setLoadMessage('Copied 65.0', 'info');
+    useStore.getState().setCopyNote('Copied 65.0');
+    expect(useStore.getState().copyNote).toBe('Copied 65.0');
+    vi.advanceTimersByTime(COPY_NOTE_MS + 1);
+    expect(useStore.getState().copyNote).toBeNull();
+    expect(useStore.getState().loadMessage).toBe('2 files could not be read');
+    expect(useStore.getState().loadTone).toBe('warn');
     expect(useStore.getState().loadFailed).toBe(2);
-    useStore.getState().setLoadMessage('Could not save the project');
-    expect(useStore.getState().loadFailed).toBe(0);
+  });
+
+  it('is not part of the undo snapshot or the unsaved-work comparison', () => {
+    useStore.getState().addFiles([input('a.MSI', msi(1800))]);
+    useStore.getState().markSaved();
+    useStore.getState().setCopyNote('Copied 65.0');
+    expect(isDirty(useStore.getState())).toBe(false);
+    expect(Object.keys(takeSnapshot(useStore.getState()))).not.toContain('copyNote');
   });
 });

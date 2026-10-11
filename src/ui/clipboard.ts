@@ -46,8 +46,8 @@ export const copiedRows = (n: number): string => `Copied ${n} row${n === 1 ? '' 
 export async function copyAndAnnounce(
   text: string,
   success: string,
-  announce: (message: string, tone: 'info' | 'warn') => void,
+  announce: (message: string) => void,
 ): Promise<void> {
   const ok = await copyText(text);
-  announce(ok ? success : 'Could not copy to the clipboard', ok ? 'info' : 'warn');
+  announce(ok ? success : 'Could not copy to the clipboard');
 }

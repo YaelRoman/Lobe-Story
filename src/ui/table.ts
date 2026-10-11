@@ -498,7 +498,7 @@ export function rowCell(r: MetricsRow, key: MetricColumn): { text: string; title
 
 /** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */
 const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false): string =>
-  deltaVs === undefined ? `${label} (${unit})` : `${label} Δ vs ${deltaVs}${tilted ? ', tilted values' : ''} (${unit})`;
+  deltaVs === undefined ? `${label} (${unit})` : `${label} Δ vs ${deltaVs}${tilted && label !== 'Gain' ? ', tilted values' : ''} (${unit})`;
 
 /** The "Row" column of the difference view's exports: which row is the baseline, so a "Δ vs …" column can be filtered. */
 const rowRole = (r: MetricsRow): string => (r.isReference ? 'reference' : 'difference');
