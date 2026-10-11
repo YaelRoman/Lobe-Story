@@ -164,3 +164,44 @@ test('saves a project and opens it again', async ({ page }) => {
   await page.getByRole('dialog').getByRole('button', { name: 'Replace' }).click();
   await expect(panel.getByText('Site 1', { exact: true })).toBeVisible();
 });
+
+test('legends never cover axis titles or squeeze the plot', async ({ page }) => {
+  await page.goto('/');
+  const files = Array.from({ length: 12 }, (_, i) => {
+    const f = 1700 + i * 10;
+    return file(`_${f}_X_CO_P45_08T_Y2.MSI`, msi(f));
+  });
+  await page.getByTestId('file-input').setInputFiles(files);
+  await page.getByRole('checkbox', { name: /Show all in/ }).first().check();
+  await page.getByRole('button', { name: 'Rectangular' }).click();
+
+  const box = async (loc: import('@playwright/test').Locator) => {
+    await expect(loc.first()).toBeVisible();
+    const b = await loc.first().boundingBox();
+    if (!b) throw new Error('element has no bounding box');
+    return b;
+  };
+  const apart = (a: { y: number; height: number }, b: { y: number; height: number }) =>
+    a.y + a.height <= b.y + 0.5 || b.y + b.height <= a.y + 0.5;
+
+  for (const [id, title] of [
+    ['plot-h', '.xtitle'],
+    ['plot-hpbw', '.xtitle'],
+  ] as const) {
+    const plot = page.getByTestId(id);
+    await expect(plot.locator('.legend')).toBeVisible();
+    const card = await box(plot);
+    const legend = await box(plot.locator('.legend'));
+    const xtitle = await box(plot.locator(title));
+    expect(apart(xtitle, legend), `${id}: x-axis title vs legend`).toBe(true);
+    // Plot area = span of all subplot backgrounds (the HPBW chart stacks two).
+    const bgs = await plot.locator('.bglayer .bg').evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        return [r.top, r.bottom];
+      }),
+    );
+    const span = Math.max(...bgs.map((b) => b[1])) - Math.min(...bgs.map((b) => b[0]));
+    expect(span / card.height, `${id}: plot area share`).toBeGreaterThanOrEqual(0.55);
+  }
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PlotData, Shape } from 'plotly.js';
+import type { Legend, PlotData, Shape } from 'plotly.js';
 import { buildCutFigure, type CutFigureOptions, type PlotSeries } from './cutFigure';
 import { buildHpbwFigure } from './hpbwFigure';
 import { colorMap, PALETTE } from './colors';
@@ -370,5 +370,29 @@ describe('colorMap', () => {
     const ids = Array.from({ length: PALETTE.length }, (_, i) => `f${i}`);
     const m = colorMap(ids);
     expect(new Set(m.values()).size).toBe(PALETTE.length);
+  });
+});
+
+describe('legend placement', () => {
+  const expectBottomLegend = (legend: (Partial<Legend> & { maxheight?: number }) | undefined) => {
+    expect(legend?.yref).toBe('container');
+    expect(legend?.y).toBe(0);
+    expect(legend?.yanchor).toBe('bottom');
+    expect(legend?.orientation).toBe('h');
+    expect(legend?.maxheight).toBeGreaterThan(0);
+    expect(legend?.maxheight).toBeLessThanOrEqual(0.25);
+  };
+
+  it('keeps the cut legend below the axis title in both modes and caps its height', () => {
+    const rect = buildCutFigure(opts({ mode: 'rect' }));
+    expectBottomLegend(rect.layout.legend);
+    expect(rect.layout.xaxis?.automargin).toBe(true);
+    expectBottomLegend(buildCutFigure(opts({ mode: 'polar' })).layout.legend);
+  });
+
+  it('keeps the HPBW legend below the frequency title and caps its height', () => {
+    const f = buildHpbwFigure([{ label: 'a', color: '#123456', points: [{ freq: 1800, h: 65, v: 8 }] }], FIGURE_THEMES.light);
+    expectBottomLegend(f.layout.legend);
+    expect(f.layout.xaxis?.automargin).toBe(true);
   });
 });

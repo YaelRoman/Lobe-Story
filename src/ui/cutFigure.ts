@@ -5,7 +5,7 @@ import { signed } from '../core/analysis/grid';
 import type { LobeResult } from '../core/analysis/sidelobes';
 import { DU_LEVELS } from '../core/analysis/sector';
 import type { MarkerKey, PlotMode } from '../state/store';
-import type { Figure, FigureTheme } from './figureTheme';
+import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
 
 export interface PlotSeries {
   id: string;
@@ -298,7 +298,7 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
     font: { color: o.theme.fg },
     margin: { l: 50, r: 30, t: 50, b: 40 },
     showlegend: true,
-    legend: { orientation: 'h', y: -0.12 },
+    legend: LEGEND,
   };
 
   if (o.mode === 'polar') {
@@ -336,7 +336,7 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
       ...base,
       hovermode: 'x unified',
       shapes: rect.shapes,
-      xaxis: { range: [-180, 180], dtick: 30, title: { text: 'Angle (°)' }, gridcolor: o.theme.grid, zeroline: false },
+      xaxis: { range: [-180, 180], dtick: 30, automargin: true, title: { text: 'Angle (°)', standoff: 8 }, gridcolor: o.theme.grid, zeroline: false },
       yaxis: { range: [-o.floorDb, top], dtick: 10, title: { text: 'Relative level (dB)' }, gridcolor: o.theme.grid },
     },
   };

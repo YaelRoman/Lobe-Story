@@ -1,5 +1,5 @@
 import type { Data, PlotData } from 'plotly.js';
-import type { Figure, FigureTheme } from './figureTheme';
+import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
 
 export interface HpbwPoint {
   freq: number;
@@ -42,8 +42,8 @@ export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme): Figur
       plot_bgcolor: 'rgba(0,0,0,0)',
       font: { color: theme.fg },
       margin: { l: 60, r: 20, t: 20, b: 50 },
-      legend: { orientation: 'h', y: -0.2 },
-      xaxis: { title: { text: 'Frequency (MHz)' }, gridcolor: theme.grid, anchor: 'y2' },
+      legend: LEGEND,
+      xaxis: { automargin: true, title: { text: 'Frequency (MHz)', standoff: 8 }, gridcolor: theme.grid, anchor: 'y2' },
       yaxis: { title: { text: 'H-HPBW (°)' }, domain: [0.55, 1], gridcolor: theme.grid },
       yaxis2: { title: { text: 'V-HPBW (°)' }, domain: [0, 0.45], gridcolor: theme.grid },
     },
