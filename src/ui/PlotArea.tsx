@@ -46,6 +46,7 @@ function CutPlot({ id, figure, readout, target, traces }: CutPlotProps) {
         className="plot"
         figure={figure}
         testId={`plot-${id}`}
+        ariaLabel={`${id === 'h' ? 'Horizontal' : 'Vertical'} cut of the highlighted and visible patterns`}
         labelledExport={{ caption: target ? { file: target, items: readout } : undefined }}
       />
       <div className="readout" data-testid={`readout-${id}`}>

@@ -69,7 +69,7 @@ export function Pattern3D({
         ); an estimate, not measured data.
         {layout === 'grid' && items.length > MAX_3D ? ` Showing the first ${MAX_3D} of ${items.length}.` : ''}
       </p>
-      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" />
+      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" ariaLabel="3D radiation pattern" />
     </>
   );
 }

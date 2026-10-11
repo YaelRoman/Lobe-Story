@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from '../state/store';
 import { fullTags, warningsFor, type ErrorEntry, type GroupView } from '../state/selectors';
 import { UNGROUPED } from '../core/grouping';
@@ -7,11 +7,22 @@ import { TagEditor } from './TagEditor';
 import { offsetLabel } from './table';
 import { confirmDialog, promptDialog } from './dialogs';
 import { neighbourOrder } from './undoKeys';
+import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 
 const DRAG_TYPE = 'text/x-pattern-id';
 
-/** Closes the <details> menu that contains `el`. */
-const closeMenu = (el: HTMLElement) => el.closest('details')?.removeAttribute('open');
+/** Closes the <details> menu that contains `el` and puts the focus back on its trigger. */
+const closeMenu = (el: HTMLElement) => {
+  const menu = el.closest('details');
+  menu?.removeAttribute('open');
+  menu?.querySelector('summary')?.focus();
+};
+
+/** Up/Down/Home/End move between the items of an open menu. */
+const onMenuKeys = (e: KeyboardEvent<HTMLElement>) => {
+  const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+  moveFocus(e, items, document.activeElement as HTMLElement | null);
+};
 
 interface Props {
   groups: GroupView[];
@@ -25,11 +36,14 @@ function NameEditor({
   label,
   onSave,
   onCancel,
+  onKeyClose,
 }: {
   initial: string;
   label: string;
   onSave: (name: string) => void;
   onCancel: () => void;
+  /** Called when Enter or Esc closes the editor (not when a click elsewhere does), to put the focus back. */
+  onKeyClose: () => void;
 }) {
   const [text, setText] = useState(initial);
   return (
@@ -42,6 +56,7 @@ function NameEditor({
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === 'Escape') onKeyClose();
         if (e.key === 'Enter') onSave(text);
         if (e.key === 'Escape') onCancel();
       }}
@@ -56,10 +71,12 @@ function FileMenu({
   inCustom,
   onRename,
   beforeRemove,
+  tabIndex,
 }: {
   id: string;
   name: string;
   inCustom: boolean;
+  tabIndex?: number;
   onRename: () => void;
   /** Called just before the row is removed, so the panel can move the focus to a neighbour. */
   beforeRemove: () => void;
@@ -74,10 +91,10 @@ function FileMenu({
 
   return (
     <details className="menu" onClick={(e) => e.stopPropagation()}>
-      <summary aria-label={`Actions for ${name}`} data-focus-target>
+      <summary aria-label={`Actions for ${name}`} aria-haspopup="menu" tabIndex={tabIndex} data-focus-target>
         ⋯
       </summary>
-      <div className="menu-items" role="menu">
+      <div className="menu-items" role="menu" onKeyDown={onMenuKeys}>
         <button
           role="menuitem"
           onClick={(e) => {
@@ -177,9 +194,11 @@ function GroupMenu({
   name,
   onRename,
   beforeDelete,
+  tabIndex,
 }: {
   id: string;
   name: string;
+  tabIndex?: number;
   onRename: () => void;
   beforeDelete: () => void;
 }) {
@@ -187,10 +206,10 @@ function GroupMenu({
   const deleteGroup = useStore((s) => s.deleteGroup);
   return (
     <details className="menu" onClick={(e) => e.stopPropagation()}>
-      <summary aria-label={`Actions for group ${name}`} data-focus-target>
+      <summary aria-label={`Actions for group ${name}`} aria-haspopup="menu" tabIndex={tabIndex} data-focus-target>
         ⋯
       </summary>
-      <div className="menu-items" role="menu">
+      <div className="menu-items" role="menu" onKeyDown={onMenuKeys}>
         <button
           role="menuitem"
           onClick={(e) => {
@@ -242,6 +261,17 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   const [editing, setEditing] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
+  // The one row (or group header) that is a tab stop; the arrow keys move it (roving tabindex).
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const navKeys = groups.flatMap((g) => [`group:${g.key}`, ...g.items.map((i) => `file:${i.pattern.id}`)]);
+  const stop = tabStopKey(navKeys, activeKey);
+  /** tabIndex of the secondary controls of the row `key`: reachable by Tab only on the row that is the tab stop. */
+  const subTab = (key: string): number | undefined => (key === stop ? undefined : -1);
+  // Set just before a control is replaced by an editor: where the focus returns once the editor closes.
+  const returnTo = useRef<{ key: string; selector: string } | null>(null);
+  const returnFocus = (key: string, selector: string) => {
+    returnTo.current = { key, selector };
+  };
   // Set just before a row, an error or a group is removed: the keys of its neighbours, nearest first.
   const focusNext = useRef<string[] | null>(null);
 
@@ -257,8 +287,14 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   // After a removal the focused control is gone and the browser would drop the focus on <body>.
   // Move it to the nearest neighbour that is still there, else to the panel itself.
   useEffect(() => {
-    const wanted = focusNext.current;
     const panel = panelRef.current;
+    const back = returnTo.current;
+    if (back && panel) {
+      returnTo.current = null;
+      const holder = Array.from(panel.querySelectorAll<HTMLElement>('[data-focus-key]')).find((el) => el.dataset.focusKey === back.key);
+      holder?.querySelector<HTMLElement>(back.selector)?.focus();
+    }
+    const wanted = focusNext.current;
     if (!wanted || !panel) return;
     focusNext.current = null;
     const present = new Map(
@@ -287,12 +323,18 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
       });
     };
     const onDocClick = () => closeAll();
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeAll();
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Esc in an open menu hands the focus back to the button that opened it.
+      const open = document.activeElement?.closest('details.menu[open]');
+      closeAll();
+      if (open && root.contains(open)) open.querySelector('summary')?.focus();
     };
     const onToggle = (e: Event) => {
       const d = e.target as HTMLDetailsElement;
-      if (d.open) closeAll(d);
+      if (!d.open) return;
+      closeAll(d);
+      d.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     };
     document.addEventListener('click', onDocClick);
     document.addEventListener('keydown', onKeyDown);
@@ -304,8 +346,25 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
     };
   }, []);
 
+  // Up/Down/Home/End move between the rows and group headers (the elements marked `data-nav`).
+  const onPanelKeys = (e: KeyboardEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement;
+    if (!target.hasAttribute('data-nav')) return;
+    moveFocus(e, Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-nav]')), target);
+  };
+
   return (
-    <aside className="panel" aria-label="Files and groups" ref={panelRef} tabIndex={-1}>
+    <aside
+      className="panel"
+      aria-label="Files and groups"
+      ref={panelRef}
+      tabIndex={-1}
+      onKeyDown={onPanelKeys}
+      onFocus={(e) => {
+        const key = (e.target as HTMLElement).closest<HTMLElement>('[data-focus-key]')?.dataset.focusKey;
+        if (key && navKeys.includes(key)) setActiveKey(key);
+      }}
+    >
       {errors.length > 0 && (
         <section className="group errors" data-testid="panel-errors" tabIndex={-1} aria-label="Files that could not be loaded">
           <header>
@@ -367,6 +426,9 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                 type="checkbox"
                 aria-label={`Show all in ${g.label}`}
                 data-focus-target={custom ? undefined : true}
+                // A group made from tags has no name button: its checkbox is the header's list entry.
+                data-nav={custom ? undefined : true}
+                tabIndex={custom ? subTab(`group:${g.key}`) : stop === `group:${g.key}` ? 0 : -1}
                 checked={ids.length > 0 && ids.every((id) => visible[id])}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => setVisible(ids, e.target.checked)}
@@ -380,9 +442,26 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                     setRenaming(null);
                   }}
                   onCancel={() => setRenaming(null)}
+                  onKeyClose={() => returnFocus(`group:${g.key}`, '[data-nav]')}
                 />
+              ) : custom ? (
+                <button
+                  type="button"
+                  className="row-main group-main"
+                  data-nav
+                  tabIndex={stop === `group:${g.key}` ? 0 : -1}
+                  aria-current={isSelected || undefined}
+                  title="Enter: select group · Space: show or hide all · Up/Down: next row"
+                  onDoubleClick={() => setRenaming(`group:${custom}`)}
+                  {...onSpace(() => {
+                    const all = ids.length > 0 && ids.every((id) => visible[id]);
+                    setVisible(ids, !all);
+                  })}
+                >
+                  {g.label}
+                </button>
               ) : (
-                <span onDoubleClick={custom ? () => setRenaming(`group:${custom}`) : undefined}>{g.label}</span>
+                <span>{g.label}</span>
               )}
               <span className="count">{ids.length}</span>
               {custom && groupOffsets[custom] && (
@@ -399,6 +478,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                   id={custom}
                   name={g.label}
                   onRename={() => setRenaming(`group:${custom}`)}
+                  tabIndex={subTab(`group:${g.key}`)}
                   beforeDelete={() => planFocus(`group:${g.key}`)}
                 />
               )}
@@ -420,26 +500,42 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                     <input
                       type="checkbox"
                       aria-label={`Show ${name}`}
+                      tabIndex={subTab(`file:${id}`)}
                       checked={!!visible[id]}
                       onClick={(e) => e.stopPropagation()}
                       onChange={() => toggleVisible(id)}
                     />
-                    <span className="swatch" style={{ background: colors.get(id) ?? 'transparent' }} />
-                    <span>{pattern.frequencyMHz} MHz</span>
                     {renaming === id ? (
-                      <NameEditor
-                        initial={name}
-                        label={`Name for ${name}`}
-                        onSave={(n) => {
-                          rename(id, n);
-                          setRenaming(null);
-                        }}
-                        onCancel={() => setRenaming(null)}
-                      />
+                      <>
+                        <span className="swatch" style={{ background: colors.get(id) ?? 'transparent' }} />
+                        <span>{pattern.frequencyMHz} MHz</span>
+                        <NameEditor
+                          initial={name}
+                          label={`Name for ${name}`}
+                          onSave={(n) => {
+                            rename(id, n);
+                            setRenaming(null);
+                          }}
+                          onCancel={() => setRenaming(null)}
+                          onKeyClose={() => returnFocus(`file:${id}`, '[data-nav]')}
+                        />
+                      </>
                     ) : (
-                      <span className="fname" title={pattern.fileName}>
-                        {name}
-                      </span>
+                      <button
+                        type="button"
+                        className="row-main"
+                        data-nav
+                        tabIndex={stop === `file:${id}` ? 0 : -1}
+                        aria-current={highlighted === id || undefined}
+                        title="Enter: highlight · Space: show or hide · Up/Down: next row"
+                        {...onSpace(() => toggleVisible(id))}
+                      >
+                        <span className="swatch" style={{ background: colors.get(id) ?? 'transparent' }} />
+                        <span>{pattern.frequencyMHz} MHz</span>
+                        <span className="fname" title={pattern.fileName}>
+                          {name}
+                        </span>
+                      </button>
                     )}
                     {copies[id] && <span className="copy-tag">copy</span>}
                     {warn && (
@@ -458,6 +554,9 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                     )}
                     <button
                       aria-label={`Edit tags of ${name}`}
+                      aria-expanded={editing === id}
+                      data-edit-tags
+                      tabIndex={subTab(`file:${id}`)}
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditing(editing === id ? null : id);
@@ -469,6 +568,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                       id={id}
                       name={name}
                       inCustom={!!custom}
+                      tabIndex={subTab(`file:${id}`)}
                       onRename={() => setRenaming(id)}
                       beforeRemove={() => planFocus(`file:${id}`)}
                     />
@@ -478,8 +578,12 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                         onSave={(t) => {
                           setTags(id, t);
                           setEditing(null);
+                          returnFocus(`file:${id}`, '[data-edit-tags]');
                         }}
-                        onCancel={() => setEditing(null)}
+                        onCancel={() => {
+                          setEditing(null);
+                          returnFocus(`file:${id}`, '[data-edit-tags]');
+                        }}
                       />
                     )}
                   </li>

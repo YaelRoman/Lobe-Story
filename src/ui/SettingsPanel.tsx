@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useStore } from '../state/store';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import { clampFloor, clampSetting, FLOOR_LIMITS, SETTING_LIMITS } from '../core/analysis/settingLimits';
@@ -75,14 +75,43 @@ function NumberField({
   );
 }
 
-export function SettingsPanel() {
+/**
+ * `onClose(true)`: closed from the keyboard (Esc), so the focus goes back to the Settings button;
+ * `onClose(false)`: the user moved on (a click or Tab elsewhere), so the focus stays where they put it.
+ */
+export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boolean) => void; opener: RefObject<HTMLElement | null> }) {
+  const ref = useRef<HTMLDivElement>(null);
   const settings = useStore((s) => s.settings);
   const floorDb = useStore((s) => s.view.floorDb);
   const updateSettings = useStore((s) => s.updateSettings);
   const updateView = useStore((s) => s.updateView);
 
+  // The panel takes the focus when it opens and closes when the user clicks outside it.
+  useEffect(() => {
+    ref.current?.querySelector('input')?.focus();
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!ref.current?.contains(t) && !opener.current?.contains(t) && !useStore.getState().dialog) onClose(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [onClose, opener]);
+
   return (
-    <div className="settings" role="dialog" aria-label="Analysis settings">
+    <div
+      className="settings"
+      role="dialog"
+      aria-label="Analysis settings"
+      ref={ref}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && !useStore.getState().dialog) onClose(true);
+      }}
+      onBlur={(e) => {
+        // Tab (or a programmatic move) to something outside the panel and its button closes it.
+        const to = e.relatedTarget as Node | null;
+        if (to && !ref.current?.contains(to) && !opener.current?.contains(to)) onClose(false);
+      }}
+    >
       {FIELDS.map((f) => (
         <NumberField
           key={f.key}

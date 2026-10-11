@@ -52,7 +52,7 @@ export const HpbwChart = memo(function HpbwChart({
         HPBW vs frequency (groups with a visible file; hollow markers = declared)
         {sim.tiltActive ? ' — faint lines = original' : ''}
       </h2>
-      <PlotlyChart className="plot wide" figure={figure} testId="plot-hpbw" />
+      <PlotlyChart className="plot wide" figure={figure} testId="plot-hpbw" ariaLabel="Half-power beamwidth against frequency, one line per group" />
     </section>
   );
 });

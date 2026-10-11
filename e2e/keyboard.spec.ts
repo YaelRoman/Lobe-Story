@@ -1,0 +1,217 @@
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { planetText } from '../src/test/planetText';
+
+const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
+const msi = (freq: number) =>
+  planetText({ headers: ['NAME A', `FREQUENCY ${freq}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] });
+
+/** Presses Tab (or Shift+Tab) until `target` has the focus; fails when it is not reached in `max` presses. */
+async function tabTo(page: Page, target: Locator, max = 80, key = 'Tab'): Promise<number> {
+  for (let n = 1; n <= max; n++) {
+    await page.keyboard.press(key);
+    if (await target.evaluate((el) => el === document.activeElement)) return n;
+  }
+  throw new Error(`not reached in ${max} presses of ${key}`);
+}
+
+const FILES = ['a.msi', 'b.msi', 'c.msi'];
+async function load(page: Page) {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles(FILES.map((n, i) => file(n, msi(1800 + 100 * i))));
+  await expect(page.locator('.panel li')).toHaveCount(3);
+  // Start from a known place: after a file chooser upload the browser keeps no focus position.
+  await page.getByRole('button', { name: 'Clear', exact: true }).focus();
+}
+
+test('the file list is one tab stop; arrows, Enter and Space work the rows', async ({ page }) => {
+  await load(page);
+  const panel = page.locator('.panel');
+  const rowButton = (name: string) => panel.locator('li', { hasText: name }).locator('[data-nav]');
+
+  // Entering the panel by Tab lands on its first list entry; Tab again leaves the list's other rows alone.
+  const first = panel.locator('[data-nav]').first();
+  await tabTo(page, first);
+  await page.keyboard.press('ArrowDown');
+  await expect(rowButton('a.msi')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(rowButton('b.msi')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await expect(rowButton('c.msi')).toBeFocused(); // stops at the end
+  await page.keyboard.press('Home');
+  await expect(first).toBeFocused();
+
+  // Count the tab stops inside the panel: the current row's own controls, not three per file.
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown'); // b.msi
+  const stops = await panel.evaluate((el) =>
+    Array.from(el.querySelectorAll<HTMLElement>('input, button, summary')).filter((n) => n.tabIndex >= 0 && n.checkVisibility()).length,
+  );
+  expect(stops).toBe(4); // the row button, the checkbox, ✎ and ⋯ of b.msi
+
+  // Enter highlights the row; Space shows or hides it without highlighting.
+  await page.keyboard.press('Enter');
+  await expect(panel.locator('li.hl')).toContainText('b.msi');
+  await expect(rowButton('b.msi')).toHaveAttribute('aria-current', 'true');
+  const box = panel.getByRole('checkbox', { name: 'Show b.msi' });
+  const before = await box.isChecked();
+  await page.keyboard.press(' ');
+  expect(await box.isChecked()).toBe(!before);
+  await page.keyboard.press(' ');
+  expect(await box.isChecked()).toBe(before);
+  await expect(rowButton('b.msi')).toBeFocused();
+
+  // The metrics table is the same: one tab stop, arrows, Enter highlights.
+  const rows = page.locator('.metrics tbody [data-nav]');
+  const n = await tabTo(page, rows.first(), 300);
+  expect(n).toBeLessThan(120);
+  await page.keyboard.press('ArrowDown');
+  await expect(rows.nth(1)).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.metrics tbody tr.hl')).toHaveCount(1);
+  await expect(rows.nth(1)).toHaveAttribute('aria-current', 'true');
+  await expect(panel.locator('li.hl')).toContainText('b.msi');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(panel.locator('li.hl')).toContainText('c.msi');
+});
+
+test('keyboard only: load, highlight the second file, set an offset, export CSV', async ({ page }) => {
+  await load(page);
+  const panel = page.locator('.panel');
+  await tabTo(page, panel.locator('[data-nav]').first());
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(panel.locator('li.hl')).toContainText('b.msi');
+
+  const azimuth = page.getByLabel('Azimuth offset (°) value');
+  await tabTo(page, azimuth);
+  await page.keyboard.type('15');
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Offsets: az +15°')).toBeVisible();
+
+  await tabTo(page, page.getByRole('button', { name: 'Export CSV' }));
+  const download = page.waitForEvent('download');
+  await page.keyboard.press('Enter');
+  expect((await download).suggestedFilename()).toBe('pattern-metrics.csv');
+});
+
+test('menu and tag editor open from the keyboard and Esc returns the focus', async ({ page }) => {
+  await load(page);
+  const panel = page.locator('.panel');
+  await tabTo(page, panel.locator('[data-nav]').first());
+  await page.keyboard.press('ArrowDown'); // a.msi
+  const tags = panel.getByLabel('Edit tags of a.msi');
+  const menu = panel.getByLabel('Actions for a.msi');
+
+  await page.keyboard.press('Tab');
+  await expect(tags).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(panel.getByLabel('Polarization')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(panel.getByLabel('Polarization')).toHaveCount(0);
+  await expect(tags).toBeFocused();
+
+  await page.keyboard.press('Tab');
+  await expect(menu).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('menuitem', { name: 'Duplicate' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitem', { name: 'Rename…' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menuitem', { name: 'Rename…' })).toBeHidden();
+  await expect(menu).toBeFocused();
+
+  // Rename from the menu with the keyboard: the focus comes back to the row afterwards.
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('menuitem', { name: 'Duplicate' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await page.getByLabel('Name for a.msi').fill('Renamed');
+  await page.keyboard.press('Enter');
+  await expect(panel.locator('li', { hasText: 'Renamed' }).locator('[data-nav]')).toBeFocused();
+});
+
+test('a custom group header is selectable from the keyboard', async ({ page }) => {
+  await load(page);
+  const panel = page.locator('.panel');
+  await panel.getByLabel('Actions for a.msi').click();
+  await page.getByRole('menuitem', { name: 'Move to new group…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Name of the new group' });
+  await dialog.getByRole('textbox').fill('North');
+  await page.keyboard.press('Enter');
+  const header = panel.getByRole('button', { name: 'North' });
+  await expect(header).toBeVisible();
+
+  await header.focus();
+  await page.keyboard.press('Enter');
+  await expect(header).toHaveAttribute('aria-current', 'true');
+  await expect(page.getByRole('group', { name: 'Per-file and group offsets' })).toContainText('North');
+  await page.keyboard.press('ArrowDown');
+  await expect(panel.locator('li', { hasText: 'a.msi' }).locator('[data-nav]')).toBeFocused();
+});
+
+test('a dialog traps Tab, closes on Esc and gives the focus back to its opener', async ({ page }) => {
+  await load(page);
+  const clear = page.getByRole('button', { name: 'Clear', exact: true });
+  const menu = page.locator('.panel').getByLabel('Actions for b.msi');
+  await menu.focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('menuitem', { name: 'Create site…' }).focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Number of sectors (2–12)' });
+  const input = dialog.getByRole('textbox');
+  await expect(input).toBeFocused();
+  const seen = new Set<string>();
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press('Tab');
+    seen.add(await page.evaluate(() => (document.activeElement as HTMLElement).closest('.dialog') ? (document.activeElement?.tagName ?? '') : 'OUTSIDE'));
+  }
+  expect(seen.has('OUTSIDE')).toBe(false);
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Shift+Tab');
+  expect(await page.evaluate(() => !!document.activeElement?.closest('.dialog'))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(menu).toBeFocused();
+
+  // A confirm opened from the toolbar (Clear asks once a name or an offset was changed) returns to its button.
+  await page.getByLabel('Azimuth offset (°) value').fill('10');
+  await page.getByLabel('Azimuth offset (°) value').press('Enter');
+  await clear.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(clear).toBeFocused();
+});
+
+test('Settings takes focus, closes on Esc and returns the focus', async ({ page }) => {
+  await page.goto('/');
+  const button = page.getByRole('button', { name: 'Settings' });
+  await button.focus();
+  await page.keyboard.press('Enter');
+  const settings = page.getByRole('dialog', { name: 'Analysis settings' });
+  await expect(settings.locator('input').first()).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(settings).toHaveCount(0);
+  await expect(button).toBeFocused();
+
+  // A click elsewhere closes it too.
+  await button.click();
+  await expect(settings).toBeVisible();
+  await page.locator('h1').click();
+  await expect(settings).toHaveCount(0);
+});
+
+test('the Open buttons show a focus ring and open the file chooser from the keyboard', async ({ page }) => {
+  await page.goto('/');
+  const open = page.locator('label.button', { hasText: 'Open files' });
+  await tabTo(page, page.getByTestId('file-input'));
+  const outline = await open.evaluate((el) => getComputedStyle(el).outlineStyle);
+  expect(outline).toBe('solid');
+  const chooser = page.waitForEvent('filechooser');
+  await page.keyboard.press('Enter');
+  expect((await chooser).isMultiple()).toBe(true);
+});

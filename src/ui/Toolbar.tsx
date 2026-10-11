@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { inputsFromFileList } from '../state/files';
 import { serializeProject } from '../state/project';
@@ -17,6 +17,11 @@ export function Toolbar() {
   const hasSessionState = useStore((s) => s.files.length > 0 || s.pendingFiles.length > 0);
   const setLoadMessage = useStore((s) => s.setLoadMessage);
   const [showSettings, setShowSettings] = useState(false);
+  const settingsButton = useRef<HTMLButtonElement>(null);
+  const closeSettings = useCallback((restoreFocus: boolean) => {
+    setShowSettings(false);
+    if (restoreFocus) settingsButton.current?.focus();
+  }, []);
 
   const onPick = async (input: HTMLInputElement) => {
     try {
@@ -111,16 +116,17 @@ export function Toolbar() {
         ))}
       </div>
       <button
-        aria-label="Toggle dark mode"
+        aria-label="Dark mode"
+        aria-pressed={theme === 'dark'}
         onClick={() => updateView({ theme: theme === 'dark' ? 'light' : 'dark' })}
       >
         {theme === 'dark' ? '☀' : '☾'}
       </button>
-      <button aria-expanded={showSettings} onClick={() => setShowSettings((v) => !v)}>
+      <button ref={settingsButton} aria-expanded={showSettings} aria-haspopup="dialog" onClick={() => setShowSettings((v) => !v)}>
         Settings
       </button>
       {hasSessionState && <button onClick={() => void onClear()}>Clear</button>}
-      {showSettings && <SettingsPanel />}
+      {showSettings && <SettingsPanel onClose={closeSettings} opener={settingsButton} />}
     </header>
   );
 }

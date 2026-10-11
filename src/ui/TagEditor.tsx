@@ -19,9 +19,17 @@ export function TagEditor({ tags, onSave, onCancel }: { tags: Tags; onSave: (t: 
   };
 
   return (
-    <form className="tag-editor" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
+    <form
+      className="tag-editor"
+      aria-label="Tags"
+      onSubmit={submit}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onCancel();
+      }}
+    >
       <label htmlFor="tag-pol">Polarization</label>
-      <input id="tag-pol" type="text" value={pol} placeholder="+45 / -45" onChange={(e) => setPol(e.target.value)} />
+      <input id="tag-pol" type="text" autoFocus value={pol} placeholder="+45 / -45" onChange={(e) => setPol(e.target.value)} />
       <label htmlFor="tag-tilt">Tilt (°)</label>
       <input id="tag-tilt" type="text" inputMode="decimal" value={tilt} onChange={(e) => setTilt(e.target.value)} />
       <label htmlFor="tag-port">Port</label>

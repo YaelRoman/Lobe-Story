@@ -203,7 +203,7 @@ export const BandStats = memo(function BandStats({
       <p className="count band-detail" data-testid="band-detail" aria-live="polite">
         {pickedDetail}
       </p>
-      {figure && <PlotlyChart className="plot wide" figure={figure} testId="plot-band" />}
+      {figure && <PlotlyChart className="plot wide" figure={figure} testId="plot-band" ariaLabel="Band statistics plot" />}
       {anyAdjusted(columns, tiltedColumns) && (
         <p className="count" data-testid="band-adjusted-legend">
           {ADJUSTED_LEGEND}

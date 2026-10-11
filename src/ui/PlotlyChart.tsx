@@ -17,12 +17,14 @@ interface Props {
   figure: Figure;
   className?: string;
   testId?: string;
+  /** The plot's accessible name (the plot itself is a picture for assistive technology). */
+  ariaLabel?: string;
   onRelayout?: RelayoutHandler;
   /** Replaces the modebar's image download by one of a labelled version of the figure (legend on, highlighted file's values). */
   labelledExport?: { caption?: ExportCaption };
 }
 
-export function PlotlyChart({ figure, className, testId, onRelayout, labelledExport }: Props) {
+export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, labelledExport }: Props) {
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +88,7 @@ export function PlotlyChart({ figure, className, testId, onRelayout, labelledExp
   }, []);
 
   return (
-    <div className={className} data-testid={testId} style={{ position: 'relative' }}>
+    <div className={className} data-testid={testId} role={ariaLabel ? 'img' : undefined} aria-label={ariaLabel} style={{ position: 'relative' }}>
       <div ref={ref} style={{ width: '100%', height: '100%' }} />
       {error && (
         <p className="plot-error" role="status">

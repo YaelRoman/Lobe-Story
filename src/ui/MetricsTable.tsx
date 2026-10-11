@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
@@ -7,6 +7,7 @@ import {
   shouldReveal, sortIfShown, sortRows, toCsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
+import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { downloadText } from './download';
 import type { SimulationResult } from './useSimulation';
 
@@ -45,6 +46,8 @@ export const MetricsTable = memo(function MetricsTable({
     if (chosenSort && !sort) setSort(null);
   }, [chosenSort, sort]);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // The one row that is a tab stop; Up/Down move it (roving tabindex).
+  const [activeRow, setActiveRow] = useState<string | null>(null);
   const revealed = useRef<{ id: string | null; sort: SortState | null } | null>(null);
 
   const rows = useMemo(
@@ -73,6 +76,17 @@ export const MetricsTable = memo(function MetricsTable({
     if (top !== wrap.scrollTop) wrap.scrollTop = top;
   }, [highlighted, rows, sort]);
 
+  const stop = tabStopKey(rows.map((r) => r.id), activeRow);
+  const onBodyKeys = (e: KeyboardEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.hasAttribute('data-nav')) moveFocus(e, Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-nav]')), target);
+  };
+  const showRow = (id: string) => {
+    setVisible([id], true);
+    setHighlighted(id);
+  };
+  const toggleRow = (id: string) => setVisible([id], !useStore.getState().visible[id]);
+
   const sortLabel = (key: SortKey): string => {
     const fixed: Partial<Record<SortKey, string>> = { file: 'File', group: 'Group', freq: 'MHz', gain: `Gain (${gainUnit})` };
     const col = columns.find((c) => c.key === key);
@@ -80,7 +94,7 @@ export const MetricsTable = memo(function MetricsTable({
   };
 
   const header = (key: SortKey, content: string, title?: string, className?: string) => (
-    <th key={key} title={title} className={className} aria-sort={ariaSort(sort, key)}>
+    <th key={key} scope="col" title={title} className={className} aria-sort={ariaSort(sort, key)}>
       <button type="button" className="sort-btn" onClick={() => setSort((cur) => nextSort(cur, key))}>
         {content}
         <span className="sort-arrow" aria-hidden="true">
@@ -149,21 +163,35 @@ export const MetricsTable = memo(function MetricsTable({
               )}
             </tr>
           </thead>
-          <tbody>
+          <tbody
+            onKeyDown={onBodyKeys}
+            onFocus={(e) => {
+              const id = (e.target as HTMLElement).closest<HTMLElement>('tr')?.dataset.rowId;
+              if (id) setActiveRow(id);
+            }}
+          >
             {rows.map((r) => (
               <tr
                 key={r.id}
                 data-row-id={r.id}
                 className={r.id === highlighted ? 'hl' : undefined}
-                onClick={() => {
-                  setVisible([r.id], true);
-                  setHighlighted(r.id);
-                }}
+                onClick={() => showRow(r.id)}
               >
                 <td>
-                  <span className="file-cell" title={r.file.length > FILE_NAME_MAX ? `${r.file}\n${r.id}` : r.id}>
+                  <button
+                    type="button"
+                    className="row-main file-cell"
+                    data-nav
+                    tabIndex={stop === r.id ? 0 : -1}
+                    aria-current={r.id === highlighted || undefined}
+                    title={
+                      (r.file.length > FILE_NAME_MAX ? `${r.file}\n${r.id}` : r.id) +
+                      '\nEnter: highlight · Space: show or hide · Up/Down: next row'
+                    }
+                    {...onSpace(() => toggleRow(r.id))}
+                  >
                     {middleEllipsis(r.file, FILE_NAME_MAX)}
-                  </span>
+                  </button>
                 </td>
                 <td>{r.group}</td>
                 <td>{r.freq}</td>

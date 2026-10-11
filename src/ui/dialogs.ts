@@ -3,10 +3,18 @@ import { useStore, type DialogState } from '../state/store';
 // The open dialog's promise resolver lives here (not in the store: functions are not state).
 let pending: { resolve: (value: unknown) => void; cancelValue: unknown } | null = null;
 let currentValidate: ((text: string) => string | null) | undefined;
+// The element that had the focus when the dialog opened: it gets the focus back when the dialog closes.
+let opener: HTMLElement | null = null;
+
+const focusedElement = (): HTMLElement | null =>
+  typeof document !== 'undefined' && document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+    ? document.activeElement
+    : null;
 
 function open<T>(dialog: NonNullable<DialogState>, cancelValue: T, validate?: (text: string) => string | null): Promise<T> {
   // Only one dialog at a time: a new one cancels the previous.
   if (pending) pending.resolve(pending.cancelValue);
+  else opener = focusedElement();
   currentValidate = validate;
   return new Promise<T>((resolve) => {
     pending = { resolve: resolve as (value: unknown) => void, cancelValue };
@@ -41,6 +49,10 @@ export function settleDialog(value: unknown): void {
   pending = null;
   currentValidate = undefined;
   useStore.getState().closeDialog();
+  // Focus goes back before the answer is acted on, so an action that moves the focus itself still wins.
+  const back = opener;
+  opener = null;
+  if (back?.isConnected) back.focus();
   p?.resolve(value);
 }
 
