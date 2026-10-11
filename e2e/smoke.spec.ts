@@ -246,7 +246,7 @@ test('saves a project and opens it again', async ({ page }) => {
   await page.getByTestId('project-input').setInputFiles([
     { name: 'other.json', mimeType: 'application/json', buffer: Buffer.from('{"hello":1}') },
   ]);
-  await expect(page.getByText('Not a Lobe-Story project.')).toBeVisible();
+  await expect(page.getByTestId('load-status').getByText('Not a Lobe-Story project.')).toBeVisible();
   await expect(panel.getByText('Site 1', { exact: true })).toBeVisible();
 
   await page.getByTestId('project-input').setInputFiles(projectPath);

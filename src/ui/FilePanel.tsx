@@ -6,6 +6,7 @@ import { nameOf } from '../core/names';
 import { TagEditor } from './TagEditor';
 import { offsetLabel } from './table';
 import { confirmDialog, promptDialog } from './dialogs';
+import { neighbourOrder } from './undoKeys';
 
 const DRAG_TYPE = 'text/x-pattern-id';
 
@@ -54,11 +55,14 @@ function FileMenu({
   name,
   inCustom,
   onRename,
+  beforeRemove,
 }: {
   id: string;
   name: string;
   inCustom: boolean;
   onRename: () => void;
+  /** Called just before the row is removed, so the panel can move the focus to a neighbour. */
+  beforeRemove: () => void;
 }) {
   const customGroups = useStore((s) => s.customGroups);
   const copyCount = useStore((s) => Object.values(s.copies).filter((c) => c.sourceId === id).length);
@@ -70,7 +74,9 @@ function FileMenu({
 
   return (
     <details className="menu" onClick={(e) => e.stopPropagation()}>
-      <summary aria-label={`Actions for ${name}`}>⋯</summary>
+      <summary aria-label={`Actions for ${name}`} data-focus-target>
+        ⋯
+      </summary>
       <div className="menu-items" role="menu">
         <button
           role="menuitem"
@@ -145,6 +151,7 @@ function FileMenu({
           onClick={(e) => {
             closeMenu(e.currentTarget);
             if (copyCount === 0) {
+              beforeRemove();
               removeFile(id);
               return;
             }
@@ -152,7 +159,9 @@ function FileMenu({
               `Remove ${name} and its ${copyCount} cop${copyCount === 1 ? 'y' : 'ies'}?`,
               'Remove',
             ).then((ok) => {
-              if (ok) removeFile(id);
+              if (!ok) return;
+              beforeRemove();
+              removeFile(id);
             });
           }}
         >
@@ -163,12 +172,24 @@ function FileMenu({
   );
 }
 
-function GroupMenu({ id, name, onRename }: { id: string; name: string; onRename: () => void }) {
+function GroupMenu({
+  id,
+  name,
+  onRename,
+  beforeDelete,
+}: {
+  id: string;
+  name: string;
+  onRename: () => void;
+  beforeDelete: () => void;
+}) {
   const duplicateGroup = useStore((s) => s.duplicateGroup);
   const deleteGroup = useStore((s) => s.deleteGroup);
   return (
     <details className="menu" onClick={(e) => e.stopPropagation()}>
-      <summary aria-label={`Actions for group ${name}`}>⋯</summary>
+      <summary aria-label={`Actions for group ${name}`} data-focus-target>
+        ⋯
+      </summary>
       <div className="menu-items" role="menu">
         <button
           role="menuitem"
@@ -191,8 +212,9 @@ function GroupMenu({ id, name, onRename }: { id: string; name: string; onRename:
         <button
           role="menuitem"
           onClick={(e) => {
-            deleteGroup(id);
             closeMenu(e.currentTarget);
+            beforeDelete();
+            deleteGroup(id);
           }}
         >
           Delete group
@@ -220,6 +242,31 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   const [editing, setEditing] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
+  // Set just before a row, an error or a group is removed: the keys of its neighbours, nearest first.
+  const focusNext = useRef<string[] | null>(null);
+
+  /** Remembers where the focus should go once the item `key` is gone (see the effect below). */
+  const planFocus = (key: string) => {
+    const kind = key.slice(0, key.indexOf(':') + 1);
+    const keys = Array.from(panelRef.current?.querySelectorAll<HTMLElement>('[data-focus-key]') ?? [])
+      .map((el) => el.dataset.focusKey ?? '')
+      .filter((k) => k.startsWith(kind));
+    focusNext.current = neighbourOrder(keys, key);
+  };
+
+  // After a removal the focused control is gone and the browser would drop the focus on <body>.
+  // Move it to the nearest neighbour that is still there, else to the panel itself.
+  useEffect(() => {
+    const wanted = focusNext.current;
+    const panel = panelRef.current;
+    if (!wanted || !panel) return;
+    focusNext.current = null;
+    const present = new Map(
+      Array.from(panel.querySelectorAll<HTMLElement>('[data-focus-key]')).map((el) => [el.dataset.focusKey ?? '', el]),
+    );
+    const next = wanted.map((k) => present.get(k)?.querySelector<HTMLElement>('[data-focus-target]')).find((el) => el);
+    (next ?? panel).focus();
+  });
 
   // A highlight set from the table or a plot brings the file's item into view in the panel.
   useEffect(() => {
@@ -258,20 +305,27 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   }, []);
 
   return (
-    <aside className="panel" aria-label="Files and groups" ref={panelRef}>
+    <aside className="panel" aria-label="Files and groups" ref={panelRef} tabIndex={-1}>
       {errors.length > 0 && (
-        <section className="group errors" data-testid="panel-errors" tabIndex={-1} aria-label="Files that could not be read">
+        <section className="group errors" data-testid="panel-errors" tabIndex={-1} aria-label="Files that could not be loaded">
           <header>
             <span>Errors</span>
             <span className="count">{errors.length}</span>
           </header>
           <ul className="errors-list">
             {errors.map((e) => (
-              <li key={e.id}>
+              <li key={e.id} data-focus-key={`error:${e.id}`}>
                 <span className="fname" title={e.path}>
                   {e.path}
                 </span>
-                <button aria-label={`Remove ${e.path}`} onClick={() => removeFile(e.id)}>
+                <button
+                  aria-label={`Remove ${e.path}`}
+                  data-focus-target
+                  onClick={() => {
+                    planFocus(`error:${e.id}`);
+                    removeFile(e.id);
+                  }}
+                >
                   ✕
                 </button>
                 <span className="reason">
@@ -290,6 +344,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
         return (
           <section
             key={g.key}
+            data-focus-key={`group:${g.key}`}
             className={custom ? 'group custom' : 'group'}
             onDragOver={(e) => {
               if (g.key !== UNGROUPED && e.dataTransfer.types.includes(DRAG_TYPE)) e.preventDefault();
@@ -311,6 +366,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
               <input
                 type="checkbox"
                 aria-label={`Show all in ${g.label}`}
+                data-focus-target={custom ? undefined : true}
                 checked={ids.length > 0 && ids.every((id) => visible[id])}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => setVisible(ids, e.target.checked)}
@@ -338,7 +394,14 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                   ±
                 </span>
               )}
-              {custom && <GroupMenu id={custom} name={g.label} onRename={() => setRenaming(`group:${custom}`)} />}
+              {custom && (
+                <GroupMenu
+                  id={custom}
+                  name={g.label}
+                  onRename={() => setRenaming(`group:${custom}`)}
+                  beforeDelete={() => planFocus(`group:${g.key}`)}
+                />
+              )}
             </header>
             <ul>
               {g.items.map(({ pattern, tags }) => {
@@ -348,6 +411,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                 return (
                   <li
                     key={id}
+                    data-focus-key={`file:${id}`}
                     className={highlighted === id ? 'hl' : undefined}
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData(DRAG_TYPE, id)}
@@ -401,7 +465,13 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                     >
                       ✎
                     </button>
-                    <FileMenu id={id} name={name} inCustom={!!custom} onRename={() => setRenaming(id)} />
+                    <FileMenu
+                      id={id}
+                      name={name}
+                      inCustom={!!custom}
+                      onRename={() => setRenaming(id)}
+                      beforeRemove={() => planFocus(`file:${id}`)}
+                    />
                     {editing === id && (
                       <TagEditor
                         tags={tags}

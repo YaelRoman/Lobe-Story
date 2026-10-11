@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metric
 import { clampSetting, FLOOR_LIMITS } from '../core/analysis/settingLimits';
 import { sanitizeSubBands } from '../core/analysis/subBands';
 import { clampSim, type OffsetState } from './simLimits';
+import { fingerprint, isFingerprint, type PendingFile } from './duplicates';
 import type { CustomGroup, LoadedFile, Selection, SimulationState, StoreData, ViewState } from './store';
 
 export const PROJECT_FORMAT = 'lobe-story-project';
@@ -12,6 +13,11 @@ export interface ProjectFileEntry {
   path: string;
   /** The file's decoded text; absent in layout-only projects. */
   text?: string;
+  /**
+   * Content fingerprint (see duplicates.ts `fingerprint`), so a layout-only project recognises its
+   * files by content, not only by name. Optional: projects saved before it existed have none.
+   */
+  fp?: string;
 }
 
 export interface ProjectState {
@@ -40,30 +46,52 @@ export type ParsedProject = { ok: true; project: ProjectFile } | { ok: false; er
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** The session as a project file. The theme is never saved. */
-export function serializeProject(s: StoreData, includeFiles: boolean, now: Date = new Date()): string {
+type SessionSource = Pick<
+  StoreData,
+  'files' | 'pendingFiles' | 'tagOverrides' | 'visible' | 'copies' | 'names' | 'customGroups' | 'membership' | 'settings' | 'view'
+>;
+
+/** A failed file that shares its path with a loaded one (id `path#failed`) is not saved. */
+const savedFiles = (files: LoadedFile[]): LoadedFile[] => files.filter((f) => f.id === f.path);
+
+const pendingEntry = (p: PendingFile): PendingFile => (p.fp !== undefined ? { path: p.path, fp: p.fp } : { path: p.path });
+
+/** The files a project lists: path and content fingerprint of every loaded and still-pending file. */
+export function sessionFiles(s: Pick<StoreData, 'files' | 'pendingFiles'>): PendingFile[] {
+  return [...savedFiles(s.files).map((f) => ({ path: f.path, fp: fingerprint(f.text) })), ...s.pendingFiles.map(pendingEntry)];
+}
+
+/**
+ * The work a project file keeps, apart from the file list and from what is only "where the user
+ * was looking" (highlight, selection) and the theme. `serializeProject` writes exactly this, and
+ * unsaved-work tracking (undo.ts) compares exactly this, so the two cannot drift apart.
+ */
+export function sessionState(s: SessionSource): Omit<ProjectState, 'highlighted' | 'selected'> {
   const view: Partial<ViewState> = { ...s.view };
   delete view.theme;
+  return {
+    tagOverrides: s.tagOverrides,
+    visible: s.visible,
+    copies: s.copies,
+    names: s.names,
+    customGroups: s.customGroups,
+    membership: s.membership,
+    settings: s.settings,
+    view: view as Omit<ViewState, 'theme'>,
+  };
+}
+
+/** The session as a project file. The theme is never saved. */
+export function serializeProject(s: StoreData, includeFiles: boolean, now: Date = new Date()): string {
   const project: ProjectFile = {
     format: PROJECT_FORMAT,
     version: PROJECT_VERSION,
     savedAt: now.toISOString(),
     files: [
-      ...s.files.map((f) => (includeFiles ? { path: f.path, text: f.text } : { path: f.path })),
-      ...s.pendingFiles.map((path) => ({ path })),
+      ...savedFiles(s.files).map((f) => ({ path: f.path, ...(includeFiles ? { text: f.text } : {}), fp: fingerprint(f.text) })),
+      ...s.pendingFiles.map(pendingEntry),
     ],
-    state: {
-      tagOverrides: s.tagOverrides,
-      visible: s.visible,
-      copies: s.copies,
-      names: s.names,
-      customGroups: s.customGroups,
-      membership: s.membership,
-      highlighted: s.highlighted,
-      selected: s.selected,
-      settings: s.settings,
-      view: view as Omit<ViewState, 'theme'>,
-    },
+    state: { ...sessionState(s), highlighted: s.highlighted, selected: s.selected },
   };
   return JSON.stringify(project);
 }
@@ -85,9 +113,11 @@ export function parseProject(text: string): ParsedProject {
   }
   if (!isObj(raw.state)) return { ok: false, error: 'The project file is damaged (state).' };
 
-  const files: ProjectFileEntry[] = (raw.files as Record<string, unknown>[]).map((f) =>
-    typeof f.text === 'string' ? { path: f.path as string, text: f.text } : { path: f.path as string },
-  );
+  const files: ProjectFileEntry[] = (raw.files as Record<string, unknown>[]).map((f) => ({
+    path: f.path as string,
+    ...(typeof f.text === 'string' ? { text: f.text } : {}),
+    ...(isFingerprint(f.fp) ? { fp: f.fp } : {}),
+  }));
   const st = raw.state;
   const state: Partial<ProjectState> = {};
   if (isObj(st.tagOverrides)) state.tagOverrides = st.tagOverrides as ProjectState['tagOverrides'];
@@ -182,13 +212,14 @@ export function projectToState(
   loadText: (path: string, text: string) => LoadedFile,
 ): Partial<StoreData> {
   const files: LoadedFile[] = [];
-  const pendingFiles: string[] = [];
+  const pendingFiles: PendingFile[] = [];
   const seen = new Set<string>();
   for (const f of project.files) {
     if (seen.has(f.path)) continue;
     seen.add(f.path);
     if (typeof f.text === 'string') files.push(loadText(f.path, f.text));
-    else pendingFiles.push(f.path);
+    // A fingerprint of the wrong shape (hand-edited file) is dropped: the entry then matches by name.
+    else pendingFiles.push(isFingerprint(f.fp) ? { path: f.path, fp: f.fp } : { path: f.path });
   }
 
   const st = project.state;
@@ -274,16 +305,8 @@ export function projectToState(
 
 const fileNameOf = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
-/** The pending path an incoming file satisfies: exact path, else the only pending path with the same file name. */
-export function matchPending(pending: string[], incomingPath: string): string | null {
-  if (pending.includes(incomingPath)) return incomingPath;
-  const name = fileNameOf(incomingPath);
-  const byName = pending.filter((p) => fileNameOf(p) === name);
-  return byName.length === 1 ? byName[0] : null;
-}
-
-export function pendingLabel(pending: string[]): string {
-  const names = pending.map(fileNameOf);
+export function pendingLabel(pending: PendingFile[]): string {
+  const names = pending.map((p) => fileNameOf(p.path));
   const more = names.length > 5 ? ` and ${names.length - 5} more` : '';
   return `${names.length} pattern file${names.length === 1 ? '' : 's'} needed: ${names.slice(0, 5).join(', ')}${more}`;
 }

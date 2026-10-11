@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
-import { initialState, useStore, clampSim, loadText } from './store';
+import { initialState, useStore, clampSim } from './store';
 import { groupPatterns, selectErrors, selectTagged, selectWarnings, selectInstances, buildPanelGroups, instanceIds, instanceName, warningsFor } from './selectors';
-import { clearNeedsConfirm, isDirty } from './undo';
+import { changesSession, clearNeedsConfirm, isDirty, markOf, stableStringify } from './undo';
+import { parseProject, serializeProject } from './project';
 import { DEFAULT_HEADERS, planetText, points } from '../test/planetText';
 
 const enc = new TextEncoder();
@@ -101,8 +102,9 @@ describe('store', () => {
       input('b/a.MSI', msi(1800)),
     ]);
     const s = useStore.getState();
-    expect(s.files.map((f) => f.id)).toEqual(['a.MSI', 'a (2).MSI', 'b/a.MSI']);
-    expect(s.loadMessage).toContain('1 already loaded (skipped)');
+    // The same content under the same name is one file, whatever folder it came from.
+    expect(s.files.map((f) => f.id)).toEqual(['a.MSI', 'a (2).MSI']);
+    expect(s.loadMessage).toContain('2 already loaded (skipped)');
   });
 
   it('numbers a duplicate before the extension and keeps copies of the original attached to it', () => {
@@ -132,11 +134,11 @@ describe('store', () => {
   });
 
   it('keeps the pending-file match by path or unique name working next to duplicate handling', () => {
-    useStore.setState({ pendingFiles: ['site/_1800_X.msi', 'site/other.msi'] });
+    useStore.setState({ pendingFiles: [{ path: 'site/_1800_X.msi' }, { path: 'site/other.msi' }] });
     useStore.getState().addFiles([input('_1800_X.msi', msi(1800))]);
     let s = useStore.getState();
     expect(s.files.map((f) => f.id)).toEqual(['site/_1800_X.msi']);
-    expect(s.pendingFiles).toEqual(['site/other.msi']);
+    expect(s.pendingFiles.map((p) => p.path)).toEqual(['site/other.msi']);
     useStore.getState().addFiles([input('site/_1800_X.msi', msi(1800))]);
     expect(useStore.getState().loadMessage).toBe('No new files loaded: 1 already loaded (skipped)');
     useStore.getState().addFiles([input('other.msi', msi(1900))]);
@@ -149,7 +151,7 @@ describe('store', () => {
     const bad = (n: string) => input(n, 'just some notes\n');
     useStore.getState().addFiles([input('a.MSI', msi(1800)), bad('n1.txt'), bad('n2.txt')], { unreadable: 1 });
     const s = useStore.getState();
-    expect(s.loadMessage).toBe('Loaded 1 file · 2 could not be parsed · 1 could not be read');
+    expect(s.loadMessage).toBe('Loaded 1 file · 2 could not be loaded · 1 could not be read');
     expect(s.loadFailed).toBe(2);
     expect(selectErrors(s.files).map((e) => e.error)).toEqual(['Not a Planet pattern file', 'Not a Planet pattern file']);
     useStore.getState().addFiles([], { unreadable: 3 });
@@ -465,15 +467,16 @@ describe('instances and panel groups', () => {
     expect(selectInstances(s.files, s.tagOverrides, s.copies, s.names, s.membership)[0].pattern).toBe(f0.pattern);
   });
 
-  it('updates copies when the source is reloaded and scopes custom-group members', () => {
+  it('keeps copies on their source when a changed file of the same name is opened, and scopes custom-group members', () => {
     st().addFiles([input('a.MSI', msi(1800))]);
     const c = st().duplicate('a.MSI')!;
     const g = st().createGroup('S');
     st().setMembership(c, g);
-    useStore.setState({ files: [loadText('a.MSI', msi(1850))] }); // the source re-read in place
+    st().addFiles([input('a.MSI', msi(1850))]); // a second, numbered entry: the first and its copy are untouched
+    st().removeFile('a (2).MSI');
     const s = st();
     const t = selectInstances(s.files, s.tagOverrides, s.copies, s.names, s.membership);
-    expect(t.map((i) => i.pattern.frequencyMHz)).toEqual([1850, 1850]);
+    expect(t.map((i) => i.pattern.frequencyMHz)).toEqual([1800, 1800]);
     expect(t[1].scope).toBe(g);
     expect(t[0].scope).toBeUndefined();
     const groups = buildPanelGroups(t, s.customGroups);
@@ -616,9 +619,6 @@ describe('unsaved work', () => {
     st().addFiles([input('a.MSI', msi(1800))]);
     st().markSaved();
     expect(isDirty(st())).toBe(false);
-    st().addFiles([input('b.MSI', msi(1900))]);
-    st().toggleVisible('b.MSI');
-    expect(isDirty(st())).toBe(false); // more files and visibility are not edits
     st().rename('a.MSI', 'Alpha');
     expect(isDirty(st())).toBe(true);
     st().markSaved();
@@ -665,5 +665,385 @@ describe('simulation reset scope', () => {
     expect(st().view.simulation.offsets).toEqual({ 'a.MSI': { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 20 } });
     st().resetSimulation('all');
     expect(st().view.simulation.offsets).toEqual({});
+  });
+});
+
+describe('identical content is recognised by base name, whatever the numbering or folder (B5)', () => {
+  const st = useStore.getState;
+  const ids = () => st().files.map((f) => f.id);
+
+  it('sees the content behind a gap in the numbering', () => {
+    st().addFiles([input('a.msi', msi(1800)), input('a.msi', msi(1850)), input('a.msi', msi(1900))]);
+    st().removeFile('a (2).msi');
+    expect(ids()).toEqual(['a.msi', 'a (3).msi']);
+    st().addFiles([input('a.msi', msi(1900))]);
+    expect(ids()).toEqual(['a.msi', 'a (3).msi']);
+    expect(st().loadMessage).toBe('No new files loaded: 1 already loaded (skipped)');
+    // A genuinely different file takes the smallest free number.
+    st().addFiles([input('a.msi', msi(1950))]);
+    expect(ids()).toEqual(['a.msi', 'a (3).msi', 'a (2).msi']);
+  });
+
+  it('sees the content of a numbered entry whose un-numbered sibling was removed', () => {
+    st().addFiles([input('a.msi', msi(1800)), input('a.msi', msi(1850))]);
+    st().removeFile('a.msi');
+    expect(ids()).toEqual(['a (2).msi']);
+    st().addFiles([input('a.msi', msi(1850))]);
+    expect(ids()).toEqual(['a (2).msi']);
+    expect(st().loadMessage).toBe('No new files loaded: 1 already loaded (skipped)');
+  });
+
+  it('sees a file loaded under a folder path when it is picked again by its bare name', () => {
+    st().addFiles([input('site/x.msi', msi(1800))]);
+    st().addFiles([input('x.msi', msi(1800))]);
+    expect(ids()).toEqual(['site/x.msi']);
+    // ... also when a pending match put it under the folder path.
+    useStore.setState({ ...initialState(), pendingFiles: [{ path: 'site/y.msi' }] });
+    st().addFiles([input('y.msi', msi(1900))]);
+    st().addFiles([input('y.msi', msi(1900))]);
+    expect(ids()).toEqual(['site/y.msi']);
+    expect(st().loadMessage).toBe('No new files loaded: 1 already loaded (skipped)');
+  });
+
+  it('treats line endings as the same content', () => {
+    st().addFiles([input('a.msi', msi(1800))]);
+    const unix = msi(1800).replace(/\r\n/g, '\n');
+    expect(unix).not.toBe(msi(1800));
+    st().addFiles([input('a.msi', unix)]);
+    expect(ids()).toEqual(['a.msi']);
+  });
+});
+
+describe('a same-name file that fails to parse (B6)', () => {
+  const st = useStore.getState;
+  const bad = 'NAME X\nFREQUENCY 900\n';
+
+  it('is listed once under Errors, not numbered and not counted as renamed', () => {
+    st().addFiles([input('a.msi', msi(1800))]);
+    st().addFiles([input('a.msi', bad)]);
+    expect(st().files.map((f) => f.path)).toEqual(['a.msi', 'a.msi']);
+    expect(st().files[0].result.ok).toBe(true);
+    expect(selectErrors(st().files).map((e) => e.path)).toEqual(['a.msi']);
+    expect(st().loadMessage).toBe('No new files loaded: 1 could not be loaded');
+    expect(st().loadFailed).toBe(1);
+    // Again: it replaces the earlier failed entry instead of piling up.
+    st().addFiles([input('a.msi', bad + 'GAIN 1\n')]);
+    expect(selectErrors(st().files)).toHaveLength(1);
+    expect(st().files).toHaveLength(2);
+    expect(st().files[1].text).toBe(bad + 'GAIN 1\n');
+    // The Errors entry can be removed on its own.
+    st().removeFile(selectErrors(st().files)[0].id);
+    expect(st().files.map((f) => f.id)).toEqual(['a.msi']);
+  });
+
+  it('replaces an earlier failed entry of the same name', () => {
+    st().addFiles([input('a.msi', bad)]);
+    st().addFiles([input('a.msi', bad + 'GAIN 1\n')]);
+    expect(st().files).toHaveLength(1);
+    expect(st().files[0].text).toBe(bad + 'GAIN 1\n');
+    expect(st().loadMessage).toBe('No new files loaded: 1 could not be loaded');
+  });
+});
+
+describe('an offered undo is withdrawn by any later change to the session (B2)', () => {
+  const st = useStore.getState;
+  const load3 = () => st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900)), input('c.MSI', msi(2000))]);
+
+  it('Remove, then rename another file: the undo is gone and undoLast does nothing', () => {
+    load3();
+    st().removeFile('a.MSI');
+    expect(st().undo).not.toBeNull();
+    st().rename('b.MSI', 'Beta');
+    expect(st().undo).toBeNull();
+    st().undoLast();
+    expect(st().files.map((f) => f.id)).toEqual(['b.MSI', 'c.MSI']);
+    expect(st().names).toEqual({ 'b.MSI': 'Beta' });
+  });
+
+  it('Remove, then only highlight or select another file: the undo still restores', () => {
+    load3();
+    st().removeFile('a.MSI');
+    st().setHighlighted('c.MSI');
+    st().select({ kind: 'file', id: 'b.MSI' });
+    st().updateView({ theme: st().view.theme === 'dark' ? 'light' : 'dark' });
+    st().setLoadMessage('x');
+    expect(st().undo).not.toBeNull();
+    st().undoLast();
+    expect(st().files.map((f) => f.id)).toEqual(['a.MSI', 'b.MSI', 'c.MSI']);
+  });
+
+  it.each<[string, () => void]>([
+    ['duplicate', () => void st().duplicate('b.MSI')],
+    ['tag edit', () => st().setTags('b.MSI', { tiltDeg: 2 })],
+    ['create group', () => void st().createGroup('G')],
+    ['create site', () => void st().createSite('b.MSI', 3)],
+    ['offset', () => st().setOffset('b.MSI', { azimuthDeg: 10 })],
+    ['settings', () => st().updateSettings({ fbWindowDeg: 25 })],
+    ['view', () => st().updateView({ mode: 'rect' })],
+    ['simulation', () => st().updateSimulation({ electricalDeg: 2 })],
+    ['reset simulation', () => st().resetSimulation()],
+    ['visibility', () => st().toggleVisible('b.MSI')],
+    ['group visibility', () => st().setVisible(['b.MSI', 'c.MSI'], true)],
+    ['adding files', () => st().addFiles([input('z.MSI', msi(1700))])],
+  ])('%s withdraws it', (_name, act) => {
+    load3();
+    st().updateSimulation({ azimuthDeg: 30 }); // something for Reset to reset
+    st().removeFile('a.MSI');
+    act();
+    expect(st().undo).toBeNull();
+  });
+
+  it('group actions, membership and dismissing the pending banner withdraw it', () => {
+    load3();
+    const g = st().createGroup('G');
+    const h = st().createGroup('H');
+    st().deleteGroup(h);
+    expect(st().undo).not.toBeNull();
+    st().setMembership('b.MSI', g);
+    expect(st().undo).toBeNull();
+    st().deleteGroup(g);
+    st().renameGroup(st().createGroup('I'), 'J');
+    expect(st().undo).toBeNull();
+    useStore.setState({ pendingFiles: [{ path: 'p.msi' }] });
+    st().removeFile('a.MSI');
+    st().dismissPending();
+    expect(st().undo).toBeNull();
+  });
+
+  it('a no-op action leaves it in place', () => {
+    load3();
+    st().rename('b.MSI', 'Beta');
+    st().removeFile('a.MSI');
+    st().rename('b.MSI', 'Beta');
+    st().updateView({ mode: st().view.mode });
+    st().updateSettings({ fbWindowDeg: st().settings.fbWindowDeg });
+    st().rename('missing', 'X');
+    expect(st().undo).not.toBeNull();
+  });
+});
+
+describe('unsaved work covers everything a project file stores (B4)', () => {
+  const st = useStore.getState;
+  const saved = () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    st().markSaved();
+    expect(isDirty(st())).toBe(false);
+  };
+
+  it('a freshly loaded session is unsaved; a session of only unparsable files is not', () => {
+    st().addFiles([input('bad.pln', 'NAME X\nFREQUENCY 900\n')]);
+    expect(isDirty(st())).toBe(false);
+    st().addFiles([input('a.MSI', msi(1800))]);
+    expect(isDirty(st())).toBe(true);
+  });
+
+  it.each<[string, () => void]>([
+    ['a tag override', () => st().setTags('a.MSI', { tiltDeg: 2 })],
+    ['visibility', () => st().toggleVisible('b.MSI')],
+    ['a copy', () => void st().duplicate('a.MSI')],
+    ['a name', () => st().rename('a.MSI', 'Alpha')],
+    ['a custom group', () => void st().createGroup('G')],
+    ['a setting', () => st().updateSettings({ fbWindowDeg: 25 })],
+    ['the plot mode', () => st().updateView({ mode: 'rect' })],
+    ['the gain unit', () => st().updateView({ gainUnit: 'dBi' })],
+    ['sub-bands', () => st().updateView({ subBands: [{ name: 'A', minMHz: 1, maxMHz: 2 }] })],
+    ['table column groups', () => st().updateView({ tableGroups: { ...st().view.tableGroups, declared: true } })],
+    ['markers', () => st().updateView({ markers: { ...st().view.markers, fb: true } })],
+    ['a simulation slider', () => st().updateSimulation({ electricalDeg: 2 })],
+    ['"show original"', () => st().updateSimulation({ showOriginal: false })],
+    ['a file offset', () => st().setOffset('a.MSI', { azimuthDeg: 10 })],
+    ['another file', () => st().addFiles([input('c.MSI', msi(2000))])],
+    ['a removed file', () => st().removeFile('b.MSI')],
+  ])('%s makes a saved session unsaved', (_name, act) => {
+    saved();
+    act();
+    expect(isDirty(st())).toBe(true);
+    st().markSaved();
+    expect(isDirty(st())).toBe(false);
+  });
+
+  it('membership and group offsets count too', () => {
+    saved();
+    const g = st().createGroup('G');
+    st().markSaved();
+    st().setMembership('a.MSI', g);
+    expect(isDirty(st())).toBe(true);
+    st().markSaved();
+    st().setGroupOffset(g, { azimuthDeg: 5 });
+    expect(isDirty(st())).toBe(true);
+  });
+
+  it('the theme, the highlight and the selection do not count', () => {
+    saved();
+    st().updateView({ theme: st().view.theme === 'dark' ? 'light' : 'dark' });
+    st().setHighlighted('b.MSI');
+    st().select({ kind: 'file', id: 'a.MSI' });
+    st().select(null);
+    expect(isDirty(st())).toBe(false);
+  });
+
+  it('a change that is put back is not unsaved work', () => {
+    saved();
+    st().toggleVisible('b.MSI');
+    st().toggleVisible('b.MSI');
+    st().rename('a.MSI', 'Alpha');
+    st().rename('a.MSI', '');
+    st().updateView({ mode: 'rect' });
+    st().updateView({ mode: 'polar' });
+    expect(isDirty(st())).toBe(false);
+  });
+
+  it('no-op actions return the same state', () => {
+    saved();
+    const g = st().createGroup('G');
+    st().setMembership('a.MSI', g);
+    st().rename('a.MSI', 'Alpha');
+    const before = st();
+    st().rename('a.MSI', ' Alpha ');
+    st().rename('b.MSI', '  ');
+    st().setMembership('a.MSI', g);
+    st().setMembership('b.MSI', null);
+    st().updateView({ mode: before.view.mode, floorDb: before.view.floorDb });
+    st().updateView({});
+    st().updateSettings({ fbWindowDeg: before.settings.fbWindowDeg });
+    expect(st()).toBe(before);
+  });
+
+  it('a field that commits its unchanged value is a no-op too', () => {
+    saved();
+    const g = st().createGroup('G');
+    st().setTags('a.MSI', { tiltDeg: 2 });
+    st().setOffset('a.MSI', { azimuthDeg: 10 });
+    st().setGroupOffset(g, { azimuthDeg: 5 });
+    st().updateSimulation({ mechanicalDeg: 2 });
+    st().setVisible(['a.MSI', 'b.MSI'], true);
+    const before = st();
+    st().setTags('a.MSI', { tiltDeg: 2 });
+    st().setOffset('a.MSI', { azimuthDeg: 10 });
+    st().setOffset('b.MSI', { azimuthDeg: 0 });
+    st().clearOffsets('b.MSI');
+    st().setGroupOffset(g, { azimuthDeg: 5 });
+    st().updateSimulation({ mechanicalDeg: 2, showOriginal: before.view.simulation.showOriginal });
+    st().updateSimulation({ mechanicalDeg: 2.1 }); // rounds to the value it has
+    st().setVisible(['a.MSI', 'b.MSI'], true);
+    st().dismissPending();
+    expect(st()).toBe(before);
+    st().resetSimulation('sliders');
+    const reset = st();
+    expect(reset).not.toBe(before);
+    st().resetSimulation('sliders');
+    expect(st()).toBe(reset);
+    st().resetSimulation('all');
+    st().clearGroupOffsets(g);
+    const cleared = st();
+    st().resetSimulation('all');
+    expect(st()).toBe(cleared);
+  });
+
+  it('attaching the files a layout-only project asked for leaves it saved', () => {
+    saved();
+    st().rename('a.MSI', 'Alpha');
+    const parsed = parseProject(serializeProject(st(), false));
+    if (!parsed.ok) throw new Error(parsed.error);
+    st().clear();
+    st().loadProject(parsed.project);
+    expect(isDirty(st())).toBe(false);
+    st().addFiles([input('a.MSI', msi(1800))]);
+    expect(st().pendingFiles.map((p) => p.path)).toEqual(['b.MSI']);
+    expect(isDirty(st())).toBe(false);
+    st().addFiles([input('b.MSI', msi(1900))]);
+    expect(isDirty(st())).toBe(false);
+    st().addFiles([input('extra.MSI', msi(2000))]);
+    expect(isDirty(st())).toBe(true);
+  });
+});
+
+describe('changesSession', () => {
+  const base = () => useStore.getState();
+
+  it('sees a replaced session slice, and a view change other than the theme', () => {
+    const s = base();
+    expect(changesSession(s, {})).toBe(false);
+    expect(changesSession(s, { names: s.names, view: s.view })).toBe(false);
+    expect(changesSession(s, { highlighted: 'x', selected: null, loadMessage: 'm', dialog: null, saved: null })).toBe(false);
+    expect(changesSession(s, { view: { ...s.view, theme: s.view.theme === 'dark' ? 'light' : 'dark' } })).toBe(false);
+    for (const k of ['files', 'pendingFiles', 'customGroups'] as const) expect(changesSession(s, { [k]: [] })).toBe(true);
+    for (const k of ['tagOverrides', 'visible', 'copies', 'names', 'membership'] as const) expect(changesSession(s, { [k]: {} })).toBe(true);
+    expect(changesSession(s, { settings: { ...s.settings } })).toBe(true);
+    expect(changesSession(s, { view: { ...s.view, mode: 'rect' } })).toBe(true);
+    expect(changesSession(s, { view: { ...s.view, simulation: { ...s.view.simulation } } })).toBe(true);
+  });
+});
+
+describe('the saved mark', () => {
+  it('writes keys in sorted order and drops undefined', () => {
+    expect(stableStringify({ b: 1, a: [{ d: null, c: 'x' }], z: undefined })).toBe('{"a":[{"c":"x","d":null}],"b":1}');
+    expect(stableStringify({ b: 1, a: 2 })).toBe(stableStringify({ a: 2, b: 1 }));
+    expect(stableStringify([undefined, 1])).toBe('[null,1]');
+  });
+
+  it('covers exactly the state parts a project file stores, without highlight, selection and theme', () => {
+    useStore.getState().addFiles([input('a.MSI', msi(1800))]);
+    const s = useStore.getState();
+    const written = JSON.parse(serializeProject(s, false));
+    const marked = JSON.parse(markOf(s).state);
+    expect(Object.keys(marked).sort()).toEqual(Object.keys(written.state).filter((k) => k !== 'highlighted' && k !== 'selected').sort());
+    expect(Object.keys(marked.view).sort()).toEqual(Object.keys(written.state.view).sort());
+    expect(marked.view.theme).toBeUndefined();
+    expect(Object.keys(markOf(s).files)).toEqual(written.files.map((f: { path: string }) => f.path));
+  });
+
+  it('does not save a failed file that shares its path with a loaded one', () => {
+    const st = useStore.getState;
+    st().addFiles([input('a.MSI', msi(1800))]);
+    st().addFiles([input('a.MSI', 'NAME X\nFREQUENCY 900\n')]);
+    expect(st().files).toHaveLength(2);
+    const written = JSON.parse(serializeProject(st(), true));
+    expect(written.files.map((f: { path: string }) => f.path)).toEqual(['a.MSI']);
+    expect(written.files[0].text).toBe(msi(1800));
+  });
+});
+
+describe('status line', () => {
+  const st = useStore.getState;
+
+  it('is neutral for a clean load and a warning otherwise', () => {
+    st().addFiles([input('a.MSI', msi(1800))]);
+    expect([st().loadMessage, st().loadTone]).toEqual(['Loaded 1 file', 'info']);
+    st().addFiles([input('a.MSI', msi(1800))]);
+    expect(st().loadTone).toBe('warn');
+    st().addFiles([input('b.MSI', msi(1900))]);
+    expect(st().loadTone).toBe('info');
+    st().addFiles([input('c.MSI', msi(2000))], { unreadable: 1 });
+    expect(st().loadTone).toBe('warn');
+    st().addFiles([input('d.MSI', msi(2100))]);
+    st().setLoadMessage('Could not read the selected files');
+    expect(st().loadTone).toBe('warn');
+  });
+
+  it('appends a note about the selection, also when no pattern file came with it', () => {
+    const note = '2 project files found — open one with Open project';
+    st().addFiles([input('a.MSI', msi(1800))], { note });
+    expect([st().loadMessage, st().loadTone]).toEqual([`Loaded 1 file · ${note}`, 'warn']);
+    st().addFiles([], { note });
+    expect(st().loadMessage).toBe(note);
+    st().addFiles([], { note, unreadable: 1 });
+    expect(st().loadMessage).toBe(`Could not read 1 file(s) · ${note}`);
+  });
+
+  it('is cleared when a file it may be about is removed, but not for a copy', () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('bad.pln', 'NAME X\n')]);
+    expect(st().loadFailed).toBe(1);
+    const c = st().duplicate('a.MSI')!;
+    st().removeFile(c);
+    expect(st().loadMessage).toBe('Loaded 1 file · 1 could not be loaded');
+    st().removeFile('bad.pln');
+    expect([st().loadMessage, st().loadFailed]).toEqual([null, 0]);
+  });
+
+  it('never says "Cleared 0 files"', () => {
+    useStore.setState({ pendingFiles: [{ path: 'p.msi' }] });
+    st().clear();
+    expect(st().undo?.label).toBe('Cleared the session');
   });
 });

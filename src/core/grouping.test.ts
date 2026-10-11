@@ -21,6 +21,17 @@ describe('inferTags', () => {
     expect(tagsFor(fileName)).toEqual(expected);
   });
 
+  it("ignores a duplicate's number before the extension, with or without a space", () => {
+    const full = { polarization: '+45', tiltDeg: 8, array: 'Y2' };
+    expect(tagsFor('_2140_X_CO_P45_08T_Y2 (2).MSI')).toEqual(full);
+    expect(tagsFor('_2140_X_CO_P45_08T_Y2(1).MSI')).toEqual(full);
+    expect(tagsFor('-1-10-806+(3).pln')).toEqual({ polarization: '+45', tiltDeg: 10, port: '1' });
+    expect(tagsFor('Port 6 -45_12DT_2360(12).txt')).toEqual({ polarization: '-45', tiltDeg: 12, port: '6' });
+    // Not directly before the extension: part of the name.
+    expect(tagsFor('_2140_X_CO_P45_08T(1)_Y2.MSI')).toEqual({ polarization: '+45', array: 'Y2' });
+    expect(tagsFor('plain(1).msi')).toEqual({});
+  });
+
   it('falls back to COMMENT and ELECTRICAL_TILT', () => {
     expect(
       tagsFor('ANT0891.MSI', {

@@ -31,8 +31,11 @@ Metrics follow the NGMN BASTA V13 definitions where the two co-polar cuts allow;
 **Save project** writes the whole session (files, names, copies, groups, simulation, view and
 settings) to one JSON file; you can leave the pattern data out to get a small layout-only file.
 **Open project** replaces the current session. For a layout-only project the app asks for the
-pattern files and matches them by saved path or, failing that, by unique file name. Project files
-stay on your computer; nothing is uploaded.
+pattern files and matches them by content, then by saved path or, failing that, by unique file
+name. Opening a file whose name is already loaded skips it when the content is the same;
+re-opening a changed file adds it as a numbered second entry (`name (2).msi`) instead of replacing
+the first. In a folder or a multi-file selection only `*.lobestory.json` is taken for a project,
+and the app asks before opening it. Project files stay on your computer; nothing is uploaded.
 
 ## Planned
 

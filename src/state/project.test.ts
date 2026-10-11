@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  matchPending,
   parseProject,
   pendingLabel,
   PROJECT_FORMAT,
@@ -9,6 +8,7 @@ import {
 } from './project';
 import { DEFAULT_TABLE_GROUPS, initialState, loadText, useStore, type StoreData } from './store';
 import { selectInstances } from './selectors';
+import { fingerprint } from './duplicates';
 import { planetText } from '../test/planetText';
 
 const enc = new TextEncoder();
@@ -79,10 +79,14 @@ describe('serializeProject / parseProject / projectToState', () => {
   it('writes layout-only projects without file text and restores them as pending', () => {
     const before = buildSession();
     const json = serializeProject(before, false);
-    expect(JSON.parse(json).files).toEqual([{ path: 'site/a.MSI' }, { path: 'site/b.MSI' }, { path: 'site/bad.pln' }]);
+    expect(JSON.parse(json).files).toEqual([
+      { path: 'site/a.MSI', fp: fingerprint(msi(1800)) },
+      { path: 'site/b.MSI', fp: fingerprint(msi(1900)) },
+      { path: 'site/bad.pln', fp: fingerprint('NAME X\n') },
+    ]);
     const after = restore(json);
     expect(after.files).toEqual([]);
-    expect(after.pendingFiles).toEqual(['site/a.MSI', 'site/b.MSI', 'site/bad.pln']);
+    expect(after.pendingFiles.map((p) => p.path)).toEqual(['site/a.MSI', 'site/b.MSI', 'site/bad.pln']);
     expect(after.names).toEqual(before.names);
     expect(after.copies).toEqual(before.copies);
   });
@@ -283,7 +287,7 @@ describe('damaged values', () => {
     );
     expect(s.files.map((f) => f.id)).toEqual(['a.MSI']);
     expect(s.files[0].text).toBe(msi(1800));
-    expect(s.pendingFiles).toEqual(['p.MSI']);
+    expect(s.pendingFiles.map((p) => p.path)).toEqual(['p.MSI']);
   });
 
   it('lets a project built from damaged values pass through selectInstances', () => {
@@ -309,18 +313,19 @@ describe('saving with pending files', () => {
       state: { names: { 'site/a.MSI': 'Ay' }, copies: { 'site/a.MSI#copy-2': { sourceId: 'site/a.MSI' } } },
     });
     st().addFiles([input('site/a.MSI', msi(1800))]);
-    expect(st().pendingFiles).toEqual(['site/b.MSI']);
+    expect(st().pendingFiles.map((p) => p.path)).toEqual(['site/b.MSI']);
 
     const layout = JSON.parse(serializeProject(st(), false));
-    expect(layout.files).toEqual([{ path: 'site/a.MSI' }, { path: 'site/b.MSI' }]);
+    const fp = fingerprint(msi(1800));
+    expect(layout.files).toEqual([{ path: 'site/a.MSI', fp }, { path: 'site/b.MSI' }]);
     const withFiles = JSON.parse(serializeProject(st(), true));
-    expect(withFiles.files).toEqual([{ path: 'site/a.MSI', text: msi(1800) }, { path: 'site/b.MSI' }]);
+    expect(withFiles.files).toEqual([{ path: 'site/a.MSI', text: msi(1800), fp }, { path: 'site/b.MSI' }]);
 
     const a = restore(serializeProject(st(), true));
-    expect(a.pendingFiles).toEqual(['site/b.MSI']);
+    expect(a.pendingFiles.map((p) => p.path)).toEqual(['site/b.MSI']);
     expect(a.files.map((f) => f.id)).toEqual(['site/a.MSI']);
     const b = restore(serializeProject(st(), false));
-    expect(b.pendingFiles).toEqual(['site/a.MSI', 'site/b.MSI']);
+    expect(b.pendingFiles.map((p) => p.path)).toEqual(['site/a.MSI', 'site/b.MSI']);
     for (const r of [a, b]) {
       expect(r.names).toEqual({ 'site/a.MSI': 'Ay' });
       expect(r.copies).toEqual({ 'site/a.MSI#copy-2': { sourceId: 'site/a.MSI' } });
@@ -329,19 +334,9 @@ describe('saving with pending files', () => {
 });
 
 describe('pending files', () => {
-  it('matches pending files by exact path, then by unique file name', () => {
-    const pending = ['site/a.MSI', 'site/b.MSI', 'x/c.MSI', 'y/c.MSI'];
-    expect(matchPending(pending, 'site/a.MSI')).toBe('site/a.MSI');
-    expect(matchPending(pending, 'elsewhere/b.MSI')).toBe('site/b.MSI');
-    expect(matchPending(pending, 'b.MSI')).toBe('site/b.MSI');
-    expect(matchPending(pending, 'z/c.MSI')).toBeNull();
-    expect(matchPending(pending, 'x/c.MSI')).toBe('x/c.MSI');
-    expect(matchPending(pending, 'new.MSI')).toBeNull();
-  });
-
   it('labels the pending list', () => {
-    expect(pendingLabel(['s/a.MSI'])).toBe('1 pattern file needed: a.MSI');
-    expect(pendingLabel(['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((n) => `s/${n}.MSI`))).toBe(
+    expect(pendingLabel([{ path: 's/a.MSI' }])).toBe('1 pattern file needed: a.MSI');
+    expect(pendingLabel(['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((n) => ({ path: `s/${n}.MSI` })))).toBe(
       '7 pattern files needed: a.MSI, b.MSI, c.MSI, d.MSI, e.MSI and 2 more',
     );
   });
@@ -373,11 +368,11 @@ describe('store.loadProject', () => {
     const saved = { names: st().names, selected: st().selected, visible: st().visible };
     st().clear();
     open(json);
-    expect(st().pendingFiles).toEqual(['site/a.MSI', 'site/b.MSI', 'site/bad.pln']);
+    expect(st().pendingFiles.map((p) => p.path)).toEqual(['site/a.MSI', 'site/b.MSI', 'site/bad.pln']);
 
     st().addFiles([input('downloads/a.MSI', msi(1800))]);
     expect(st().files.map((f) => f.id)).toEqual(['site/a.MSI']);
-    expect(st().pendingFiles).toEqual(['site/b.MSI', 'site/bad.pln']);
+    expect(st().pendingFiles.map((p) => p.path)).toEqual(['site/b.MSI', 'site/bad.pln']);
     expect(st().selected).toEqual(saved.selected);
     expect(st().visible).toEqual(saved.visible);
     const s = st();
@@ -395,9 +390,106 @@ describe('store.loadProject', () => {
     });
     st().addFiles([input('z/c.MSI', msi(900)), input('new.MSI', msi(800))]);
     expect(st().files.map((f) => f.id)).toEqual(['z/c.MSI', 'new.MSI']);
-    expect(st().pendingFiles).toEqual(['x/c.MSI', 'y/c.MSI']);
+    expect(st().pendingFiles.map((p) => p.path)).toEqual(['x/c.MSI', 'y/c.MSI']);
     expect(st().highlighted).toBe('z/c.MSI');
     st().dismissPending();
     expect(st().pendingFiles).toEqual([]);
+  });
+});
+
+describe('layout-only projects with numbered same-name files (B1)', () => {
+  const st = useStore.getState;
+  const open = (json: string) => {
+    const parsed = parseProject(json);
+    if (!parsed.ok) throw new Error(parsed.error);
+    st().loadProject(parsed.project);
+  };
+  const second = 'a (2).msi';
+  const build = () => {
+    st().addFiles([input('a.msi', msi(1800)), input('a.msi', msi(1850))]);
+    expect(st().files.map((f) => f.id)).toEqual(['a.msi', second]);
+    st().rename(second, 'Second');
+    const copy = st().duplicate(second)!;
+    const g = st().createGroup('G');
+    st().setMembership(second, g);
+    st().setOffset(second, { azimuthDeg: 20 });
+    st().setTags(second, { tiltDeg: 4 });
+    const json = serializeProject(st(), false);
+    st().clear();
+    return { json, copy, g };
+  };
+  const expectAttached = (copy: string, g: string) => {
+    const s = st();
+    expect(s.pendingFiles).toEqual([]);
+    expect(s.files).toHaveLength(2);
+    const freq = Object.fromEntries(s.files.map((f) => [f.id, f.result.ok && f.result.pattern.frequencyMHz]));
+    expect(freq).toEqual({ 'a.msi': 1800, [second]: 1850 });
+    // Nothing orphaned: every name, copy, membership, offset and tag override belongs to a file that is there.
+    const ids = selectInstances(s.files, s.tagOverrides, s.copies, s.names, s.membership);
+    expect(ids.map((i) => i.pattern.id).sort()).toEqual(['a.msi', second, copy].sort());
+    expect(s.names[second]).toBe('Second');
+    expect(s.copies[copy]).toEqual({ sourceId: second });
+    expect(s.membership[second]).toBe(g);
+    expect(s.view.simulation.offsets[second]).toMatchObject({ azimuthDeg: 20 });
+    expect(s.tagOverrides[second]).toEqual({ tiltDeg: 4 });
+    expect(ids.find((i) => i.pattern.id === copy)!.pattern.frequencyMHz).toBe(1850);
+  };
+
+  it.each([
+    ['in the saved order', [1800, 1850]],
+    ['in the other order', [1850, 1800]],
+  ])('re-attaches two files both named a.msi picked %s', (_label, order) => {
+    const { json, copy, g } = build();
+    expect(JSON.parse(json).files.every((f: { fp?: string; text?: string }) => typeof f.fp === 'string' && f.text === undefined)).toBe(true);
+    open(json);
+    expect(st().pendingFiles.map((p) => p.path)).toEqual(['a.msi', second]);
+    st().addFiles(order.map((f) => input('a.msi', msi(f))));
+    expectAttached(copy, g);
+  });
+
+  it('re-attaches them one selection at a time, from another folder, numbered one first', () => {
+    const { json, copy, g } = build();
+    open(json);
+    st().addFiles([input('downloads/a.msi', msi(1850))]);
+    expect(st().files.map((f) => f.id)).toEqual([second]);
+    st().addFiles([input('downloads/a.msi', msi(1800))]);
+    expectAttached(copy, g);
+  });
+
+  it('does not let an edited file take the place of one that is in the same selection', () => {
+    const { json } = build();
+    open(json);
+    st().addFiles([input('a.msi', msi(1700)), input('a.msi', msi(1800))]);
+    const freq = Object.fromEntries(st().files.map((f) => [f.id, f.result.ok && f.result.pattern.frequencyMHz]));
+    expect(freq).toEqual({ 'a.msi': 1800, [second]: 1700 });
+  });
+
+  it('still matches a legacy project without fingerprints by path, then by unique name', () => {
+    const { json, copy, g } = build();
+    const raw = JSON.parse(json);
+    raw.files = raw.files.map((f: { path: string }) => ({ path: f.path }));
+    open(JSON.stringify(raw));
+    expect(st().pendingFiles).toEqual([{ path: 'a.msi' }, { path: second }]);
+    // Exact path; then the numbered pending path is satisfied by its un-numbered base name.
+    st().addFiles([input('a.msi', msi(1800)), input('elsewhere/a.msi', msi(1850))]);
+    expectAttached(copy, g);
+  });
+
+  it('ignores a damaged fingerprint', () => {
+    const { json } = build();
+    const raw = JSON.parse(json);
+    raw.files[0].fp = { evil: true };
+    raw.files[1].fp = 'x'.repeat(5000);
+    const parsed = parseProject(JSON.stringify(raw));
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(() => st().loadProject(parsed.project)).not.toThrow();
+    expect(st().pendingFiles).toEqual([{ path: 'a.msi' }, { path: second }]);
+    const direct = projectToState(
+      { format: PROJECT_FORMAT, version: 1, savedAt: '', files: [{ path: 'q.msi', fp: 7 as never }], state: {} },
+      initialState(),
+      'light',
+      loadText,
+    );
+    expect(direct.pendingFiles).toEqual([{ path: 'q.msi' }]);
   });
 });

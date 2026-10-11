@@ -21,8 +21,11 @@ test('a failed file among many is reported, listed first and reachable from the 
     file('corrupt.pln', 'NAME X\nFREQUENCY 900\n'),
     file('notes.txt', 'buy cables\nmeeting at 10\n'),
   ]);
-  const status = page.getByRole('status').filter({ hasText: 'Loaded 60 files' });
-  await expect(status).toContainText('2 could not be parsed');
+  const status = page.getByTestId('load-status');
+  await expect(status).toContainText('Loaded 60 files · 2 could not be loaded');
+  // The one live region says the same, and the Errors section is named in the same words.
+  await expect(page.getByRole('status')).toContainText('2 could not be loaded');
+  await expect(page.getByRole('region', { name: 'Files that could not be loaded' })).toBeVisible();
 
   const panel = page.locator('.panel');
   const errors = page.getByTestId('panel-errors');
@@ -62,11 +65,148 @@ test('a project chosen through Open files opens as a project', async ({ page }) 
   await page.getByTestId('file-input').setInputFiles([file('p.lobestory.json', project('p.MSI', 2100))]);
   await expect(page.locator('.panel').getByText('From project', { exact: true })).toBeVisible();
 
+  // With pattern files next to it the app asks; opening over a session then asks to replace it.
   await page.getByTestId('file-input').setInputFiles([file('other.msi', msi(1800)), file('q.lobestory.json', project('q.MSI', 2200))]);
-  await page.getByRole('dialog').getByRole('button', { name: 'Replace' }).click();
+  const ask = page.getByRole('dialog', { name: 'This selection contains a project file: q.lobestory.json' });
+  await ask.getByRole('button', { name: 'Open the project' }).click();
+  await page.getByRole('dialog', { name: 'Replace the current session?' }).getByRole('button', { name: 'Replace' }).click();
   await expect(page.locator('.panel').getByText('2200 MHz')).toBeVisible();
+  await expect(page.locator('.panel').getByText('1800 MHz')).toBeVisible();
   await expect(page.locator('.panel').getByText('2100 MHz')).toHaveCount(0);
   await expect(page.getByTestId('undo-toast')).toBeVisible();
+});
+
+test('pattern files with one project file: the three answers', async ({ page }) => {
+  await page.goto('/');
+  const input = page.getByTestId('file-input');
+  const panel = page.locator('.panel');
+  const selection = [file('a.msi', msi(1800)), file('p.lobestory.json', project('p.MSI', 2100))];
+  const ask = page.getByRole('dialog', { name: 'This selection contains a project file: p.lobestory.json' });
+
+  await input.setInputFiles(selection);
+  await expect(ask.getByRole('button')).toHaveText(['Cancel', 'Open the project', 'Load the pattern files only']);
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByText('Open or drop Planet pattern files')).toBeVisible();
+  await expect(page.getByRole('status')).toHaveText('');
+
+  await input.setInputFiles(selection);
+  await ask.getByRole('button', { name: 'Load the pattern files only' }).click();
+  await expect(panel.getByText('1800 MHz')).toBeVisible();
+  await expect(panel.getByText('From project', { exact: true })).toHaveCount(0);
+  await expect(panel.locator('li')).toHaveCount(1);
+
+  // A session is open now: "Open the project" still asks before replacing it, and Cancel there keeps it.
+  await input.setInputFiles(selection);
+  await ask.getByRole('button', { name: 'Open the project' }).click();
+  const replace = page.getByRole('dialog', { name: 'Replace the current session?' });
+  await replace.getByRole('button', { name: 'Cancel' }).click();
+  await expect(panel.locator('li')).toHaveCount(1);
+  await input.setInputFiles(selection);
+  await ask.getByRole('button', { name: 'Open the project' }).click();
+  await replace.getByRole('button', { name: 'Replace' }).click();
+  await expect(panel.getByText('From project', { exact: true })).toBeVisible();
+  await expect(panel.getByText('1800 MHz')).toBeVisible();
+});
+
+test('a stray .json or several project files among pattern files open nothing', async ({ page }) => {
+  await page.goto('/');
+  const input = page.getByTestId('file-input');
+  const panel = page.locator('.panel');
+  // Any other .json in a multi-file selection is not a project candidate: no question, no error.
+  await input.setInputFiles([file('a.msi', msi(1800)), file('export.json', project('x.MSI', 2500))]);
+  await expect(panel.getByText('1800 MHz')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByTestId('load-status')).toHaveText(/^Loaded 1 file/);
+
+  await input.setInputFiles([
+    file('b.msi', msi(1900)),
+    file('p.lobestory.json', project('p.MSI', 2100)),
+    file('q.lobestory.json', project('q.MSI', 2200)),
+  ]);
+  await expect(page.getByTestId('load-status')).toContainText('Loaded 1 file · 2 project files found — open one with Open project');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(panel.locator('li')).toHaveCount(2);
+
+  // On its own, any .json is tried as a project; the dedicated input takes any .json too.
+  await input.setInputFiles([file('export.json', '{"some":"thing"}')]);
+  await expect(page.getByTestId('load-status')).toContainText('Not a Lobe-Story project.');
+  await expect(panel.locator('li')).toHaveCount(2);
+});
+
+test('the status line: one live region, clean loads go away, warnings stay', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  await expect(page.getByRole('status')).toHaveCount(1);
+  await expect(page.getByRole('status')).toHaveText('');
+  const input = page.getByTestId('file-input');
+  const line = page.getByTestId('load-status');
+
+  await input.setInputFiles([file('a.msi', msi(1800))]);
+  await expect(line).toHaveText(/^Loaded 1 file/);
+  await expect(line).toHaveClass(/info/);
+  await expect(page.getByRole('status')).toHaveText('Loaded 1 file');
+  await page.clock.fastForward(7000);
+  await expect(line).toHaveCount(0);
+  await expect(page.getByRole('status')).toHaveText('');
+
+  await input.setInputFiles([file('a.msi', msi(1800)), file('bad.pln', 'NAME X\nFREQUENCY 900\n')]);
+  await expect(line).toContainText('1 could not be loaded · 1 already loaded (skipped)');
+  await expect(line).not.toHaveClass(/info/);
+  await page.clock.fastForward(60_000);
+  await expect(line).toBeVisible();
+  // Removing the file the line is about takes the line with it; focus stays in the panel.
+  await page.getByRole('button', { name: 'Remove bad.pln' }).click();
+  await expect(line).toHaveCount(0);
+  await expect(page.locator('.panel')).toBeFocused();
+  await expect(page.getByRole('status')).toContainText('Removed bad.pln. Undo: ');
+});
+
+test('the undo offer waits while it is hovered or focused, and focus moves to a neighbour after Remove', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900)), file('c.msi', msi(2000))]);
+  const toast = page.getByTestId('undo-toast');
+
+  await page.getByLabel('Actions for b.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  await expect(toast.getByRole('button', { name: /^Undo · (Ctrl\+Z|⌘Z)$/ })).toBeVisible();
+  await expect(page.getByLabel('Actions for c.msi')).toBeFocused();
+
+  await toast.hover();
+  await page.clock.fastForward(30_000);
+  await expect(toast).toBeVisible();
+  await page.locator('h1').hover();
+  await toast.getByRole('button', { name: 'Dismiss undo' }).focus();
+  await page.clock.fastForward(30_000);
+  await expect(toast).toBeVisible();
+  await page.getByLabel('Actions for c.msi').focus();
+  await page.clock.fastForward(11_000);
+  await expect(toast).toHaveCount(0);
+
+  // The last row: focus goes to the one before it.
+  await page.getByLabel('Actions for c.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  await expect(page.getByLabel('Actions for a.msi')).toBeFocused();
+});
+
+test('an edit after Remove withdraws the undo; Ctrl+Z then does nothing', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900))]);
+  const panel = page.locator('.panel');
+  const toast = page.getByTestId('undo-toast');
+  await page.getByLabel('Actions for b.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  await expect(toast).toBeVisible();
+  // Selecting a row is not an edit.
+  await panel.getByText('1800 MHz').click();
+  await expect(toast).toBeVisible();
+  await page.getByLabel('Actions for a.msi').click();
+  await page.getByRole('menuitem', { name: 'Duplicate' }).click();
+  await expect(toast).toHaveCount(0);
+  await page.locator('h1').click();
+  await page.keyboard.press('Control+z');
+  await expect(panel.locator('li')).toHaveCount(2);
+  await expect(panel.getByText('1900 MHz')).toHaveCount(0);
 });
 
 test('Clear asks first, then Undo and Ctrl+Z bring the whole session back', async ({ page }) => {
@@ -88,7 +228,7 @@ test('Clear asks first, then Undo and Ctrl+Z bring the whole session back', asyn
   await expect(page.getByText('Open or drop Planet pattern files')).toBeVisible();
   const toast = page.getByTestId('undo-toast');
   await expect(toast).toContainText('Cleared 2 files');
-  await toast.getByRole('button', { name: 'Undo', exact: true }).click();
+  await toast.getByRole('button', { name: /^Undo/ }).click();
   await expect(panel.getByText('Alpha', { exact: true })).toBeVisible();
   await expect(panel.getByText('1900 MHz')).toBeVisible();
   await expect(toast).toHaveCount(0);
@@ -101,7 +241,8 @@ test('Clear asks first, then Undo and Ctrl+Z bring the whole session back', asyn
   await page.getByLabel('Mechanical tilt (°) value').focus();
   await page.keyboard.press('Control+z');
   await expect(panel.getByText('1900 MHz')).toHaveCount(0);
-  await page.locator('h1').click();
+  // A checkbox is not a text field: the shortcut works from there.
+  await page.getByLabel('Show Alpha').focus();
   await page.keyboard.press('Control+z');
   await expect(panel.getByText('1900 MHz')).toBeVisible();
 });
@@ -117,7 +258,7 @@ test('Delete group can be undone', async ({ page }) => {
   await page.getByLabel('Actions for group Site 1').click();
   await page.getByRole('menuitem', { name: 'Delete group' }).click();
   await expect(panel.getByText('Site 1', { exact: true })).toHaveCount(0);
-  await page.getByTestId('undo-toast').getByRole('button', { name: 'Undo', exact: true }).click();
+  await page.getByTestId('undo-toast').getByRole('button', { name: /^Undo/ }).click();
   await expect(panel.getByText('Site 1', { exact: true })).toBeVisible();
   await expect(panel.getByText('Sector A', { exact: true })).toBeVisible();
 });
@@ -140,6 +281,11 @@ test('the page asks before unloading only while there is unsaved work', async ({
   const download = page.waitForEvent('download');
   await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
   await download;
+  expect(await prevented()).toBe(false);
+  // Everything a project stores counts, e.g. the plot type; putting it back makes the session saved again.
+  await page.getByRole('button', { name: 'Rectangular' }).click();
+  expect(await prevented()).toBe(true);
+  await page.getByRole('button', { name: 'Polar' }).click();
   expect(await prevented()).toBe(false);
   await page.getByLabel('Actions for a.msi').click();
   await page.getByRole('menuitem', { name: 'Duplicate' }).click();

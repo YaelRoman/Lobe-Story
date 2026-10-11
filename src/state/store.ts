@@ -6,9 +6,9 @@ import type { Method3d } from '../core/analysis/pattern3d';
 import type { SubBand } from '../core/analysis/subBands';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
-import { matchPending, projectToState, type ProjectFile } from './project';
-import { hasSameNameAndText, loadSummary, numberedPath } from './duplicates';
-import { markOf, takeSnapshot, type SavedMark, type UndoEntry } from './undo';
+import { projectToState, type ProjectFile } from './project';
+import { isCleanLoad, loadSummary, planLoad, type PendingFile } from './duplicates';
+import { changesSession, markOf, takeSnapshot, type SavedMark, type UndoEntry } from './undo';
 import { clampSim, SIM_LIMITS, type OffsetState, type SimulationKey } from './simLimits';
 
 export { clampSim, SIM_LIMITS };
@@ -82,11 +82,13 @@ export interface StoreData {
   view: ViewState;
   /** Short status line for the load boundary (empty selection, unreadable files). Dismissible. */
   loadMessage: string | null;
+  /** 'info' for a load where every file simply loaded (the line goes away by itself), else 'warn'. */
+  loadTone: 'info' | 'warn';
   /** How many files failed to parse in the load `loadMessage` describes (drives its "Show" button). */
   loadFailed: number;
   /** The last destructive action's snapshot, offered for undo for a short time. */
   undo: UndoEntry | null;
-  /** The edits as of the last Save project / Open project; null = never saved. See undo.ts `isDirty`. */
+  /** The saveable state as of the last Save project / Open project; null = never saved. See undo.ts `isDirty`. */
   saved: SavedMark | null;
   /** Copy id (`path#copy-n`) → its source path, in insertion order. */
   copies: Record<string, { sourceId: string }>;
@@ -97,8 +99,8 @@ export interface StoreData {
   membership: Record<string, string>;
   /** What the offsets row edits: a file (also the highlighted file) or a custom group. */
   selected: Selection;
-  /** Paths a layout-only project still needs (see project.ts). */
-  pendingFiles: string[];
+  /** Files a layout-only project still needs (see project.ts and duplicates.ts `planLoad`). */
+  pendingFiles: PendingFile[];
   /** The open in-page dialog, if any (its promise lives in ui/dialogs.ts). */
   dialog: DialogState;
 }
@@ -108,6 +110,8 @@ export interface AddFilesOptions {
   unreadable?: number;
   /** Keep the undo offered by the project that was just opened (its pattern files arrive right after). */
   keepUndo?: boolean;
+  /** Something else the status line should say about this selection (e.g. project files left unopened). */
+  note?: string;
 }
 
 export interface StoreActions {
@@ -161,6 +165,7 @@ export function initialState(): StoreData {
     highlighted: null,
     settings: { ...DEFAULT_SETTINGS },
     loadMessage: null,
+    loadTone: 'info',
     loadFailed: 0,
     undo: null,
     saved: null,
@@ -205,6 +210,18 @@ export function loadText(path: string, text: string): LoadedFile {
     path,
     text,
     result: result.ok ? { ...result, pattern: { ...result.pattern, id: path } } : result,
+  };
+}
+
+/** `file` as the entry `id` at `path` (a pending match or a duplicate's number moved it). */
+function placedAs(file: LoadedFile, id: string, path: string): LoadedFile {
+  if (file.id === id && file.path === path) return file;
+  const r = file.result;
+  return {
+    id,
+    path,
+    text: file.text,
+    result: r.ok ? { ...r, pattern: { ...r.pattern, id, fileName: baseName(path) } } : r,
   };
 }
 
@@ -287,80 +304,88 @@ const undoEntry = (s: StoreData, label: string): { undo: UndoEntry } => ({
   undo: { id: ++undoSeq, label, snapshot: takeSnapshot(s) },
 });
 
+/** Whether every value of `partial` is already what `current` holds (an update that changes nothing). */
+const sameValues = <T extends object>(current: T, partial: Partial<T>): boolean =>
+  (Object.keys(partial) as (keyof T)[]).every((k) => Object.is(current[k], partial[k]));
+
 const ZERO_OFFSET: OffsetState = { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0 };
 const isZeroOffset = (o: OffsetState) => o.electricalDeg === 0 && o.mechanicalDeg === 0 && o.azimuthDeg === 0;
 
-export const useStore = create<StoreData & StoreActions>()((set, get) => ({
+type State = StoreData & StoreActions;
+type Update = State | Partial<State>;
+
+export const useStore = create<State>()((rawSet, get) => {
+  /**
+   * Every action updates the store through here. An undo that is on offer restores a snapshot of
+   * the whole session, so any later change to session data or to the view would be thrown away by
+   * it: such a change withdraws the offer, unless the action sets `undo` itself.
+   */
+  const set = (update: Update | ((state: State) => Update)): void =>
+    rawSet((state) => {
+      const patch = typeof update === 'function' ? update(state) : update;
+      if (patch === state || !state.undo || 'undo' in patch || !changesSession(state, patch)) return patch;
+      return { ...patch, undo: null };
+    });
+
+  return {
   ...initialState(),
 
   addFiles: (inputs, options = {}) =>
     set((state) => {
       const unreadable = options.unreadable ?? 0;
-      // Everything loaded so far plus what this selection adds, by id, in display order.
-      const working = new Map<string, LoadedFile>(state.files.map((f) => [f.id, f]));
-      const fresh = new Set<string>();
-      const matched = new Set<string>();
-      let pendingFiles = state.pendingFiles;
-      let skipped = 0;
-      let renamed = 0;
-      let sawPattern = false;
-      for (const input of inputs) {
-        if (!isPatternFile(input.path)) continue;
-        sawPattern = true;
-        const text = decodeText(input.bytes);
-        // A file a layout-only project is waiting for loads under its saved path.
-        const target = matchPending(pendingFiles, input.path);
-        if (target !== null) {
-          matched.add(target);
-          pendingFiles = pendingFiles.filter((p) => p !== target);
-        }
-        let path = target ?? input.path;
-        const existing = working.get(path);
-        if (existing && hasSameNameAndText(path, text, (p) => working.get(p)?.text)) {
-          skipped++;
-          continue;
-        }
-        // Same name, different content: keep both. A file that failed to parse is just replaced.
-        if (existing && existing.result.ok) {
-          path = numberedPath(path, (p) => working.has(p) || pendingFiles.includes(p));
-          renamed++;
-        }
-        working.set(path, loadText(path, text));
-        fresh.add(path);
-      }
-      if (!sawPattern) {
+      const note = options.note ? [options.note] : [];
+      const parsed = inputs
+        .filter((input) => isPatternFile(input.path))
+        .map((input) => loadText(input.path, decodeText(input.bytes)));
+      if (parsed.length === 0) {
+        const nothing = unreadable > 0 ? `Could not read ${unreadable} file(s)` : 'No .msi/.pln/.txt files found in the selection';
         return {
           loadFailed: 0,
-          loadMessage:
-            unreadable > 0 ? `Could not read ${unreadable} file(s)` : 'No .msi/.pln/.txt files found in the selection',
+          loadTone: 'warn',
+          loadMessage: note.length > 0 && unreadable === 0 ? note[0] : [nothing, ...note].join(' · '),
         };
       }
-      const files = [...working.values()];
-      const loaded = files.filter((f) => fresh.has(f.id));
-      const failed = loaded.filter((f) => !f.result.ok).length;
-      const report = {
-        loadFailed: failed,
-        loadMessage: loadSummary({ loaded: loaded.length - failed, failed, skipped, renamed, unreadable }),
+      const plan = planLoad(
+        state.files.map((f) => ({ id: f.id, path: f.path, text: f.text, ok: f.result.ok })),
+        state.pendingFiles,
+        parsed.map((f) => ({ path: f.path, text: f.text, ok: f.result.ok })),
+      );
+      const counts = { ...plan.counts, unreadable };
+      const report: Partial<StoreData> = {
+        loadFailed: counts.failed,
+        loadTone: isCleanLoad(counts) && note.length === 0 ? 'info' : 'warn',
+        loadMessage: [loadSummary(counts), ...note].join(' · '),
       };
-      if (loaded.length === 0) return report;
-      const undo = options.keepUndo ? state.undo : null;
+      if (plan.add.length === 0) return report;
+
+      const files = [...state.files];
+      const added: LoadedFile[] = [];
+      const matched = new Set<string>();
+      for (const a of plan.add) {
+        const file = placedAs(parsed[a.index], a.id, a.path);
+        const at = a.replaces === undefined ? -1 : files.findIndex((f) => f.id === a.replaces);
+        if (at >= 0) files[at] = file;
+        else files.push(file);
+        added.push(file);
+        if (a.matched) matched.add(a.id);
+      }
+      const next: Partial<StoreData> = { ...report, files };
+      if (plan.pending.length !== state.pendingFiles.length) next.pendingFiles = plan.pending;
+      if (options.keepUndo) next.undo = state.undo;
       // Matched files keep the visibility/selection saved in the project.
-      const firstOk = loaded.find((f) => f.result.ok && !matched.has(f.id));
-      if (!firstOk) return { files, pendingFiles, undo, ...report };
+      const firstOk = added.find((f) => f.result.ok && !matched.has(f.id));
+      if (!firstOk) return next;
       return {
-        files,
-        pendingFiles,
-        undo,
+        ...next,
         visible: { ...state.visible, [firstOk.id]: true },
         highlighted: firstOk.id,
         selected: { kind: 'file', id: firstOk.id },
-        ...report,
       };
     }),
 
   undoLast: () =>
     set((s) => {
-      if (!s.undo) return {};
+      if (!s.undo) return s;
       const { snapshot } = s.undo;
       // The theme is a display preference, not part of the session being restored.
       return { ...snapshot, view: { ...snapshot.view, theme: s.view.theme }, undo: null, loadMessage: null, loadFailed: 0 };
@@ -383,13 +408,14 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
       };
     }),
 
-  dismissPending: () => set({ pendingFiles: [] }),
+  dismissPending: () => set((s) => (s.pendingFiles.length === 0 ? s : { pendingFiles: [] })),
   openDialog: (dialog) => set({ dialog }),
   closeDialog: () => set({ dialog: null }),
 
   removeFile: (id) =>
     set((s) => {
-      if (!s.copies[id] && !s.files.some((f) => f.id === id)) return {};
+      const file = s.files.find((f) => f.id === id);
+      if (!s.copies[id] && !file) return s;
       const isCopy = !!s.copies[id];
       const ids = isCopy ? [id] : [id, ...Object.keys(s.copies).filter((c) => s.copies[c].sourceId === id)];
       const d = draftOf(s);
@@ -406,14 +432,16 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
         files: isCopy ? s.files : s.files.filter((f) => f.id !== id),
         highlighted: s.highlighted !== null && ids.includes(s.highlighted) ? null : s.highlighted,
         selected: s.selected?.kind === 'file' && ids.includes(s.selected.id) ? null : s.selected,
-        ...undoEntry(s, `Removed ${s.names[id] ?? baseName(id)}${ids.length > 1 ? ' and its copies' : ''}`),
+        // The status line may be about the file that just went: do not leave a stale count behind.
+        ...(isCopy ? {} : { loadMessage: null, loadFailed: 0 }),
+        ...undoEntry(s, `Removed ${s.names[id] ?? baseName(file?.path ?? id)}${ids.length > 1 ? ' and its copies' : ''}`),
       };
     }),
 
   clear: () =>
     set((s) => ({
       ...(s.files.length > 0 || s.pendingFiles.length > 0
-        ? undoEntry(s, `Cleared ${s.files.length} file${s.files.length === 1 ? '' : 's'}`)
+        ? undoEntry(s, s.files.length === 0 ? 'Cleared the session' : `Cleared ${s.files.length} file${s.files.length === 1 ? '' : 's'}`)
         : { undo: null }),
       loadFailed: 0,
       saved: null,
@@ -432,12 +460,17 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
     })),
 
   setTags: (id, tags) =>
-    set((state) => ({ tagOverrides: { ...state.tagOverrides, [id]: { ...state.tagOverrides[id], ...tags } } })),
+    set((state) => {
+      const current = state.tagOverrides[id];
+      if (current && sameValues(current, tags)) return state;
+      return { tagOverrides: { ...state.tagOverrides, [id]: { ...current, ...tags } } };
+    }),
 
   toggleVisible: (id) => set((state) => ({ visible: { ...state.visible, [id]: !state.visible[id] } })),
 
   setVisible: (ids, visible) =>
     set((state) => {
+      if (ids.every((id) => !!state.visible[id] === visible)) return state;
       const next = { ...state.visible };
       for (const id of ids) next[id] = visible;
       return { visible: next };
@@ -445,45 +478,55 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
 
   setHighlighted: (id) => set({ highlighted: id, selected: id ? { kind: 'file', id } : null }),
 
-  updateSettings: (partial) => set((state) => ({ settings: { ...state.settings, ...partial } })),
+  updateSettings: (partial) =>
+    set((state) => (sameValues(state.settings, partial) ? state : { settings: { ...state.settings, ...partial } })),
 
-  updateView: (partial) => set((state) => ({ view: { ...state.view, ...partial } })),
+  updateView: (partial) => set((state) => (sameValues(state.view, partial) ? state : { view: { ...state.view, ...partial } })),
 
-  setLoadMessage: (message) => set({ loadMessage: message }),
+  setLoadMessage: (message) => set({ loadMessage: message, loadTone: 'warn', loadFailed: 0 }),
 
   updateSimulation: (partial) =>
     set((state) => {
       const next = { ...state.view.simulation, ...partial };
       for (const key of Object.keys(SIM_LIMITS) as SimulationKey[]) next[key] = clampSim(key, next[key]);
+      // A field that commits its unchanged value on blur must not count as an edit.
+      if (sameValues(state.view.simulation, next)) return state;
       return { view: { ...state.view, simulation: next } };
     }),
 
   resetSimulation: (scope = 'all') =>
-    set((state) => ({
-      view: {
-        ...state.view,
-        simulation: {
-          ...state.view.simulation,
-          electricalDeg: 0,
-          mechanicalDeg: 0,
-          azimuthDeg: 0,
-          ...(scope === 'all' ? { offsets: {}, groupOffsets: {} } : {}),
+    set((state) => {
+      const sim = state.view.simulation;
+      const hasOffsets = Object.keys(sim.offsets).length > 0 || Object.keys(sim.groupOffsets).length > 0;
+      if (isZeroOffset(sim) && !(scope === 'all' && hasOffsets)) return state;
+      return {
+        view: {
+          ...state.view,
+          simulation: {
+            ...sim,
+            electricalDeg: 0,
+            mechanicalDeg: 0,
+            azimuthDeg: 0,
+            ...(scope === 'all' ? { offsets: {}, groupOffsets: {} } : {}),
+          },
         },
-      },
-    })),
+      };
+    }),
 
   setOffset: (id, partial) =>
     set((state) => {
-      const cur = state.view.simulation.offsets[id] ?? { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0 };
+      const cur = state.view.simulation.offsets[id] ?? ZERO_OFFSET;
       const next = { ...cur, ...partial };
       for (const key of Object.keys(SIM_LIMITS) as SimulationKey[]) next[key] = clampSim(key, next[key]);
+      if (sameValues(cur, next)) return state;
       const offsets = { ...state.view.simulation.offsets };
       if (next.electricalDeg === 0 && next.mechanicalDeg === 0 && next.azimuthDeg === 0) delete offsets[id];
       else offsets[id] = next;
       return withOffsets(state, offsets);
     }),
 
-  clearOffsets: (id) => set((state) => withOffsets(state, without(state.view.simulation.offsets, id))),
+  clearOffsets: (id) =>
+    set((state) => (state.view.simulation.offsets[id] ? withOffsets(state, without(state.view.simulation.offsets, id)) : state)),
 
   duplicate: (id) => {
     const s = get();
@@ -496,9 +539,9 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
 
   rename: (id, name) =>
     set((s) => {
-      if (!instanceExists(s, id)) return {};
-      const names = { ...s.names };
       const trimmed = name.trim();
+      if (!instanceExists(s, id) || (s.names[id] ?? '') === trimmed) return s;
+      const names = { ...s.names };
       if (trimmed) names[id] = trimmed;
       else delete names[id];
       return { names };
@@ -515,14 +558,14 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
   renameGroup: (id, name) =>
     set((s) => {
       const trimmed = name.trim();
-      if (!trimmed || !s.customGroups.some((g) => g.id === id)) return {};
+      if (!trimmed || !s.customGroups.some((g) => g.id === id)) return s;
       return { customGroups: s.customGroups.map((g) => (g.id === id ? { ...g, name: trimmed } : g)) };
     }),
 
   deleteGroup: (id) =>
     set((s) => {
       const group = s.customGroups.find((g) => g.id === id);
-      if (!group) return {};
+      if (!group) return s;
       const d = draftOf(s);
       d.customGroups = d.customGroups.filter((g) => g.id !== id);
       for (const k of Object.keys(d.membership)) if (d.membership[k] === id) delete d.membership[k];
@@ -555,7 +598,8 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
       // instance id — src/ui/useSimulation.test.ts exercises this action against tagged-pattern
       // ids that are never loaded through `addFiles`, so an instance-existence guard here would
       // weaken that existing, unrelated test. UI call sites only ever pass real instance ids.
-      if (groupId && !s.customGroups.some((g) => g.id === groupId)) return {};
+      if (groupId && !s.customGroups.some((g) => g.id === groupId)) return s;
+      if ((s.membership[id] ?? null) === (groupId || null)) return s;
       const membership = { ...s.membership };
       if (groupId) membership[id] = groupId;
       else delete membership[id];
@@ -564,9 +608,11 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
 
   setGroupOffset: (groupId, partial) =>
     set((s) => {
-      if (!s.customGroups.some((g) => g.id === groupId)) return {};
-      const next = { ...(s.view.simulation.groupOffsets[groupId] ?? ZERO_OFFSET), ...partial };
+      if (!s.customGroups.some((g) => g.id === groupId)) return s;
+      const cur = s.view.simulation.groupOffsets[groupId] ?? ZERO_OFFSET;
+      const next = { ...cur, ...partial };
       for (const key of Object.keys(SIM_LIMITS) as SimulationKey[]) next[key] = clampSim(key, next[key]);
+      if (sameValues(cur, next)) return s;
       const groupOffsets = { ...s.view.simulation.groupOffsets };
       if (isZeroOffset(next)) delete groupOffsets[groupId];
       else groupOffsets[groupId] = next;
@@ -574,12 +620,11 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
     }),
 
   clearGroupOffsets: (groupId) =>
-    set((s) => ({
-      view: {
-        ...s.view,
-        simulation: { ...s.view.simulation, groupOffsets: without(s.view.simulation.groupOffsets, groupId) },
-      },
-    })),
+    set((s) =>
+      s.view.simulation.groupOffsets[groupId]
+        ? { view: { ...s.view, simulation: { ...s.view.simulation, groupOffsets: without(s.view.simulation.groupOffsets, groupId) } } }
+        : s,
+    ),
 
   select: (selection) =>
     set(selection?.kind === 'file' ? { selected: selection, highlighted: selection.id } : { selected: selection }),
@@ -606,4 +651,5 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
     set({ ...patch, selected: { kind: 'group', id: gid }, view: { ...patch.view!, dimension: '3d', layout3d: 'overlay' } });
     return gid;
   },
-}));
+  };
+});

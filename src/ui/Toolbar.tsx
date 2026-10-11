@@ -32,10 +32,8 @@ export function Toolbar() {
     const state = useStore.getState();
     if (clearNeedsConfirm(state)) {
       const n = state.files.length;
-      const ok = await confirmDialog(
-        `Clear ${n} file${n === 1 ? '' : 's'} and all groups, names and offsets? You can undo this for a few seconds.`,
-        'Clear',
-      );
+      const what = n === 0 ? 'Clear the session with all its groups' : `Clear ${n} file${n === 1 ? '' : 's'} and all groups`;
+      const ok = await confirmDialog(`${what}, names and offsets? You can undo this for a few seconds.`, 'Clear');
       if (!ok) return;
     }
     clear();

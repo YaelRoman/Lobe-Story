@@ -11,17 +11,9 @@ import { HpbwChart } from './ui/HpbwChart';
 import { MetricsTable } from './ui/MetricsTable';
 import { BandStats } from './ui/BandStats';
 import { Dialog } from './ui/Dialog';
-import { pendingLabel } from './state/project';
 import { useSimulation } from './ui/useSimulation';
-import { UndoToast } from './ui/UndoToast';
+import { StatusArea } from './ui/StatusArea';
 import { useUnsavedGuard } from './ui/useUnsavedGuard';
-
-/** Scrolls the panel's Errors section into view and moves focus to it. */
-function showErrors() {
-  const section = document.querySelector<HTMLElement>('[data-testid="panel-errors"]');
-  section?.scrollIntoView?.({ block: 'start' });
-  section?.focus();
-}
 
 export default function App() {
   const files = useStore((s) => s.files);
@@ -29,11 +21,6 @@ export default function App() {
   const settings = useStore((s) => s.settings);
   const theme = useStore((s) => s.view.theme);
   const visible = useStore((s) => s.visible);
-  const loadMessage = useStore((s) => s.loadMessage);
-  const loadFailed = useStore((s) => s.loadFailed);
-  const setLoadMessage = useStore((s) => s.setLoadMessage);
-  const pendingFiles = useStore((s) => s.pendingFiles);
-  const dismissPending = useStore((s) => s.dismissPending);
   const copies = useStore((s) => s.copies);
   const names = useStore((s) => s.names);
   const membership = useStore((s) => s.membership);
@@ -69,22 +56,7 @@ export default function App() {
   return (
     <div className="app">
       <Toolbar />
-      {loadMessage && (
-        <div className="load-message" role="status">
-          <span>{loadMessage}</span>
-          {loadFailed > 0 && errors.length > 0 && <button onClick={showErrors}>Show errors</button>}
-          <button aria-label="Dismiss message" onClick={() => setLoadMessage(null)}>
-            ✕
-          </button>
-        </div>
-      )}
-      <UndoToast />
-      {pendingFiles.length > 0 && (
-        <div className="load-message" role="status">
-          <span>{pendingLabel(pendingFiles)}</span>
-          <button onClick={dismissPending}>Dismiss</button>
-        </div>
-      )}
+      <StatusArea hasErrors={errors.length > 0} />
       <div className="body">
         {files.length > 0 && <FilePanel groups={groups} errors={errors} warnings={warnings} colors={colors} />}
         <main>

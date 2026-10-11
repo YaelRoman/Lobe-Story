@@ -18,6 +18,17 @@ export function inferTags(p: Pattern): Tags {
     .replace(/^.*[\\/]/, '')
     .replace(/\.[^.]+$/, '')
     .replace(/\s+\(\d+\)$/, '');
+  const tags = tagsOfName(base, p);
+  // Some browsers number a second download without the space ("name(1).msi"). That could also be
+  // part of a real name, so it is ignored only when nothing read from the full name is lost or changed.
+  const glued = /\(\d+\)$/.exec(base);
+  if (!glued) return tags;
+  const plain = tagsOfName(base.slice(0, glued.index), p);
+  const keepsAll = (Object.keys(tags) as (keyof Tags)[]).every((k) => tags[k] === undefined || plain[k] === tags[k]);
+  return keepsAll ? plain : tags;
+}
+
+function tagsOfName(base: string, p: Pattern): Tags {
   const dashed = DASHED_NAME.exec(base);
   if (dashed) return { polarization: dashed[3] === '+' ? '+45' : '-45', tiltDeg: Number(dashed[2]), port: dashed[1] };
 
