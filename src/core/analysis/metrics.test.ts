@@ -145,6 +145,26 @@ describe('analyzeAll', () => {
     expect(all.get('p')!.beamTracking).toEqual({ value: 1.5, angle: 20 });
     expect(all.get('m')!.beamTracking).toEqual({ value: 1.5, angle: 20 });
   });
+
+  it('adds the sector-edge tracking values for both partners, and none for a single file', () => {
+    const edge = (a: number) => quadBeam(65)(a) + (a === 60 ? 0.7 : 0);
+    const p: TaggedPattern = {
+      pattern: patternFrom(quadBeam(65), vBeamWithLobes, { id: 'p', gain: { value: 15, unit: 'dBd' } }),
+      tags: { polarization: '+45', tiltDeg: 8 },
+    };
+    const m: TaggedPattern = {
+      pattern: patternFrom(edge, vBeamWithLobes, { id: 'm', gain: { value: 14.2, unit: 'dBd' } }),
+      tags: { polarization: '-45', tiltDeg: 8 },
+    };
+    const all = analyzeAll([p, m]);
+    expect(all.get('p')!.trackingEdges!.partnerId).toBe('m');
+    expect(all.get('m')!.trackingEdges!.partnerId).toBe('p');
+    const [l, r] = all.get('p')!.trackingEdges!.values;
+    expect(l).toBeCloseTo(0.8, 9);
+    expect(r).toBeCloseTo(Math.abs(0.8 + 0.7), 9);
+    expect(all.get('m')!.trackingEdges!.values).toEqual([l, r]);
+    expect(analyzeAll([p]).get('p')!.trackingEdges).toBeUndefined();
+  });
 });
 
 describe('sector metrics', () => {
@@ -153,6 +173,7 @@ describe('sector metrics', () => {
     expect(m.spr.value).not.toBeNull();
     expect(m.air.value).not.toBeNull();
     expect(m.rollOff.value).toBeCloseTo(3 * (60 / 32.5) ** 2, 6);
+    expect(m.rollOffEdges).toHaveLength(2);
     expect(Object.keys(m.du)).toEqual(['qam16', 'qam64', 'qam256']);
     expect(m.du.qam16.value).toBeGreaterThan(m.du.qam64.value!);
   });

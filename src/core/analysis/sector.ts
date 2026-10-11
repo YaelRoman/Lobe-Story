@@ -25,10 +25,14 @@ export function sectorPower(h: Grid, edgeDeg = 60): { spr: MetricResult; air: Me
   return { spr: { value: (100 * pu) / pd }, air: { value: 10 * Math.log10(pd / pu) } };
 }
 
+/** Level below the peak at the two sector edges: [at −edgeDeg, at +edgeDeg]. */
+export function rollOffEdges(h: Grid, edgeDeg = 60): [number, number] {
+  return [attAt(h, -edgeDeg), attAt(h, edgeDeg)];
+}
+
 /** Level below the peak at the sector edges (the worse of the two); `angle` is the signed edge. */
 export function rollOff(h: Grid, edgeDeg = 60): MetricResult {
-  const plus = attAt(h, edgeDeg);
-  const minus = attAt(h, -edgeDeg);
+  const [minus, plus] = rollOffEdges(h, edgeDeg);
   return minus > plus ? { value: minus, angle: -edgeDeg } : { value: plus, angle: edgeDeg };
 }
 

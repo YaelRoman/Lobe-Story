@@ -3,8 +3,9 @@ import { beamwidth, type BeamResult } from './beamwidth';
 import { frontToBack } from './frontToBack';
 import { toGrid, type Grid } from './grid';
 import { elevationSidelobes, FIRST_LOBE_RANGE, horizontalSls, type LobeResult, type WindowResult } from './sidelobes';
-import { DU_LEVELS, duAperture, rollOff, sectorPower } from './sector';
-import { beamTracking } from './tracking';
+import { DU_LEVELS, duAperture, rollOff, rollOffEdges, sectorPower } from './sector';
+import { beamTracking, edgeTracking } from './tracking';
+import { DBI_OVER_DBD } from '../gain';
 
 export interface AnalysisSettings {
   levelDb: number;
@@ -73,6 +74,10 @@ export interface PatternMetrics {
   spr: MetricResult;
   air: MetricResult;
   rollOff: MetricResult;
+  /** Level below the peak at [−edge, +edge]: the two samples per file of the band statistics. */
+  rollOffEdges: [number, number];
+  /** Port-to-port difference at [−edge, +edge] against the ± partner; absent without a partner. */
+  trackingEdges?: { partnerId: string; values: [number, number] };
   du: Record<'qam16' | 'qam64' | 'qam256', MetricResult & { edges?: [number, number] }>;
   delta: { hHpbw: MetricResult; vHpbw: MetricResult; fb: MetricResult };
 }
@@ -137,6 +142,7 @@ export function analyzePattern(
     spr: power.spr,
     air: power.air,
     rollOff: rollOff(grids.h, s.sectorEdgeDeg),
+    rollOffEdges: rollOffEdges(grids.h, s.sectorEdgeDeg),
     du,
     delta: declaredReason
       ? {
@@ -192,7 +198,6 @@ export function findTrackingPartner(
   return { partner: candidates[0] };
 }
 
-const DBI_OVER_DBD = 2.15;
 const gainDbd = (g: NonNullable<Pattern['gain']>): number => (g.unit === 'dBi' ? g.value - DBI_OVER_DBD : g.value);
 
 export function analyzeAll(
@@ -206,17 +211,20 @@ export function analyzeAll(
     const own = grids.get(item.pattern.id)!;
     const metrics = analyzePattern(item, s, own, opts);
     const found = findTrackingPartner(item, items);
-    metrics.beamTracking =
-      'partner' in found
-        ? beamTracking(
-            own.h,
-            grids.get(found.partner.pattern.id)!.h,
-            s.sectorEdgeDeg,
-            item.pattern.gain && found.partner.pattern.gain
-              ? gainDbd(item.pattern.gain) - gainDbd(found.partner.pattern.gain)
-              : 0,
-          )
-        : missing(found.reason);
+    if ('partner' in found) {
+      const partnerGrid = grids.get(found.partner.pattern.id)!.h;
+      const sameGainDelta =
+        item.pattern.gain && found.partner.pattern.gain
+          ? gainDbd(item.pattern.gain) - gainDbd(found.partner.pattern.gain)
+          : 0;
+      metrics.beamTracking = beamTracking(own.h, partnerGrid, s.sectorEdgeDeg, sameGainDelta);
+      metrics.trackingEdges = {
+        partnerId: found.partner.pattern.id,
+        values: edgeTracking(own.h, partnerGrid, s.sectorEdgeDeg, sameGainDelta),
+      };
+    } else {
+      metrics.beamTracking = missing(found.reason);
+    }
     out.set(item.pattern.id, metrics);
   }
   return out;

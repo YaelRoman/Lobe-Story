@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { duAperture, duCurve, DU_LEVELS, rollOff, sectorPower } from './sector';
-import { beamTracking } from './tracking';
-import { gridFrom, quadBeam } from '../../test/synthetic';
+import { duAperture, duCurve, DU_LEVELS, rollOff, rollOffEdges, sectorPower } from './sector';
+import { beamTracking, edgeTracking } from './tracking';
+import { gridFrom, pwl, quadBeam } from '../../test/synthetic';
 import { signed } from './grid';
 
 const brick = gridFrom((a) => (Math.abs(a) <= 60 ? 0 : 30));
@@ -54,6 +54,33 @@ describe('rollOff', () => {
   it('interpolates for a fractional edge', () => {
     const g = gridFrom((a) => Math.abs(a));
     expect(rollOff(g, 60.5).value).toBeCloseTo(60.5, 9);
+  });
+});
+
+describe('rollOffEdges', () => {
+  const asym = gridFrom(pwl([[-180, 30], [-60, 12], [0, 0], [60, 9], [180, 30]]));
+
+  it('reads the level at both edges, left first', () => {
+    expect(rollOffEdges(asym)).toEqual([12, 9]);
+    expect(rollOffEdges(asym, 30)).toEqual([6, 4.5]);
+    expect(rollOff(asym)).toEqual({ value: 12, angle: -60 });
+  });
+});
+
+describe('edgeTracking', () => {
+  const a = gridFrom(pwl([[-180, 30], [-60, 12], [0, 0], [60, 9], [180, 30]]));
+  const b = gridFrom(pwl([[-180, 30], [-60, 11], [0, 0], [60, 10], [180, 30]]));
+
+  it('is the port-to-port difference at the two edges', () => {
+    const [l, r] = edgeTracking(a, b);
+    expect(l).toBeCloseTo(1, 9);
+    expect(r).toBeCloseTo(1, 9);
+  });
+
+  it('subtracts the gain difference first', () => {
+    const [l, r] = edgeTracking(a, b, 60, 0.5);
+    expect(l).toBeCloseTo(0.5, 9); // |0.5 − 1|
+    expect(r).toBeCloseTo(1.5, 9); // |0.5 − (−1)|
   });
 });
 

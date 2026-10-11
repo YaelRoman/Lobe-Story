@@ -1,7 +1,8 @@
-import type { GainUnit, MetricResult, Pattern } from '../core/types';
+import type { GainUnit, MetricResult } from '../core/types';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import type { GroupView } from '../state/selectors';
 import { isTilted, type TiltSettings, type SimSettings } from '../core/analysis/tilt';
+import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
 
@@ -130,11 +131,7 @@ export interface MetricsRow {
   tilted?: Partial<Record<MetricColumn, MetricResult>>;
 }
 
-export function convertGain(gain: Pattern['gain'], unit: GainUnit): number | null {
-  if (!gain) return null;
-  if (gain.unit === unit) return gain.value;
-  return unit === 'dBi' ? gain.value + 2.15 : gain.value - 2.15;
-}
+export { convertGain };
 
 function cellsOf(m: PatternMetrics): Record<MetricColumn, MetricResult> {
   return {
