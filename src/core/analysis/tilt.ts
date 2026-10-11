@@ -1,6 +1,6 @@
 import type { Pattern } from '../types';
 import { analyzeAll, type AnalysisSettings, type PatternMetrics, type TaggedPattern } from './metrics';
-import { mod360, rawGrid, type Grid } from './grid';
+import { mod360, peakCentre, peakIndex, rawGrid, signed, type Grid } from './grid';
 import { combine, reconstruct3d, STEP_3D, type Method3d, type Surface3d } from './pattern3d';
 
 export interface TiltSettings {
@@ -102,13 +102,27 @@ function lookup(hN: number[], vN: number[], phi: number, theta: number, method: 
   return combine(interp(hN, phi), interp(vN, theta), method);
 }
 
-/** A pattern's 1° grids: raw (offsets kept) and normalised, plus the untilted horizon lookup per method. */
+/**
+ * Elevation (positive = below the horizon) at which the 3D reconstruction of a normalised V grid
+ * has its 0 dB: the centre of a flat top, else the strongest sample. This is the cone the file's
+ * H cut lies on. A peak refined between two unequal samples is not used, because the linearly
+ * interpolated V grid is above 0 dB attenuation there and the cut would no longer reach the peak.
+ */
+export function beamPeakElevation(vN: number[]): number {
+  const centre = peakCentre(vN);
+  return interp(vN, centre) <= 1e-9 ? centre : signed(peakIndex(vN));
+}
+
+/** A pattern's 1° grids: raw (offsets kept) and normalised, the H offset and the beam-peak elevation. */
 export interface BaseGrids {
   H: number[];
   V: number[];
   hN: number[];
   vN: number[];
-  horizon: Partial<Record<Method3d, number[]>>;
+  /** Minimum of the raw H cut (the file's own offset). */
+  hOff: number;
+  /** Elevation of the untilted beam peak, see `beamPeakElevation`. */
+  peakTheta: number;
 }
 
 // Pattern objects are immutable and stable across renders, so their grids are cached per object.
@@ -120,54 +134,59 @@ export function baseGrids(p: Pattern): BaseGrids {
   if (!g) {
     const H = rawGrid(p.horizontal);
     const V = rawGrid(p.vertical);
-    g = { H, V, hN: normalise(H), vN: normalise(V), horizon: {} };
+    const vN = normalise(V);
+    g = { H, V, hN: normalise(H), vN, hOff: Math.min(...H), peakTheta: beamPeakElevation(vN) };
     baseCache.set(p, g);
   }
   return g;
 }
 
-function untiltedHorizon(g: BaseGrids, method: Method3d): number[] {
-  return (g.horizon[method] ??= DEG360.map((phi) => lookup(g.hN, g.vN, phi, 0, method)));
-}
+type Direction = { phi: number; theta: number };
 
-let horizonCache: { mechanicalDeg: number; dirs: { phi: number; theta: number }[] } | null = null;
+const CONE_CACHE_MAX = 64;
+let coneCache: { mechanicalDeg: number; byTheta: Map<number, Direction[]> } | null = null;
 
 /**
- * The 360 horizon directions (φ = 0…359°, θ = 0) in the frame of an antenna tilted down by
- * `mechanicalDeg`. Shared by every pattern; the last value is cached (same array on repeat calls).
+ * The 360 directions of the ground-frame cone at elevation `thetaDeg` (φ = 0…359°) in the frame
+ * of an antenna tilted down by `mechanicalDeg`. Shared by every pattern with the same peak
+ * elevation; cached for the last mechanical tilt (same array on repeat calls).
  */
-export function horizonInAntenna(mechanicalDeg: number): { phi: number; theta: number }[] {
-  if (horizonCache?.mechanicalDeg !== mechanicalDeg) {
-    horizonCache = { mechanicalDeg, dirs: DEG360.map((phi) => rotateToAntenna(phi, 0, mechanicalDeg)) };
+export function coneInAntenna(thetaDeg: number, mechanicalDeg: number): Direction[] {
+  if (coneCache?.mechanicalDeg !== mechanicalDeg) coneCache = { mechanicalDeg, byTheta: new Map() };
+  let dirs = coneCache.byTheta.get(thetaDeg);
+  if (!dirs) {
+    if (coneCache.byTheta.size >= CONE_CACHE_MAX) coneCache.byTheta.clear();
+    dirs = DEG360.map((phi) => rotateToAntenna(phi, thetaDeg, mechanicalDeg));
+    coneCache.byTheta.set(thetaDeg, dirs);
   }
-  return horizonCache.dirs;
+  return dirs;
 }
+
+// The last tilted copy per pattern, so unchanged files keep their object when another file's tilt changes.
+const tiltedCache = new WeakMap<Pattern, { key: string; result: Pattern }>();
 
 /**
  * A copy of the pattern with tilted 1° cuts (raw values, offsets kept).
  * V: electrical tilt as a cone (front and back move down by Δe), then rotated exactly by m.
- * H: measured H plus the change the tilt causes in the 3D reconstruction along the horizon.
+ * H: the azimuth cut through the tilted beam peak — the ground-frame cone at elevation
+ * θpeak + Δe + m — read from the 3D reconstruction of the file's H cut and the electrically
+ * tilted V cut. It keeps the file's H offset and is never stronger than the file's H peak;
+ * electrical tilt alone leaves it unchanged, mechanical tilt distorts it.
  * Returns `p` itself when there is no tilt.
  */
-// The last tilted copy per pattern, so unchanged files keep their object when another file's tilt changes.
-const tiltedCache = new WeakMap<Pattern, { key: string; result: Pattern }>();
-
 export function tiltPattern(p: Pattern, t: TiltSettings, method: Method3d): Pattern {
   if (!isTilted(t)) return p;
   const key = `${method}|${t.electricalDeg}|${t.mechanicalDeg}`;
   const hit = tiltedCache.get(p);
   if (hit && hit.key === key) return hit.result;
-  const g = baseGrids(p);
-  const { H, V, hN, vN } = g;
-  // The H estimate only looks up the front half of Ve, where the cone model is a plain shift.
-  const veN = t.electricalDeg === 0 ? vN : electricalShift(vN, t.electricalDeg);
+  const { V, hN, vN, hOff, peakTheta } = baseGrids(p);
   const ve = t.electricalDeg === 0 ? V : electricalShift(V, t.electricalDeg);
   const vTilted = shiftCircle(ve, t.mechanicalDeg);
-  const dirs = horizonInAntenna(t.mechanicalDeg);
-  const base = untiltedHorizon(g, method);
-  const hTilted = H.map(
-    (h, phi) => h + lookup(hN, veN, dirs[phi].phi, dirs[phi].theta, method) - base[phi],
-  );
+  // Antenna-frame elevations on the cone are in the front half of the V cut, where the electrical
+  // tilt is a plain shift: Ve(θ) = V(θ − Δe). Reading V directly (not a pre-shifted 1° grid)
+  // interpolates once, so a half-degree tilt still finds the exact peak sample.
+  const dirs = coneInAntenna(peakTheta + t.electricalDeg + t.mechanicalDeg, t.mechanicalDeg);
+  const hTilted = dirs.map((d) => hOff + lookup(hN, vN, d.phi, d.theta - t.electricalDeg, method));
   const result: Pattern = {
     ...p,
     horizontal: { angles: [...DEG360], atten: hTilted },
@@ -243,12 +262,9 @@ export function reconstructTilted3d(
 
 export const DECLARED_REASON = 'Declared values describe the measured pattern';
 
-const minOf = (xs: number[]): number => xs.reduce((a, b) => (b < a ? b : a), Infinity);
-
 /**
- * Metrics of patterns already tilted with `tiltTagged(…, t, …)`.
- * Horizon guard: when the tilted H cut's peak is more than `levelDb` below the tilted V cut's
- * peak, the horizon no longer crosses the main beam and the H-cut metrics are null.
+ * Metrics of patterns already tilted with `tiltEach(…)`: the nominal tilt follows the sliders and
+ * the Δ-declared values of tilted files are null (they describe the measured pattern).
  */
 export function analyzeTilted(
   tiltedItems: TaggedPattern[],
@@ -256,7 +272,7 @@ export function analyzeTilted(
   t: TiltSettings | ((id: string) => TiltSettings),
 ): Map<string, PatternMetrics> {
   const tiltFor = typeof t === 'function' ? t : () => t;
-  const out = analyzeAll(tiltedItems, s, {
+  return analyzeAll(tiltedItems, s, {
     nominalOffsetDeg: (id) => {
       const x = tiltFor(id);
       return x.electricalDeg + x.mechanicalDeg;
@@ -265,24 +281,4 @@ export function analyzeTilted(
     // keeps comparing its measured pattern against its declared ones.
     declaredReason: (id) => (isTilted(tiltFor(id)) ? DECLARED_REASON : undefined),
   });
-  for (const { pattern } of tiltedItems) {
-    if (!isTilted(tiltFor(pattern.id))) continue;
-    const m = out.get(pattern.id);
-    if (!m) continue;
-    const drop = minOf(pattern.horizontal.atten) - minOf(pattern.vertical.atten);
-    if (!(drop > s.levelDb)) continue;
-    const off = {
-      value: null,
-      reason: `Horizon cut misses the main beam at this tilt (peak ${drop.toFixed(1)} dB down)`,
-    };
-    out.set(pattern.id, {
-      ...m,
-      h: { ...m.h, hpbw: off, direction: off, edges: null },
-      squint: off,
-      fb180: off,
-      fbWindow: off,
-      beamTracking: off,
-    });
-  }
-  return out;
 }

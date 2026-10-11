@@ -257,9 +257,11 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
 
 export function buildCutFigure(o: CutFigureOptions): Figure {
   const data: Partial<PlotData>[] = [];
+  let largest = 0;
   for (const s of o.series) {
     const { x, y } = sortedCut(s.cut, s.rotationDeg ?? o.rotationDeg ?? 0);
     const r = y.map((v) => level(v, o.floorDb));
+    for (const v of r) if (v > largest) largest = v;
     const line = {
       color: s.color,
       width: s.id === o.markerTarget ? 2.5 : 1.5,
@@ -279,6 +281,10 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
       data.push({ type: 'scatter', mode: 'lines', name: s.label, x, y: r, line, hovertemplate: '%{x:.0f}°  %{y:.2f} dB' });
     }
   }
+
+  // Normally 0. A trace above its nominal peak (e.g. a file with a negative offset) widens the
+  // range to the next 5 dB so it is never clipped.
+  const top = Math.ceil(largest / 5) * 5;
 
   const target = o.series.find((s) => s.id === o.markerTarget);
   const spec = target ? markerSpec(target, o) : { sectors: [], rings: [], points: [], rays: [], arcs: [] };
@@ -311,7 +317,7 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
             linecolor: o.theme.grid,
           },
           radialaxis: {
-            range: [-o.floorDb, 0],
+            range: [-o.floorDb, top],
             dtick: 10,
             ticksuffix: ' dB',
             gridcolor: o.theme.grid,
@@ -331,7 +337,7 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
       hovermode: 'x unified',
       shapes: rect.shapes,
       xaxis: { range: [-180, 180], dtick: 30, title: { text: 'Angle (°)' }, gridcolor: o.theme.grid, zeroline: false },
-      yaxis: { range: [-o.floorDb, 0], dtick: 10, title: { text: 'Relative level (dB)' }, gridcolor: o.theme.grid },
+      yaxis: { range: [-o.floorDb, top], dtick: 10, title: { text: 'Relative level (dB)' }, gridcolor: o.theme.grid },
     },
   };
 }

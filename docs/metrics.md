@@ -128,6 +128,9 @@ Not a BASTA parameter (tool-defined).
   file.
 - **No band statistics.** BASTA's distribution-based specifications over a frequency band are not
   computed; every value belongs to one file.
-- **Tilt simulation.** Metrics of a simulated tilt are estimates from a two-cut reconstruction
-  (elevation shifted, azimuth cut adjusted from the 3D reconstruction). If the tilted azimuth cut
-  misses the main beam, H-cut metrics are "—".
+- **Tilt simulation.** Metrics of a simulated tilt are estimates from a two-cut reconstruction.
+  The elevation cut is shifted. The simulated horizontal cut is the cut through the tilted beam
+  peak (the cone at the peak's elevation), reconstructed from the two cuts with the selected 3D
+  method, and is never above the file's peak level. Electrical tilt leaves it unchanged;
+  mechanical tilt distorts it, and by how much depends on the 3D method. Coverage at the horizon
+  is visible in the 3D view.

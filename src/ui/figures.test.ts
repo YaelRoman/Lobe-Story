@@ -5,6 +5,7 @@ import { buildHpbwFigure } from './hpbwFigure';
 import { colorMap, PALETTE } from './colors';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
+import { tiltPattern } from '../core/analysis/tilt';
 import { hBeamWithLobes, patternFrom, quadBeam, vBeamWithLobes, vFarLobes } from '../test/synthetic';
 
 const NO_MARKERS = { hpbw: false, fb: false, usls: false, null: false, peak: false, sector: false };
@@ -45,6 +46,37 @@ describe('buildCutFigure', () => {
     expect(Math.min(...(t.r as number[]))).toBe(-20);
     expect(f.layout.polar?.angularaxis?.rotation).toBe(90);
     expect(f.layout.polar?.radialaxis?.range).toEqual([-20, 0]);
+  });
+
+  it('keeps a simulated H trace and its −3 dB marker within the axis range (never above 0 dB)', () => {
+    // V peak 6° below the horizon; −6° of electrical tilt used to draw the H trace 7.5 dB above the peak.
+    const pattern = patternFrom(quadBeam(65), vBeamWithLobes, { id: 't' });
+    for (const method of ['summation', 'weighted'] as const) {
+      const tilted = tiltPattern(pattern, { electricalDeg: -6, mechanicalDeg: 2.5 }, method);
+      const metrics = analyzePattern({ pattern: tilted, tags: {} });
+      const s: PlotSeries[] = [{ id: 't', label: 't', color: '#123456', cut: tilted.horizontal, metrics }];
+      const over = { series: s, markerTarget: 't', markers: { ...NO_MARKERS, hpbw: true } };
+      const polar = buildCutFigure(opts({ ...over, mode: 'polar' }));
+      expect(polar.layout.polar?.radialaxis?.range).toEqual([-40, 0]);
+      expect(Math.max(...(traces(polar)[0].r as number[]))).toBeCloseTo(0, 9);
+      const ring = traces(polar).find((t) => t.name === '−3 dB')!;
+      expect((ring.r as number[])[0]).toBeCloseTo(-3, 9);
+      const rect = buildCutFigure(opts({ ...over, mode: 'rect' }));
+      expect(rect.layout.yaxis?.range).toEqual([-40, 0]);
+      expect(Math.max(...(traces(rect)[0].y as number[]))).toBeCloseTo(0, 9);
+      const line = (rect.layout.shapes as Partial<Shape>[]).find((sh) => sh.type === 'line' && sh.yref === 'y')!;
+      expect(line.y0).toBeCloseTo(-3, 9);
+    }
+  });
+
+  it('widens the level range to the next 5 dB when a trace is above 0 dB (defence, e.g. a negative offset)', () => {
+    const pattern = patternFrom((a) => quadBeam(60)(a) - 7.5, vBeamWithLobes, { id: 'n' });
+    const metrics = analyzePattern({ pattern, tags: {} });
+    const s: PlotSeries[] = [{ id: 'n', label: 'n', color: '#123456', cut: pattern.horizontal, metrics }];
+    expect(buildCutFigure(opts({ series: s, mode: 'polar' })).layout.polar?.radialaxis?.range).toEqual([-40, 10]);
+    expect(buildCutFigure(opts({ series: s, mode: 'rect' })).layout.yaxis?.range).toEqual([-40, 10]);
+    const five = [{ ...s[0], cut: { ...pattern.horizontal, atten: pattern.horizontal.atten.map((v) => v + 2.5) } }];
+    expect(buildCutFigure(opts({ series: five, mode: 'rect' })).layout.yaxis?.range).toEqual([-40, 5]);
   });
 
   it('paints an opaque paper background matching the theme (dark-mode PNG export)', () => {
