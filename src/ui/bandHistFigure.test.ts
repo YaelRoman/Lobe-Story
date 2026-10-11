@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Annotations, PlotData, Shape } from 'plotly.js';
-import { buildBandHistFigure } from './bandHistFigure';
+import { buildBandHistFigure, histBins, labelLevels } from './bandHistFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { PALETTE } from './colors';
 import { doubleSided, meanOnly, singleSided } from '../core/analysis/bandStats';
@@ -70,5 +70,28 @@ describe('buildBandHistFigure', () => {
     expect(notes(f)).toEqual([]);
     expect(f.layout.paper_bgcolor).toBe('#0d1117');
     expect(f.layout.font?.color).toBe(FIGURE_THEMES.dark.fg);
+  });
+
+  it('sets the bin count from N', () => {
+    expect([0, 1, 4, 10, 100, 126, 400, 10000].map(histBins)).toEqual([5, 5, 5, 5, 12, 13, 20, 20]);
+    const f = buildBandHistFigure({ values: BASTA_AZ_HPBW, stat: null, label: 'x', unit: '°' }, FIGURE_THEMES.light);
+    expect((trace(f) as { nbinsx?: number }).nbinsx).toBe(13);
+  });
+
+  it('staggers statistic labels that are closer than 3 % of the axis range', () => {
+    expect(labelLevels([0, 50, 100], 0, 100)).toEqual([0, 0, 0]);
+    expect(labelLevels([10, 11, 12, 60], 0, 100)).toEqual([0, 1, 2, 0]);
+    expect(labelLevels([12, 10, 11], 0, 100)).toEqual([2, 0, 1]);
+    expect(labelLevels([5, 5, 5], 5, 5)).toEqual([0, 1, 2]);
+    expect(labelLevels([14.999999999999998, 15, 15], 15, 15)).toEqual([0, 1, 2]);
+    const values = [10, 15, 15.5, 16, 16, 16.5, 17, 17, 17.5, 18, 18, 18.5];
+    const f = buildBandHistFigure({ values, stat: singleSided(values, 'min', 3), label: 'F/B', unit: 'dB' }, FIGURE_THEMES.light);
+    expect(notes(f).map((a) => a.yshift)).toEqual([0, 0]);
+    const close = buildBandHistFigure(
+      { values: [0, 100, 100], stat: { kind: 'double', mean: 50, lower: 50.5, upper: 51, tolerance: 0.5, n: 3 } as never, label: 'x', unit: 'dB' },
+      FIGURE_THEMES.light,
+    );
+    expect(notes(close).map((a) => a.yshift)).toEqual([0, 14, 28]);
+    expect(close.layout.margin?.t).toBe(58);
   });
 });

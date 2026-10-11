@@ -1,8 +1,9 @@
-import { BAND_PARAMS, bandParamLabel, type BandCell, type BandColumn } from '../core/analysis/bandParams';
+import { BAND_PARAMS, bandParamLabel, tiltText, type BandCell, type BandColumn } from '../core/analysis/bandParams';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import type { AnalysisSettings } from '../core/analysis/metrics';
 import { sanitizeSubBands, subBandName, type BandDataset, type SubBand } from '../core/analysis/subBands';
-import { csvCell } from './table';
+import { FIRST_LOBE_RANGE } from '../core/analysis/sidelobes';
+import { csvCell, csvText } from './table';
 
 /** What a table cell shows: `original → tilted` only where the two texts differ. */
 export function cellDisplay(original: BandCell, tilted?: BandCell): { text: string; title: string; muted: boolean } {
@@ -27,6 +28,21 @@ export function largestDataset(datasets: readonly BandDataset[]): number {
   return datasets.reduce((m, d) => Math.max(m, d.items.length), 0);
 }
 
+/** Warning for a first-lobe limit other than the standard one, else null. */
+export function lobeLimitWarning(settings: AnalysisSettings): string | null {
+  return settings.lobeLimitFactor === FIRST_LOBE_RANGE
+    ? null
+    : `First-lobe limit is ${settings.lobeLimitFactor} × V-HPBW, not the standard ${FIRST_LOBE_RANGE}: sidelobe and null-fill rows are non-standard.`;
+}
+
+/** "1 file" / "N files". */
+export const filesText = (n: number): string => `${n} file${n === 1 ? '' : 's'}`;
+
+/** The dataset shown when nothing is highlighted or chosen: the one with the most files (ties: the first). */
+export function defaultDataset(datasets: readonly BandDataset[]): BandDataset | undefined {
+  return datasets.reduce<BandDataset | undefined>((best, d) => (!best || d.items.length > best.items.length ? d : best), undefined);
+}
+
 export function hintText(largest: number): string {
   return `Band statistics need at least ${MIN_SAMPLES} files of one antenna (frequencies × tilts × ports). Largest set loaded: ${largest}.`;
 }
@@ -37,6 +53,8 @@ export function editSubBand(list: readonly SubBand[], index: number, patch: Part
   const old = next[index];
   if (!old) return sanitizeSubBands(next);
   const merged = { ...old, ...patch };
+  // An edit that would make the entry invalid (a typo such as 188000 MHz) must not delete it.
+  if (sanitizeSubBands([merged]).length === 0) return sanitizeSubBands(list);
   if (patch.name === undefined && (old.name === '' || old.name === subBandName(old.minMHz, old.maxMHz))) {
     merged.name = subBandName(Math.min(merged.minMHz, merged.maxMHz), Math.max(merged.minMHz, merged.maxMHz));
   }
@@ -72,13 +90,15 @@ const f2 = (v: number | undefined): string => (v === undefined ? '' : v.toFixed(
 
 function csvLine(label: string, state: string | null, column: BandColumn, p: (typeof BAND_PARAMS)[number], cell: BandCell, settings: AnalysisSettings): string[] {
   const stat = cell.stat;
-  const parameter = bandParamLabel(p, settings) + (GAIN_TILT_KEYS.has(p.key) && cell.tiltDeg !== undefined ? ` (${cell.tiltDeg}°)` : '');
+  const parameter = bandParamLabel(p, settings) + (GAIN_TILT_KEYS.has(p.key) && cell.tiltDeg !== undefined ? ` (${tiltText(cell.tiltDeg!)}°)` : '');
   const value = stat ? (stat.kind === 'double' || stat.kind === 'mean' ? stat.mean : stat.value) : undefined;
   const hasValues = cell.values.length > 0;
+  const nameIndex = state === null ? 1 : 2;
+  // Label and sub-band name are already guarded by `csvText`; the rest is plain CSV quoting.
   return [
-    label,
+    csvText(label),
     ...(state === null ? [] : [state]),
-    column.subBand.name,
+    csvText(column.subBand.name),
     String(column.subBand.minMHz),
     String(column.subBand.maxMHz),
     parameter,
@@ -96,13 +116,13 @@ function csvLine(label: string, state: string | null, column: BandColumn, p: (ty
     f2(stat?.kind === 'double' || stat?.kind === 'mean' ? stat.mean : undefined),
     String(cell.substituted),
     cell.adjusted ? 'yes' : '',
-  ];
+  ].map((f, i) => (i === 0 || i === nameIndex ? f : csvCell(f)));
 }
 
 /** The band statistics in long form: one line per antenna × sub-band × parameter (× state with a tilt simulation). */
 export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings): string {
   const withState = sheets.some((s) => s.tilted);
-  const header = withState ? [HEADER[0], 'State', ...HEADER.slice(1)] : HEADER;
+  const header = (withState ? [HEADER[0], 'State', ...HEADER.slice(1)] : HEADER).map(csvCell);
   const lines: string[][] = [header];
   for (const sheet of sheets) {
     sheet.columns.forEach((column, i) => {
@@ -117,5 +137,5 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
       }
     });
   }
-  return lines.map((l) => l.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  return lines.map((l) => l.join(',')).join('\r\n') + '\r\n';
 }

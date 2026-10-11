@@ -235,7 +235,7 @@ export interface BandCell {
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 const substitutedNote = (k: number, n: number): string => `${k} of ${n} values were "not available" and count as 22 dB (BASTA 12.5.3)`;
-const tiltText = (t: number): string => String(Math.round(t * 10) / 10);
+export const tiltText = (t: number): string => String(Math.round(t * 10) / 10);
 
 export function bandCell(
   p: BandParam,

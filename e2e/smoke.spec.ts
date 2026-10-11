@@ -139,19 +139,27 @@ test('computes band statistics over a sub-band', async ({ page }) => {
   await expect(row(/^Azimuth beamwidth/)).toContainText('—');
   await band.getByRole('button', { name: 'Use automatic' }).click();
 
-  const azimuthCell = row(/^Azimuth beamwidth/).getByRole('cell').first();
+  const azimuthCell = row(/^Azimuth beamwidth/).getByRole('button').first();
   await azimuthCell.click();
   await expect(page.getByTestId('plot-band').locator('.main-svg').first()).toBeVisible();
   await expect(band.getByText(/Azimuth beamwidth — 1800–1880 MHz — N = 10/)).toBeVisible();
   await expect(band.getByTestId('band-detail')).toContainText('Double-sided (BASTA 12.4.2)');
+  await expect(azimuthCell).toHaveAttribute('aria-pressed', 'true');
   await azimuthCell.click();
+  await expect(azimuthCell).toHaveAttribute('aria-pressed', 'false');
   await expect(page.getByTestId('plot-band')).toHaveCount(0);
-  await expect(band.getByTestId('band-detail')).toHaveCount(0);
+  await expect(band.getByTestId('band-detail')).toBeEmpty();
   await azimuthCell.focus();
   await azimuthCell.press('Enter');
   await expect(page.getByTestId('plot-band')).toBeVisible();
   await azimuthCell.press(' ');
   await expect(page.getByTestId('plot-band')).toHaveCount(0);
+
+  // The tilt-range cell has a detail text but no histogram.
+  await row(/^Electrical tilt range/).getByRole('button').click();
+  await expect(band.getByTestId('band-detail')).toContainText('Nominal electrical tilts');
+  await expect(page.getByTestId('plot-band')).toHaveCount(0);
+  await row(/^Electrical tilt range/).getByRole('button').click();
   await expect(band.getByRole('table', { name: 'Band statistics for Array Y2' })).toBeVisible();
 
   const download = page.waitForEvent('download');

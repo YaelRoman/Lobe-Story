@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
-  simulationLabel, toCsv, offsetLabel, csvCell,
+  simulationLabel, toCsv, offsetLabel, csvCell, csvText,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
@@ -395,21 +395,40 @@ describe('sidelobe columns', () => {
   });
 });
 
-describe('csvCell formula guard', () => {
-  it('prefixes a quote to text that a spreadsheet would read as a formula', () => {
-    expect(csvCell('=1+1')).toBe("'=1+1");
-    expect(csvCell('+SUM(A1)')).toBe("'+SUM(A1)");
-    expect(csvCell('-cmd')).toBe("'-cmd");
-    expect(csvCell('@x')).toBe("'@x");
-    expect(csvCell('=HYPERLINK("a","b")')).toBe('"\'=HYPERLINK(""a"",""b"")"');
+describe('csvCell and csvText', () => {
+  it('csvCell only quotes for CSV syntax', () => {
+    for (const t of ['=1+1', '-0.25', '+3', '-cmd', '@x', '\tx', '12.50', '', 'plain', '> 13.0 dB', '—']) expect(csvCell(t)).toBe(t);
+    expect(csvCell('a,b')).toBe('"a,b"');
+    expect(csvCell('say "hi"')).toBe('"say ""hi"""');
+    expect(csvCell('a\nb')).toBe('"a\nb"');
   });
-  it('leaves numbers and ordinary text alone', () => {
-    for (const t of ['-0.25', '+3', '12.50', '-1e-3', '.5', '', 'plain', '> 13.0 dB', '—']) expect(csvCell(t)).toBe(t);
+  it('csvText prefixes a quote to text that a spreadsheet would read as a formula', () => {
+    expect(csvText('=1+1')).toBe("'=1+1");
+    expect(csvText('+SUM(A1)')).toBe("'+SUM(A1)");
+    expect(csvText('-cmd')).toBe("'-cmd");
+    expect(csvText('@x')).toBe("'@x");
+    expect(csvText('\tx')).toBe("'\tx");
+    expect(csvText('\rx')).toBe("\"'\rx\"");
+    expect(csvText('=HYPERLINK("a","b")')).toBe('"\'=HYPERLINK(""a"",""b"")"');
+    expect(csvText('plain')).toBe('plain');
+    expect(csvText('a,b')).toBe('"a,b"');
   });
-  it('guards a file name in the metrics CSV', () => {
+  it('guards file, source file and group in the metrics CSV, not numbers or headers', () => {
     const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'x', fileName: '=cmd.msi', gain: { value: 15, unit: 'dBd' } });
     const tagged = [{ pattern, tags: {} }];
     const rows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
-    expect(toCsv(rows, 'dBi', 30).split('\r\n')[1].startsWith("'=cmd.msi,")).toBe(true);
+    const lines = toCsv(rows, 'dBi', 30).split('\r\n');
+    expect(lines[1].startsWith("'=cmd.msi,")).toBe(true);
+    expect(lines[0].startsWith('File,')).toBe(true);
+    expect(toCsv([{ ...rows[0], source: '@src.msi' }, { ...rows[0], group: '-g' }], 'dBi', 30)).toMatch(/'@src\.msi/);
+    expect(toCsv([{ ...rows[0], group: '-g' }], 'dBi', 30).split('\r\n')[1]).toContain(",'-g,");
+  });
+  it('leaves a negative metric value unquoted', () => {
+    const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'x', fileName: 'a.msi', gain: { value: -5, unit: 'dBi' } });
+    const tagged = [{ pattern, tags: {} }];
+    const rows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
+    const line = toCsv(rows, 'dBi', 30).split('\r\n')[1];
+    expect(line).toContain(',-5.00,');
+    expect(line).not.toContain("'-5");
   });
 });

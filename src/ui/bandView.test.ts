@@ -3,7 +3,7 @@ import { BAND_PARAMS, bandTable, type BandCell } from '../core/analysis/bandPara
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import type { SubBand } from '../core/analysis/subBands';
 import { bandItems } from '../test/bandFixture';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, editSubBand, hintText, largestDataset, sameSubBands } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands } from './bandView';
 
 const items = bandItems();
 const metrics = analyzeAll(items, DEFAULT_SETTINGS);
@@ -62,6 +62,29 @@ describe('hint', () => {
   });
 });
 
+describe('defaultDataset and filesText', () => {
+  it('picks the dataset with the most files, the first on a tie', () => {
+    const a = { key: 'a', label: 'a', items: items.slice(0, 3) };
+    const b = { key: 'b', label: 'b', items };
+    const c = { key: 'c', label: 'c', items };
+    expect(defaultDataset([a, b, c])).toBe(b);
+    expect(defaultDataset([a])).toBe(a);
+    expect(defaultDataset([])).toBeUndefined();
+  });
+  it('uses the singular for one file', () => {
+    expect([0, 1, 2].map(filesText)).toEqual(['0 files', '1 file', '2 files']);
+  });
+});
+
+describe('lobeLimitWarning', () => {
+  it('warns only for a non-standard first-lobe limit', () => {
+    expect(lobeLimitWarning(DEFAULT_SETTINGS)).toBeNull();
+    expect(lobeLimitWarning({ ...DEFAULT_SETTINGS, lobeLimitFactor: 2.5 })).toBe(
+      'First-lobe limit is 2.5 × V-HPBW, not the standard 1.78: sidelobe and null-fill rows are non-standard.',
+    );
+  });
+});
+
 describe('editSubBand', () => {
   const auto: SubBand[] = [{ name: '1710–1880 MHz', minMHz: 1710, maxMHz: 1880 }];
   it('keeps an automatic name in step with the range', () => {
@@ -72,9 +95,15 @@ describe('editSubBand', () => {
     expect(editSubBand([{ ...auto[0], name: 'B3' }], 0, { maxMHz: 1990 })[0].name).toBe('B3');
     expect(editSubBand(auto, 0, { name: '  DCS ' })[0].name).toBe('DCS');
   });
-  it('drops an entry with a bad number and does not mutate', () => {
-    expect(editSubBand(auto, 0, { minMHz: NaN })).toEqual([]);
+  it('leaves the list unchanged for a bad number and does not mutate', () => {
+    expect(editSubBand(auto, 0, { minMHz: NaN })).toEqual(auto);
     expect(auto[0].maxMHz).toBe(1880);
+  });
+  it('leaves the list unchanged when a frequency is above the limit', () => {
+    const list: SubBand[] = [{ name: 'B3', minMHz: 1710, maxMHz: 1880 }, { name: 'B1', minMHz: 1920, maxMHz: 2170 }];
+    expect(editSubBand(list, 0, { maxMHz: 188000 })).toEqual(list);
+    expect(editSubBand(list, 1, { minMHz: 0 })).toEqual(list);
+    expect(editSubBand(list, 0, { maxMHz: 100000 })[0].maxMHz).toBe(100000);
   });
 });
 
@@ -163,8 +192,18 @@ describe('bandCsv edge cases', () => {
   it('guards a text that starts like a formula', () => {
     const line = csvLines([{ label: '=Site', columns }])[1];
     expect(line.startsWith("'=Site,")).toBe(true);
+    for (const lead of ['\t', '\r']) {
+      expect(csvLines([{ label: `${lead}x`, columns }])[1].startsWith(`"'${lead}x",`) || csvLines([{ label: `${lead}x`, columns }])[1].startsWith(`'${lead}x,`)).toBe(true);
+    }
+    const named = [{ ...columns[0], subBand: { ...columns[0].subBand, name: '-B3' } }];
+    expect(csvLines([{ label: 'A', columns: named }])[1].startsWith("A,'-B3,")).toBe(true);
+  });
+
+  it('leaves statistic text that starts with a sign unquoted', () => {
     const squint = { ...columns[0], cells: { ...columns[0].cells, squint: { ...columns[0].cells.squint, text: '-0.3° ± 1.0°' } } };
-    expect(csvLines([{ label: 'A', columns: [squint] }]).find((l) => l.includes('squint'))).toContain(",'-0.3° ± 1.0°,");
+    const line = csvLines([{ label: 'A', columns: [squint] }]).find((l) => l.includes('squint'))!;
+    expect(line).toContain(',-0.3° ± 1.0°,');
+    expect(line).not.toContain("'");
   });
 });
 

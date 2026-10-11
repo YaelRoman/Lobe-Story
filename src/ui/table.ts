@@ -205,13 +205,11 @@ export function buildRows(
 }
 
 const fmt = (v: number | null) => (v === null ? '' : v.toFixed(2));
-const PLAIN_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+/** One CSV field, quoted only where CSV syntax needs it. */
+export const csvCell = (raw: string) => (/[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw);
 
-/** One CSV field. Text a spreadsheet would run as a formula (leading = + - @, not a plain number) gets a leading quote. */
-export const csvCell = (raw: string) => {
-  const s = /^[=+\-@]/.test(raw) && !PLAIN_NUMBER.test(raw) ? `'${raw}` : raw;
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
+/** A CSV field of user-influenced text (file, group or dataset names): a leading = + - @ tab or CR gets a leading quote so a spreadsheet does not run it as a formula. */
+export const csvText = (raw: string) => csvCell(/^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw);
 
 const oneDecimal = (r: MetricResult) => (r.value === null ? '—' : r.value.toFixed(1));
 
@@ -273,22 +271,24 @@ export function toCsv(
     ...(tilted ? ['Electrical tilt Δ (°)', 'Mechanical tilt (°)', 'Azimuth (°)'] : []),
   ];
   const lines = rows.map((r) => [
-    r.file,
-    ...(withSource ? [r.source] : []),
-    r.group,
-    String(r.freq),
-    fmt(r.gain),
-    ...METRIC_COLUMNS.flatMap((c) =>
-      tilted
-        ? [fmt(r.cells[c.key].value), fmt((r.tilted?.[c.key] ?? r.cells[c.key]).value)]
-        : [fmt(r.cells[c.key].value)],
-    ),
-    ...(tilted && simFor
-      ? (() => {
-          const e = simFor(r.id);
-          return [String(e.electricalDeg), String(e.mechanicalDeg), String(e.azimuthDeg)];
-        })()
-      : []),
+    csvText(r.file),
+    ...(withSource ? [csvText(r.source)] : []),
+    csvText(r.group),
+    ...[
+      String(r.freq),
+      fmt(r.gain),
+      ...METRIC_COLUMNS.flatMap((c) =>
+        tilted
+          ? [fmt(r.cells[c.key].value), fmt((r.tilted?.[c.key] ?? r.cells[c.key]).value)]
+          : [fmt(r.cells[c.key].value)],
+      ),
+      ...(tilted && simFor
+        ? (() => {
+            const e = simFor(r.id);
+            return [String(e.electricalDeg), String(e.mechanicalDeg), String(e.azimuthDeg)];
+          })()
+        : []),
+    ].map(csvCell),
   ]);
-  return [header, ...lines].map((l) => l.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  return [header.map(csvCell), ...lines].map((l) => l.join(',')).join('\r\n') + '\r\n';
 }

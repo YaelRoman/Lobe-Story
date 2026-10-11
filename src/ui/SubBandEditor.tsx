@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MAX_SUB_BANDS, sanitizeSubBands, SUB_BAND_PRESETS, type SubBand } from '../core/analysis/subBands';
+import { MAX_FREQUENCY_MHZ, MAX_SUB_BANDS, sanitizeSubBands, SUB_BAND_PRESETS, type SubBand } from '../core/analysis/subBands';
 import { editSubBand, sameSubBands } from './bandView';
 
 /**
@@ -30,6 +30,7 @@ function DraftField({
       aria-label={label}
       value={text}
       min={type === 'number' ? 0 : undefined}
+      max={type === 'number' ? MAX_FREQUENCY_MHZ : undefined}
       step={type === 'number' ? 'any' : undefined}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
@@ -42,7 +43,7 @@ function DraftField({
 
 const positive = (text: string): boolean => {
   const n = text.trim() === '' ? NaN : Number(text);
-  return Number.isFinite(n) && n > 0;
+  return Number.isFinite(n) && n > 0 && n <= MAX_FREQUENCY_MHZ;
 };
 
 export function SubBandEditor({

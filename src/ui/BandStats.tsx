@@ -4,7 +4,7 @@ import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, hintText, largestDataset, type BandSheet } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
 import { buildBandHistFigure } from './bandHistFigure';
 import { downloadText } from './download';
 import { FIGURE_THEMES } from './figureTheme';
@@ -51,7 +51,7 @@ export const BandStats = memo(function BandStats({
   const dataset =
     datasets.find((d) => d.key === chosen) ??
     datasets.find((d) => d.key === highlightedKey) ??
-    datasets[0];
+    defaultDataset(datasets);
 
   const subBands = useMemo(() => (dataset ? subBandsFor(dataset.items, userSubBands) : []), [dataset, userSubBands]);
   const ctx = useMemo(() => ({ gainUnit, settings }), [gainUnit, settings]);
@@ -72,20 +72,22 @@ export const BandStats = memo(function BandStats({
   const pickedDetail =
     picked && pickedColumn ? cellDisplay(pickedColumn.cells[picked.key], tiltedColumns?.[picked.column].cells[picked.key]).title : '';
   const pickedSpec = picked ? BAND_PARAMS.find((p) => p.key === picked.key) : undefined;
+  // The histogram needs samples; the tilt range row has only the nominal tilts.
+  const histogramCell = pickedCell && pickedCell.values.length > 0 && pickedCell.key !== 'tiltRange' ? pickedCell : null;
   const figure = useMemo(
     () =>
-      pickedCell && pickedSpec
+      histogramCell && pickedSpec
         ? buildBandHistFigure(
             {
-              values: pickedCell.values,
-              stat: pickedCell.stat,
+              values: histogramCell.values,
+              stat: histogramCell.stat,
               label: bandParamLabel(pickedSpec, settings),
-              unit: pickedCell.unit,
+              unit: histogramCell.unit,
             },
             FIGURE_THEMES[theme],
           )
         : null,
-    [pickedCell, pickedSpec, settings, theme],
+    [histogramCell, pickedSpec, settings, theme],
   );
 
   if (!dataset || largest < MIN_SAMPLES) {
@@ -98,6 +100,8 @@ export const BandStats = memo(function BandStats({
       </section>
     );
   }
+
+  const lobeWarning = lobeLimitWarning(settings);
 
   const exportCsv = () => {
     const sheets: BandSheet[] = datasets.map((d) => {
@@ -119,13 +123,13 @@ export const BandStats = memo(function BandStats({
           <select aria-label="Antenna" value={dataset.key} onChange={(e) => setChosen(e.target.value)}>
             {datasets.map((d) => (
               <option key={d.key} value={d.key}>
-                {d.label} ({d.items.length})
+                {d.label} ({filesText(d.items.length)})
               </option>
             ))}
           </select>
         ) : (
           <span className="count">
-            {dataset.label} ({dataset.items.length} files)
+            {dataset.label} ({filesText(dataset.items.length)})
           </span>
         )}
         <button onClick={exportCsv}>Export band CSV</button>
@@ -147,6 +151,7 @@ export const BandStats = memo(function BandStats({
         {sim.tiltActive && ' Simulation active: cells show original → tilted where they differ.'}
         {settings.levelDb !== 3 &&
           ` Beamwidth level is ${settings.levelDb} dB: the beamwidth, squint and tilt rows are not half-power values.`}
+        {lobeWarning && ` ${lobeWarning}`}
       </p>
       <div className="table-wrap">
         <table className="band" aria-label={`Band statistics for ${dataset.label}`}>
@@ -156,7 +161,7 @@ export const BandStats = memo(function BandStats({
               {columns.map((c, i) => (
                 <th key={i} scope="col" title={columnSummary(c)}>
                   {c.subBand.name}
-                  <span className="count"> {c.files} files</span>
+                  <span className="count"> {filesText(c.files)}</span>
                 </th>
               ))}
             </tr>
@@ -173,30 +178,14 @@ export const BandStats = memo(function BandStats({
                   const shown = tilted ?? original;
                   const d = cellDisplay(original, tilted);
                   const scope = scopeOf(dataset.key, c.subBand);
-                  const clickable = shown.values.length > 0 && p.key !== 'tiltRange';
                   const isPicked = picked?.key === p.key && picked.column === i && picked.scope === scope;
                   const toggle = () => setPicked(isPicked ? null : { key: p.key, column: i, scope });
                   return (
-                    <td
-                      key={i}
-                      title={d.title}
-                      className={[d.muted ? 'muted' : '', isPicked ? 'sel' : ''].filter(Boolean).join(' ') || undefined}
-                      aria-selected={clickable ? isPicked : undefined}
-                      tabIndex={clickable ? 0 : undefined}
-                      onClick={clickable ? toggle : undefined}
-                      onKeyDown={
-                        clickable
-                          ? (e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                toggle();
-                              }
-                            }
-                          : undefined
-                      }
-                    >
-                      {d.text}
-                      {shown.n > 0 && <span className="count"> n={shown.n}</span>}
+                    <td key={i} title={d.title} className={d.muted ? 'muted' : undefined}>
+                      <button type="button" aria-pressed={isPicked} onClick={toggle}>
+                        {d.text}
+                        {shown.n > 0 && <span className="count"> n={shown.n}</span>}
+                      </button>
                     </td>
                   );
                 })}
@@ -205,18 +194,16 @@ export const BandStats = memo(function BandStats({
           </tbody>
         </table>
       </div>
-      {figure && pickedCell && pickedSpec && pickedColumn && (
-        <>
-          <p className="count">
-            {bandParamLabel(pickedSpec, settings)} — {pickedColumn.subBand.name} — N = {pickedCell.n}
-            {tiltedColumns ? ' (tilted)' : ''}
-          </p>
-          <p className="count band-detail" data-testid="band-detail">
-            {pickedDetail}
-          </p>
-          <PlotlyChart className="plot wide" figure={figure} testId="plot-band" />
-        </>
+      {pickedCell && pickedSpec && pickedColumn && (
+        <p className="count">
+          {bandParamLabel(pickedSpec, settings)} — {pickedColumn.subBand.name} — N = {pickedCell.n}
+          {tiltedColumns ? ' (tilted)' : ''}
+        </p>
       )}
+      <p className="count band-detail" data-testid="band-detail" aria-live="polite">
+        {pickedDetail}
+      </p>
+      {figure && <PlotlyChart className="plot wide" figure={figure} testId="plot-band" />}
       {anyAdjusted(columns, tiltedColumns) && (
         <p className="count" data-testid="band-adjusted-legend">
           {ADJUSTED_LEGEND}

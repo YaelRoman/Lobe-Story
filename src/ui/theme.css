@@ -61,8 +61,6 @@ th:nth-child(-n + 2), td:nth-child(-n + 2) { text-align: left; }
 tbody tr { cursor: pointer; }
 tr.hl td { background: var(--hl); }
 td.muted { color: var(--muted); }
-td.sel { outline: 2px solid var(--accent, currentColor); outline-offset: -2px; }
-td[aria-selected] { cursor: pointer; }
 th[scope='row'] { text-align: left; white-space: nowrap; }
 .band thead th, .band td { text-align: right; }
 .band thead th:first-child { text-align: left; }
@@ -110,3 +108,9 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 .dialog label { display: inline-flex; gap: 6px; align-items: center; }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .band-detail { white-space: pre-line; }
+/* Band statistics: the data cells are buttons that look like plain cell text. */
+.band td { padding: 0; }
+.band td button { display: block; width: 100%; padding: 4px 6px; font: inherit; color: inherit; text-align: right; white-space: nowrap; background: transparent; border: 0; border-radius: 0; }
+.band td button[aria-pressed='true'] { background: var(--hl); color: inherit; outline: 2px solid var(--accent); outline-offset: -2px; }
+.band td button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.band th[scope='row'], .band thead th:first-child { position: sticky; left: 0; z-index: 1; background: var(--bg); }
