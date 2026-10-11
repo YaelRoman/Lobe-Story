@@ -148,6 +148,11 @@ export interface StoreActions {
   setTags(id: string, tags: Partial<Tags>): void;
   toggleVisible(id: string): void;
   setVisible(ids: string[], visible: boolean): void;
+  /**
+   * Ticks exactly `ids` and unticks every other file in one step (Show all / none / only the matches), and offers
+   * an undo labelled `label`. Nothing changes, and nothing is offered, when the ticks already are exactly these.
+   */
+  setVisibleOnly(ids: string[], label: string): void;
   setHighlighted(id: string | null): void;
   updateSettings(partial: Partial<AnalysisSettings>): void;
   updateView(partial: Partial<ViewState>): void;
@@ -518,6 +523,16 @@ export const useStore = create<State>()((rawSet, get) => {
       const next = { ...state.visible };
       for (const id of ids) next[id] = visible;
       return { visible: next };
+    }),
+
+  setVisibleOnly: (ids, label) =>
+    set((state) => {
+      const wanted = new Set(ids);
+      const next: Record<string, boolean> = {};
+      for (const k of Object.keys(state.visible)) next[k] = false;
+      for (const id of wanted) next[id] = true;
+      const same = [...new Set([...Object.keys(state.visible), ...wanted])].every((k) => !!state.visible[k] === wanted.has(k));
+      return same ? state : { visible: next, ...undoEntry(state, label) };
     }),
 
   setHighlighted: (id) => set({ highlighted: id, selected: id ? { kind: 'file', id } : null }),

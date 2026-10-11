@@ -45,7 +45,9 @@ test('the file list is one tab stop; arrows, Enter and Space work the rows', asy
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown'); // b.msi
   const stops = await panel.evaluate((el) =>
-    Array.from(el.querySelectorAll<HTMLElement>('input, button, summary')).filter((n) => n.tabIndex >= 0 && n.checkVisibility()).length,
+    // The filter box and the bulk buttons above the list are their own tab stops.
+    Array.from(el.querySelectorAll<HTMLElement>('input, button, summary'))
+      .filter((n) => !n.closest('.panel-tools') && n.tabIndex >= 0 && n.checkVisibility()).length,
   );
   expect(stops).toBe(4); // the row button, the checkbox, ✎ and ⋯ of b.msi
 
@@ -144,7 +146,7 @@ test('a custom group header is selectable from the keyboard', async ({ page }) =
   const dialog = page.getByRole('dialog', { name: 'Name of the new group' });
   await dialog.getByRole('textbox').fill('North');
   await page.keyboard.press('Enter');
-  const header = panel.getByRole('button', { name: 'North' });
+  const header = panel.getByRole('button', { name: 'North', exact: true });
   await expect(header).toBeVisible();
 
   await header.focus();

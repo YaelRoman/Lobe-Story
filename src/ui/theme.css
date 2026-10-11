@@ -205,3 +205,17 @@ dialog.help a { color: var(--accent); }
 input[aria-invalid='true'] { border-color: var(--danger); }
 .group.drop-target { outline: 2px dashed var(--accent); outline-offset: 0; border-radius: 4px; }
 .empty-group { margin: 0 0 8px; font-size: 12px; }
+
+/* File panel at scale: filter box, bulk actions and foldable groups. */
+.panel-tools { position: sticky; top: -8px; z-index: 5; display: flex; flex-direction: column; gap: 4px; margin: -8px -8px 6px; padding: 8px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.panel-filter { width: 100%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+.panel-tools p { margin: 0; font-size: 12px; }
+.bulk { display: flex; flex-wrap: wrap; gap: 4px; }
+.bulk button, .panel-tools p button { padding: 1px 8px; font-size: 12px; }
+.bulk button:disabled { opacity: 0.5; cursor: default; }
+.fold-group { padding: 0 4px; background: transparent; border-color: transparent; line-height: 1; }
+.group ul[hidden] { display: none; }
+@media (max-width: 760px) {
+  .fold-group { min-width: 32px; min-height: 32px; }
+  .bulk button, .panel-tools p button { min-height: 32px; }
+}

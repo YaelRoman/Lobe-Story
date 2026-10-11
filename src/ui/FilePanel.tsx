@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useStore } from '../state/store';
 import { fullTags, warningsFor, type ErrorEntry, type GroupView } from '../state/selectors';
 import { UNGROUPED } from '../core/grouping';
@@ -9,6 +9,7 @@ import { offsetLabel } from './table';
 import { confirmDialog, promptDialog } from './dialogs';
 import { neighbourOrder } from './undoKeys';
 import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
+import { filterGroups, filterTerms } from './panelFilter';
 
 const DRAG_TYPE = 'text/x-pattern-id';
 
@@ -256,7 +257,7 @@ function startDrag(e: DragEvent<HTMLElement>, id: string): void {
   e.dataTransfer.setData(DRAG_TYPE, id);
 }
 
-export const FilePanel = memo(function FilePanel({ groups, errors, warnings, colors, drawerOpen }: Props) {
+export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, warnings, colors, drawerOpen }: Props) {
   const visible = useStore((s) => s.visible);
   const highlighted = useStore((s) => s.highlighted);
   const selected = useStore((s) => s.selected);
@@ -272,6 +273,10 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   const rename = useStore((s) => s.rename);
   const renameGroup = useStore((s) => s.renameGroup);
   const removeFile = useStore((s) => s.removeFile);
+  const setVisibleOnly = useStore((s) => s.setVisibleOnly);
+  // The filter text and the folded groups are display-only: nothing here is saved in a project or counted as unsaved work.
+  const [query, setQuery] = useState('');
+  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   // The custom group (or tag group key) a dragged file is over: it is outlined as a drop target.
@@ -279,7 +284,22 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   const panelRef = useRef<HTMLElement>(null);
   // The one row (or group header) that is a tab stop; the arrow keys move it (roving tabindex).
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const navKeys = groups.flatMap((g) => [`group:${g.key}`, ...g.items.map((i) => `file:${i.pattern.id}`)]);
+  // Filtering a single file is noise: the box appears from two files on, and a stale text does not outlive the files.
+  const fileCount = allGroups.reduce((n, g) => n + g.items.length, 0);
+  const filterShown = fileCount >= 2;
+  // The list follows the text a moment later, so typing stays instant even with hundreds of rows.
+  const deferredQuery = useDeferredValue(query);
+  const activeQuery = filterShown ? deferredQuery : '';
+  const filtering = filterTerms(activeQuery).length > 0;
+  const { groups, matchIds, allIds } = useMemo(() => filterGroups(allGroups, activeQuery), [allGroups, activeQuery]);
+  const tickedCount = allIds.reduce((n, id) => n + (visible[id] ? 1 : 0), 0);
+  const toggleFold = (key: string) =>
+    setFolded((f) => {
+      const next = new Set(f);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  const navKeys = groups.flatMap((g) => [`group:${g.key}`, ...(folded.has(g.key) ? [] : g.items.map((i) => `file:${i.pattern.id}`))]);
   const stop = tabStopKey(navKeys, activeKey);
   /** tabIndex of the secondary controls of the row `key`: reachable by Tab only on the row that is the tab stop. */
   const subTab = (key: string): number | undefined => (key === stop ? undefined : -1);
@@ -323,7 +343,15 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   // A highlight set from the table or a plot brings the file's item into view in the panel.
   useEffect(() => {
     if (highlighted === null) return;
+    const home = allGroups.find((g) => g.items.some((i) => i.pattern.id === highlighted));
+    // A folded group would hide the highlighted file: open it.
+    if (home && folded.has(home.key)) {
+      setFolded((f) => new Set([...f].filter((k) => k !== home.key)));
+      return;
+    }
     panelRef.current?.querySelector<HTMLElement>('li.hl')?.scrollIntoView?.({ block: 'nearest' });
+    // Only a change of the highlight brings the file into view, not a fold or a filter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlighted]);
 
   // Menus close on an outside click or Esc; opening one menu closes the others. `<details>`
@@ -374,6 +402,13 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   const onPanelKeys = (e: KeyboardEvent<HTMLElement>) => {
     const target = e.target as HTMLElement;
     if (!target.hasAttribute('data-nav')) return;
+    // Left folds and Right unfolds the group whose header has the focus.
+    const groupKey = target.closest<HTMLElement>('[data-focus-key^="group:"]')?.dataset.focusKey?.slice(6);
+    if (groupKey && target.closest('header') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      if (folded.has(groupKey) === (e.key === 'ArrowRight')) toggleFold(groupKey);
+      return;
+    }
     moveFocus(e, Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-nav]')), target);
   };
 
@@ -422,9 +457,78 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
           </ul>
         </section>
       )}
+      {filterShown && (
+        <div className="panel-tools" role="search">
+          <input
+            type="search"
+            className="panel-filter"
+            aria-label="Filter files"
+            placeholder="Filter: name, group, MHz"
+            value={query}
+            autoComplete="off"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && query !== '') {
+                e.preventDefault();
+                setQuery('');
+              } else if (e.key === 'ArrowDown') {
+                const first = e.currentTarget.closest('aside')?.querySelector<HTMLElement>('[data-nav]');
+                if (first) {
+                  e.preventDefault();
+                  first.focus();
+                }
+              }
+            }}
+          />
+          <p className="count" data-testid="filter-count" aria-live="polite">
+            {filtering ? `${matchIds.length} of ${allIds.length} files` : `${allIds.length} files · ${tickedCount} shown`}
+          </p>
+          <div className="bulk" role="group" aria-label="Show or hide files">
+            <button type="button" disabled={tickedCount === allIds.length} onClick={() => setVisibleOnly(allIds, 'Showed all files')}>
+              Show all
+            </button>
+            <button type="button" disabled={tickedCount === 0} onClick={() => setVisibleOnly([], 'Hid all files')}>
+              Show none
+            </button>
+            {filtering && (
+              <>
+                <button
+                  type="button"
+                  disabled={matchIds.length === 0}
+                  onClick={() => setVisibleOnly(matchIds, `Showed only the ${matchIds.length} matching file${matchIds.length === 1 ? '' : 's'}`)}
+                >
+                  Only matches
+                </button>
+                <button
+                  type="button"
+                  disabled={matchIds.length === 0}
+                  onClick={() =>
+                    setVisibleOnly(
+                      [...new Set([...allIds.filter((id) => visible[id]), ...matchIds])],
+                      `Added ${matchIds.length} matching file${matchIds.length === 1 ? '' : 's'}`,
+                    )
+                  }
+                >
+                  Add matches
+                </button>
+              </>
+            )}
+          </div>
+          {filtering && matchIds.length === 0 && (
+            <p className="count">
+              No file matches "{query.trim()}".{' '}
+              <button type="button" onClick={() => setQuery('')}>
+                Clear filter
+              </button>
+            </p>
+          )}
+        </div>
+      )}
       {groups.map((g) => {
         const ids = g.items.map((i) => i.pattern.id);
         const custom = g.customId;
+        const isFolded = folded.has(g.key);
+        const ticked = ids.filter((id) => visible[id]).length;
         const isSelected = custom !== undefined && selected?.kind === 'group' && selected.id === custom;
         return (
           <section
@@ -455,6 +559,19 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
               className={isSelected ? 'selected' : undefined}
               onClick={custom ? () => select({ kind: 'group', id: custom }) : undefined}
             >
+              <button
+                type="button"
+                className="fold-group"
+                aria-expanded={!isFolded}
+                aria-label={`${isFolded ? 'Expand' : 'Collapse'} ${g.label}`}
+                tabIndex={subTab(`group:${g.key}`)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFold(g.key);
+                }}
+              >
+                <span aria-hidden="true">{isFolded ? '▸' : '▾'}</span>
+              </button>
               <input
                 type="checkbox"
                 aria-label={`Show all in ${g.label}`}
@@ -488,7 +605,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                   data-nav
                   tabIndex={stop === `group:${g.key}` ? 0 : -1}
                   aria-current={isSelected || undefined}
-                  title="Enter: select group · Space: show or hide all · Up/Down: next row"
+                  title="Enter: select group · Space: show or hide all · Left/Right: fold or unfold · Up/Down: next row"
                   onDoubleClick={() => setRenaming(`group:${custom}`)}
                   {...onSpace(() => {
                     const all = ids.length > 0 && ids.every((id) => visible[id]);
@@ -500,7 +617,9 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
               ) : (
                 <span>{g.label}</span>
               )}
-              <span className="count">{ids.length}</span>
+              <span className="count" title={`${ticked} of ${ids.length} shown in the plots${filtering ? ' (matching files only)' : ''}`}>
+                {ticked} / {ids.length}
+              </span>
               {custom && groupOffsets[custom] && (
                 <span
                   className="offset-badge"
@@ -520,11 +639,11 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                 />
               )}
             </header>
-            {custom && ids.length === 0 && (
+            {custom && ids.length === 0 && !filtering && (
               <p className="count empty-group">Empty: drag files here, or use ⋯ › Move to {g.label} on a file.</p>
             )}
-            <ul>
-              {g.items.map(({ pattern, tags }) => {
+            <ul hidden={isFolded}>
+              {(isFolded ? [] : g.items).map(({ pattern, tags }) => {
                 const id = pattern.id;
                 const name = nameOf(pattern);
                 const warn = warningsFor(id, warnings, copies);

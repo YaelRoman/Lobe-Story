@@ -502,6 +502,43 @@ describe('instances and panel groups', () => {
   });
 });
 
+describe('setVisibleOnly (Show all / none / only matches)', () => {
+  const st = useStore.getState;
+  beforeEach(() => useStore.setState(initialState()));
+  const load = () => st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900)), input('c.MSI', msi(2100))]);
+
+  it('ticks exactly the given files, offers an undo and is undone in one step', () => {
+    load();
+    st().setVisible(['b.MSI'], true);
+    st().setVisibleOnly(['a.MSI', 'c.MSI'], 'Showed only the 2 matching files');
+    expect(st().visible).toEqual({ 'a.MSI': true, 'b.MSI': false, 'c.MSI': true });
+    expect(st().undo?.label).toBe('Showed only the 2 matching files');
+    st().undoLast();
+    expect(st().visible['a.MSI']).toBe(true);
+    expect(st().visible['b.MSI']).toBe(true);
+    expect(st().visible['c.MSI']).toBeFalsy();
+  });
+
+  it('does nothing, and offers no undo, when the ticks already are exactly these', () => {
+    load();
+    const ticked = Object.keys(st().visible).filter((k) => st().visible[k]);
+    st().setVisibleOnly(ticked, 'x');
+    expect(st().undo).toBeNull();
+    st().setVisibleOnly([], 'Hid all files');
+    expect(st().undo?.label).toBe('Hid all files');
+  });
+
+  it('counts as a change of the project (visibility is saved) and is not unsaved once put back', () => {
+    load();
+    st().markSaved();
+    expect(isDirty(st())).toBe(false);
+    st().setVisibleOnly([], 'Hid all files');
+    expect(isDirty(st())).toBe(true);
+    st().undoLast();
+    expect(isDirty(st())).toBe(false);
+  });
+});
+
 describe('undo of destructive actions', () => {
   const st = useStore.getState;
   const data = () => {
