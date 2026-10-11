@@ -125,6 +125,12 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
   const updateView = useStore((s) => s.updateView);
   // Bumped by Reset so every field drops what was typed (and its message) even when the value was already the default.
   const [epoch, setEpoch] = useState(0);
+  // The floor was lifted by a level change (not typed): the hint beside the floor field stays while the clamp is what holds it.
+  const [floorLifted, setFloorLifted] = useState(false);
+  const floorHeld = floorLifted && floorDb === settings.levelDb + 1;
+  useEffect(() => {
+    if (floorLifted && !floorHeld) setFloorLifted(false);
+  }, [floorLifted, floorHeld]);
 
   // The panel takes the focus when it opens and closes when the user clicks outside it.
   useEffect(() => {
@@ -165,7 +171,7 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
             const floorBefore = useStore.getState().view.floorDb;
             updateSettings({ [f.key]: n });
             const floorNow = useStore.getState().view.floorDb;
-            if (floorNow !== floorBefore) useStore.getState().setCopyNote(`Plot floor raised to ${floorNow} dB: it must lie at least 1 dB beyond the ${n} dB level ring.`);
+            if (floorNow !== floorBefore) setFloorLifted(true);
           }}
         />
       ))}
@@ -177,13 +183,22 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
         {...FLOOR_LIMITS}
         accept={(n) => clampFloor(n, settings.levelDb)}
         adjusted={(used) => `Used ${used}: the plot floor must lie at least 1 dB beyond the ${settings.levelDb} dB level ring.`}
-        onCommit={(n) => updateView({ floorDb: n })}
+        onCommit={(n) => {
+          setFloorLifted(false);
+          updateView({ floorDb: n });
+        }}
       />
+      {floorHeld && (
+        <span className="field-message" role="status" data-testid="floor-raised-hint">
+          Raised to stay below the −{settings.levelDb} dB level
+        </span>
+      )}
       <span />
       <button
         onClick={() => {
           updateSettings(DEFAULT_SETTINGS);
           updateView({ floorDb: DEFAULT_FLOOR_DB });
+          setFloorLifted(false);
           setEpoch((n) => n + 1);
         }}
       >

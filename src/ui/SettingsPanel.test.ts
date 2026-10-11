@@ -110,8 +110,13 @@ describe('SettingsPanel limits', () => {
     typeAndBlur(inputFor('Plot floor'), '12');
     typeAndBlur(inputFor('Beamwidth level'), '20');
     expect(useStore.getState().view.floorDb).toBe(21);
-    expect(useStore.getState().copyNote).toContain('Plot floor raised to 21');
+    expect(useStore.getState().copyNote).toBeNull();
     expect(inputFor('Plot floor').value).toBe('21');
+    // The hint beside the field stays while the clamp holds the floor, and goes once the floor is set to something else.
+    const hint = () => host.querySelector('[data-testid="floor-raised-hint"]')?.textContent ?? null;
+    expect(hint()).toBe('Raised to stay below the −20 dB level');
+    typeAndBlur(inputFor('Plot floor'), '30');
+    expect(hint()).toBeNull();
   });
 
   it('shows the accepted range of each setting, from the limits table', () => {
