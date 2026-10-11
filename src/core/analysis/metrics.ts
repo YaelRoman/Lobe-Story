@@ -46,6 +46,12 @@ export interface PatternMetrics {
   squint: MetricResult;
   tilt: MetricResult;
   tiltError: MetricResult;
+  /** BASTA 6.1.6 with X = 10: beamwidth 10 dB below the cut's own peak. */
+  hBw10: MetricResult;
+  vBw10: MetricResult;
+  /** BASTA 6.1.4 beam direction: angle of the strongest co-pol level. */
+  hPeak: MetricResult;
+  vPeak: MetricResult;
   fb180: MetricResult;
   fbWindow: MetricResult;
   usls: MetricResult;
@@ -106,6 +112,10 @@ export function analyzePattern(
     squint: h.direction,
     tilt,
     tiltError,
+    hBw10: beamwidth(grids.h, 10).hpbw,
+    vBw10: beamwidth(grids.v, 10).hpbw,
+    hPeak: { value: h.peakAngle },
+    vPeak: { value: v.peakAngle },
     fb180: fb.fb180,
     fbWindow: fb.fbWindow,
     usls: usls(grids.v, v, s.uslsRangeDeg),

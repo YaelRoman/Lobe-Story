@@ -6,7 +6,7 @@ import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
 
 export type MetricColumn =
-  | 'hHpbw' | 'vHpbw' | 'squint' | 'tilt' | 'tiltError'
+  | 'hHpbw' | 'vHpbw' | 'hBw10' | 'vBw10' | 'squint' | 'hPeak' | 'tilt' | 'vPeak' | 'tiltError'
   | 'fb180' | 'fbWindow' | 'usls' | 'nullFill'
   | 'tracking' | 'spr' | 'air' | 'rollOff' | 'du16' | 'du64' | 'du256'
   | 'dH' | 'dV' | 'dFb';
@@ -22,8 +22,12 @@ export const COLUMN_GROUPS: { key: ColumnGroupKey; label: string }[] = [
 export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string; group: ColumnGroupKey }[] = [
   { key: 'hHpbw', label: 'H-HPBW', unit: '°', group: 'beam' },
   { key: 'vHpbw', label: 'V-HPBW', unit: '°', group: 'beam' },
+  { key: 'hBw10', label: 'H-BW 10 dB', unit: '°', group: 'beam' },
+  { key: 'vBw10', label: 'V-BW 10 dB', unit: '°', group: 'beam' },
   { key: 'squint', label: 'Squint', unit: '°', group: 'beam' },
+  { key: 'hPeak', label: 'Peak az', unit: '°', group: 'beam' },
   { key: 'tilt', label: 'Tilt', unit: '°', group: 'beam' },
+  { key: 'vPeak', label: 'Peak tilt', unit: '°', group: 'beam' },
   { key: 'tiltError', label: 'Tilt error', unit: '°', group: 'beam' },
   { key: 'fb180', label: 'F/B 180°', unit: 'dB', group: 'fb' },
   { key: 'fbWindow', label: 'F/B window', unit: 'dB', group: 'fb' },
@@ -55,10 +59,24 @@ const DU_DB: Partial<Record<MetricColumn, number>> = { du16: 15, du64: 20, du256
 /** Header tooltip for a column; the sector columns depend on the sector settings (E, S). */
 export function columnTitle(
   key: MetricColumn,
-  settings: { sectorEdgeDeg: number; siteSectors: number },
+  settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number },
 ): string | undefined {
   const e = settings.sectorEdgeDeg;
   switch (key) {
+    case 'hBw10':
+      return 'Azimuth beamwidth 10 dB below the peak of the cut (BASTA 6.1.6)';
+    case 'vBw10':
+      return 'Elevation beamwidth 10 dB below the peak of the cut (BASTA 6.1.6)';
+    case 'hPeak':
+      return 'Azimuth of the strongest co-pol level (BASTA beam direction); Squint is the bisector of the beamwidth points';
+    case 'vPeak':
+      return 'Elevation of the strongest co-pol level, positive below the horizon; Tilt is the bisector of the beamwidth points';
+    case 'squint':
+      return 'Azimuth beam squint: bisector of the beamwidth points relative to boresight (0°)';
+    case 'tilt':
+      return 'Electrical downtilt: bisector of the beamwidth points of the elevation cut (BASTA half-power beam axis), positive below the horizon';
+    case 'tiltError':
+      return 'Tilt minus the nominal tilt, signed (BASTA downtilt deviation is its absolute value)';
     case 'tracking':
       return `Azimuth beam port-to-port tracking within ±${e}° (gain-aware when both gains are declared)`;
     case 'spr':
@@ -98,8 +116,12 @@ function cellsOf(m: PatternMetrics): Record<MetricColumn, MetricResult> {
   return {
     hHpbw: m.h.hpbw,
     vHpbw: m.v.hpbw,
+    hBw10: m.hBw10,
+    vBw10: m.vBw10,
     squint: m.squint,
+    hPeak: m.hPeak,
     tilt: m.tilt,
+    vPeak: m.vPeak,
     tiltError: m.tiltError,
     fb180: m.fb180,
     fbWindow: m.fbWindow,

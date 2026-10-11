@@ -42,10 +42,10 @@ describe('buildRows and toCsv', () => {
     const [header, line] = csv.trimEnd().split('\r\n');
     expect(
       header.startsWith(
-        'File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),Squint (°),Tilt (°),Tilt error (°),F/B 180° (dB),F/B ±30° (dB)',
+        'File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),H-BW 10 dB (°),V-BW 10 dB (°),Squint (°),Peak az (°),Tilt (°),Peak tilt (°),Tilt error (°),F/B 180° (dB),F/B ±30° (dB)',
       ),
     ).toBe(true);
-    expect(line.startsWith('"""odd, name"".MSI",+45 · 6°T,1800,17.15,60.00,8.00,')).toBe(true);
+    expect(line.startsWith('"""odd, name"".MSI",+45 · 6°T,1800,17.15,60.00,8.00,109.54,14.22,')).toBe(true);
     expect(line.split(',').length).toBeGreaterThan(10);
     expect(line).toContain(',,'); // null tracking / deltas are empty
   });
@@ -267,8 +267,35 @@ describe('column groups', () => {
 
   it('shows all but the declared columns by default', () => {
     const keys = visibleColumns(DEFAULT_TABLE_GROUPS).map((c) => c.key);
-    expect(keys).toHaveLength(16);
+    expect(keys).toHaveLength(20);
     for (const k of ['dH', 'dV', 'dFb']) expect(keys).not.toContain(k);
+  });
+
+  it('orders the beam group', () => {
+    expect(METRIC_COLUMNS.filter((c) => c.group === 'beam').map((c) => c.key)).toEqual([
+      'hHpbw', 'vHpbw', 'hBw10', 'vBw10', 'squint', 'hPeak', 'tilt', 'vPeak', 'tiltError',
+    ]);
+    expect(METRIC_COLUMNS.filter((c) => ['hBw10', 'vBw10', 'hPeak', 'vPeak'].includes(c.key)).map((c) => `${c.label} ${c.unit}`)).toEqual([
+      'H-BW 10 dB °', 'V-BW 10 dB °', 'Peak az °', 'Peak tilt °',
+    ]);
+  });
+
+  it('describes the beam columns in header tooltips', () => {
+    const s = { sectorEdgeDeg: 60, siteSectors: 3 };
+    expect(columnTitle('hBw10', s)).toBe('Azimuth beamwidth 10 dB below the peak of the cut (BASTA 6.1.6)');
+    expect(columnTitle('vBw10', s)).toBe('Elevation beamwidth 10 dB below the peak of the cut (BASTA 6.1.6)');
+    expect(columnTitle('hPeak', s)).toBe(
+      'Azimuth of the strongest co-pol level (BASTA beam direction); Squint is the bisector of the beamwidth points',
+    );
+    expect(columnTitle('vPeak', s)).toBe(
+      'Elevation of the strongest co-pol level, positive below the horizon; Tilt is the bisector of the beamwidth points',
+    );
+    expect(columnTitle('squint', s)).toBe('Azimuth beam squint: bisector of the beamwidth points relative to boresight (0°)');
+    expect(columnTitle('tilt', s)).toBe(
+      'Electrical downtilt: bisector of the beamwidth points of the elevation cut (BASTA half-power beam axis), positive below the horizon',
+    );
+    expect(columnTitle('tiltError', s)).toBe('Tilt minus the nominal tilt, signed (BASTA downtilt deviation is its absolute value)');
+    expect(columnTitle('hHpbw', s)).toBeUndefined();
   });
 
   it('filters by group', () => {

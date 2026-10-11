@@ -19,6 +19,8 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await expect(page.locator('tbody tr')).toHaveCount(2);
   await expect(page.getByText('Missing HORIZONTAL block')).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^SPR/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^H-BW 10 dB/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^Peak tilt/ })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^D\/U 256QAM/ })).toBeVisible();
   const declared = page.getByRole('checkbox', { name: 'Show Declared Δ columns' });
   await expect(declared).not.toBeChecked();

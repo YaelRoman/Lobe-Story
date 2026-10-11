@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeAll, analyzePattern, findTrackingPartner, type TaggedPattern } from './metrics';
-import { patternFrom, quadBeam, vBeamWithLobes } from '../../test/synthetic';
+import { analyzeAll, analyzePattern, DEFAULT_SETTINGS, findTrackingPartner, type TaggedPattern } from './metrics';
+import { patternFrom, pwl, quadBeam, vBeamWithLobes } from '../../test/synthetic';
 import type { Pattern, Tags } from '../types';
 
 const item = (over: Partial<Pattern> = {}, tags: Tags = {}): TaggedPattern => ({
@@ -151,5 +151,51 @@ describe('sector metrics', () => {
   it('ignores gain when one is missing', () => {
     const all = pair({ value: 15, unit: 'dBd' }, undefined);
     expect(all.get('p')!.beamTracking.value).toBeCloseTo(0, 9);
+  });
+});
+
+describe('10 dB beamwidths and beam peak directions', () => {
+  const withH = (h: (a: number) => number): TaggedPattern => ({
+    pattern: patternFrom(h, vBeamWithLobes),
+    tags: {},
+  });
+
+  it('computes both 10 dB beamwidths and peak angles', () => {
+    const m = analyzePattern(item());
+    expect(m.hBw10.value).toBeCloseTo(118.669, 2);
+    expect(m.vBw10.value).toBeCloseTo(14.222, 2);
+    expect(m.hPeak.value).toBeCloseTo(0, 2);
+    expect(m.vPeak.value).toBeCloseTo(6, 2);
+  });
+
+  it('uses the 1 degree linear interpolation', () => {
+    expect(analyzePattern(withH(quadBeam(60))).hBw10.value).toBeCloseTo(109.541, 2);
+  });
+
+  it('reports a steered peak as peak and squint', () => {
+    const m = analyzePattern(withH(quadBeam(65, 10)));
+    expect(m.hPeak.value).toBeCloseTo(10, 2);
+    expect(m.squint.value).toBeCloseTo(10, 2);
+  });
+
+  it('separates the peak from the bisector on an asymmetric cut', () => {
+    const m = analyzePattern(
+      withH(pwl([[-180, 30], [-60, 30], [-20, 3], [0, 0], [40, 3], [80, 30], [180, 30]])),
+    );
+    expect(m.h.hpbw.value).toBeCloseTo(60, 2);
+    expect(m.squint.value).toBeCloseTo(10, 2);
+    expect(m.hBw10.value).toBeCloseTo(80.741, 2);
+    expect(m.hPeak.value).toBeCloseTo(0.1667, 3);
+  });
+
+  it('explains a cut that never drops 10 dB', () => {
+    const m = analyzePattern(withH((a) => Math.min(3 * (a / 30) ** 2, 8)));
+    expect(m.hBw10.value).toBeNull();
+    expect(m.hBw10.reason).toMatch(/never drops 10 dB/);
+  });
+
+  it('does not depend on the level setting', () => {
+    const m = analyzePattern(item(), { ...DEFAULT_SETTINGS, levelDb: 6 });
+    expect(m.hBw10.value).toBeCloseTo(118.669, 2);
   });
 });
