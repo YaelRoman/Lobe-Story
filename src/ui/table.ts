@@ -67,13 +67,14 @@ const DU_DB: Partial<Record<MetricColumn, number>> = { du16: 15, du64: 20, du256
 /** Header tooltip for a column; the sector columns depend on the sector settings (E, S). */
 export function columnTitle(
   key: MetricColumn,
-  settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number },
+  settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number; lobeLimitFactor?: number },
 ): string | undefined {
   const e = settings.sectorEdgeDeg;
   const r = settings.uslsRangeDeg ?? 20;
+  const f = settings.lobeLimitFactor ?? 1.78;
   switch (key) {
     case 'firstUsls':
-      return 'First upper sidelobe suppression (BASTA 7.8.4.2): first sidelobe peak within 1.78 × V-HPBW above the beam peak, else the level at 1.55 × V-HPBW above it (merged sidelobe)';
+      return `First upper sidelobe suppression (BASTA 7.8.4.2): first sidelobe peak within ${f} × V-HPBW above the beam peak, else the level at 1.55 × V-HPBW above it (merged sidelobe)`;
     case 'usls':
       return `Upper sidelobe suppression, beam peak to ${r}° above it (BASTA 7.8.4.3): highest level beyond the main beam in that window; — when only the main beam is in the window`;
     case 'uslsHorizon':

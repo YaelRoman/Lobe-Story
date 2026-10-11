@@ -1,9 +1,11 @@
 import type { MetricResult } from '../types';
 import { beamwidth } from './beamwidth';
-import { at, attAt, peakIndex, signed, type Grid } from './grid';
+import { at, attAt, peakCentre, peakIndex, signed, type Grid } from './grid';
 
 /** × V-HPBW: where a distinct first sidelobe peak must lie (BASTA 12.5.1 / 12.5.2). */
 export const FIRST_LOBE_RANGE = 1.78;
+/** Minimum depth (dB) of a null relative to the lobe after it for the pair to count; smaller wiggles are ripples. */
+export const MIN_PROMINENCE_DB = 0.5;
 /** × V-HPBW: position of a merged first sidelobe. */
 export const MERGED_LOBE_AT = 1.55;
 /** BASTA 12.5.3 substitute; used by band statistics, not per file. */
@@ -32,9 +34,10 @@ export interface ElevationSidelobes {
 }
 
 /**
- * Walks away from the peak on one side. `kNull` is the first relative minimum of level at or
- * beyond the half-power point, `kLobe` the first relative maximum after it (strict comparisons
- * between neighbouring 1° samples). Offsets are integer degrees from the peak.
+ * Walks away from the peak sample on one side. `kNull` is the first relative minimum of level at or
+ * beyond the half-power point whose following relative maximum (`kLobe`) is at least
+ * `MIN_PROMINENCE_DB` higher in level; shallower pairs are ripples and are skipped. A null with no
+ * lobe after it before `maxK` is returned alone. Offsets are integer degrees from the peak sample.
  */
 function scan(g: Grid, dir: 1 | -1, maxK: number): { kNull?: number; kLobe?: number } {
   const p = peakIndex(g);
@@ -42,18 +45,18 @@ function scan(g: Grid, dir: 1 | -1, maxK: number): { kNull?: number; kLobe?: num
   let k0 = 1;
   while (k0 < 360 && L(k0) < 3) k0++;
   if (L(k0) < 3) return {};
-  let kNull: number | undefined;
-  for (let k = k0; k <= maxK; k++) {
-    if (L(k + 1) < L(k)) {
-      kNull = k;
-      break;
-    }
+  let k = k0;
+  while (k <= maxK) {
+    let kNull = k;
+    while (kNull <= maxK && !(L(kNull + 1) < L(kNull))) kNull++;
+    if (kNull > maxK) return {};
+    let kLobe = kNull + 1;
+    while (kLobe <= maxK && !(L(kLobe + 1) > L(kLobe))) kLobe++;
+    if (kLobe > maxK) return { kNull };
+    if (L(kNull) - L(kLobe) >= MIN_PROMINENCE_DB) return { kNull, kLobe };
+    k = kLobe + 1;
   }
-  if (kNull === undefined) return {};
-  for (let k = kNull + 1; k <= maxK; k++) {
-    if (L(k + 1) > L(k)) return { kNull, kLobe: k };
-  }
-  return { kNull };
+  return {};
 }
 
 const undefinedResult = (reason: string): FirstLobe => ({
@@ -62,37 +65,49 @@ const undefinedResult = (reason: string): FirstLobe => ({
   startDeg: null,
 });
 
-/** First sidelobe on the upper (above the beam) or lower side: BASTA 12.5.1 / 12.5.2. */
-export function firstLobe(v: Grid, side: 'upper' | 'lower'): FirstLobe {
+/**
+ * First sidelobe on the upper (above the beam) or lower side: BASTA 12.5.1 / 12.5.2. Distances are
+ * measured from the peak direction (`peakCentre`); `lobeLimitFactor` × V-HPBW is how far a distinct
+ * lobe may lie. Above the default factor the search is capped at 90° instead of giving up.
+ */
+export function firstLobe(v: Grid, side: 'upper' | 'lower', lobeLimitFactor = FIRST_LOBE_RANGE): FirstLobe {
   const hp = beamwidth(v, 3).hpbw.value;
   if (hp === null) return undefinedResult('HPBW undefined');
-  if (FIRST_LOBE_RANGE * hp > 90) return undefinedResult('V-HPBW is too wide for the first-sidelobe rule');
+  const tooWide = undefinedResult('V-HPBW is too wide for the first-sidelobe rule');
+  let limit = lobeLimitFactor * hp;
+  if (limit > 90) {
+    if (lobeLimitFactor <= FIRST_LOBE_RANGE || MERGED_LOBE_AT * hp > 90) return tooWide;
+    limit = 90;
+  }
   const dir = side === 'upper' ? -1 : 1;
   const p = peakIndex(v);
-  const { kNull, kLobe } = scan(v, dir, Math.floor(FIRST_LOBE_RANGE * hp));
+  const centre = peakCentre(v);
+  const off = signed(centre - p); // the peak direction lies `off` degrees beyond the peak sample
+  const { kNull, kLobe } = scan(v, dir, Math.floor(limit + dir * off));
   if (kLobe !== undefined && kNull !== undefined) {
     return {
       lobe: { value: at(v, p + dir * kLobe), angle: signed(p + dir * kLobe), kind: 'peak' },
       fill: { value: at(v, p + dir * kNull), angle: signed(p + dir * kNull), kind: 'peak' },
-      startDeg: kNull,
+      startDeg: kNull - dir * off,
     };
   }
   const d = MERGED_LOBE_AT * hp;
   const merged: LobeResult = {
-    value: attAt(v, p + dir * d),
-    angle: signed(p + dir * d),
+    value: attAt(v, centre + dir * d),
+    angle: signed(centre + dir * d),
     kind: 'merged',
-    reason: `Merged with the main beam: level at 1.55 × V-HPBW ${side === 'upper' ? 'above' : 'below'} the peak`,
+    reason: `Merged with the main beam: level at ${MERGED_LOBE_AT} × V-HPBW ${side === 'upper' ? 'above' : 'below'} the peak`,
   };
   return { lobe: merged, fill: { ...merged }, startDeg: d };
 }
 
 /**
  * Highest upper sidelobe level in the elevation window [loDeg, hiDeg] (BASTA 12.5.3), limited to
- * the sidelobe region: angles at least `startDeg` above the peak.
+ * the sidelobe region: angles at least `startDeg` above the peak direction.
  */
 export function upperWindow(v: Grid, startDeg: number, loDeg: number, hiDeg: number): WindowResult {
-  const aS = signed(peakIndex(v)) - startDeg;
+  const centre = peakCentre(v);
+  const aS = Math.round((centre - startDeg) * 1e9) / 1e9; // snapped so an integer region start is recognised
   const lo = Math.max(loDeg, -90);
   let best: number | null = null;
   let angle = 0;
@@ -107,15 +122,19 @@ export function upperWindow(v: Grid, startDeg: number, loDeg: number, hiDeg: num
   if (!Number.isInteger(aS) && aS >= lo && aS <= hiDeg) consider(aS);
   for (let a = Math.min(Math.floor(hiDeg), Math.floor(aS)); a >= Math.ceil(lo); a--) consider(a);
   if (best === null) {
-    return { value: null, notAvailable: true, reason: 'Not available: only the main beam lies in this window' };
+    const reason =
+      centre < loDeg
+        ? 'Not available: the beam peak is above this window'
+        : 'Not available: only the main beam lies in this window';
+    return { value: null, notAvailable: true, reason };
   }
   return { value: best, angle: signed(angle) };
 }
 
 /** Elevation sidelobe family for the V cut: BASTA 7.8.3, 7.8.4.2 – 7.8.4.5 with 12.5. */
-export function elevationSidelobes(v: Grid, rangeDeg = 20): ElevationSidelobes {
-  const up = firstLobe(v, 'upper');
-  const down = firstLobe(v, 'lower');
+export function elevationSidelobes(v: Grid, rangeDeg = 20, lobeLimitFactor = FIRST_LOBE_RANGE): ElevationSidelobes {
+  const up = firstLobe(v, 'upper', lobeLimitFactor);
+  const down = firstLobe(v, 'lower', lobeLimitFactor);
   const base = { firstUsls: up.lobe, nullFill: down.fill, firstLsls: down.lobe };
   if (up.startDeg === null) {
     const none: WindowResult = { value: null, reason: up.lobe.reason };

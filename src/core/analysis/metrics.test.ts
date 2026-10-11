@@ -67,6 +67,18 @@ describe('sidelobe settings', () => {
     expect(level.firstUsls.angle).toBeCloseTo(-8, 6);
   });
 
+  it('lobeLimitFactor decides whether a far first lobe is reported or merged', () => {
+    const far = pwl([[-180, 30], [-20, 30], [-16, 18], [-12, 28], [-4, 3], [0, 0], [4, 3], [8, 12], [12, 22], [16, 15], [20, 30], [180, 30]]);
+    const p = patternFrom(quadBeam(65), far);
+    const def = analyzePattern({ pattern: p, tags: {} });
+    expect(DEFAULT_SETTINGS.lobeLimitFactor).toBe(1.78);
+    expect(def.firstUsls.kind).toBe('merged');
+    const raised = analyzePattern({ pattern: p, tags: {} }, { ...DEFAULT_SETTINGS, lobeLimitFactor: 2.5 });
+    expect(raised.firstUsls.kind).toBe('peak');
+    expect(raised.firstUsls.value).toBeCloseTo(18, 6);
+    expect(raised.firstUsls.angle).toBeCloseTo(-16, 6);
+  });
+
   it('no longer has a null search range', () => {
     expect('nullSearchDeg' in DEFAULT_SETTINGS).toBe(false);
   });

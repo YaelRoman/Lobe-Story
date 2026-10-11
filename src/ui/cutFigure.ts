@@ -2,6 +2,7 @@ import type { Data, Layout, PlotData, Shape } from 'plotly.js';
 import type { Cut } from '../core/types';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { signed } from '../core/analysis/grid';
+import type { LobeResult } from '../core/analysis/sidelobes';
 import { DU_LEVELS } from '../core/analysis/sector';
 import type { MarkerKey, PlotMode } from '../state/store';
 import type { Figure, FigureTheme } from './figureTheme';
@@ -78,7 +79,7 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
     spec.sectors.push({ from: 180 - o.fbWindowDeg + rot, to: 180 + o.fbWindowDeg + rot, label: `F/B window ±${o.fbWindowDeg}°`, opacity: 0.08 });
     point(m.fbWindow, (v) => `F/B ±${o.fbWindowDeg}° ${v.toFixed(1)} dB`);
   }
-  const lobeMarkers = (items: { label: string; r: { value: number | null; angle?: number; kind?: string } }[]) => {
+  const lobeMarkers = (items: { label: string; r: LobeResult }[]) => {
     const groups: { angle: number; value: number; labels: string[] }[] = [];
     for (const { label, r } of items) {
       if (r.value === null || r.angle === undefined) continue;

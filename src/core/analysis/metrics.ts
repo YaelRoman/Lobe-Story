@@ -2,7 +2,7 @@ import type { MetricResult, Pattern, Tags } from '../types';
 import { beamwidth, type BeamResult } from './beamwidth';
 import { frontToBack } from './frontToBack';
 import { toGrid, type Grid } from './grid';
-import { elevationSidelobes, horizontalSls, type LobeResult, type WindowResult } from './sidelobes';
+import { elevationSidelobes, FIRST_LOBE_RANGE, horizontalSls, type LobeResult, type WindowResult } from './sidelobes';
 import { DU_LEVELS, duAperture, rollOff, sectorPower } from './sector';
 import { beamTracking } from './tracking';
 
@@ -10,6 +10,8 @@ export interface AnalysisSettings {
   levelDb: number;
   fbWindowDeg: number;
   uslsRangeDeg: number;
+  /** First-lobe limit in × V-HPBW (BASTA 12.5: 1.78); a lobe further from the peak is reported as merged. */
+  lobeLimitFactor: number;
   sectorEdgeDeg: number;
   siteSectors: number;
 }
@@ -18,6 +20,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   levelDb: 3,
   fbWindowDeg: 30,
   uslsRangeDeg: 20,
+  lobeLimitFactor: FIRST_LOBE_RANGE,
   sectorEdgeDeg: 60,
   siteSectors: 3,
 };
@@ -128,7 +131,7 @@ export function analyzePattern(
     vPeak: { value: v.peakAngle },
     fb180: fb.fb180,
     fbWindow: fb.fbWindow,
-    ...elevationSidelobes(grids.v, s.uslsRangeDeg),
+    ...elevationSidelobes(grids.v, s.uslsRangeDeg, s.lobeLimitFactor),
     hSls: horizontalSls(grids.h, s.sectorEdgeDeg),
     beamTracking: missing('Not computed'),
     spr: power.spr,

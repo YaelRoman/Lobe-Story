@@ -64,3 +64,14 @@ export function refinedPeak(g: Grid): number {
   const delta = denom > 0 ? (0.5 * (yl - yr)) / denom : 0;
   return signed(p + delta);
 }
+
+/** Direction of the beam peak: the centre of a flat 0 dB top (two or more equal samples), else `refinedPeak`. */
+export function peakCentre(g: Grid): number {
+  const p = peakIndex(g);
+  const tol = 1e-9;
+  let up = 0;
+  let down = 0;
+  while (up < 359 && at(g, p + up + 1) <= g[p] + tol) up++;
+  while (up + down < 359 && at(g, p - down - 1) <= g[p] + tol) down++;
+  return up + down === 0 ? refinedPeak(g) : signed(p + (up - down) / 2);
+}

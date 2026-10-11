@@ -21,6 +21,7 @@ export const MetricsTable = memo(function MetricsTable({
   const sectorEdgeDeg = useStore((s) => s.settings.sectorEdgeDeg);
   const siteSectors = useStore((s) => s.settings.siteSectors);
   const uslsRangeDeg = useStore((s) => s.settings.uslsRangeDeg);
+  const lobeLimitFactor = useStore((s) => s.settings.lobeLimitFactor);
   const tableGroups = useStore((s) => s.view.tableGroups);
   const updateView = useStore((s) => s.updateView);
   const columns = visibleColumns(tableGroups);
@@ -71,7 +72,7 @@ export const MetricsTable = memo(function MetricsTable({
               <th>MHz</th>
               <th>Gain ({gainUnit})</th>
               {columns.map((c) => (
-                <th key={c.key} title={columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg })}>
+                <th key={c.key} title={columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor })}>
                   {columnLabel(c, fbWindowDeg, uslsRangeDeg)} ({c.unit})
                 </th>
               ))}

@@ -373,8 +373,24 @@ describe('sidelobe columns', () => {
     const merged = formatCell(r.cells.nullFill);
     expect(merged.text).toBe('28.9');
     expect(merged.title).toMatch(/Merged with the main beam/);
-    const na = formatCell({ value: null, reason: 'Not available: only the main beam lies in this window' });
+    // A real "not available" result: the 8° window ends inside the main beam of vBeamWithLobes.
+    const lobes = [{ pattern, tags: {} }];
+    const narrow = analyzeAll(lobes, { ...DEFAULT_SETTINGS, uslsRangeDeg: 8 });
+    expect(narrow.get('p')!.usls.notAvailable).toBe(true);
+    const na = formatCell(buildRows(groupPatterns(lobes), narrow, 'dBd')[0].cells.usls);
     expect(na.text).toBe('—');
     expect(na.title).toMatch(/only the main beam/);
+  });
+
+  it('shows the configured first-lobe limit in the First USLS tooltip', () => {
+    const s = { sectorEdgeDeg: 60, siteSectors: 3, lobeLimitFactor: 2.5 };
+    expect(columnTitle('firstUsls', s)).toContain('within 2.5 × V-HPBW above the beam peak');
+    expect(columnTitle('firstUsls', s)).not.toContain('1.78');
+  });
+
+  it('exports the declared columns although the group is hidden by default', () => {
+    expect(DEFAULT_TABLE_GROUPS.declared).toBe(false);
+    const [header] = toCsv(rows, 'dBd', 30).trimEnd().split('\r\n');
+    expect(header).toContain('ΔH-HPBW (°),ΔV-HPBW (°),ΔF/B (dB)');
   });
 });

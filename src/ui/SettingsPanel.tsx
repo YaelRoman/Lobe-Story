@@ -4,10 +4,14 @@ import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metric
 
 const DEFAULT_FLOOR_DB = 40;
 
+const LOBE_LIMIT_TITLE =
+  'BASTA uses 1.78. Raise it to report a first sidelobe that lies further from the peak instead of the merged-lobe level.';
+
 const FIELDS: { key: keyof AnalysisSettings; label: string }[] = [
   { key: 'levelDb', label: 'Beamwidth level (dB)' },
   { key: 'fbWindowDeg', label: 'F/B window ± (°)' },
   { key: 'uslsRangeDeg', label: 'USLS window (°)' },
+  { key: 'lobeLimitFactor', label: 'First-lobe limit (× V-HPBW)' },
   { key: 'sectorEdgeDeg', label: 'Sector edge (±°)' },
 ];
 
@@ -22,6 +26,8 @@ function NumberField({
   value,
   min,
   max,
+  step,
+  title,
   accepts,
   onCommit,
 }: {
@@ -29,6 +35,8 @@ function NumberField({
   value: number;
   min: number;
   max?: number;
+  step?: number;
+  title?: string;
   /** Extra check on top of "finite and > 0"; a rejected draft reverts like any invalid one. */
   accepts?: (n: number) => boolean;
   onCommit: (n: number) => void;
@@ -46,12 +54,13 @@ function NumberField({
   };
 
   return (
-    <label style={{ display: 'contents' }}>
+    <label style={{ display: 'contents' }} title={title}>
       <span>{label}</span>
       <input
         type="number"
         min={min}
         max={max}
+        step={step}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
@@ -77,8 +86,16 @@ export function SettingsPanel() {
           label={f.label}
           value={settings[f.key]}
           min={1}
-          max={f.key === 'sectorEdgeDeg' ? 179 : undefined}
-          accepts={f.key === 'sectorEdgeDeg' ? (n) => n >= 1 && n <= 179 : undefined}
+          max={f.key === 'sectorEdgeDeg' ? 179 : f.key === 'lobeLimitFactor' ? 10 : undefined}
+          step={f.key === 'lobeLimitFactor' ? 0.01 : undefined}
+          title={f.key === 'lobeLimitFactor' ? LOBE_LIMIT_TITLE : undefined}
+          accepts={
+            f.key === 'sectorEdgeDeg'
+              ? (n) => n >= 1 && n <= 179
+              : f.key === 'lobeLimitFactor'
+                ? (n) => n >= 1 && n <= 10
+                : undefined
+          }
           onCommit={(n) => updateSettings({ [f.key]: n })}
         />
       ))}

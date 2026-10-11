@@ -175,7 +175,7 @@ describe('damaged values', () => {
   });
 
   it('falls back to defaults for settings above their bounds', () => {
-    const big = { levelDb: 1e9, fbWindowDeg: 1e9, uslsRangeDeg: 1e9, sectorEdgeDeg: 1e9 };
+    const big = { levelDb: 1e9, fbWindowDeg: 1e9, uslsRangeDeg: 1e9, sectorEdgeDeg: 1e9, lobeLimitFactor: 1e9 };
     expect(restore(withState({ settings: big })).settings).toEqual(initialState().settings);
     expect(restore(withState({ settings: { levelDb: 100, fbWindowDeg: 360 } })).settings).toMatchObject({
       levelDb: 100,
@@ -187,6 +187,16 @@ describe('damaged values', () => {
     const s = restore(withState({ settings: { nullSearchDeg: 45, uslsRangeDeg: 15 } })).settings;
     expect(s.uslsRangeDeg).toBe(15);
     expect('nullSearchDeg' in s).toBe(false);
+  });
+
+  it('sanitises the first-lobe limit', () => {
+    const factor = (raw: object) => restore(withState({ settings: raw })).settings.lobeLimitFactor;
+    expect(factor({ lobeLimitFactor: 0.5 })).toBe(1.78);
+    expect(factor({ lobeLimitFactor: 11 })).toBe(1.78);
+    expect(factor({ lobeLimitFactor: 2.25 })).toBe(2.25);
+    expect(factor({ lobeLimitFactor: 1 })).toBe(1);
+    expect(factor({ lobeLimitFactor: 10 })).toBe(10);
+    expect(factor({ levelDb: 3 })).toBe(1.78); // old project file without the key
   });
 
   it('sanitises the sector settings and migrates the legacy tracking window', () => {

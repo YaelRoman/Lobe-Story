@@ -55,6 +55,7 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   const settings = page.getByRole('dialog', { name: 'Analysis settings' });
   await expect(settings.getByText('USLS window (°)')).toBeVisible();
   await expect(settings.getByText('Null search range (°)')).toHaveCount(0);
+  await expect(settings.getByText('First-lobe limit (× V-HPBW)')).toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
 
   await page.getByRole('button', { name: 'Rectangular' }).click();

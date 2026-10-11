@@ -127,9 +127,12 @@ const SETTING_MAX: Record<keyof AnalysisSettings, number> = {
   levelDb: 100,
   fbWindowDeg: 360,
   uslsRangeDeg: 360,
+  lobeLimitFactor: 10,
   sectorEdgeDeg: 179,
   siteSectors: 12,
 };
+
+const SETTING_MIN: Partial<Record<keyof AnalysisSettings, number>> = { lobeLimitFactor: 1 };
 
 function cleanMap<T>(raw: unknown, ok: (v: unknown) => v is T): Record<string, T> {
   const out: Record<string, T> = {};
@@ -234,7 +237,7 @@ export function projectToState(
   const settings: AnalysisSettings = { ...DEFAULT_SETTINGS };
   for (const k of Object.keys(settings) as (keyof AnalysisSettings)[]) {
     const v = rawSettings[k];
-    if (typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= SETTING_MAX[k]) settings[k] = v;
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0 && v >= (SETTING_MIN[k] ?? 0) && v <= SETTING_MAX[k]) settings[k] = v;
   }
   if (rawSettings.sectorEdgeDeg === undefined) {
     const legacy = rawSettings.trackingWindowDeg;
