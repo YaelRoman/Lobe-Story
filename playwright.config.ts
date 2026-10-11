@@ -4,6 +4,8 @@ export default defineConfig({
   testDir: 'e2e',
   // Six software-WebGL (swiftshader) workers flake on a normal machine ("session closed"); four are stable. CI picks its own.
   workers: process.env.CI ? undefined : 4,
+  // Headless Chromium now and then drops the file chooser for a keyboard Enter when the machine is busy; one retry covers it.
+  retries: 1,
   use: { baseURL: 'http://localhost:4173' },
   projects: [
     {
