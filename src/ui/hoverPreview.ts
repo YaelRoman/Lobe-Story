@@ -13,10 +13,11 @@ export const setHoverId = (id: string | null): void => {
 };
 
 /**
- * Only a real mouse previews on hover: a touch tap fires pointerenter too, but nothing ever fires a leave until the
- * next tap, so the preview would stick and contradict the highlight.
+ * A mouse or a hovering pen previews on hover (a pen fires pointerleave when it leaves the screen's range). Touch does
+ * not: a tap fires pointerenter too, but nothing fires a leave until the next tap, so the preview would stick and
+ * contradict the highlight.
  */
-export const hoverPreviews = (e: { pointerType: string }): boolean => e.pointerType === 'mouse';
+export const hoverPreviews = (e: { pointerType: string }): boolean => e.pointerType === 'mouse' || e.pointerType === 'pen';
 
 /** Only keyboard focus previews (what the browser draws a focus ring for): a tap or click focuses without leaving. */
 export function focusPreviews(target: Element): boolean {
@@ -72,6 +73,14 @@ export function restyleDiff(prev: PreviewRestyle | null, next: PreviewRestyle | 
     indices: keep.map((i) => next.indices[i]),
     update: { 'line.width': keep.map((i) => next.update['line.width'][i]), opacity: keep.map((i) => next.update.opacity[i]) },
   };
+}
+
+/**
+ * What a redrawn figure shows once `Plotly.react` has resolved: its own look (`own`), unless a restyle was sent while the
+ * redraw was pending (`restyledMeanwhile`): that one landed on the new traces, so what is shown is unknown (null).
+ */
+export function appliedAfterRedraw(own: PreviewRestyle | null, restyledMeanwhile: boolean): PreviewRestyle | null {
+  return restyledMeanwhile ? null : own;
 }
 
 /**

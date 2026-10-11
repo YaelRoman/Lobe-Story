@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { focusPreviews, hoverPreviews, ownTraces, previewRestyle, restyleDiff } from './hoverPreview';
+import { appliedAfterRedraw, focusPreviews, hoverPreviews, ownTraces, previewRestyle, restyleDiff } from './hoverPreview';
 import { exportFigure } from './exportFigure';
 import type { Figure } from './figureTheme';
 import { buildCutFigure, DIMMED_OPACITY, type PlotSeries } from './cutFigure';
@@ -110,10 +110,10 @@ describe('ownTraces (what the export is built from)', () => {
 });
 
 describe('which input previews', () => {
-  it('only a mouse pointer previews on hover, not touch or pen', () => {
+  it('a mouse or a pen previews on hover, touch does not', () => {
     expect(hoverPreviews({ pointerType: 'mouse' })).toBe(true);
+    expect(hoverPreviews({ pointerType: 'pen' })).toBe(true);
     expect(hoverPreviews({ pointerType: 'touch' })).toBe(false);
-    expect(hoverPreviews({ pointerType: 'pen' })).toBe(false);
   });
 
   it('only a focus the browser marks as keyboard focus previews', () => {
@@ -134,5 +134,16 @@ describe('the reference trace in a preview', () => {
     expect(own.update['line.width']).toEqual([1.5, 3.5, 1.5]);
     expect(own.update.opacity).toEqual([DIMMED_OPACITY, null, DIMMED_OPACITY]);
     expect(previewRestyle(data, 'r', 'a')!.update.opacity).toEqual([DIMMED_OPACITY, null, DIMMED_OPACITY]);
+  });
+});
+
+describe('appliedAfterRedraw', () => {
+  it('is the figure\'s own look, or unknown when a restyle was sent during the redraw', () => {
+    const own = previewRestyle(traces('a', 'b'), null, 'a');
+    expect(appliedAfterRedraw(own, false)).toBe(own);
+    // The target ended while the redraw was pending: the drawn traces may still carry it, so the next diff must be complete.
+    const stale = appliedAfterRedraw(own, true);
+    expect(stale).toBeNull();
+    expect(restyleDiff(stale, previewRestyle(traces('a', 'b'), null, 'a'))).toEqual(own);
   });
 });

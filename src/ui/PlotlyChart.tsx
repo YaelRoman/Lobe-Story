@@ -3,7 +3,7 @@ import Plotly from 'plotly.js-dist-min';
 import type { Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
-import { hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
+import { appliedAfterRedraw, hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
 const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
 
@@ -42,6 +42,9 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
   const preview = useRef({ figure, base: previewBase ?? null });
   // What the drawn traces show now (null: unknown). Only the traces that differ from it are restyled.
   const applied = useRef<PreviewRestyle | null>(null);
+  // A redraw (Plotly.react) is pending; a restyle sent meanwhile lands on the new traces, so the redraw's own look is no longer what is shown.
+  const redrawing = useRef(false);
+  const restyledDuringRedraw = useRef(false);
 
   useEffect(() => {
     handler.current = onRelayout;
@@ -55,6 +58,7 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
     const next = previewRestyle(fig.data as unknown as { uid?: unknown }[], hoverStore.getState().id, base);
     const diff = restyleDiff(applied.current, next);
     applied.current = next;
+    if (redrawing.current && diff) restyledDuringRedraw.current = true;
     return diff ? Plotly.restyle(el, diff.update as unknown as Record<string, unknown>, diff.indices) : undefined;
   };
 
@@ -81,6 +85,8 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
     const el = ref.current;
     if (!el) return;
     setError(null);
+    redrawing.current = true;
+    restyledDuringRedraw.current = false;
     void Plotly.react(
       el,
       ownTraces(figure.data) as unknown as PlotlyNativeData[],
@@ -113,12 +119,19 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
     )
       .then(() => {
         // A redraw starts from the figure's own look (the highlight's emphasis); show a preview that is active again.
-        applied.current = previewing ? previewRestyle(preview.current.figure.data as unknown as { uid?: unknown }[], null, preview.current.base) : null;
-        if (previewing && hoverStore.getState().id !== null) void restylePreview(el);
+        // If the preview changed while the redraw was pending, what is drawn is unknown: the next restyle sends everything,
+        // even when the preview has ended since (otherwise the old target would stay drawn thick).
+        const own = previewing ? previewRestyle(preview.current.figure.data as unknown as { uid?: unknown }[], null, preview.current.base) : null;
+        applied.current = appliedAfterRedraw(own, restyledDuringRedraw.current);
+        const stale = restyledDuringRedraw.current;
+        redrawing.current = false;
+        restyledDuringRedraw.current = false;
+        if (previewing && (stale || hoverStore.getState().id !== null)) void restylePreview(el);
         el.removeAllListeners?.('plotly_relayout');
         el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
       })
       .catch(() => {
+        redrawing.current = false;
         setError('This plot could not be drawn (WebGL unavailable?)');
       });
   }, [figure, labelled, previewing]);
