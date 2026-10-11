@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../state/store';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
+import { clampFloor, clampSetting, FLOOR_LIMITS, SETTING_LIMITS } from '../core/analysis/settingLimits';
 
 const DEFAULT_FLOOR_DB = 40;
 
@@ -13,13 +14,14 @@ const FIELDS: { key: keyof AnalysisSettings; label: string }[] = [
   { key: 'uslsRangeDeg', label: 'USLS window (°)' },
   { key: 'lobeLimitFactor', label: 'First-lobe limit (× V-HPBW)' },
   { key: 'sectorEdgeDeg', label: 'Sector edge (±°)' },
+  { key: 'siteSectors', label: 'Sectors per site' },
 ];
 
 /**
  * A number input backed by its own draft string so the user can freely clear/retype a
  * value (including "0.5") without every keystroke being coerced back into the store.
- * The draft commits on blur/Enter when it parses to a finite number > 0; an invalid
- * draft reverts to the last committed `value` instead of applying a wrong number.
+ * The draft commits on blur/Enter when `accept` returns a number; a rejected draft
+ * reverts to the last committed `value` instead of applying a wrong number.
  */
 function NumberField({
   label,
@@ -28,17 +30,17 @@ function NumberField({
   max,
   step,
   title,
-  accepts,
+  accept,
   onCommit,
 }: {
   label: string;
   value: number;
   min: number;
-  max?: number;
-  step?: number;
+  max: number;
+  step: number;
   title?: string;
-  /** Extra check on top of "finite and > 0"; a rejected draft reverts like any invalid one. */
-  accepts?: (n: number) => boolean;
+  /** The value to commit for a typed number, or null to reject it. */
+  accept: (n: number) => number | null;
   onCommit: (n: number) => void;
 }) {
   const [text, setText] = useState(String(value));
@@ -48,8 +50,9 @@ function NumberField({
   }, [value]);
 
   const commit = () => {
-    const n = Number(text);
-    if (Number.isFinite(n) && n > 0 && (!accepts || accepts(n))) onCommit(n);
+    const n = text.trim() === '' ? NaN : Number(text);
+    const ok = accept(n);
+    if (ok !== null) onCommit(ok);
     else setText(String(value));
   };
 
@@ -85,33 +88,18 @@ export function SettingsPanel() {
           key={f.key}
           label={f.label}
           value={settings[f.key]}
-          min={1}
-          max={f.key === 'sectorEdgeDeg' ? 179 : f.key === 'lobeLimitFactor' ? 10 : undefined}
-          step={f.key === 'lobeLimitFactor' ? 0.01 : undefined}
+          {...SETTING_LIMITS[f.key]}
           title={f.key === 'lobeLimitFactor' ? LOBE_LIMIT_TITLE : undefined}
-          accepts={
-            f.key === 'sectorEdgeDeg'
-              ? (n) => n >= 1 && n <= 179
-              : f.key === 'lobeLimitFactor'
-                ? (n) => n >= 1 && n <= 10
-                : undefined
-          }
+          accept={(n) => clampSetting(f.key, n)}
           onCommit={(n) => updateSettings({ [f.key]: n })}
         />
       ))}
       <NumberField
-        label="Sectors per site"
-        value={settings.siteSectors}
-        min={2}
-        max={12}
-        accepts={(n) => Number.isInteger(n) && n >= 2 && n <= 12}
-        onCommit={(n) => updateSettings({ siteSectors: n })}
-      />
-      <NumberField
         label="Plot floor (dB)"
         value={floorDb}
-        min={5}
-        onCommit={(n) => updateView({ floorDb: Math.max(5, settings.levelDb + 1, n) })}
+        {...FLOOR_LIMITS}
+        accept={(n) => clampFloor(n, settings.levelDb)}
+        onCommit={(n) => updateView({ floorDb: n })}
       />
       <span />
       <button

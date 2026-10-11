@@ -177,10 +177,39 @@ describe('damaged values', () => {
   it('falls back to defaults for settings above their bounds', () => {
     const big = { levelDb: 1e9, fbWindowDeg: 1e9, uslsRangeDeg: 1e9, sectorEdgeDeg: 1e9, lobeLimitFactor: 1e9 };
     expect(restore(withState({ settings: big })).settings).toEqual(initialState().settings);
+    // Wider values that older project files may hold are out of range now.
     expect(restore(withState({ settings: { levelDb: 100, fbWindowDeg: 360 } })).settings).toMatchObject({
-      levelDb: 100,
-      fbWindowDeg: 360,
+      levelDb: 3,
+      fbWindowDeg: 30,
     });
+  });
+
+  it('accepts each setting at its bounds and falls back just outside them', () => {
+    const settings = (raw: object) => restore(withState({ settings: raw })).settings;
+    const cases: [string, number, number][] = [
+      ['levelDb', 0.5, 20],
+      ['fbWindowDeg', 1, 180],
+      ['uslsRangeDeg', 1, 90],
+      ['sectorEdgeDeg', 1, 179],
+      ['siteSectors', 2, 12],
+      ['lobeLimitFactor', 1, 10],
+    ];
+    const defaults = initialState().settings as unknown as Record<string, number>;
+    for (const [key, min, max] of cases) {
+      const get = (v: number) => (settings({ [key]: v }) as unknown as Record<string, number>)[key];
+      expect(get(min), key).toBe(min);
+      expect(get(max), key).toBe(max);
+      expect(get(min - 0.01), key).toBe(defaults[key]);
+      expect(get(max + 0.01), key).toBe(defaults[key]);
+    }
+  });
+
+  it('sanitises the plot floor against its range', () => {
+    const floor = (v: unknown) => restore(withState({ view: { floorDb: v } })).view.floorDb;
+    expect(floor(10)).toBe(10);
+    expect(floor(80)).toBe(80);
+    expect(floor(500)).toBe(40);
+    expect(floor(9)).toBe(40);
   });
 
   it('ignores the removed null search setting', () => {

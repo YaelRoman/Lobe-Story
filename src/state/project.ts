@@ -1,5 +1,6 @@
 import type { Tags } from '../core/types';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
+import { clampSetting, FLOOR_LIMITS } from '../core/analysis/settingLimits';
 import { clampSim, type OffsetState } from './simLimits';
 import type { CustomGroup, LoadedFile, Selection, SimulationState, StoreData, ViewState } from './store';
 
@@ -123,17 +124,6 @@ const num = (v: unknown, fallback: number): number => (typeof v === 'number' && 
 const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
   allowed.includes(v as T) ? (v as T) : fallback;
 
-const SETTING_MAX: Record<keyof AnalysisSettings, number> = {
-  levelDb: 100,
-  fbWindowDeg: 360,
-  uslsRangeDeg: 360,
-  lobeLimitFactor: 10,
-  sectorEdgeDeg: 179,
-  siteSectors: 12,
-};
-
-const SETTING_MIN: Partial<Record<keyof AnalysisSettings, number>> = { lobeLimitFactor: 1 };
-
 function cleanMap<T>(raw: unknown, ok: (v: unknown) => v is T): Record<string, T> {
   const out: Record<string, T> = {};
   if (!isObj(raw)) return out;
@@ -237,17 +227,16 @@ export function projectToState(
   const settings: AnalysisSettings = { ...DEFAULT_SETTINGS };
   for (const k of Object.keys(settings) as (keyof AnalysisSettings)[]) {
     const v = rawSettings[k];
-    if (typeof v === 'number' && Number.isFinite(v) && v > 0 && v >= (SETTING_MIN[k] ?? 0) && v <= SETTING_MAX[k]) settings[k] = v;
+    if (typeof v === 'number') {
+      const ok = clampSetting(k, v);
+      if (ok !== null) settings[k] = ok;
+    }
   }
   if (rawSettings.sectorEdgeDeg === undefined) {
     const legacy = rawSettings.trackingWindowDeg;
-    if (typeof legacy === 'number' && Number.isFinite(legacy) && legacy > 0 && legacy <= SETTING_MAX.sectorEdgeDeg) {
-      settings.sectorEdgeDeg = legacy;
-    }
+    const ok = typeof legacy === 'number' ? clampSetting('sectorEdgeDeg', legacy) : null;
+    if (ok !== null) settings.sectorEdgeDeg = ok;
   }
-  const sectors = rawSettings.siteSectors;
-  const sectorsValid = Number.isInteger(sectors) && (sectors as number) >= 2 && (sectors as number) <= SETTING_MAX.siteSectors;
-  settings.siteSectors = sectorsValid ? (sectors as number) : DEFAULT_SETTINGS.siteSectors;
 
   const floor = num(rawView.floorDb, dv.floorDb);
   const selected = st.selected && st.selected.kind === 'group' && !groupIds.has(st.selected.id) ? null : (st.selected ?? null);
@@ -270,7 +259,7 @@ export function projectToState(
       mode: oneOf(rawView.mode, ['polar', 'rect'] as const, dv.mode),
       gainUnit: oneOf(rawView.gainUnit, ['dBd', 'dBi'] as const, dv.gainUnit),
       theme,
-      floorDb: floor > 0 ? floor : dv.floorDb,
+      floorDb: floor >= FLOOR_LIMITS.min && floor <= FLOOR_LIMITS.max ? floor : dv.floorDb,
       markers,
       tableGroups,
       dimension: oneOf(rawView.dimension, ['2d', '3d'] as const, dv.dimension),
