@@ -13,7 +13,7 @@ export type { OffsetState, SimulationKey };
 
 export type CutView = 'H' | 'V' | 'both';
 export type PlotMode = 'polar' | 'rect';
-export type MarkerKey = 'hpbw' | 'fb' | 'usls' | 'null' | 'peak';
+export type MarkerKey = 'hpbw' | 'fb' | 'usls' | 'null' | 'peak' | 'sector';
 export type Dimension = '2d' | '3d';
 export type Layout3d = 'grid' | 'overlay';
 
@@ -147,7 +147,7 @@ export function initialState(): StoreData {
       gainUnit: 'dBd',
       theme: prefersDark() ? 'dark' : 'light',
       floorDb: 40,
-      markers: { hpbw: true, fb: false, usls: false, null: false, peak: true },
+      markers: { hpbw: true, fb: false, usls: false, null: false, peak: true, sector: false },
       dimension: '2d',
       method3d: 'summation',
       layout3d: 'grid',

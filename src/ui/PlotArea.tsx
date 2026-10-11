@@ -25,6 +25,7 @@ const MARKER_LABELS: Record<MarkerKey, string> = {
   usls: 'USLS',
   null: 'First null',
   peak: 'Beam direction',
+  sector: 'Sector',
 };
 
 export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }: Props) {
@@ -60,6 +61,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
       theme: FIGURE_THEMES[view.theme],
       levelDb: settings.levelDb,
       fbWindowDeg: settings.fbWindowDeg,
+      sectorEdgeDeg: settings.sectorEdgeDeg,
     };
     return {
       h: buildCutFigure({

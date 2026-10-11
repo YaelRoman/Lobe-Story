@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
-import { buildRows, columnLabel, formatCell, METRIC_COLUMNS, simulationLabel, toCsv } from './table';
+import { buildRows, columnLabel, columnTitle, formatCell, METRIC_COLUMNS, simulationLabel, toCsv } from './table';
 import { downloadText } from './download';
 import type { SimulationResult } from './useSimulation';
 
@@ -18,6 +18,8 @@ export const MetricsTable = memo(function MetricsTable({
 }) {
   const gainUnit = useStore((s) => s.view.gainUnit);
   const fbWindowDeg = useStore((s) => s.settings.fbWindowDeg);
+  const sectorEdgeDeg = useStore((s) => s.settings.sectorEdgeDeg);
+  const siteSectors = useStore((s) => s.settings.siteSectors);
   const highlighted = useStore((s) => s.highlighted);
   const setHighlighted = useStore((s) => s.setHighlighted);
   const setVisible = useStore((s) => s.setVisible);
@@ -53,7 +55,7 @@ export const MetricsTable = memo(function MetricsTable({
               <th>MHz</th>
               <th>Gain ({gainUnit})</th>
               {METRIC_COLUMNS.map((c) => (
-                <th key={c.key}>
+                <th key={c.key} title={columnTitle(c.key, { sectorEdgeDeg, siteSectors })}>
                   {columnLabel(c, fbWindowDeg)} ({c.unit})
                 </th>
               ))}

@@ -9,7 +9,7 @@ const FIELDS: { key: keyof AnalysisSettings; label: string }[] = [
   { key: 'fbWindowDeg', label: 'F/B window ± (°)' },
   { key: 'uslsRangeDeg', label: 'USLS range above peak (°)' },
   { key: 'nullSearchDeg', label: 'Null search range (°)' },
-  { key: 'sectorEdgeDeg', label: 'Tracking window ± (°)' },
+  { key: 'sectorEdgeDeg', label: 'Sector edge (±°)' },
 ];
 
 /**
@@ -22,11 +22,14 @@ function NumberField({
   label,
   value,
   min,
+  accepts,
   onCommit,
 }: {
   label: string;
   value: number;
   min: number;
+  /** Extra check on top of "finite and > 0"; a rejected draft reverts like any invalid one. */
+  accepts?: (n: number) => boolean;
   onCommit: (n: number) => void;
 }) {
   const [text, setText] = useState(String(value));
@@ -37,7 +40,7 @@ function NumberField({
 
   const commit = () => {
     const n = Number(text);
-    if (Number.isFinite(n) && n > 0) onCommit(n);
+    if (Number.isFinite(n) && n > 0 && (!accepts || accepts(n))) onCommit(n);
     else setText(String(value));
   };
 
@@ -75,6 +78,13 @@ export function SettingsPanel() {
           onCommit={(n) => updateSettings({ [f.key]: n })}
         />
       ))}
+      <NumberField
+        label="Sectors per site"
+        value={settings.siteSectors}
+        min={2}
+        accepts={(n) => Number.isInteger(n) && n >= 2 && n <= 12}
+        onCommit={(n) => updateSettings({ siteSectors: n })}
+      />
       <NumberField
         label="Plot floor (dB)"
         value={floorDb}

@@ -137,7 +137,7 @@ describe('serializeProject / parseProject / projectToState', () => {
     expect(s.selected).toBeNull();
     expect(s.settings).toMatchObject({ levelDb: 3, fbWindowDeg: 25, uslsRangeDeg: 20 });
     expect(s.view).toMatchObject({ mode: 'polar', cut: 'H', floorDb: 40, theme: 'light' });
-    expect(s.view.markers).toEqual({ hpbw: true, fb: true, usls: false, null: false, peak: true });
+    expect(s.view.markers).toEqual({ hpbw: true, fb: true, usls: false, null: false, peak: true, sector: false });
     expect(s.view.simulation).toEqual({
       electricalDeg: 15,
       mechanicalDeg: 0,
@@ -193,6 +193,12 @@ describe('damaged values', () => {
     expect(settings({ siteSectors: 99 }).siteSectors).toBe(3);
     expect(settings({ siteSectors: 1 }).siteSectors).toBe(3);
     expect(settings({ siteSectors: 6 }).siteSectors).toBe(6);
+  });
+
+  it('round-trips the sector marker', () => {
+    const s = restore(withState({ view: { markers: { sector: true } } }));
+    expect(s.view.markers.sector).toBe(true);
+    expect(restore(withState({ view: { markers: { sector: 'on' } } })).view.markers.sector).toBe(false);
   });
 
   it('dedupes files by path, first wins', () => {

@@ -2,6 +2,7 @@ import type { Data, Layout, PlotData, Shape } from 'plotly.js';
 import type { Cut } from '../core/types';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { signed } from '../core/analysis/grid';
+import { DU_LEVELS } from '../core/analysis/sector';
 import type { MarkerKey, PlotMode } from '../state/store';
 import type { Figure, FigureTheme } from './figureTheme';
 
@@ -26,6 +27,8 @@ export interface CutFigureOptions {
   theme: FigureTheme;
   levelDb: number;
   fbWindowDeg: number;
+  /** Sector half-width in degrees, for the "sector" marker. */
+  sectorEdgeDeg: number;
   rotationDeg?: number;
 }
 
@@ -33,7 +36,9 @@ interface Sector { from: number; to: number; label: string; opacity: number }
 interface Ring { db: number; label: string }
 interface Point { angle: number; db: number; label: string }
 interface Ray { angle: number; label: string }
-interface MarkerSpec { sectors: Sector[]; rings: Ring[]; points: Point[]; rays: Ray[] }
+/** A band drawn along the outer radius (polar) or near the top (rectangular); `slot` stacks several. */
+interface Arc { from: number; to: number; slot: number; label: string }
+interface MarkerSpec { sectors: Sector[]; rings: Ring[]; points: Point[]; rays: Ray[]; arcs: Arc[] }
 
 function sortedCut(cut: Cut, rotationDeg: number): { x: number[]; y: number[] } {
   const pts = cut.angles
@@ -52,7 +57,7 @@ function arc(from: number, to: number): number[] {
 }
 
 function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
-  const spec: MarkerSpec = { sectors: [], rings: [], points: [], rays: [] };
+  const spec: MarkerSpec = { sectors: [], rings: [], points: [], rays: [], arcs: [] };
   const m = target.metrics;
   const beam = o.cut === 'H' ? m.h : m.v;
   const offset = Math.min(...target.cut.atten);
@@ -76,6 +81,22 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
   if (o.markers.peak && beam.direction.value !== null) {
     const name = o.cut === 'H' ? 'Squint' : 'Tilt';
     spec.rays.push({ angle: signed(beam.direction.value + rot), label: `${name} ${beam.direction.value.toFixed(1)}°` });
+  }
+  if (o.markers.sector && o.cut === 'H') {
+    for (const sign of [1, -1]) {
+      const angle = signed(sign * o.sectorEdgeDeg + rot);
+      spec.rays.push({ angle, label: `Sector edge ${sign > 0 ? '+' : '−'}${o.sectorEdgeDeg}°` });
+    }
+    DU_LEVELS.forEach((l, slot) => {
+      const r = m.du[l.key];
+      if (r.value === null || r.angle === undefined) return;
+      spec.arcs.push({
+        from: r.angle - r.value / 2 + rot,
+        to: r.angle + r.value / 2 + rot,
+        slot,
+        label: `D/U ${l.label} (≥ ${l.db} dB): ${r.value.toFixed(1)}°`,
+      });
+    });
   }
   return spec;
 }
@@ -132,6 +153,19 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
       hoverinfo: 'name',
     });
   }
+  for (const a of spec.arcs) {
+    const theta = arc(a.from, Math.min(a.to, a.from + 360));
+    out.push({
+      type: 'scatterpolar',
+      mode: 'lines',
+      name: a.label,
+      theta,
+      r: theta.map(() => floor * 0.03 * a.slot),
+      line: { color: o.theme.accent, width: 5 },
+      opacity: 0.6,
+      hoverinfo: 'name',
+    });
+  }
   return out;
 }
 
@@ -173,6 +207,24 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
       hoverinfo: 'name',
     });
   }
+  for (const a of spec.arcs) {
+    const x: (number | null)[] = [];
+    for (const t of arc(a.from, Math.min(a.to, a.from + 360))) {
+      const v = signed(t);
+      if (x.length && v < (x[x.length - 1] ?? v) - 180) x.push(null);
+      x.push(v);
+    }
+    traces.push({
+      type: 'scatter',
+      mode: 'lines',
+      name: a.label,
+      x,
+      y: x.map(() => -o.floorDb * 0.03 * a.slot),
+      line: { color: o.theme.accent, width: 5 },
+      opacity: 0.6,
+      hoverinfo: 'name',
+    });
+  }
   return { traces, shapes };
 }
 
@@ -202,7 +254,7 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
   }
 
   const target = o.series.find((s) => s.id === o.markerTarget);
-  const spec = target ? markerSpec(target, o) : { sectors: [], rings: [], points: [], rays: [] };
+  const spec = target ? markerSpec(target, o) : { sectors: [], rings: [], points: [], rays: [], arcs: [] };
   const hpbw = target ? (o.cut === 'H' ? target.metrics.h : target.metrics.v).hpbw.value : null;
   const title = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — HPBW ${hpbw.toFixed(1)}°` : ''}`;
 

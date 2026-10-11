@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRows, convertGain, formatCell, METRIC_COLUMNS, simulationLabel, toCsv, offsetLabel } from './table';
+import { buildRows, columnTitle, convertGain, formatCell, METRIC_COLUMNS, simulationLabel, toCsv, offsetLabel } from './table';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import { analyzeTilted, tiltTagged, effectiveFor, isTilted, tiltEach, type SimSettings } from '../core/analysis/tilt';
 import { groupPatterns } from '../state/selectors';
@@ -170,8 +170,8 @@ describe('beam tracking arrow for an untilted partner (I1)', () => {
     const csv = toCsv(rows, 'dBd', 30, effective);
     const [header, ...lines] = csv.trimEnd().split('\r\n');
     const cols = header.split(',');
-    const origIdx = cols.indexOf('Tracking original (dB)');
-    const tiltIdx = cols.indexOf('Tracking tilted (dB)');
+    const origIdx = cols.indexOf('P2P tracking original (dB)');
+    const tiltIdx = cols.indexOf('P2P tracking tilted (dB)');
     const lineB = lines.find((l) => l.startsWith('b.MSI'))!.split(',');
     expect(lineB[origIdx]).not.toBe(lineB[tiltIdx]);
   });
@@ -203,5 +203,47 @@ describe('display names in the table', () => {
     expect(simulationLabel({ electricalDeg: 0, mechanicalDeg: 0 }, 0, 1)).toBe(
       'Simulated: Δe 0°, mech 0° + offsets on 1 group',
     );
+  });
+});
+
+describe('sector columns', () => {
+  const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'p', fileName: 'p.MSI' });
+  const tagged = [{ pattern, tags: {} }];
+  const m = analyzeAll(tagged);
+  const rows = buildRows(groupPatterns(tagged), m, 'dBd');
+
+  it('adds the six columns after tracking in order', () => {
+    const keys = METRIC_COLUMNS.map((c) => c.key);
+    const i = keys.indexOf('tracking');
+    expect(keys.slice(i + 1, i + 7)).toEqual(['spr', 'air', 'rollOff', 'du16', 'du64', 'du256']);
+    expect(METRIC_COLUMNS.slice(i, i + 7).map((c) => `${c.label} ${c.unit}`)).toEqual([
+      'P2P tracking dB', 'SPR %', 'AIR dB', 'Roll-off dB', 'D/U 16QAM °', 'D/U 64QAM °', 'D/U 256QAM °',
+    ]);
+  });
+
+  it('fills the cells from the metrics and exports them to CSV', () => {
+    const p = m.get('p')!;
+    expect(rows[0].cells.spr).toBe(p.spr);
+    expect(rows[0].cells.du256).toBe(p.du.qam256);
+    expect(rows[0].cells.rollOff).toBe(p.rollOff);
+    const [header, line] = toCsv(rows, 'dBd', 30).trimEnd().split('\r\n');
+    expect(header).toContain('SPR (%),AIR (dB),Roll-off (dB),D/U 16QAM (°),D/U 64QAM (°),D/U 256QAM (°)');
+    expect(line.split(',')).toHaveLength(header.split(',').length);
+  });
+
+  it('builds tooltips from the sector settings', () => {
+    const s = { sectorEdgeDeg: 45, siteSectors: 6 };
+    expect(columnTitle('spr', s)).toBe('Sector power ratio: power outside ±45° / power inside (co-pol)');
+    expect(columnTitle('air', s)).toBe('Azimuth interference ratio: 10·log10(inside/outside), co-pol only');
+    expect(columnTitle('rollOff', s)).toBe('Level at the ±45° sector edges below the peak (worse edge)');
+    expect(columnTitle('tracking', s)).toBe(
+      'Azimuth beam port-to-port tracking within ±45° (gain-aware when both gains are declared)',
+    );
+    expect(columnTitle('du16', s)).toBe(
+      'Width around boresight where this pattern is ≥ 15 dB above the neighbouring sectors (6-sector site)',
+    );
+    expect(columnTitle('du64', s)).toContain('≥ 20 dB');
+    expect(columnTitle('du256', s)).toContain('≥ 25 dB');
+    expect(columnTitle('hHpbw', s)).toBeUndefined();
   });
 });

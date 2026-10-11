@@ -7,7 +7,9 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 
 - Polar and rectangular plots of the horizontal and vertical cuts, with overlays.
 - Metrics per file: H/V HPBW, squint, tilt and tilt error, F/B (180° and ±30°), USLS,
-  first null fill, ±45 beam tracking, and differences from declared header values.
+  first null fill, port-to-port beam tracking, and differences from declared header values.
+- Sector metrics: SPR/AIR over the sector edges, roll-off, port-to-port tracking over the sector
+  (gain-aware), and the D/U aperture for 16/64/256QAM, with a Sector marker on the horizontal cut.
 - −3 dB markers on the plots and an HPBW vs. frequency chart per group.
 - 3D patterns reconstructed from the two cuts (summation or Gil et al. weighted), for up to six
   files side by side with linked cameras, or overlaid in one scene.

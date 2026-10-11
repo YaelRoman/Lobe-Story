@@ -7,7 +7,7 @@ import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
 
-const NO_MARKERS = { hpbw: false, fb: false, usls: false, null: false, peak: false };
+const NO_MARKERS = { hpbw: false, fb: false, usls: false, null: false, peak: false, sector: false };
 
 function series(id: string, vOffset = 0): PlotSeries[] {
   const pattern = patternFrom(quadBeam(60), (a) => vBeamWithLobes(a) + vOffset, { id });
@@ -28,6 +28,7 @@ const opts = (over: Partial<CutFigureOptions>): CutFigureOptions => ({
   theme: FIGURE_THEMES.light,
   levelDb: 3,
   fbWindowDeg: 30,
+  sectorEdgeDeg: 60,
   ...over,
 });
 
@@ -104,6 +105,39 @@ describe('buildCutFigure', () => {
       [150, 180],
       [-180, -150],
     ]);
+  });
+});
+
+describe('sector marker', () => {
+  const sector = { ...NO_MARKERS, sector: true };
+  const arcNames = (f: { data: unknown[] }) => traces(f).map((t) => t.name).filter((n) => n?.startsWith('D/U'));
+
+  it('draws edge lines and D/U bands in polar mode on the H cut', () => {
+    const f = buildCutFigure(opts({ markers: sector, markerTarget: 'a' }));
+    const names = traces(f).map((t) => t.name);
+    expect(names).toContain('Sector edge +60°');
+    expect(names).toContain('Sector edge −60°');
+    expect(arcNames(f)).toHaveLength(3);
+    expect(arcNames(f).map((n) => n!.split(' ')[1])).toEqual(['16QAM', '64QAM', '256QAM']);
+    const edge = traces(f).find((t) => t.name === 'Sector edge −60°')!;
+    expect(edge.theta).toEqual([-60, -60]);
+  });
+
+  it('draws the bands as lines near the top in rectangular mode, edges as shapes', () => {
+    const f = buildCutFigure(opts({ mode: 'rect', markers: sector, markerTarget: 'a' }));
+    const bar = traces(f).find((t) => t.name?.startsWith('D/U 16QAM'))!;
+    expect(bar.type).toBe('scatter');
+    expect(new Set(bar.y as number[])).toEqual(new Set([0]));
+    const lines = (f.layout.shapes as Partial<Shape>[]).filter((s) => s.type === 'line');
+    expect(lines.map((s) => s.x0).sort((p, q) => Number(p) - Number(q))).toEqual([-60, 60]);
+  });
+
+  it('applies to the H cut only and only for the target, honouring rotation', () => {
+    const v = buildCutFigure(opts({ cut: 'V', series: [series('a')[1]], markers: sector, markerTarget: 'a' }));
+    expect(v.data).toHaveLength(1);
+    expect(buildCutFigure(opts({ markers: sector })).data).toHaveLength(1);
+    const f = buildCutFigure(opts({ markers: sector, markerTarget: 'a', rotationDeg: 30, sectorEdgeDeg: 45 }));
+    expect(traces(f).find((t) => t.name === 'Sector edge +45°')!.theta).toEqual([75, 75]);
   });
 });
 

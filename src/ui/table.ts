@@ -6,7 +6,9 @@ import { nameOf } from '../core/names';
 
 export type MetricColumn =
   | 'hHpbw' | 'vHpbw' | 'fb180' | 'fbWindow' | 'usls' | 'nullFill'
-  | 'squint' | 'tilt' | 'tiltError' | 'tracking' | 'dH' | 'dV' | 'dFb';
+  | 'squint' | 'tilt' | 'tiltError' | 'tracking'
+  | 'spr' | 'air' | 'rollOff' | 'du16' | 'du64' | 'du256'
+  | 'dH' | 'dV' | 'dFb';
 
 export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string }[] = [
   { key: 'hHpbw', label: 'H-HPBW', unit: '°' },
@@ -18,7 +20,13 @@ export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string }[
   { key: 'squint', label: 'Squint', unit: '°' },
   { key: 'tilt', label: 'Tilt', unit: '°' },
   { key: 'tiltError', label: 'Tilt error', unit: '°' },
-  { key: 'tracking', label: 'Tracking', unit: 'dB' },
+  { key: 'tracking', label: 'P2P tracking', unit: 'dB' },
+  { key: 'spr', label: 'SPR', unit: '%' },
+  { key: 'air', label: 'AIR', unit: 'dB' },
+  { key: 'rollOff', label: 'Roll-off', unit: 'dB' },
+  { key: 'du16', label: 'D/U 16QAM', unit: '°' },
+  { key: 'du64', label: 'D/U 64QAM', unit: '°' },
+  { key: 'du256', label: 'D/U 256QAM', unit: '°' },
   { key: 'dH', label: 'ΔH-HPBW', unit: '°' },
   { key: 'dV', label: 'ΔV-HPBW', unit: '°' },
   { key: 'dFb', label: 'ΔF/B', unit: 'dB' },
@@ -27,6 +35,32 @@ export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string }[
 /** Header text for a column; the F/B window label depends on the current setting. */
 export function columnLabel(c: { key: MetricColumn; label: string }, fbWindowDeg: number): string {
   return c.key === 'fbWindow' ? `F/B ±${fbWindowDeg}°` : c.label;
+}
+
+const DU_DB: Partial<Record<MetricColumn, number>> = { du16: 15, du64: 20, du256: 25 };
+
+/** Header tooltip for a column; the sector columns depend on the sector settings (E, S). */
+export function columnTitle(
+  key: MetricColumn,
+  settings: { sectorEdgeDeg: number; siteSectors: number },
+): string | undefined {
+  const e = settings.sectorEdgeDeg;
+  switch (key) {
+    case 'tracking':
+      return `Azimuth beam port-to-port tracking within ±${e}° (gain-aware when both gains are declared)`;
+    case 'spr':
+      return `Sector power ratio: power outside ±${e}° / power inside (co-pol)`;
+    case 'air':
+      return 'Azimuth interference ratio: 10·log10(inside/outside), co-pol only';
+    case 'rollOff':
+      return `Level at the ±${e}° sector edges below the peak (worse edge)`;
+    case 'du16':
+    case 'du64':
+    case 'du256':
+      return `Width around boresight where this pattern is ≥ ${DU_DB[key]} dB above the neighbouring sectors (${settings.siteSectors}-sector site)`;
+    default:
+      return undefined;
+  }
 }
 
 export interface MetricsRow {
@@ -59,6 +93,12 @@ function cellsOf(m: PatternMetrics): Record<MetricColumn, MetricResult> {
     tilt: m.tilt,
     tiltError: m.tiltError,
     tracking: m.beamTracking,
+    spr: m.spr,
+    air: m.air,
+    rollOff: m.rollOff,
+    du16: m.du.qam16,
+    du64: m.du.qam64,
+    du256: m.du.qam256,
     dH: m.delta.hHpbw,
     dV: m.delta.vHpbw,
     dFb: m.delta.fb,

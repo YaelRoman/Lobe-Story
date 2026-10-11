@@ -18,11 +18,17 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await expect(page.getByText('+45 · 8°T · Y2', { exact: true }).first()).toBeVisible();
   await expect(page.locator('tbody tr')).toHaveCount(2);
   await expect(page.getByText('Missing HORIZONTAL block')).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^SPR/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^D\/U 256QAM/ })).toBeVisible();
 
   await expect(page.getByTestId('plot-h').locator('.main-svg').first()).toBeVisible();
   await expect(page.getByTestId('plot-v').locator('.main-svg').first()).toBeVisible();
   await expect(page.getByTestId('plot-hpbw').locator('.main-svg').first()).toBeVisible();
   await expect(page.getByText('Horizontal cut — HPBW 65.0°')).toBeVisible();
+
+  await page.getByRole('checkbox', { name: 'Sector', exact: true }).check();
+  await expect(page.getByTestId('plot-h').locator('.main-svg').first()).toBeVisible();
+  await expect(page.getByTestId('plot-h').getByText(/error/i)).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Rectangular' }).click();
   await expect(page.getByText('Angle (°)').first()).toBeVisible();
