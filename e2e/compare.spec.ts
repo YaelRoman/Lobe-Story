@@ -241,3 +241,48 @@ test('an unticked reference is still drawn, with a legend entry saying so, and t
   await expect(page.getByTestId('plot-h').locator('.legend')).toContainText('one.msi (reference)');
   await expect(page.getByTestId('plot-h').locator('.legend')).toContainText('two.msi');
 });
+
+test.describe('copy value on a phone', () => {
+  test.skip(({ browserName }) => browserName !== 'chromium', 'clipboard permissions are Chromium only');
+  test.use({ permissions: ['clipboard-read', 'clipboard-write'], hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test('the pill is fixed in the viewport, at least 40 px high, clear of the focused cell, and copies without changing the highlight', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Load example' }).click();
+    await expect(page.locator('.metrics tbody tr').first()).toBeVisible();
+    const rows = page.locator('.metrics tbody tr');
+    const pill = page.locator('.copy-cell');
+    await expect(pill).toHaveCount(0);
+    // A row that is not the highlighted one, and the last row.
+    for (const index of [1, (await rows.count()) - 1]) {
+      const cell = rows.nth(index).locator('td[data-col="fb180"]');
+      await cell.scrollIntoViewIfNeeded();
+      const text = (await cell.innerText()).trim();
+      const cellBefore = await cell.boundingBox();
+      await cell.tap();
+      await expect(pill).toHaveCount(1);
+      await expect(pill).toHaveAccessibleName(`Copy value ${text}`);
+      await expect(pill).toContainText(`Copy ${text}`);
+      const box = (await pill.boundingBox())!;
+      const view = page.viewportSize()!;
+      expect(box.height).toBeGreaterThanOrEqual(40);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(view.width);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(view.height);
+      const cellBox = (await rows.nth(index).locator('td[data-col="fb180"]').boundingBox())!;
+      const apart = box.y + box.height <= cellBox.y || box.y >= cellBox.y + cellBox.height || box.x + box.width <= cellBox.x || box.x >= cellBox.x + cellBox.width;
+      expect(apart).toBe(true);
+      // Focusing a cell moves no column or row (only the page may scroll it into view).
+      expect(cellBox.width).toBe(cellBefore!.width);
+      expect(cellBox.height).toBe(cellBefore!.height);
+      await page.evaluate(() => navigator.clipboard.writeText('sentinel'));
+      const highlight = await page.locator('.metrics tbody tr.hl').getAttribute('data-row-id');
+      await pill.tap();
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(text);
+      // The tap on the pill is not a click on the row: the highlight stays, and so does the pill.
+      expect(await page.locator('.metrics tbody tr.hl').getAttribute('data-row-id')).toBe(highlight);
+      await expect(pill).toHaveCount(1);
+    }
+  });
+});

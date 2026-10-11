@@ -81,6 +81,15 @@ export const MetricsTable = memo(function MetricsTable({
   // The cell that has focus shows the one copy button (a row id and a column key).
   const [focusedCell, setFocusedCell] = useState<{ id: string; col: string } | null>(null);
 
+  // On a phone the copy button is a pill fixed at the bottom of the screen: bring a cell that would lie under it into view.
+  useEffect(() => {
+    if (!focusedCell || !window.matchMedia('(max-width: 760px)').matches) return;
+    const cell = Array.from(wrapRef.current?.querySelectorAll<HTMLElement>('tr[data-row-id] td[data-col]') ?? []).find(
+      (td) => td.dataset.col === focusedCell.col && td.closest('tr')?.dataset.rowId === focusedCell.id,
+    );
+    cell?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [focusedCell]);
+
   // A highlight set from the panel or a plot brings its row into view inside the table (not the page).
   // Only when the highlighted file or the sort changes: rebuilt rows (slider ticks) must not move the scroll.
   useEffect(() => {
@@ -364,7 +373,9 @@ export const MetricsTable = memo(function MetricsTable({
                             e.stopPropagation();
                             copyCell(r.id, c.key);
                           }}
-                        />
+                        >
+                          <span className="copy-cell-text">Copy {cell.text}</span>
+                        </button>
                       )}
                     </td>
                   );

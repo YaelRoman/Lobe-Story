@@ -238,16 +238,24 @@ tr:hover .copy-row, tr:focus-within .copy-row, tr.hl .copy-row, .copy-row:focus-
 /* The one copy button, in the focused cell: at its left edge, over the free space of a right-aligned number. */
 .copy-cell { position: absolute; top: 50%; left: 2px; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; font-size: 12px; line-height: 1; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; cursor: copy; }
 .copy-cell::before { content: '⧉'; }
+.copy-cell-text { display: none; }
 .copy-cell:hover { color: var(--fg); }
 .copy-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--fg); }
 tr.hl .copy-cell { background: var(--hl); }
 .ref-tag { flex: none; margin-left: 2px; padding: 0 5px; font-size: 11px; font-weight: 600; line-height: 1.5; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; }
 @media (max-width: 760px) {
   .copy-row { min-width: 28px; min-height: 28px; }
-  /* The button straddles the focused cell's bottom edge at its right: it takes no room from the cell (no column shifts while arrowing or tapping) and
-     lies in the gap between two rows of text, so it covers neither the value nor a wide `original → tilted` text. */
-  .copy-cell { top: auto; bottom: 0; left: auto; right: 2px; transform: translateY(50%); width: 24px; height: 24px; font-size: 13px; }
-  .metrics td[data-col]:focus-within { z-index: 1; }
+  /* On a phone the one copy button is a pill fixed to the bottom of the screen with the value in its label, so it never lies over a cell:
+     nothing in the table changes size or position when a cell gains focus. Above the plots and menus (z 10-20), below dialogs (50);
+     the undo toast and the status lines sit in the page flow at the top, so they never meet it. `main` keeps room below the last row,
+     and a focused cell is scrolled clear of the pill. */
+  .copy-cell { position: fixed; top: auto; left: 50%; right: auto; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30; width: auto; height: auto; min-height: 40px; max-width: calc(100vw - 32px); padding: 0 18px; font-size: 14px; font-weight: 600; color: var(--fg); background: var(--panel); border-color: var(--border); border-radius: 999px; box-shadow: 0 4px 16px rgb(0 0 0 / 28%); }
+  .copy-cell::before { content: none; }
+  .copy-cell-text { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .copy-cell:focus-visible { outline-offset: 2px; }
+  tr.hl .copy-cell { background: var(--panel); }
+  main { padding-bottom: 72px; }
+  .metrics td[data-col] { scroll-margin-bottom: 72px; }
 }
 
 /* Reference file: pin mark, marked table row and the difference toggle. */
