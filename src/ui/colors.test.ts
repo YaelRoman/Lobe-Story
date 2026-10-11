@@ -99,14 +99,27 @@ describe('colours by group', () => {
     for (const id of [...ids('a', 7), ...ids('b', 7)].filter((x) => x !== 'a2')) expect(less.get(id)).toBe(full.get(id));
   });
 
-  it('counts only groups that have a visible file, like the beamwidth chart', () => {
+  it('a group keeps its hue when another whole group is unticked (hues follow the place among all groups)', () => {
+    const wide = Array.from({ length: 12 }, (_, k) => ({ ids: [`g${k}a`, `g${k}b`] }));
+    const full = colorsOf(wide, all(wide));
+    const visible = all(wide);
+    visible.g1a = false;
+    visible.g1b = false;
+    const less = colorsOf(wide, visible);
+    expect(less.has('g1a')).toBe(false);
+    expect(less.get('g2a')).toBe(full.get('g2a'));
+    expect(less.get('g11b')).toBe(full.get('g11b'));
+    expect(styleMapByGroup(wide, visible).get('g11a')).toEqual(styleMapByGroup(wide, all(wide)).get('g11a'));
+  });
+
+  it('uses per-file colours again when few files are visible, and each group differs past ten', () => {
     const groups = [{ ids: ids('a', 12) }, { ids: ids('b', 3) }];
     const visible = all(groups);
     for (const id of groups[0].ids) visible[id] = false;
     // 3 visible files: per-file colours again
     expect(colorsOf(groups, visible).get('b0')).toBe(PALETTE[0]);
     expect(PER_FILE_COLOURS).toBe(10);
-    // Past ten visible files the first visible group is group 0 and each group's files differ.
+    // Past ten visible files the colour is that of the group's place and each group's files differ.
     const wide = [{ ids: ['g0'] }, ...Array.from({ length: 11 }, (_, k) => ({ ids: [`h${k}`, `h${k}b`] }))];
     const m = colorsOf(wide, all(wide));
     expect(m.get('g0')).toBe(groupColour(0));

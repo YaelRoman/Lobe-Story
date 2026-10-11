@@ -50,38 +50,37 @@ export const HpbwChart = memo(function HpbwChart({
   const figure = useMemo(() => {
     const series: HpbwSeries[] = [];
     const single: MetricSeries[] = [];
-    // Above ten visible files the files are coloured by group: the group's line takes the group colour (see colors.ts).
+    // Above ten visible files the files are coloured by group: the group's line takes the colour of its place among all groups (see colors.ts).
     const byGroup = groups.reduce((n, g) => n + g.items.filter((i) => visible[i.pattern.id]).length, 0) > PER_FILE_COLOURS;
-    groups
-      .filter((g) => g.items.some((i) => visible[i.pattern.id]))
-      .forEach((g, k) => {
-        const { color, symbol } = groupLook(k, byGroup);
-        const points = (ms: Map<string, PatternMetrics>) =>
-          g.items.map(({ pattern }) => {
-            const m = ms.get(pattern.id);
-            return {
-              freq: pattern.frequencyMHz,
-              h: m?.h.hpbw.value ?? null,
-              v: m?.v.hpbw.value ?? null,
-              declH: pattern.declared.hBeamwidth,
-              declV: pattern.declared.vBeamwidth,
-            };
-          });
-        const valuePoints = (ms: Map<string, PatternMetrics>) =>
-          g.items.map(({ pattern }) => {
-            const m = ms.get(pattern.id);
-            const declared = DECLARED[metric]?.(pattern);
-            return { freq: pattern.frequencyMHz, value: m ? cellsOf(m)[metric].value : null, ...(declared !== undefined ? { declared } : {}) };
-          });
-        const ghost = g.items.some((i) => sim.isTiltedId(i.pattern.id));
-        if (both) {
-          if (ghost) series.push({ label: g.label, color, ghost: true, points: points(metrics) });
-          series.push({ label: g.label, color, symbol, points: points(sim.metrics) });
-        } else {
-          if (ghost) single.push({ label: g.label, color, ghost: true, points: valuePoints(metrics) });
-          single.push({ label: g.label, color, symbol, points: valuePoints(sim.metrics) });
-        }
-      });
+    groups.forEach((g, k) => {
+      if (!g.items.some((i) => visible[i.pattern.id])) return;
+      const { color, symbol } = groupLook(k, byGroup);
+      const points = (ms: Map<string, PatternMetrics>) =>
+        g.items.map(({ pattern }) => {
+          const m = ms.get(pattern.id);
+          return {
+            freq: pattern.frequencyMHz,
+            h: m?.h.hpbw.value ?? null,
+            v: m?.v.hpbw.value ?? null,
+            declH: pattern.declared.hBeamwidth,
+            declV: pattern.declared.vBeamwidth,
+          };
+        });
+      const valuePoints = (ms: Map<string, PatternMetrics>) =>
+        g.items.map(({ pattern }) => {
+          const m = ms.get(pattern.id);
+          const declared = DECLARED[metric]?.(pattern);
+          return { freq: pattern.frequencyMHz, value: m ? cellsOf(m)[metric].value : null, ...(declared !== undefined ? { declared } : {}) };
+        });
+      const ghost = g.items.some((i) => sim.isTiltedId(i.pattern.id));
+      if (both) {
+        if (ghost) series.push({ label: g.label, color, ghost: true, points: points(metrics) });
+        series.push({ label: g.label, color, symbol, points: points(sim.metrics) });
+      } else {
+        if (ghost) single.push({ label: g.label, color, ghost: true, points: valuePoints(metrics) });
+        single.push({ label: g.label, color, symbol, points: valuePoints(sim.metrics) });
+      }
+    });
     // The reference file's point (its value as plotted: the tilted one under a simulation), whether or not its group is shown.
     const refItem = reference === null ? undefined : groups.flatMap((g) => g.items).find((i) => i.pattern.id === reference);
     const refMetrics = refItem ? sim.metrics.get(refItem.pattern.id) : undefined;

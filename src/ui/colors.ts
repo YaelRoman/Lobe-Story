@@ -107,7 +107,7 @@ export function swatchBackground(color: string, dash: LineDash): string {
   }
 }
 
-/** The colour and beamwidth-chart marker of the `k`-th group with a visible file; `byGroup` is whether the files are coloured by group (more than ten visible). */
+/** The colour and beamwidth-chart marker of the `k`-th group (counted among all groups, shown or not); `byGroup` is whether the files are coloured by group (more than ten visible). */
 export function groupLook(k: number, byGroup: boolean): { color: string; symbol: string } {
   return byGroup ? { color: groupColour(k), symbol: groupStyle(k).symbol } : { color: PALETTE[k % PALETTE.length], symbol: 'circle' };
 }
@@ -121,8 +121,8 @@ export interface FileStyle {
 
 /**
  * Colours and line patterns of the visible files. Up to ten, each file has its own palette colour, in panel order.
- * With more, every group that has a visible file takes one palette colour (the same one the beamwidth chart gives
- * the group: groups are counted in order) and its files are the shades of `ladder` (one per member of the group, ticked or not); with more than ten such groups
+ * With more, every group that has a visible file takes the palette colour of its place among all groups (the same one the beamwidth chart gives
+ * the group) and its files are the shades of `ladder` (one per member of the group, ticked or not); with more than ten such groups
  * the hue repeats and the line pattern tells the cycles apart. `groups` lists each group's file ids in panel
  * order; `visible` says which are shown.
  */
@@ -131,7 +131,9 @@ export function styleMapByGroup(groups: { ids: string[] }[], visible: Record<str
   const flat = shown.flatMap((g) => g.ids.filter((id) => visible[id]));
   if (flat.length <= PER_FILE_COLOURS) return new Map(flat.map((id, i) => [id, { color: PALETTE[i % PALETTE.length], dash: 'solid', symbol: 'circle' }]));
   const out = new Map<string, FileStyle>();
-  shown.forEach(({ ids }, k) => {
+  // A group's hue follows its place among ALL groups, so unticking a whole group recolours no other.
+  groups.forEach(({ ids }, k) => {
+    if (!ids.some((id) => visible[id])) return;
     const { dash, symbol } = groupStyle(k);
     // The shade follows the file's place among all the group's members, so unticking a neighbour recolours nothing.
     ladder(groupColour(k), ids.length).forEach((color, i) => {
