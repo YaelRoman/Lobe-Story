@@ -7,6 +7,7 @@ import {
   shouldReveal, sortIfShown, sortRows, toCsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
+import { setHoverId } from './hoverPreview';
 import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { downloadText } from './download';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
@@ -178,6 +179,10 @@ export const MetricsTable = memo(function MetricsTable({
                 data-row-id={r.id}
                 className={r.id === highlighted ? 'hl' : undefined}
                 onClick={() => pickFile(r.id)}
+                onPointerEnter={() => setHoverId(r.id)}
+                onPointerLeave={() => setHoverId(null)}
+                onFocus={() => setHoverId(r.id)}
+                onBlur={() => setHoverId(null)}
               >
                 <td>
                   <button

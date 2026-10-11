@@ -299,6 +299,18 @@ type FileTrace = Partial<PlotData> & { meta?: string; legendrank?: number };
 
 /** Opacity of the other files' traces while one file is highlighted. */
 export const DIMMED_OPACITY = 0.35;
+const BASE_WIDTH = 1.5;
+const EMPHASISED_WIDTH = 2.5;
+
+/**
+ * How a file trace looks while `emphasised` is the emphasised file (null: none): the line width and the opacity
+ * (null = Plotly's default, fully opaque). The figure builder and the hover preview share this, so a preview
+ * restores exactly what the figure was built with. The dashed original of the emphasised file stays bright, thin.
+ */
+export function traceStyle(seriesId: string, emphasised: string | null): { width: number; opacity: number | null } {
+  const dimmed = emphasised !== null && seriesId !== emphasised && seriesId !== `${emphasised}#original`;
+  return { width: seriesId === emphasised ? EMPHASISED_WIDTH : BASE_WIDTH, opacity: dimmed ? DIMMED_OPACITY : null };
+}
 
 export function buildCutFigure(o: CutFigureOptions): Figure {
   const data: FileTrace[] = [];
@@ -313,11 +325,12 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
     const r = y.map((v) => level(v, o.floorDb));
     for (const v of r) if (v > largest) largest = v;
     const legendName = middleEllipsis(s.label, LEGEND_NAME_MAX);
-    const dimmed = emphasised !== null && s.id !== emphasised && s.id !== `${emphasised}#original`;
-    const extra = { legendrank: i, ...(dimmed ? { opacity: DIMMED_OPACITY } : {}) };
+    const style = traceStyle(s.id, emphasised);
+    // `uid` carries the series id, so the hover preview can restyle a file's traces without a rebuild.
+    const extra = { uid: s.id, legendrank: i, ...(style.opacity !== null ? { opacity: style.opacity } : {}) };
     const line = {
       color: s.color,
-      width: s.id === emphasised ? 2.5 : 1.5,
+      width: style.width,
       ...(s.dash ? { dash: 'dash' as const } : {}),
     };
     if (o.mode === 'polar') {

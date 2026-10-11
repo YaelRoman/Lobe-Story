@@ -44,10 +44,12 @@ interface CutPlotProps {
   readout: string[];
   target: string;
   traces: number;
+  /** The file the figure emphasises (see `PlotlyChart` `previewBase`). */
+  emphasised: string | null;
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, readout, target, traces }: CutPlotProps) {
+function CutPlot({ id, figure, readout, target, traces, emphasised }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -57,6 +59,7 @@ function CutPlot({ id, figure, readout, target, traces }: CutPlotProps) {
         testId={`plot-${id}`}
         ariaLabel={`${id === 'h' ? 'Horizontal' : 'Vertical'} cut of the highlighted and visible patterns`}
         labelledExport={{ caption: target ? { file: target, items: readout } : undefined }}
+        previewBase={emphasised}
       />
       <div className="readout" data-testid={`readout-${id}`}>
         {readout.length > 0 && (
@@ -118,7 +121,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
     };
     const make = (cut: 'H' | 'V') => {
       const options = { ...common, cut, series: buildCutSeries(plotItems, sim, metrics, colors, cut) };
-      return { figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === markerTarget)?.label ?? '', traces: options.series.length };
+      return { figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === markerTarget)?.label ?? '', traces: options.series.length, emphasised: options.series.some((x) => x.id === markerTarget) ? markerTarget : null };
     };
     return { h: make('H'), v: make('V') };
   }, [is3d, plotItems, metrics, colors, view.mode, view.floorDb, view.markers, view.theme, markerTarget, settings, sim]);

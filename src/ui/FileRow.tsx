@@ -1,4 +1,4 @@
-import { memo, type DragEvent } from 'react';
+import { memo, useEffect, type DragEvent } from 'react';
 import { useStore, type OffsetState } from '../state/store';
 import type { Pattern, Tags } from '../core/types';
 import { nameOf } from '../core/names';
@@ -7,6 +7,7 @@ import { sameTags } from './tagEdit';
 import { offsetLabel } from './table';
 import { onSpace } from './rovingKeys';
 import { FileMenu, NameEditor } from './FilePanelMenus';
+import { hoverStore, setHoverId } from './hoverPreview';
 
 export const DRAG_TYPE = 'text/x-pattern-id';
 
@@ -64,6 +65,13 @@ export const FileRow = memo(function FileRow({
   const id = pattern.id;
   const name = nameOf(pattern);
   const subTab = tabStop ? undefined : -1;
+  // A row that goes away (filtered out, removed) while previewed would never see its pointer leave.
+  useEffect(
+    () => () => {
+      if (hoverStore.getState().id === id) setHoverId(null);
+    },
+    [id],
+  );
   return (
     <li
       data-focus-key={`file:${id}`}
@@ -71,6 +79,11 @@ export const FileRow = memo(function FileRow({
       draggable
       onDragStart={(e) => startDrag(e, id)}
       onClick={() => pickFile(id)}
+      // Previews the file's trace in the cut plots (a separate tiny store: nothing re-renders).
+      onPointerEnter={() => setHoverId(id)}
+      onPointerLeave={() => setHoverId(null)}
+      onFocus={() => setHoverId(id)}
+      onBlur={() => setHoverId(null)}
     >
       <input
         type="checkbox"

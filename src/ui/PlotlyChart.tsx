@@ -3,6 +3,7 @@ import Plotly from 'plotly.js-dist-min';
 import type { Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
+import { hoverStore, previewRestyle } from './hoverPreview';
 
 const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
 
@@ -22,20 +23,50 @@ interface Props {
   onRelayout?: RelayoutHandler;
   /** Replaces the modebar's image download by one of a labelled version of the figure (legend on, highlighted file's values). */
   labelledExport?: { caption?: ExportCaption; /** Name of the saved file, without extension. */ filename?: string };
+  /**
+   * Makes the plot preview the file hovered or focused in the panel or the table (thick line, others dimmed) with
+   * `Plotly.restyle`, no rebuild. The value is the file the figure itself emphasises (the highlighted one), which
+   * returns when the preview ends. Leave undefined for plots that are not per-file.
+   */
+  previewBase?: string | null;
 }
 
-export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, labelledExport }: Props) {
+export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, labelledExport, previewBase }: Props) {
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
   const [error, setError] = useState<string | null>(null);
 
   const labelled = labelledExport !== undefined;
   const exporting = useRef({ figure, labelledExport });
+  const previewing = previewBase !== undefined;
+  const preview = useRef({ figure, base: previewBase ?? null });
 
   useEffect(() => {
     handler.current = onRelayout;
     exporting.current = { figure, labelledExport };
-  }, [onRelayout, figure, labelledExport]);
+    preview.current = { figure, base: previewBase ?? null };
+  }, [onRelayout, figure, labelledExport, previewBase]);
+
+  // Hover/focus preview: restyle the drawn traces in place. Changes within one frame (leave one row, enter the
+  // next) are merged into one restyle.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !previewing) return;
+    let frame = 0;
+    const apply = () => {
+      frame = 0;
+      const { figure: fig, base } = preview.current;
+      const r = previewRestyle(fig.data as unknown as { uid?: unknown }[], hoverStore.getState().id, base);
+      if (r) void Plotly.restyle(el, r.update as unknown as Record<string, unknown>, r.indices);
+    };
+    const unsubscribe = hoverStore.subscribe(() => {
+      if (frame === 0) frame = requestAnimationFrame(apply);
+    });
+    return () => {
+      unsubscribe();
+      if (frame !== 0) cancelAnimationFrame(frame);
+    };
+  }, [previewing]);
 
   useEffect(() => {
     const el = ref.current;
@@ -72,13 +103,19 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
       },
     )
       .then(() => {
+        // A redraw while a row is hovered starts from the figure's own look: show the preview again.
+        const hovered = hoverStore.getState().id;
+        if (previewing && hovered !== null) {
+          const r = previewRestyle(preview.current.figure.data as unknown as { uid?: unknown }[], hovered, preview.current.base);
+          if (r) void Plotly.restyle(el, r.update as unknown as Record<string, unknown>, r.indices);
+        }
         el.removeAllListeners?.('plotly_relayout');
         el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
       })
       .catch(() => {
         setError('This plot could not be drawn (WebGL unavailable?)');
       });
-  }, [figure, labelled]);
+  }, [figure, labelled, previewing]);
 
   useEffect(() => {
     const el = ref.current;
