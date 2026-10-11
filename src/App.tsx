@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from './state/store';
 import { buildPanelGroups, selectErrors, selectInstances, selectWarnings } from './state/selectors';
 import { analyzeAll } from './core/analysis/metrics';
-import { colorMap } from './ui/colors';
+import { colorMapByGroup } from './ui/colors';
 import { Toolbar } from './ui/Toolbar';
 import { FilePanel } from './ui/FilePanel';
 import { useWindowDrop } from './ui/useWindowDrop';
@@ -40,15 +40,11 @@ export default function App() {
   const sim = useSimulation(tagged, metrics, settings);
   // Colour only the currently-visible files, in panel order (groups, then items), so every
   // checked file gets its own colour and colours don't shift as unrelated files are added/removed.
-  const visibleIds = useMemo(
-    () =>
-      groups
-        .flatMap((g) => g.items)
-        .map((i) => i.pattern.id)
-        .filter((id) => visible[id]),
+  // With more than ten visible files the colour is the group's and the files differ by lightness.
+  const colors = useMemo(
+    () => colorMapByGroup(groups.map((g) => ({ ids: g.items.map((i) => i.pattern.id) })), visible),
     [groups, visible],
   );
-  const colors = useMemo(() => colorMap(visibleIds), [visibleIds]);
   const dragging = useWindowDrop();
   useUnsavedGuard();
   useEscapeClear();

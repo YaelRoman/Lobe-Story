@@ -29,6 +29,20 @@ export function hpbwCaption(levelDb: number, simulated: boolean): ExportCaption 
   };
 }
 
+/** The narrowest beamwidth axis shown (degrees): a single frequency would otherwise auto-scale to a few hundredths of a degree. */
+export const MIN_SPAN_DEG = 5;
+
+/** An axis range of at least `minSpan` centred on `values`, or undefined when the data already spans that much (or is empty). */
+export function minSpanRange(values: (number | null | undefined)[], minSpan = MIN_SPAN_DEG): [number, number] | undefined {
+  const v = values.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
+  if (v.length === 0) return undefined;
+  const lo = Math.min(...v);
+  const hi = Math.max(...v);
+  if (hi - lo >= minSpan) return undefined;
+  const mid = (lo + hi) / 2;
+  return [mid - minSpan / 2, mid + minSpan / 2];
+}
+
 export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelDb = 3): Figure {
   // Plotly has `meta` (the export reads it as the full legend name); @types/plotly.js does not declare it.
   const data: (Partial<PlotData> & { meta?: string })[] = [];
@@ -49,6 +63,9 @@ export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelD
       data.push({ type: 'scatter', mode: 'markers', name: `${s.label} declared`, legendgroup: s.label, showlegend: false, x: declared.map((p) => p.freq), y: declared.map((p) => p.declV ?? null), yaxis: 'y2', marker });
     }
   }
+  const values = (axis: 'h' | 'v') => series.flatMap((s) => s.points.flatMap((p) => [p[axis], axis === 'h' ? p.declH : p.declV]));
+  const hRange = minSpanRange(values('h'));
+  const vRange = minSpanRange(values('v'));
   return {
     data: data as Data[],
     layout: {
@@ -58,8 +75,8 @@ export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelD
       margin: { l: 60, r: 20, t: 20, b: 50 },
       legend: LEGEND,
       xaxis: { automargin: true, title: { text: 'Frequency (MHz)', standoff: 8 }, gridcolor: theme.grid, anchor: 'y2' },
-      yaxis: { title: { text: `H-${bwName(levelDb)} (°)` }, domain: [0.55, 1], gridcolor: theme.grid },
-      yaxis2: { title: { text: `V-${bwName(levelDb)} (°)` }, domain: [0, 0.45], gridcolor: theme.grid },
+      yaxis: { title: { text: `H-${bwName(levelDb)} (°)` }, domain: [0.55, 1], gridcolor: theme.grid, ...(hRange ? { range: hRange } : {}) },
+      yaxis2: { title: { text: `V-${bwName(levelDb)} (°)` }, domain: [0, 0.45], gridcolor: theme.grid, ...(vRange ? { range: vRange } : {}) },
     },
   };
 }

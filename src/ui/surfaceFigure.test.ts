@@ -4,6 +4,7 @@ import {
   gridColumns,
   linkedCameraUpdate,
   MAX_3D,
+  MAX_3D_OVERLAY,
   sceneId,
   toCartesian,
   type SurfaceSeries,
@@ -75,8 +76,9 @@ describe('buildSurfaceFigure', () => {
     expect(buildSurfaceFigure({ series: series(8), layout: 'grid', floorDb: 40, theme }).data).toHaveLength(MAX_3D);
   });
 
-  it(`draws every file in the overlay layout, beyond ${MAX_3D}`, () => {
+  it(`draws up to ${MAX_3D_OVERLAY} files in the overlay layout, beyond ${MAX_3D}, and no more`, () => {
     expect(buildSurfaceFigure({ series: series(8), layout: 'overlay', floorDb: 40, theme }).data).toHaveLength(8);
+    expect(buildSurfaceFigure({ series: series(MAX_3D_OVERLAY + 5), layout: 'overlay', floorDb: 40, theme }).data).toHaveLength(MAX_3D_OVERLAY);
   });
 });
 

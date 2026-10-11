@@ -3,7 +3,12 @@ import type { Surface3d } from '../core/analysis/pattern3d';
 import type { Layout3d } from '../state/store';
 import type { Figure, FigureTheme } from './figureTheme';
 
+/** Most files the side-by-side layout draws (one WebGL scene per file). */
 export const MAX_3D = 6;
+/** Most surfaces the 3D Overlay draws at once (software-GL measurements: about 0.1 s per surface, a freeze that grows with the count). */
+export const MAX_3D_OVERLAY = 12;
+/** Most surfaces the 3D view draws in `layout`. */
+export const maxSurfaces = (layout: Layout3d): number => (layout === 'grid' ? MAX_3D : MAX_3D_OVERLAY);
 
 export interface SurfaceSeries {
   id: string;
@@ -76,9 +81,9 @@ function sceneLayout(floorDb: number, theme: FigureTheme, domain?: { x: number[]
 }
 
 export function buildSurfaceFigure(o: SurfaceFigureOptions): Figure {
-  // MAX_3D only caps the side-by-side grid (one scene per file); Overlay draws every visible
-  // file since they all share a single scene.
-  const series = o.layout === 'grid' ? o.series.slice(0, MAX_3D) : o.series;
+  // Both layouts are capped (the caller says which files to keep, see viewCaps `capItems`): an unbounded
+  // number of surfaces can freeze the tab.
+  const series = o.series.slice(0, maxSurfaces(o.layout));
   const data: Record<string, unknown>[] = [];
   const layout: Record<string, unknown> = {
     paper_bgcolor: o.theme.bg,

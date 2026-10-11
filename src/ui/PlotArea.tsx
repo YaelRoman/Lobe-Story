@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useDeferredValue, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore, type CutView, type Dimension, type Layout3d, type MarkerKey, type PlotMode } from '../state/store';
 import type { GroupView } from '../state/selectors';
@@ -10,6 +10,7 @@ import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend } from './legend';
 import { PlotlyChart } from './PlotlyChart';
 import { Pattern3D } from './Pattern3D';
+import { capItems, capNotice, MAX_2D_FILES } from './viewCaps';
 import { SimulationBar } from './SimulationBar';
 import { Seg } from './Seg';
 import type { SimulationResult } from './useSimulation';
@@ -96,6 +97,10 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
   const markerTarget =
     highlighted && visible[highlighted] ? highlighted : items.length === 1 ? items[0].pattern.id : null;
   const is3d = view.dimension === '3d';
+  // The 2D plots draw at most MAX_2D_FILES files (the highlighted one first); the table and the beamwidth chart list all.
+  const capped = useMemo(() => capItems(items, MAX_2D_FILES, highlighted), [items, highlighted]);
+  const plotItems = useDeferredValue(capped.shown);
+  const notice2d = capNotice('The cut plots draw', capped.shown.length, capped.total, MAX_2D_FILES);
   const labels = markerLabels(settings.levelDb);
 
   const figures = useMemo(() => {
@@ -112,11 +117,11 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
       uslsRangeDeg: settings.uslsRangeDeg,
     };
     const make = (cut: 'H' | 'V') => {
-      const options = { ...common, cut, series: buildCutSeries(items, sim, metrics, colors, cut) };
+      const options = { ...common, cut, series: buildCutSeries(plotItems, sim, metrics, colors, cut) };
       return { figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === markerTarget)?.label ?? '', traces: options.series.length };
     };
     return { h: make('H'), v: make('V') };
-  }, [is3d, items, metrics, colors, view.mode, view.floorDb, view.markers, view.theme, markerTarget, settings, sim]);
+  }, [is3d, plotItems, metrics, colors, view.mode, view.floorDb, view.markers, view.theme, markerTarget, settings, sim]);
 
   return (
     <section>
@@ -197,6 +202,11 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
               {highlighted
                 ? 'The highlighted file is not ticked: tick it to see its analysis markers.'
                 : 'Click a file in the panel or the table to show its analysis markers (Esc clears the highlight).'}
+            </p>
+          )}
+          {notice2d && (
+            <p className="count cap-notice" data-testid="cap-notice-2d">
+              {notice2d}
             </p>
           )}
           <div className="plots">

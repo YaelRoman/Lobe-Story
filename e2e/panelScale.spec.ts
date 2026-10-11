@@ -92,3 +92,21 @@ test('groups fold, show ticked / total, skip folded rows by arrow keys and still
   await page.keyboard.press('ArrowLeft');
   await expect(north.locator('li')).toHaveCount(0);
 });
+
+test('the 3D overlay and the side-by-side view draw a capped number of files and say so', async ({ page }) => {
+  await page.goto('/');
+  const n = 15;
+  await page.getByTestId('file-input').setInputFiles(Array.from({ length: n }, (_, i) => file(`g${i}.msi`, msi(1700 + 10 * i))));
+  await expect(page.locator('.panel li')).toHaveCount(n);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await page.getByRole('button', { name: '3D', exact: true }).click();
+  await page.getByRole('button', { name: 'Overlay' }).click();
+  await expect(page.getByTestId('cap-notice-3d')).toContainText('The 3D overlay draws at most 12 files: showing 12 of the 15 ticked');
+  await expect(page.getByTestId('cap-notice-3d')).toContainText('Only matches');
+  await page.getByRole('button', { name: 'Side by side' }).click();
+  await expect(page.getByTestId('cap-notice-3d')).toContainText('draws at most 6 files: showing 6 of the 15 ticked');
+  // Fewer ticked files than the cap: no note.
+  await page.getByRole('button', { name: 'Show none', exact: true }).click();
+  await page.locator('.panel li input[type="checkbox"]').first().check();
+  await expect(page.getByTestId('cap-notice-3d')).toHaveCount(0);
+});
