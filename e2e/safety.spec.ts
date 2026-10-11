@@ -316,7 +316,7 @@ test('opening a project together with its own pattern files says so calmly inste
   await page.getByTestId('file-input').setInputFiles([file('p.MSI', msi(2100)), file('p.lobestory.json', project('p.MSI', 2100))]);
   await page.getByRole('dialog', { name: 'This selection contains a project file: p.lobestory.json' }).getByRole('button', { name: 'Open the project' }).click();
   const status = page.getByTestId('load-status');
-  await expect(status).toHaveText(/^Opened the project p\.lobestory\.json/);
+  await expect(status).toHaveText(/^Opened project p\.lobestory\.json: 1 file/);
   await expect(status).not.toContainText('skipped');
   await expect(status).toHaveClass(/info/);
   await expect(page.locator('.panel').getByText('From project', { exact: true })).toBeVisible();
@@ -356,4 +356,20 @@ test('Ctrl+Z still undoes a Remove after the toast has faded, and says "Nothing 
   await expect(page.getByTestId('copy-note')).toHaveText('Nothing to undo');
   await expect(page.getByRole('status')).toContainText('Nothing to undo');
   await expect(panel.locator('li')).toHaveCount(2);
+});
+
+test('Save project and Open project say what they did in the status line', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900))]);
+  const status = page.getByTestId('load-status');
+  await page.getByRole('button', { name: 'Save project' }).click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
+  const saved = await download;
+  await expect(status).toHaveText(/^Saved lobe-story-\d{4}-\d{2}-\d{2}\.lobestory\.json \(2 files, with pattern data\)/);
+  const path = await saved.path();
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByTestId('project-input').setInputFiles(path);
+  await expect(status).toHaveText(/^Opened project .*: 2 files/);
 });

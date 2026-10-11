@@ -4,7 +4,7 @@ import { isPatternFile, type FileInput } from './files';
 import { COPY_NOTE_MS, initialState, useStore, clampSim } from './store';
 import { groupPatterns, selectErrors, selectTagged, selectWarnings, selectInstances, buildPanelGroups, instanceIds, instanceName, warningsFor } from './selectors';
 import { changesSession, clearNeedsConfirm, isDirty, markOf, stableStringify, takeSnapshot } from './undo';
-import { parseProject, serializeProject } from './project';
+import { openedMessage, parseProject, savedMessage, serializeProject } from './project';
 import { DEFAULT_HEADERS, planetText, points } from '../test/planetText';
 
 const enc = new TextEncoder();
@@ -1346,7 +1346,7 @@ describe('opening a project together with its pattern files', () => {
     const project = embedded();
     st().loadProject(project);
     st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))], { keepUndo: true, openedProject: 'site.lobestory.json' });
-    expect(st().loadMessage).toBe('Opened the project site.lobestory.json');
+    expect(st().loadMessage).toBe('Opened project site.lobestory.json: 2 files');
     expect(st().loadTone).toBe('info');
     expect(st().files).toHaveLength(2);
   });
@@ -1355,7 +1355,7 @@ describe('opening a project together with its pattern files', () => {
     const project = embedded();
     st().loadProject(project);
     st().addFiles([input('a.MSI', msi(1800)), input('c.MSI', msi(2100))], { openedProject: 'p.json' });
-    expect(st().loadMessage).toBe('Opened the project p.json · Loaded 1 file · 1 already loaded (skipped)');
+    expect(st().loadMessage).toBe('Opened project p.json: 3 files · Loaded 1 file · 1 already loaded (skipped)');
     expect(st().loadTone).toBe('warn');
     st().addFiles([input('bad.pln', 'NAME X\n')], { openedProject: 'p.json' });
     expect(st().loadMessage).toContain('could not be loaded');
@@ -1408,5 +1408,32 @@ describe('the status line after a copy', () => {
     useStore.getState().setCopyNote('Copied 65.0');
     expect(isDirty(useStore.getState())).toBe(false);
     expect(Object.keys(takeSnapshot(useStore.getState()))).not.toContain('copyNote');
+  });
+});
+
+describe('status lines after Open project (R2-U11)', () => {
+  const st = useStore.getState;
+  it('says how many files a project opened with, and how many are still missing', () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    const full = parseProject(serializeProject(st(), true));
+    const layout = parseProject(serializeProject(st(), false));
+    if (!full.ok || !layout.ok) throw new Error('bad project');
+    st().clear();
+    st().loadProject(full.project, 's.lobestory.json');
+    expect(st().loadMessage).toBe('Opened project s.lobestory.json: 2 files');
+    expect(st().loadTone).toBe('info');
+    st().clear();
+    st().loadProject(layout.project, 's.lobestory.json');
+    expect(st().loadMessage).toBe('Opened project s.lobestory.json: 0 files, 2 still missing');
+    st().loadProject(layout.project);
+    expect(st().loadMessage).toBeNull();
+  });
+});
+
+describe('the Save project status line', () => {
+  it('names the file, the count and whether the pattern data is in it', () => {
+    expect(savedMessage('lobe-story-2026-01-01.lobestory.json', 24, true)).toBe('Saved lobe-story-2026-01-01.lobestory.json (24 files, with pattern data)');
+    expect(savedMessage('x.lobestory.json', 1, false)).toBe('Saved x.lobestory.json (1 file, layout only)');
+    expect(openedMessage('x.json', 1, 0)).toBe('Opened project x.json: 1 file');
   });
 });

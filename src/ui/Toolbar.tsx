@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { inputsFromFileList } from '../state/files';
-import { serializeProject } from '../state/project';
+import { savedMessage, serializeProject, sessionFiles } from '../state/project';
 import { clearNeedsConfirm } from '../state/undo';
 import { openSelection } from './openSelection';
 import { SettingsPanel } from './SettingsPanel';
@@ -50,12 +50,14 @@ export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
     if (!options) return;
     try {
       const date = new Date().toISOString().slice(0, 10);
+      const fileName = `lobe-story-${date}.lobestory.json`;
       downloadText(
-        `lobe-story-${date}.lobestory.json`,
+        fileName,
         serializeProject(useStore.getState(), options.includeFiles),
         'application/json',
       );
       useStore.getState().markSaved();
+      setLoadMessage(savedMessage(fileName, sessionFiles(useStore.getState()).length, options.includeFiles), 'info');
     } catch {
       setLoadMessage('Could not save the project');
     }

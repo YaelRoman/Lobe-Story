@@ -7,7 +7,7 @@ import type { SubBand } from '../core/analysis/subBands';
 import { clampFloor } from '../core/analysis/settingLimits';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
-import { chromeOf, projectToState, type ProjectFile } from './project';
+import { chromeOf, openedMessage, projectToState, type ProjectFile } from './project';
 import { isCleanLoad, loadSummary, planLoad, type PendingFile } from './duplicates';
 import { changesSession, markOf, takeSnapshot, type SavedMark, type UndoEntry } from './undo';
 import { uniqueGroupName } from './groupNames';
@@ -158,7 +158,8 @@ export interface StoreActions {
   /** The toast fades; the snapshot stays for Ctrl/Cmd+Z. */
   fadeUndo(): void;
   markSaved(): void;
-  loadProject(project: ProjectFile): void;
+  /** Replaces the session with a project; with `name` (the project file's name) the status line says it was opened. */
+  loadProject(project: ProjectFile, name?: string): void;
   dismissPending(): void;
   openDialog(dialog: NonNullable<DialogState>): void;
   closeDialog(): void;
@@ -442,10 +443,11 @@ export const useStore = create<State>()((rawSet, get) => {
       const onlyHeld =
         options.openedProject !== undefined && counts.skipped > 0 && counts.loaded === 0 && counts.failed === 0 && counts.unreadable === 0 && counts.renamed === 0;
       const summary = onlyHeld ? [] : [loadSummary(counts)];
+      const filesAfter = state.files.length + plan.add.filter((a) => a.replaces === undefined).length;
       const report: Partial<StoreData> = {
         loadFailed: counts.failed,
         loadTone: (onlyHeld || isCleanLoad(counts)) && (note.length === 0 || options.noteIsInfo) ? 'info' : 'warn',
-        loadMessage: [...(options.openedProject !== undefined ? [`Opened the project ${options.openedProject}`] : []), ...summary, ...note].join(' · '),
+        loadMessage: [...(options.openedProject !== undefined ? [openedMessage(options.openedProject, filesAfter, plan.pending.length)] : []), ...summary, ...note].join(' · '),
       };
       if (plan.add.length === 0) return report;
 
@@ -490,18 +492,20 @@ export const useStore = create<State>()((rawSet, get) => {
 
   markSaved: () => set((s) => ({ saved: markOf(s) })),
 
-  loadProject: (project) =>
+  loadProject: (project, name) =>
     set((s) => {
       sessionSwaps++;
       fileSetSwaps++;
       const next = projectToState(project, initialState(), chromeOf(s.view), loadText);
       const hadSession = s.files.length > 0 || s.pendingFiles.length > 0;
+      const opened = name === undefined ? null : openedMessage(name, next.files?.length ?? 0, next.pendingFiles?.length ?? 0);
+      const message = [opened, next.loadMessage].filter(Boolean).join(' · ');
       return {
         ...next,
         saved: markOf({ ...s, ...next }),
         loadFailed: 0,
-        loadMessage: next.loadMessage ?? null,
-        ...(next.loadMessage ? { loadTone: 'info' as const, loadSeq: s.loadSeq + 1 } : {}),
+        loadMessage: message || null,
+        ...(message ? { loadTone: 'info' as const, loadSeq: s.loadSeq + 1 } : {}),
         ...(hadSession ? undoEntry(s, 'Replaced the session with the project') : { undo: null }),
       };
     }),

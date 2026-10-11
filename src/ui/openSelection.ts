@@ -54,6 +54,6 @@ export async function openSelection(read: ReadInputsResult): Promise<void> {
   if ((files.length > 0 || pendingFiles.length > 0) && !(await confirmDialog('Replace the current session?', 'Replace'))) {
     return;
   }
-  useStore.getState().loadProject(parsed.project);
+  useStore.getState().loadProject(parsed.project, name);
   if (read.inputs.length > 0 || read.failed > 0) loadPatterns({ keepUndo: true, openedProject: name });
 }

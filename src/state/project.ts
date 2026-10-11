@@ -359,6 +359,16 @@ export function projectToState(
 
 const fileNameOf = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
+const filesText = (n: number): string => `${n} ${n === 1 ? 'file' : 'files'}`;
+
+/** The status line after Save project. */
+export const savedMessage = (fileName: string, fileCount: number, withPatternData: boolean): string =>
+  `Saved ${fileName} (${filesText(fileCount)}, ${withPatternData ? 'with pattern data' : 'layout only'})`;
+
+/** The status line after Open project: how many files the session now lists and how many are still to be supplied. */
+export const openedMessage = (name: string, fileCount: number, missing: number): string =>
+  `Opened project ${name}: ${filesText(fileCount)}${missing > 0 ? `, ${missing} still missing` : ''}`;
+
 export function pendingLabel(pending: PendingFile[]): string {
   const names = pending.map((p) => fileNameOf(p.path));
   const more = names.length > 5 ? ` and ${names.length - 5} more` : '';
