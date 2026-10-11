@@ -4,9 +4,10 @@ import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
 import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
 import { downloadText } from './download';
+import { copyAndAnnounce } from './clipboard';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
 import { SubBandEditor } from './SubBandEditor';
@@ -44,6 +45,7 @@ export const BandStats = memo(function BandStats({
   const gainUnit = useStore((s) => s.view.gainUnit);
   const settings = useStore((s) => s.settings);
   const updateView = useStore((s) => s.updateView);
+  const setLoadMessage = useStore((s) => s.setLoadMessage);
   const [chosen, setChosen] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);
@@ -156,6 +158,12 @@ export const BandStats = memo(function BandStats({
           </span>
         )}
         <button onClick={exportCsv}>Export band CSV</button>
+        <button
+          title="Copy the table below as shown to paste into a spreadsheet"
+          onClick={() => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings), `Copied the band statistics of ${dataset.label}`, setLoadMessage)}
+        >
+          Copy table
+        </button>
         <button aria-expanded={open} onClick={() => setOpen(!open)}>
           Sub-bands
         </button>

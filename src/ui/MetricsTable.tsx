@@ -1,17 +1,20 @@
-import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
   ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, formatCell, nextSort, revealScrollTop, simulationLabel,
-  shouldReveal, sortIfShown, sortRows, toCsv, visibleColumns, type SortKey, type SortState,
+  cellText, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
 import { useTablePreview } from './useTablePreview';
 import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { downloadText } from './download';
+import { copiedRows, copyAndAnnounce } from './clipboard';
+import { copyShortcut, onCopyMark } from './copyKeys';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
+import type { MetricColumn } from './table';
 import type { SimulationResult } from './useSimulation';
 
 const FILE_NAME_MAX = 28;
@@ -43,6 +46,7 @@ export const MetricsTable = memo(function MetricsTable({
   const highlighted = useStore((s) => s.highlighted);
   const pickFile = useStore((s) => s.pickFile);
   const setVisible = useStore((s) => s.setVisible);
+  const setLoadMessage = useStore((s) => s.setLoadMessage);
 
   // Sorting is a view of this table only (not saved in projects); the CSV export follows it.
   const [chosenSort, setSort] = useState<SortState | null>(null);
@@ -86,9 +90,62 @@ export const MetricsTable = memo(function MetricsTable({
   const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const setHoverId = useTablePreview(rowIds);
   const stop = tabStopKey(rows.map((r) => r.id), activeRow);
+  const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
+  const copy = (text: string, done: string) => void copyAndAnnounce(text, done, setLoadMessage);
+  const copyRow = (id: string) => {
+    const r = rowById.get(id);
+    if (r) copy(rowToTsv(r, columns), 'Copied 1 row');
+  };
+  const copyCell = (id: string, key: string) => {
+    const r = rowById.get(id);
+    if (r) copy(cellText(r, key as MetricColumn), 'Copied the value');
+  };
   const onBodyKeys = (e: KeyboardEvent<HTMLElement>) => {
     const target = e.target as HTMLElement;
-    if (target.hasAttribute('data-nav')) moveFocus(e, Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-nav]')), target);
+    const tr = target.closest<HTMLElement>('tr');
+    if (target.hasAttribute('data-nav')) {
+      if (copyShortcut(e) && tr?.dataset.rowId) {
+        e.preventDefault();
+        copyRow(tr.dataset.rowId);
+      } else if (e.key === 'ArrowRight' && tr) {
+        // Into the row's cells: Left/Right move along them, Up/Down along the column, Enter or Ctrl/Cmd+C copies the value.
+        const first = tr.querySelector<HTMLElement>('td[data-col]');
+        if (first) {
+          e.preventDefault();
+          first.focus();
+        }
+      } else moveFocus(e, Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-nav]')), target);
+    } else if (target.matches('td[data-col]') && tr) {
+      const cells = Array.from(tr.querySelectorAll<HTMLElement>('td[data-col]'));
+      const at = cells.indexOf(target);
+      const adjacent = (dir: 'previousElementSibling' | 'nextElementSibling') => {
+        const other = tr[dir];
+        return other?.querySelectorAll<HTMLElement>('td[data-col]')[at] ?? null;
+      };
+      let to: HTMLElement | null | undefined;
+      if (copyShortcut(e) || e.key === 'Enter') {
+        e.preventDefault();
+        copyCell(tr.dataset.rowId ?? '', target.dataset.col ?? '');
+        return;
+      } else if (e.key === 'ArrowRight') to = cells[at + 1];
+      else if (e.key === 'ArrowLeft') to = at === 0 ? tr.querySelector<HTMLElement>('[data-nav]') : cells[at - 1];
+      else if (e.key === 'ArrowDown') to = adjacent('nextElementSibling');
+      else if (e.key === 'ArrowUp') to = adjacent('previousElementSibling');
+      else return;
+      e.preventDefault();
+      if (to) {
+        to.focus();
+        to.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      }
+    }
+  };
+  // A click on the copy mark of the focused cell (the mark shows after a first click on it) copies the value and is not a click on the row.
+  const focusedCell = useRef<Element | null>(null);
+  const onBodyClickCapture = (e: MouseEvent<HTMLElement>) => {
+    const td = (e.target as HTMLElement).closest<HTMLElement>('td[data-col]');
+    if (!td || !onCopyMark(e.clientX, e.clientY, td.getBoundingClientRect(), focusedCell.current === td)) return;
+    e.stopPropagation();
+    copyCell(td.closest<HTMLElement>('tr')?.dataset.rowId ?? '', td.dataset.col ?? '');
   };
   const toggleRow = (id: string) => setVisible([id], !useStore.getState().visible[id]);
 
@@ -124,9 +181,15 @@ export const MetricsTable = memo(function MetricsTable({
         >
           Export CSV
         </button>
+        <button
+          title="Copy the table as shown (visible columns, current order) to paste into a spreadsheet"
+          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb), copiedRows(rows.length))}
+        >
+          Copy table
+        </button>
         {sort && (
           <span className="count sort-hint" data-testid="sort-hint">
-            Sorted by {sortLabel(sort.key)} {sort.dir === 'asc' ? '↑' : '↓'} (CSV follows)
+            Sorted by {sortLabel(sort.key)} {sort.dir === 'asc' ? '↑' : '↓'} (CSV and copy follow)
             <button type="button" onClick={() => setSort(null)}>
               Clear sort
             </button>
@@ -171,6 +234,10 @@ export const MetricsTable = memo(function MetricsTable({
           </thead>
           <tbody
             onKeyDown={onBodyKeys}
+            onPointerDownCapture={() => {
+              focusedCell.current = document.activeElement;
+            }}
+            onClickCapture={onBodyClickCapture}
             onFocus={(e) => {
               const id = (e.target as HTMLElement).closest<HTMLElement>('tr')?.dataset.rowId;
               if (id) setActiveRow(id);
@@ -188,6 +255,7 @@ export const MetricsTable = memo(function MetricsTable({
                 onBlur={() => setHoverId(null)}
               >
                 <td>
+                  <div className="file-line">
                   <button
                     type="button"
                     className="row-main file-cell"
@@ -202,6 +270,20 @@ export const MetricsTable = memo(function MetricsTable({
                   >
                     {middleEllipsis(r.file, FILE_NAME_MAX)}
                   </button>
+                  <button
+                    type="button"
+                    className="copy-row"
+                    tabIndex={stop === r.id ? 0 : -1}
+                    aria-label={`Copy row ${r.file}`}
+                    title="Copy this row (tab-separated). Ctrl/Cmd+C on the file name does the same; Right arrow moves into the cells."
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyRow(r.id);
+                    }}
+                  >
+                    <span aria-hidden="true">⧉</span>
+                  </button>
+                  </div>
                 </td>
                 <td>{r.group}</td>
                 <td>{r.freq}</td>
@@ -209,7 +291,7 @@ export const MetricsTable = memo(function MetricsTable({
                 {columns.map((c) => {
                   const cell = formatCell(r.cells[c.key], r.tilted?.[c.key]);
                   return (
-                    <td key={c.key} title={cell.title} className={cell.title ? 'has-reason' : undefined}>
+                    <td key={c.key} data-col={c.key} tabIndex={-1} title={cell.title} className={cell.title ? 'has-reason' : undefined}>
                       {cell.text}
                     </td>
                   );

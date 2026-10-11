@@ -32,6 +32,9 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - Band statistics per NGMN BASTA V13 Annex C: mean ± tolerance, 84th / 16th percentile limits and
   gain statistics over every loaded file of an antenna in a frequency sub-band (automatic or
   user-defined sub-bands, saved with the project), with CSV export and a histogram of any cell.
+- Copy to the clipboard for a spreadsheet: **Copy table** on the metrics table and on the band
+  statistics (tab-separated, as shown), **Copy row**, and a single value (click a cell, then the copy
+  mark that appears; or Right arrow into the cells and Enter / Ctrl+C).
 - CSV export of the metrics table and PNG export of any plot (the cut plots export with a legend
   of every file and the highlighted file's values).
 - **Load example** on the empty page loads a small synthetic dual-polarised panel generated in code (24 files,

@@ -15,6 +15,7 @@ export const PANEL_HELP =
 
 /** One line per feature for the Help dialog (the lines for the table, the chart and the reference file). */
 export const FEATURE_HELP: readonly string[] = [
+  'Copying: Copy table (above the metrics table and the band statistics) puts the table as shown on the clipboard for a spreadsheet; Copy row (the mark beside a file name, or Ctrl/Cmd+C on it) copies one row; click a cell and then the copy mark that appears at its left edge, or Right arrow into the cells and then Enter or Ctrl/Cmd+C, copies one value.',
   'Frequency chart: the Metric menu above it plots any table column against frequency, one line per group; the choice is remembered in this browser, not in projects.',
 ];
 

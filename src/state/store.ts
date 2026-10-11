@@ -159,7 +159,7 @@ export interface StoreActions {
   setHighlighted(id: string | null): void;
   updateSettings(partial: Partial<AnalysisSettings>): void;
   updateView(partial: Partial<ViewState>): void;
-  setLoadMessage(message: string | null): void;
+  setLoadMessage(message: string | null, tone?: 'info' | 'warn'): void;
   updateSimulation(partial: Partial<SimulationState>): void;
   resetSimulation(scope?: 'sliders' | 'all'): void;
   setOffset(id: string, partial: Partial<OffsetState>): void;
@@ -549,7 +549,7 @@ export const useStore = create<State>()((rawSet, get) => {
 
   updateView: (partial) => set((state) => (sameValues(state.view, partial) ? state : { view: { ...state.view, ...partial } })),
 
-  setLoadMessage: (message) => set({ loadMessage: message, loadTone: 'warn', loadFailed: 0 }),
+  setLoadMessage: (message, tone = 'warn') => set({ loadMessage: message, loadTone: tone, loadFailed: 0 }),
 
   updateSimulation: (partial) =>
     set((state) => {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BAND_PARAMS, bandTable, type BandCell } from '../core/analysis/bandParams';
+import { BAND_PARAMS, bandTable, type BandCell, type BandColumn } from '../core/analysis/bandParams';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import type { SubBand } from '../core/analysis/subBands';
 import { bandItems } from '../test/bandFixture';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandTsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands } from './bandView';
 
 const items = bandItems();
 const metrics = analyzeAll(items, DEFAULT_SETTINGS);
@@ -219,5 +219,23 @@ describe('sameSubBands', () => {
     expect(sameSubBands(a, editSubBand(a, 0, { minMHz: 1 }))).toBe(true);
     expect(sameSubBands(a, editSubBand(a, 0, { name: '  X ' }))).toBe(true);
     expect(sameSubBands(a, editSubBand(a, 0, { minMHz: 1.5 }))).toBe(false);
+  });
+});
+
+describe('bandTsv', () => {
+  const settings = { ...DEFAULT_SETTINGS };
+  const mkCell = (text: string) => ({ text, title: '', state: 'ok', n: 3, values: [], unit: 'dB' }) as unknown as BandCell;
+  const column = (name: string, text: string): BandColumn => ({
+    subBand: { name, minMHz: 1, maxMHz: 2 },
+    files: 4,
+    cells: Object.fromEntries(BAND_PARAMS.map((p) => [p.key, mkCell(text)])) as BandColumn['cells'],
+  } as BandColumn);
+
+  it('has a header with the sub-bands and a line per parameter with the shown text, tilted where it differs', () => {
+    const lines = bandTsv([column('=evil', '25.0 ± 2.0')], [column('=evil', '24.0 ± 2.0')], settings).trimEnd().split('\r\n');
+    expect(lines).toHaveLength(BAND_PARAMS.length + 1);
+    expect(lines[0]).toBe("Parameter\t'=evil (4 files)");
+    expect(lines[1].split('\t')[1]).toBe('25.0 ± 2.0 → 24.0 ± 2.0');
+    expect(bandTsv([column('a', '1')], null, settings).split('\r\n')[1].split('\t')[1]).toBe('1');
   });
 });

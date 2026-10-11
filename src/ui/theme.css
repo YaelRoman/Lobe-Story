@@ -226,3 +226,15 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 .freq-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; justify-content: space-between; }
 .freq-metric { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
 .freq-metric select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; max-width: 100%; }
+
+/* Copying from the metrics table: a row button next to the file name and a copy mark on the focused cell. */
+.metrics .file-line { display: flex; align-items: center; gap: 2px; }
+.metrics .file-line .file-cell { flex: 1; min-width: 0; }
+.copy-row { flex: none; padding: 0 4px; font-size: 12px; line-height: 1.4; color: var(--muted); background: transparent; border-color: transparent; opacity: 0; }
+tr:hover .copy-row, tr:focus-within .copy-row, tr.hl .copy-row, .copy-row:focus-visible { opacity: 1; }
+.metrics td[data-col] { position: relative; }
+.metrics td[data-col]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.metrics td[data-col]:focus::after { content: '⧉'; position: absolute; top: 50%; left: 0; width: 16px; height: 16px; transform: translateY(-50%); text-align: center; font-size: 12px; line-height: 16px; color: var(--muted); background: var(--bg); border-radius: 3px; cursor: copy; }
+@media (max-width: 760px) {
+  .copy-row { min-width: 28px; min-height: 28px; }
+}

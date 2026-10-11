@@ -321,7 +321,15 @@ const fmt = (v: number | null) => (v === null ? '' : v.toFixed(2));
 export const csvCell = (raw: string) => (/[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw);
 
 /** A CSV field of user-influenced text (file, group or dataset names): a leading = + - @ tab or CR gets a leading quote so a spreadsheet does not run it as a formula. */
-export const csvText = (raw: string) => csvCell(/^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw);
+export const csvText = (raw: string) => csvCell(formulaSafe(raw));
+
+/** `raw` with a leading quote when a spreadsheet would run it as a formula (leading = + - @ tab or CR). */
+export function formulaSafe(raw: string): string {
+  return /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+}
+
+/** One tab-separated field of user-influenced text: formula-guarded as in the CSV, and a tab or line break becomes a space so it cannot split the cell. */
+export const tsvText = (raw: string): string => formulaSafe(raw).replace(/[\t\r\n]+/g, ' ');
 
 const oneDecimal = (r: MetricResult) => (r.value === null ? '—' : r.value.toFixed(1));
 
@@ -404,4 +412,30 @@ export function toCsv(
     ].map(csvCell),
   ]);
   return [header.map(csvCell), ...lines].map((l) => l.join(',')).join('\r\n') + '\r\n';
+}
+
+/** The text a table cell shows for a row and column (`original → tilted` under a simulation). */
+export const cellText = (r: MetricsRow, key: MetricColumn): string => formatCell(r.cells[key], r.tilted?.[key]).text;
+
+type CopyColumn = { key: MetricColumn; label: string; unit: string };
+
+/** The values of one row as shown (file, group, MHz, gain, then the columns), tab-separated, no header. */
+export function rowToTsv(r: MetricsRow, columns: readonly CopyColumn[]): string {
+  return [tsvText(r.file), tsvText(r.group), String(r.freq), r.gain === null ? '—' : r.gain.toFixed(2), ...columns.map((c) => cellText(r, c.key))].join('\t');
+}
+
+/**
+ * The visible table as text for a spreadsheet: a header row (the headers as shown) and a line per row in the
+ * current order, tab-separated, with the values exactly as the cells show them.
+ */
+export function toTsv(
+  rows: readonly MetricsRow[],
+  columns: readonly CopyColumn[],
+  gainUnit: GainUnit,
+  fbWindowDeg: number,
+  uslsRangeDeg = 20,
+  levelDb = 3,
+): string {
+  const header = ['File', 'Group', 'MHz', `Gain (${gainUnit})`, ...columns.map((c) => `${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)} (${c.unit})`)];
+  return [header.join('\t'), ...rows.map((r) => rowToTsv(r, columns))].join('\r\n') + '\r\n';
 }
