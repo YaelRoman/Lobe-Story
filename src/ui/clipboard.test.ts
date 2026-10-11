@@ -59,6 +59,8 @@ describe('what the status line says was copied', () => {
   it('names the value, the row or the number of rows', () => {
     expect(copiedValue('65.0')).toBe('Copied 65.0');
     expect(copiedRow('a.msi')).toBe('Copied row a.msi');
+    expect(copiedRow('a.msi', { reference: 'r.msi', isReference: false })).toBe('Copied row a.msi (differences vs r.msi)');
+    expect(copiedRow('r.msi', { reference: 'r.msi', isReference: true })).toBe('Copied row r.msi (reference)');
     expect(copiedRows(24)).toBe('Copied 24 rows');
   });
 });

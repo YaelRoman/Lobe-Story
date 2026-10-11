@@ -106,7 +106,7 @@ export const MetricsTable = memo(function MetricsTable({
   const copy = (text: string, done: string) => void copyAndAnnounce(text, done, setCopyNote);
   const copyRow = (id: string) => {
     const r = rowById.get(id);
-    if (r) copy(rowToTsv(r, columns), copiedRow(r.file));
+    if (r) copy(rowToTsv(r, columns), copiedRow(r.file, deltaVs === undefined ? undefined : { reference: deltaVs, isReference: id === reference }));
   };
   const copyCell = (id: string, key: string) => {
     const r = rowById.get(id);

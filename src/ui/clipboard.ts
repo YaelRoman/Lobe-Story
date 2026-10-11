@@ -36,8 +36,14 @@ export async function copyText(text: string): Promise<boolean> {
 /** "Copied 65.0": says which value, so a second copy of another value reads differently. */
 export const copiedValue = (text: string): string => `Copied ${text}`;
 
-/** "Copied row a.msi". */
-export const copiedRow = (name: string): string => `Copied row ${name}`;
+/**
+ * "Copied row a.msi". In the difference view the kind is said too (the copied line itself carries no prefix):
+ * "Copied row a.msi (differences vs ref.msi)", or "(reference)" for the reference file's own row.
+ */
+export function copiedRow(name: string, delta?: { reference: string; isReference: boolean }): string {
+  if (!delta) return `Copied row ${name}`;
+  return `Copied row ${name} (${delta.isReference ? 'reference' : `differences vs ${delta.reference}`})`;
+}
 
 /** "Copied 24 rows" / "Copied 1 row". */
 export const copiedRows = (n: number): string => `Copied ${n} row${n === 1 ? '' : 's'}`;
