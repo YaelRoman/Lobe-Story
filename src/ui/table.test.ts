@@ -1,0 +1,207 @@
+import { describe, expect, it } from 'vitest';
+import { buildRows, convertGain, formatCell, METRIC_COLUMNS, simulationLabel, toCsv, offsetLabel } from './table';
+import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
+import { analyzeTilted, tiltTagged, effectiveFor, isTilted, tiltEach, type SimSettings } from '../core/analysis/tilt';
+import { groupPatterns } from '../state/selectors';
+import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
+
+describe('convertGain', () => {
+  it('converts between dBd and dBi', () => {
+    expect(convertGain({ value: 15, unit: 'dBd' }, 'dBi')).toBeCloseTo(17.15);
+    expect(convertGain({ value: 17.15, unit: 'dBi' }, 'dBd')).toBeCloseTo(15);
+    expect(convertGain({ value: 15, unit: 'dBd' }, 'dBd')).toBe(15);
+    expect(convertGain(undefined, 'dBi')).toBeNull();
+  });
+});
+
+describe('buildRows and toCsv', () => {
+  const pattern = patternFrom(quadBeam(60), vBeamWithLobes, {
+    id: 'dir/"odd, name".MSI',
+    fileName: '"odd, name".MSI',
+    gain: { value: 15, unit: 'dBd' },
+  });
+  const tagged = [{ pattern, tags: { polarization: '+45', tiltDeg: 6 } }];
+  const groups = groupPatterns(tagged);
+  const rows = buildRows(groups, analyzeAll(tagged), 'dBi');
+
+  it('builds one row per pattern', () => {
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: 'dir/"odd, name".MSI', file: '"odd, name".MSI', group: '+45 · 6°T', freq: 1800 });
+    expect(rows[0].gain).toBeCloseTo(17.15);
+    expect(rows[0].cells.hHpbw.value).toBeCloseTo(60, 5);
+    expect(rows[0].cells.tracking.value).toBeNull();
+    expect(Object.keys(rows[0].cells)).toEqual(METRIC_COLUMNS.map((c) => c.key));
+  });
+
+  it('writes CSV with escaped cells and empty nulls', () => {
+    const csv = toCsv(rows, 'dBi', 30);
+    const [header, line] = csv.trimEnd().split('\r\n');
+    expect(header.startsWith('File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),F/B 180° (dB),F/B ±30° (dB)')).toBe(true);
+    expect(line.startsWith('"""odd, name"".MSI",+45 · 6°T,1800,17.15,60.00,8.00,40.00,')).toBe(true);
+    expect(line.split(',').length).toBeGreaterThan(10);
+    expect(line).toContain(',,'); // null tracking / deltas are empty
+  });
+});
+
+describe('simulation in the table', () => {
+  const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'p', fileName: 'p.MSI' });
+  const tagged = [{ pattern, tags: { polarization: '+45', tiltDeg: 6 } }];
+  const groups = groupPatterns(tagged);
+  const tilt = { electricalDeg: 4, mechanicalDeg: 0 };
+  const tilted = analyzeTilted(tiltTagged(tagged, tilt, 'summation'), DEFAULT_SETTINGS, tilt);
+  const rows = buildRows(groups, analyzeAll(tagged), 'dBd', tilted);
+
+  it('formats original → tilted with both reasons', () => {
+    expect(formatCell({ value: 6 }, { value: 10 })).toEqual({ text: '6.0 → 10.0' });
+    expect(formatCell({ value: 6 })).toEqual({ text: '6.0', title: undefined });
+    expect(formatCell({ value: null, reason: 'a' }, { value: null, reason: 'b' })).toEqual({
+      text: '— → —',
+      title: 'original: a\ntilted: b',
+    });
+  });
+
+  it('labels the simulation', () => {
+    expect(simulationLabel(tilt)).toBe('Simulated: Δe +4°, mech 0°');
+    expect(simulationLabel({ electricalDeg: -1.5, mechanicalDeg: 2 })).toBe('Simulated: Δe -1.5°, mech +2°');
+  });
+
+  it('adds tilted cells to rows', () => {
+    expect(rows[0].cells.tilt.value).toBeCloseTo(6, 5);
+    expect(rows[0].tilted!.tilt!.value).toBeCloseTo(10, 5);
+  });
+
+  it('doubles metric columns and appends slider values in the CSV when tilted', () => {
+    const [header, line] = toCsv(rows, 'dBd', 30, { ...tilt, azimuthDeg: 30 }).trimEnd().split('\r\n');
+    expect(header).toContain('H-HPBW original (°),H-HPBW tilted (°)');
+    expect(header.endsWith('Electrical tilt Δ (°),Mechanical tilt (°),Azimuth (°)')).toBe(true);
+    expect(line.endsWith(',4,0,30')).toBe(true);
+  });
+
+  it('ignores an azimuth-only simulation in the CSV', () => {
+    const plain = buildRows(groups, analyzeAll(tagged), 'dBd');
+    expect(toCsv(plain, 'dBd', 30, { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 45 })).toBe(
+      toCsv(plain, 'dBd', 30),
+    );
+  });
+
+  it('leaves the CSV unchanged without a tilt', () => {
+    const plain = buildRows(groups, analyzeAll(tagged), 'dBd');
+    expect(toCsv(plain, 'dBd', 30)).not.toContain('original');
+  });
+});
+
+describe('per-file simulation in the table', () => {
+  const pa = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a', fileName: 'a.MSI' });
+  const pb = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'b', fileName: 'b.MSI' });
+  const tagged = [
+    { pattern: pa, tags: { polarization: '+45', tiltDeg: 6 } },
+    { pattern: pb, tags: { polarization: '+45', tiltDeg: 6 } },
+  ];
+  const groups = groupPatterns(tagged);
+  const global: SimSettings = { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 5 };
+  const offsets: Record<string, SimSettings> = { b: { electricalDeg: 0, mechanicalDeg: 4, azimuthDeg: 10 } };
+  const effective = (id: string) => effectiveFor(global, offsets[id]);
+  const isTiltedId = (id: string) => isTilted(effective(id));
+  const tiltedMetrics = analyzeTilted(tiltEach(tagged, effective, 'summation'), DEFAULT_SETTINGS, effective);
+  const rows = buildRows(groups, analyzeAll(tagged), 'dBd', tiltedMetrics, isTiltedId);
+
+  it('shows arrows only on tilted rows', () => {
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    expect(byId.get('a')!.tilted).toBeUndefined();
+    expect(byId.get('b')!.tilted!.tilt!.value).toBeCloseTo(10, 5);
+  });
+
+  it('writes per-row effective slider values and repeats untilted values', () => {
+    const lines = toCsv(rows, 'dBd', 30, effective).trimEnd().split('\r\n');
+    expect(lines[0]).toContain('Tilt original (°),Tilt tilted (°)');
+    const lineA = lines.find((l) => l.startsWith('a.MSI'))!;
+    const lineB = lines.find((l) => l.startsWith('b.MSI'))!;
+    expect(lineA.endsWith(',0,0,5')).toBe(true);
+    expect(lineB.endsWith(',0,4,15')).toBe(true);
+    expect(lineA).toMatch(/,6\.00,6\.00,/); // tilt original and tilted equal for the untilted row
+  });
+
+  it('labels offsets', () => {
+    expect(simulationLabel({ electricalDeg: 0, mechanicalDeg: 0 }, 1)).toBe(
+      'Simulated: Δe 0°, mech 0° + offsets on 1 file',
+    );
+    expect(simulationLabel({ electricalDeg: 2, mechanicalDeg: 0 }, 3)).toBe(
+      'Simulated: Δe +2°, mech 0° + offsets on 3 files',
+    );
+    expect(offsetLabel({ electricalDeg: 1, mechanicalDeg: 2, azimuthDeg: -30 })).toBe('Δe +1°, mech +2°, az -30°');
+    expect(offsetLabel({ electricalDeg: 0, mechanicalDeg: 3, azimuthDeg: 0 })).toBe('mech +3°');
+  });
+});
+
+describe('beam tracking arrow for an untilted partner (I1)', () => {
+  const pa = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a', fileName: 'a.MSI' });
+  const pb = patternFrom(quadBeam(58), vBeamWithLobes, { id: 'b', fileName: 'b.MSI' });
+  const tagged = [
+    { pattern: pa, tags: { polarization: '+45', tiltDeg: 6 } },
+    { pattern: pb, tags: { polarization: '-45', tiltDeg: 6 } },
+  ];
+  const groups = groupPatterns(tagged);
+  const global: SimSettings = { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0 };
+  // Only 'a' is tilted; 'b' is untilted but is a's ±45 tracking partner.
+  const offsets: Record<string, SimSettings> = { a: { electricalDeg: 0, mechanicalDeg: 6, azimuthDeg: 0 } };
+  const effective = (id: string) => effectiveFor(global, offsets[id]);
+  const isTiltedId = (id: string) => isTilted(effective(id));
+  const original = analyzeAll(tagged);
+  const tiltedMetrics = analyzeTilted(tiltEach(tagged, effective, 'summation'), DEFAULT_SETTINGS, effective);
+  const rows = buildRows(groups, original, 'dBd', tiltedMetrics, isTiltedId);
+  const byId = new Map(rows.map((r) => [r.id, r]));
+
+  it("B's tracking value changes under the tilted run (A's tilted H cut)", () => {
+    expect(isTiltedId('a')).toBe(true);
+    expect(isTiltedId('b')).toBe(false);
+    expect(original.get('b')!.beamTracking.value).not.toBeNull();
+    expect(tiltedMetrics.get('b')!.beamTracking.value).not.toBeNull();
+    expect(tiltedMetrics.get('b')!.beamTracking.value).not.toBe(original.get('b')!.beamTracking.value);
+  });
+
+  it('attaches a tilted entry for every cell on the tilted row, and only the tracking cell on the untilted row', () => {
+    const rowA = byId.get('a')!;
+    const rowB = byId.get('b')!;
+    expect(Object.keys(rowA.tilted!).sort()).toEqual(METRIC_COLUMNS.map((c) => c.key).sort());
+    expect(rowB.tilted).toEqual({ tracking: tiltedMetrics.get('b')!.beamTracking });
+  });
+
+  it("shows B's tracking tilted value in the CSV instead of repeating the original", () => {
+    const csv = toCsv(rows, 'dBd', 30, effective);
+    const [header, ...lines] = csv.trimEnd().split('\r\n');
+    const cols = header.split(',');
+    const origIdx = cols.indexOf('Tracking original (dB)');
+    const tiltIdx = cols.indexOf('Tracking tilted (dB)');
+    const lineB = lines.find((l) => l.startsWith('b.MSI'))!.split(',');
+    expect(lineB[origIdx]).not.toBe(lineB[tiltIdx]);
+  });
+});
+
+describe('display names in the table', () => {
+  const p = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a#copy-2', fileName: 'a.MSI', displayName: 'North' });
+  const tagged = [{ pattern: p, tags: { polarization: '+45', tiltDeg: 6 } }];
+  const rows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBd');
+
+  it('shows the display name and keeps the source file', () => {
+    expect(rows[0].file).toBe('North');
+    expect(rows[0].source).toBe('a.MSI');
+    const [header, line] = toCsv(rows, 'dBd', 30).trimEnd().split('\r\n');
+    expect(header.startsWith('File,Source file,Group,')).toBe(true);
+    expect(line.startsWith('North,a.MSI,')).toBe(true);
+  });
+
+  it('leaves the CSV unchanged without copies or names', () => {
+    const plain = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'b', fileName: 'b.MSI' });
+    const t = [{ pattern: plain, tags: {} }];
+    expect(toCsv(buildRows(groupPatterns(t), analyzeAll(t), 'dBd'), 'dBd', 30)).not.toContain('Source file');
+  });
+
+  it('counts groups in the simulation label', () => {
+    expect(simulationLabel({ electricalDeg: 0, mechanicalDeg: 0 }, 1, 2)).toBe(
+      'Simulated: Δe 0°, mech 0° + offsets on 1 file, 2 groups',
+    );
+    expect(simulationLabel({ electricalDeg: 0, mechanicalDeg: 0 }, 0, 1)).toBe(
+      'Simulated: Δe 0°, mech 0° + offsets on 1 group',
+    );
+  });
+});
