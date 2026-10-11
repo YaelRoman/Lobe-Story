@@ -92,6 +92,19 @@ describe('SettingsPanel limits', () => {
     expect(messageOf('Beamwidth level')).toBeNull();
   });
 
+  it('Reset clears the "Not applied" messages of every field', () => {
+    typeAndBlur(inputFor('Beamwidth level'), '0');
+    typeAndBlur(inputFor('Sector edge'), '180');
+    typeAndBlur(inputFor('Sectors per site'), '1');
+    typeAndBlur(inputFor('Plot floor'), '500');
+    for (const l of ['Beamwidth level', 'Sector edge', 'Sectors per site', 'Plot floor']) expect(messageOf(l), l).toContain('Not applied');
+    const reset = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Reset')!;
+    act(() => reset.click());
+    expect(host.querySelectorAll('.field-message')).toHaveLength(0);
+    expect(host.textContent).not.toContain('Not applied');
+    expect(inputFor('Beamwidth level').value).toBe('3');
+  });
+
   it('asks for a whole number where one is needed, and for the plot floor range', () => {
     typeAndBlur(inputFor('Sectors per site'), '4.5');
     expect(messageOf('Sectors per site')).toBe('Not applied: enter a whole number from 2 to 12 (kept 3).');
