@@ -158,3 +158,24 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 .metrics .row-main { display: block; width: 100%; padding: 4px 6px; border-radius: 0; }
 .metrics .row-main:focus-visible { outline-offset: -2px; }
 .settings :focus-visible, .group li :focus-visible { outline-offset: 1px; }
+
+/* Collapsible secondary controls. */
+.fold { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; background: transparent; border-color: transparent; padding: 4px 6px; }
+.sim-body, .marker-options { display: contents; }
+.files-toggle { display: none; }
+@media (max-width: 760px) {
+  /* The file panel is a drawer above the plots; main keeps the rest of the screen. */
+  .files-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 40px; border-radius: 0; border-width: 0 0 1px; padding: 6px 12px; background: var(--panel); font-weight: 600; }
+  .panel { display: none; }
+  .panel.open { display: block; }
+  .group li { min-height: 36px; }
+  .group li button, .group li summary { min-height: 32px; min-width: 32px; display: inline-flex; align-items: center; justify-content: center; }
+  .group li .row-main { justify-content: flex-start; }
+  .group li input[type='checkbox'] { width: 20px; height: 20px; }
+  .fold { min-height: 32px; }
+  .sim-field { flex-wrap: wrap; }
+  .sim-field input[type='range'] { width: 110px; }
+  .toolbar { padding: 6px 8px; }
+  .subband-row input[type='text'] { width: 120px; }
+  .sim-bar, .controls { max-width: 100%; }
+}

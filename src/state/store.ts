@@ -50,6 +50,16 @@ export type ColumnGroupKey = 'beam' | 'fb' | 'sidelobes' | 'sector' | 'declared'
 export const DEFAULT_TABLE_GROUPS: Record<ColumnGroupKey, boolean> =
   { beam: true, fb: true, sidelobes: true, sector: true, declared: false };
 
+export interface CollapsedBars {
+  simBar: boolean;
+  markers: boolean;
+}
+
+/** Phone-width screens start with the secondary controls folded so the plots come first. */
+function narrowScreen(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 760px)').matches;
+}
+
 export interface ViewState {
   cut: CutView;
   mode: PlotMode;
@@ -63,6 +73,8 @@ export interface ViewState {
   dimension: Dimension;
   method3d: Method3d;
   layout3d: Layout3d;
+  /** Secondary controls folded to one line. */
+  collapsed: CollapsedBars;
   simulation: SimulationState;
 }
 
@@ -188,6 +200,7 @@ export function initialState(): StoreData {
       dimension: '2d',
       method3d: 'summation',
       layout3d: 'grid',
+      collapsed: { simBar: narrowScreen(), markers: narrowScreen() },
       simulation: {
         electricalDeg: 0,
         mechanicalDeg: 0,

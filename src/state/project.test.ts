@@ -256,6 +256,12 @@ describe('damaged values', () => {
     expect(s.view.tableGroups).toEqual({ beam: true, fb: true, sidelobes: true, sector: false, declared: false });
   });
 
+  it('restores the folded controls, optional and sanitised', () => {
+    expect(restore(withState({})).view.collapsed).toEqual(initialState().view.collapsed);
+    const s = restore(withState({ view: { collapsed: { simBar: true, markers: 'x', bogus: true } } }));
+    expect(s.view.collapsed).toEqual({ simBar: true, markers: initialState().view.collapsed.markers });
+  });
+
   it('round-trips the table column groups', () => {
     const before = { ...initialState() };
     before.view = { ...before.view, tableGroups: { ...DEFAULT_TABLE_GROUPS, sector: false, declared: true } };

@@ -237,8 +237,14 @@ export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewSt
   for (const k of Object.keys(tableGroups) as (keyof typeof tableGroups)[]) {
     if (typeof rawGroups[k] === 'boolean') tableGroups[k] = rawGroups[k] as boolean;
   }
+  const rawCollapsed: Record<string, unknown> = isObj(rawView.collapsed) ? rawView.collapsed : {};
+  const collapsed = { ...dv.collapsed };
+  for (const k of Object.keys(collapsed) as (keyof typeof collapsed)[]) {
+    if (typeof rawCollapsed[k] === 'boolean') collapsed[k] = rawCollapsed[k] as boolean;
+  }
   const floor = num(rawView.floorDb, dv.floorDb);
   return {
+    collapsed,
     cut: oneOf(rawView.cut, ['H', 'V', 'both'] as const, dv.cut),
     mode: oneOf(rawView.mode, ['polar', 'rect'] as const, dv.mode),
     gainUnit: oneOf(rawView.gainUnit, ['dBd', 'dBi'] as const, dv.gainUnit),

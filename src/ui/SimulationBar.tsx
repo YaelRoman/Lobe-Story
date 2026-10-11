@@ -5,6 +5,7 @@ import { anyTilted, combineOffsets } from '../core/analysis/tilt';
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
+import { simSummary } from './simSummary';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
   { key: 'electricalDeg', label: 'Electrical tilt Δ (°)' },
@@ -143,6 +144,8 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
   const updateView = useStore((s) => s.updateView);
   const updateSimulation = useStore((s) => s.updateSimulation);
   const resetSimulation = useStore((s) => s.resetSimulation);
+  const collapsed = useStore((s) => s.view.collapsed.simBar);
+  const setCollapsed = (simBar: boolean) => updateView({ collapsed: { ...useStore.getState().view.collapsed, simBar } });
 
   // Only successfully parsed loaded files (and their copies) count: a failed file's leftover
   // offset (kept across a same-path reload) shouldn't flag the badge or inflate the offset count.
@@ -164,7 +167,25 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
 
   return (
     <div className="sim-bar" role="group" aria-label="Simulation">
-      <strong>Simulation</strong>
+      <button
+        className="fold"
+        aria-expanded={!collapsed}
+        aria-controls="sim-body"
+        onClick={() => setCollapsed(!collapsed)}
+      >
+        <span aria-hidden="true">{collapsed ? '▸' : '▾'}</span> Simulation
+      </button>
+      {anyActive && (
+        <span className="badge" data-testid="sim-badge">
+          Simulated
+        </span>
+      )}
+      {collapsed && (
+        <span className="count" data-testid="sim-summary">
+          {simSummary(global, fileCount, groupCount)}
+        </span>
+      )}
+      {!collapsed && <div id="sim-body" className="sim-body">
       {SLIDERS.map((s) => (
         <GlobalField key={s.key} k={s.key} label={s.label} />
       ))}
@@ -208,12 +229,8 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
       >
         Reset
       </button>
-      {anyActive && (
-        <span className="badge" data-testid="sim-badge">
-          Simulated
-        </span>
-      )}
       <OffsetsRow />
+      </div>}
     </div>
   );
 }

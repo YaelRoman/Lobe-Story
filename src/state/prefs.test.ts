@@ -79,7 +79,7 @@ describe('applyPrefs', () => {
     expect(text).not.toMatch(/secret|DATA|offsets|simulation|dimension/i);
     expect(Object.keys(JSON.parse(text)).sort()).toEqual(['settings', 'version', 'view']);
     expect(Object.keys(prefsOf(s).view).sort()).toEqual(
-      ['cut', 'floorDb', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'subBands', 'tableGroups', 'theme'],
+      ['collapsed', 'cut', 'floorDb', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'subBands', 'tableGroups', 'theme'],
     );
   });
 
@@ -118,6 +118,12 @@ describe('applyPrefs', () => {
     expect(out.view.method3d).toBe(d.view.method3d);
     expect(out.view.layout3d).toBe('overlay');
     expect(out.view.subBands).toEqual([]);
+  });
+
+  it('restores the folded controls field by field', () => {
+    const d = defaults();
+    const out = applyPrefs(JSON.stringify({ version: PREFS_VERSION, view: { collapsed: { simBar: true, markers: 'yes', bogus: 1 } } }), d)!;
+    expect(out.view.collapsed).toEqual({ simBar: true, markers: d.view.collapsed.markers });
   });
 
   it('copes with missing parts and does not touch the dimension or the simulation', () => {

@@ -29,6 +29,12 @@ const MARKER_LABELS: Record<MarkerKey, string> = {
   sector: 'Sector',
 };
 
+/** The names of the markers that are on, for the folded "Markers" control. */
+const shownMarkers = (markers: Record<MarkerKey, boolean>): string => {
+  const on = (Object.keys(MARKER_LABELS) as MarkerKey[]).filter((k) => markers[k]).map((k) => MARKER_LABELS[k]);
+  return on.length > 0 ? on.join(' · ') : 'none';
+};
+
 interface CutPlotProps {
   id: 'h' | 'v';
   figure: Figure;
@@ -76,6 +82,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
       floorDb: s.view.floorDb,
       markers: s.view.markers,
       theme: s.view.theme,
+      markersFolded: s.view.collapsed.markers,
     })),
   );
   const updateView = useStore((s) => s.updateView);
@@ -154,16 +161,29 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
               ]}
               onChange={(mode) => updateView({ mode })}
             />
-            {(Object.keys(MARKER_LABELS) as MarkerKey[]).map((key) => (
-              <label key={key}>
-                <input
-                  type="checkbox"
-                  checked={view.markers[key]}
-                  onChange={(e) => updateView({ markers: { ...view.markers, [key]: e.target.checked } })}
-                />
-                {MARKER_LABELS[key]}
-              </label>
-            ))}
+            <button
+              className="fold"
+              aria-expanded={!view.markersFolded}
+              aria-controls="marker-options"
+              onClick={() => updateView({ collapsed: { ...useStore.getState().view.collapsed, markers: !view.markersFolded } })}
+            >
+              <span aria-hidden="true">{view.markersFolded ? '▸' : '▾'}</span> Markers
+            </button>
+            {view.markersFolded && <span className="count">{shownMarkers(view.markers)}</span>}
+            {!view.markersFolded && (
+              <div id="marker-options" className="marker-options">
+              {(Object.keys(MARKER_LABELS) as MarkerKey[]).map((key) => (
+                <label key={key}>
+                  <input
+                    type="checkbox"
+                    checked={view.markers[key]}
+                    onChange={(e) => updateView({ markers: { ...view.markers, [key]: e.target.checked } })}
+                  />
+                  {MARKER_LABELS[key]}
+                </label>
+              ))}
+              </div>
+            )}
           </>
         )}
       </div>

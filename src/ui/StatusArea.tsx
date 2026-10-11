@@ -9,6 +9,7 @@ export const CLEAN_LOAD_MS = 6_000;
 
 /** Scrolls the panel's Errors section into view and moves focus to it. */
 function showErrors() {
+  // On a phone the panel is a closed drawer until the caller has opened it: wait for it to be shown.
   const section = document.querySelector<HTMLElement>('[data-testid="panel-errors"]');
   section?.scrollIntoView?.({ block: 'start' });
   section?.focus();
@@ -19,7 +20,7 @@ function showErrors() {
  * needs. Screen readers hear about all three through ONE status region that is always in the
  * page and starts empty — a region that is inserted together with its text is often not announced.
  */
-export function StatusArea({ hasErrors }: { hasErrors: boolean }) {
+export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean; beforeShowErrors?: () => void }) {
   const loadMessage = useStore((s) => s.loadMessage);
   const loadTone = useStore((s) => s.loadTone);
   const loadFailed = useStore((s) => s.loadFailed);
@@ -41,7 +42,12 @@ export function StatusArea({ hasErrors }: { hasErrors: boolean }) {
       {loadMessage && (
         <div className={loadTone === 'info' ? 'load-message info' : 'load-message'} data-testid="load-status">
           <span>{loadMessage}</span>
-          {loadFailed > 0 && hasErrors && <button onClick={showErrors}>Show errors</button>}
+          {loadFailed > 0 && hasErrors && <button
+              onClick={() => {
+                beforeShowErrors?.();
+                requestAnimationFrame(showErrors);
+              }}
+            >Show errors</button>}
           <button aria-label="Dismiss message" onClick={() => setLoadMessage(null)}>
             ✕
           </button>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from './state/store';
 import { buildPanelGroups, selectErrors, selectInstances, selectWarnings } from './state/selectors';
 import { analyzeAll } from './core/analysis/metrics';
@@ -48,6 +48,8 @@ export default function App() {
   const colors = useMemo(() => colorMap(visibleIds), [visibleIds]);
   const dragging = useWindowDrop();
   useUnsavedGuard();
+  // Phone layout: the file panel is a drawer, closed until asked for (on wider screens it is always shown).
+  const [filesOpen, setFilesOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -56,9 +58,24 @@ export default function App() {
   return (
     <div className="app">
       <Toolbar />
-      <StatusArea hasErrors={errors.length > 0} />
+      <StatusArea hasErrors={errors.length > 0} beforeShowErrors={() => setFilesOpen(true)} />
       <div className="body">
-        {files.length > 0 && <FilePanel groups={groups} errors={errors} warnings={warnings} colors={colors} />}
+        {files.length > 0 && (
+          <>
+            <button
+              className="files-toggle"
+              aria-expanded={filesOpen}
+              aria-controls="file-panel"
+              onClick={() => setFilesOpen((v) => !v)}
+            >
+              <span>
+                Files ({files.length}){errors.length > 0 && ` · ${errors.length} with errors`}
+              </span>
+              <span aria-hidden="true">{filesOpen ? '▾' : '▸'}</span>
+            </button>
+            <FilePanel groups={groups} errors={errors} warnings={warnings} colors={colors} drawerOpen={filesOpen} />
+          </>
+        )}
         <main>
           {tagged.length === 0 ? (
             <p className="empty">

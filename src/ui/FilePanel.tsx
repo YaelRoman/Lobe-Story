@@ -29,6 +29,8 @@ interface Props {
   errors: ErrorEntry[];
   warnings: Map<string, string[]>;
   colors: Map<string, string>;
+  /** Phone layout only: the panel is a drawer above the plots and shown when this is true. */
+  drawerOpen?: boolean;
 }
 
 function NameEditor({
@@ -243,7 +245,7 @@ function GroupMenu({
   );
 }
 
-export const FilePanel = memo(function FilePanel({ groups, errors, warnings, colors }: Props) {
+export const FilePanel = memo(function FilePanel({ groups, errors, warnings, colors, drawerOpen }: Props) {
   const visible = useStore((s) => s.visible);
   const highlighted = useStore((s) => s.highlighted);
   const selected = useStore((s) => s.selected);
@@ -355,7 +357,8 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
 
   return (
     <aside
-      className="panel"
+      id="file-panel"
+      className={drawerOpen ? 'panel open' : 'panel'}
       aria-label="Files and groups"
       ref={panelRef}
       tabIndex={-1}
