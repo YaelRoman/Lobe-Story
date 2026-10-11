@@ -12,7 +12,7 @@ test('first run: Load example fills the plots, the table and the band statistics
   await expect(empty).toContainText('never uploaded');
   await empty.getByRole('button', { name: 'Load example' }).click();
 
-  await expect(page.getByTestId('load-status')).toContainText('Loaded the built-in synthetic example (not a real antenna)');
+  await expect(page.getByTestId('load-status')).toContainText('Loaded the built-in synthetic example: 24 files (not a real antenna)');
   await expect(page.getByTestId('empty-state')).toHaveCount(0);
   await expect(page.locator('.panel li')).toHaveCount(24);
   await expect(page.locator('.panel li').first()).toContainText('example_');

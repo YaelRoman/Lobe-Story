@@ -8,6 +8,8 @@
 
 export const EXAMPLE_PREFIX = 'example_';
 export const EXAMPLE_NOTE = 'Loaded the built-in synthetic example (not a real antenna)';
+/** The status line after the example was loaded into an empty session. */
+export const exampleLoadedMessage = (fileCount: number): string => `Loaded the built-in synthetic example: ${fileCount} files (not a real antenna)`;
 export const EXAMPLE_FREQUENCIES_MHZ = [1710, 1795, 2110, 2170] as const;
 export const EXAMPLE_TILTS_DEG = [2, 5, 8] as const;
 

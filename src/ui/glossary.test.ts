@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { FEATURE_HELP, GLOSSARY, METRICS_DOC_URL, PANEL_HELP, README_URL, REPO_URL } from './glossary';
 import { canOfferExample, loadExample } from './loadExample';
 import { initialState, useStore } from '../state/store';
-import { EXAMPLE_NOTE } from '../core/exampleSet';
+import { exampleLoadedMessage } from '../core/exampleSet';
 
 describe('glossary', () => {
   it('explains every main term in one non-empty line and links to the repository', () => {
@@ -34,7 +34,8 @@ describe('loadExample', () => {
     const s = useStore.getState();
     expect(s.files).toHaveLength(24);
     expect(s.files.every((f) => f.result.ok)).toBe(true);
-    expect(s.loadMessage).toContain(EXAMPLE_NOTE);
+    expect(s.loadMessage).toBe('Loaded the built-in synthetic example: 24 files (not a real antenna)');
+    expect(s.loadMessage).toBe(exampleLoadedMessage(24));
     expect(s.loadTone).toBe('info');
   });
 
