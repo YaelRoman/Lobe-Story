@@ -23,6 +23,8 @@ export function sectorPower(h: Grid, edgeDeg = 60): { spr: MetricResult; air: Me
   let pd = 0;
   const limit = Math.floor(edgeDeg);
   for (let d = -limit; d <= limit; d++) {
+    // Edge samples are half-weighted (trapezoid) only when edgeDeg is an integer; for a fractional
+    // edge the last sample lies strictly inside the sector and keeps full weight.
     const w = d === -edgeDeg || d === edgeDeg ? 0.5 : 1;
     pd += w * power(attAt(h, d));
   }
@@ -50,7 +52,12 @@ export function duCurve(h: Grid, sectors = 3): number[] {
   return out;
 }
 
-/** Width of the contiguous region around 0 degrees where D/U is at least `thresholdDb`. */
+/**
+ * Width of the contiguous region around 0 degrees where D/U is at least `thresholdDb`.
+ * `edges` are the signed aperture limits (edges[1] - edges[0] = value). For a region that wraps
+ * past +/-180 degrees the lo side is left unwrapped, so edges[0] may be below -180; the sector
+ * marker relies on this to draw one continuous arc.
+ */
 export function duAperture(
   h: Grid,
   thresholdDb: number,

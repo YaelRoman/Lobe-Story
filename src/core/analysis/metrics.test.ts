@@ -116,6 +116,15 @@ describe('sector metrics', () => {
     expect(m.du.qam16.value).toBeGreaterThan(m.du.qam64.value!);
   });
 
+  it('keeps the aperture edges on the D/U entries', () => {
+    const m = analyzePattern(item());
+    for (const l of ['qam16', 'qam64', 'qam256'] as const) {
+      const r = m.du[l];
+      expect(r.edges).toBeDefined();
+      expect(r.edges![1] - r.edges![0]).toBeCloseTo(r.value!, 9);
+    }
+  });
+
   const pair = (gp?: Pattern['gain'], gm?: Pattern['gain']) => {
     const p: TaggedPattern = {
       pattern: patternFrom(quadBeam(65), vBeamWithLobes, { id: 'p', gain: gp }),

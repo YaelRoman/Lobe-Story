@@ -22,12 +22,14 @@ function NumberField({
   label,
   value,
   min,
+  max,
   accepts,
   onCommit,
 }: {
   label: string;
   value: number;
   min: number;
+  max?: number;
   /** Extra check on top of "finite and > 0"; a rejected draft reverts like any invalid one. */
   accepts?: (n: number) => boolean;
   onCommit: (n: number) => void;
@@ -50,6 +52,7 @@ function NumberField({
       <input
         type="number"
         min={min}
+        max={max}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
@@ -75,6 +78,8 @@ export function SettingsPanel() {
           label={f.label}
           value={settings[f.key]}
           min={1}
+          max={f.key === 'sectorEdgeDeg' ? 179 : undefined}
+          accepts={f.key === 'sectorEdgeDeg' ? (n) => n >= 1 && n <= 179 : undefined}
           onCommit={(n) => updateSettings({ [f.key]: n })}
         />
       ))}
@@ -82,6 +87,7 @@ export function SettingsPanel() {
         label="Sectors per site"
         value={settings.siteSectors}
         min={2}
+        max={12}
         accepts={(n) => Number.isInteger(n) && n >= 2 && n <= 12}
         onCommit={(n) => updateSettings({ siteSectors: n })}
       />

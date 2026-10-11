@@ -18,6 +18,14 @@ describe('sectorPower', () => {
     expect(air.value).toBeCloseTo(10 * Math.log10(pd / pu), 9);
   });
 
+  it('handles a fractional edge (outer samples at integer degrees only)', () => {
+    // att = 0 for |a| <= 2, else 30; edge 2.5: samples d = -2..2 are full weight.
+    const g = gridFrom((a) => (Math.abs(a) <= 2 ? 0 : 30));
+    const { spr } = sectorPower(g, 2.5);
+    // pd = 5, pu = 355 * 0.001 -> SPR = 100 * 0.355 / 5 = 7.1
+    expect(spr.value).toBeCloseTo(7.1, 9);
+  });
+
   it('reports no AIR and an SPR of 0 when nothing lies outside the sector', () => {
     const { spr, air } = sectorPower(parabolaGrid, 180);
     expect(spr.value).toBe(0);
@@ -61,11 +69,29 @@ describe('duCurve', () => {
   });
 
   it('interpolates fractional sector shifts', () => {
-    // 360 / 8 = 45: integer; 360 / 7 is fractional.
+    // att = |a|/10 on the signed angle; 7 sectors -> shifts of 360/7 degrees (fractional).
     const g = gridFrom((a) => Math.abs(a) / 10);
     const du = duCurve(g, 7);
     expect(du).toHaveLength(360);
-    expect(Number.isFinite(du[0])).toBe(true);
+    expect(du[0]).toBeCloseTo(5.143, 3);
+  });
+
+  it('matches a brute-force interpolation across the 359 -> 0 wrap', () => {
+    const att = (a: number) => Math.abs(signed(a)) / 10;
+    const g = gridFrom(att);
+    const sectors = 7;
+    const du = duCurve(g, sectors);
+    for (const p of [0, 1, 2, 357, 358, 359]) {
+      let m = Infinity;
+      for (let k = 1; k < sectors; k++) {
+        const a = (((p - (k * 360) / sectors) % 360) + 360) % 360;
+        const i = Math.floor(a);
+        const f = a - i;
+        // linear interpolation of the integer-grid samples, wrapping 359 -> 0
+        m = Math.min(m, g[i % 360] * (1 - f) + g[(i + 1) % 360] * f - g[p]);
+      }
+      expect(du[p]).toBeCloseTo(m, 9);
+    }
   });
 });
 
@@ -93,7 +119,6 @@ describe('duAperture', () => {
     const widths = [15, 20, 25].map((thr) => {
       const r = duAperture(parabolaGrid, thr, 3);
       const [lo, hi] = bruteAperture(thr);
-      expect(r.edges![0]).toBeCloseTo(lo, 0);
       expect(Math.abs(r.edges![0] - lo)).toBeLessThan(0.1);
       expect(Math.abs(r.edges![1] - hi)).toBeLessThan(0.1);
       expect(r.edges![0]).toBeCloseTo(-r.edges![1], 9);

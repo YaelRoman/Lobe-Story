@@ -54,7 +54,7 @@ export interface PatternMetrics {
   spr: MetricResult;
   air: MetricResult;
   rollOff: MetricResult;
-  du: { qam16: MetricResult; qam64: MetricResult; qam256: MetricResult };
+  du: Record<'qam16' | 'qam64' | 'qam256', MetricResult & { edges?: [number, number] }>;
   delta: { hHpbw: MetricResult; vHpbw: MetricResult; fb: MetricResult };
 }
 
@@ -94,8 +94,7 @@ export function analyzePattern(
   const power = sectorPower(grids.h, s.sectorEdgeDeg);
   const du = Object.fromEntries(
     DU_LEVELS.map((l) => {
-      const { value, reason, angle } = duAperture(grids.h, l.db, s.siteSectors);
-      return [l.key, { value, reason, angle }];
+      return [l.key, { ...duAperture(grids.h, l.db, s.siteSectors) }];
     }),
   ) as PatternMetrics['du'];
   const declared = item.pattern.declared;

@@ -127,7 +127,7 @@ describe('sector marker', () => {
     const f = buildCutFigure(opts({ mode: 'rect', markers: sector, markerTarget: 'a' }));
     const bar = traces(f).find((t) => t.name?.startsWith('D/U 16QAM'))!;
     expect(bar.type).toBe('scatter');
-    expect(new Set(bar.y as number[])).toEqual(new Set([0]));
+    expect(new Set(bar.y as number[])).toEqual(new Set([-40 * 0.03]));
     const lines = (f.layout.shapes as Partial<Shape>[]).filter((s) => s.type === 'line');
     expect(lines.map((s) => s.x0).sort((p, q) => Number(p) - Number(q))).toEqual([-60, 60]);
   });
@@ -138,6 +138,68 @@ describe('sector marker', () => {
     expect(buildCutFigure(opts({ markers: sector })).data).toHaveLength(1);
     const f = buildCutFigure(opts({ markers: sector, markerTarget: 'a', rotationDeg: 30, sectorEdgeDeg: 45 }));
     expect(traces(f).find((t) => t.name === 'Sector edge +45°')!.theta).toEqual([75, 75]);
+  });
+
+  const withDu = (edges: [number, number] | null, rot = 0) => {
+    const base = series('a')[0];
+    const r = edges
+      ? { value: edges[1] - edges[0], edges, angle: (edges[0] + edges[1]) / 2 }
+      : { value: null, reason: 'x' };
+    const metrics = { ...base.metrics, du: { qam16: r, qam64: r, qam256: r } };
+    return { ...base, metrics, rotationDeg: rot };
+  };
+  const bar16 = (f: { data: unknown[] }) => traces(f).find((t) => t.name?.startsWith('D/U 16QAM'))!;
+
+  it('uses the aperture edges, not angle +/- value/2, for the arcs', () => {
+    const f = buildCutFigure(opts({ series: [withDu([-20, 50])], markers: sector, markerTarget: 'a' }));
+    const th = bar16(f).theta as number[];
+    expect(th[0]).toBe(-20);
+    expect(th[th.length - 1]).toBe(50);
+  });
+
+  it('keeps one polar arc and splits the rectangular bar at the seam for a wrapped aperture', () => {
+    const s = withDu([-300, 10]);
+    const polar = buildCutFigure(opts({ series: [s], markers: sector, markerTarget: 'a' }));
+    expect(bar16(polar).theta).toHaveLength(311);
+    const rect = buildCutFigure(opts({ mode: 'rect', series: [s], markers: sector, markerTarget: 'a' }));
+    const x = bar16(rect).x as (number | null)[];
+    expect(x.filter((v) => v === null)).toHaveLength(1);
+    const gap = x.indexOf(null);
+    expect(x[gap - 1]).toBe(180);
+    expect(x[gap + 1]).toBe(-179);
+    expect(x[0]).toBe(60);
+    expect(x[x.length - 1]).toBe(10);
+  });
+
+  it('draws a full ring/bar for 360 degrees without a stray point at +180', () => {
+    const s = withDu([-180, 180]);
+    const rect = buildCutFigure(opts({ mode: 'rect', series: [s], markers: sector, markerTarget: 'a' }));
+    const x = bar16(rect).x as (number | null)[];
+    expect(x).not.toContain(null);
+    expect(x[0]).toBe(-180);
+    expect(x[x.length - 1]).toBe(180);
+    const polar = buildCutFigure(opts({ series: [s], markers: sector, markerTarget: 'a' }));
+    expect((bar16(polar).theta as number[]).length).toBe(361);
+  });
+
+  it('draws no arc but still the edge lines when the aperture is null', () => {
+    const f = buildCutFigure(opts({ series: [withDu(null)], markers: sector, markerTarget: 'a' }));
+    expect(arcNames(f)).toHaveLength(0);
+    expect(traces(f).map((t) => t.name)).toContain('Sector edge +60°');
+  });
+
+  it('gives edge lines a dash style distinct from the beam-direction ray', () => {
+    const f = buildCutFigure(opts({ markers: { ...sector, peak: true }, markerTarget: 'a' }));
+    const edge = traces(f).find((t) => t.name === 'Sector edge +60°')!;
+    const beam = traces(f).find((t) => t.name?.startsWith('Squint'))!;
+    expect(edge.line!.dash).toBe('dashdot');
+    expect(beam.line!.dash).not.toBe(edge.line!.dash);
+  });
+
+  it('starts the D/U bars one slot in so none sits on the plot edge', () => {
+    const f = buildCutFigure(opts({ mode: 'rect', markers: sector, markerTarget: 'a' }));
+    const ys = ['16QAM', '64QAM', '256QAM'].map((q) => new Set(traces(f).find((t) => t.name?.startsWith(`D/U ${q}`))?.y as number[]));
+    for (const y of ys) expect([...y][0]).toBeLessThan(0);
   });
 });
 

@@ -35,7 +35,7 @@ export interface CutFigureOptions {
 interface Sector { from: number; to: number; label: string; opacity: number }
 interface Ring { db: number; label: string }
 interface Point { angle: number; db: number; label: string }
-interface Ray { angle: number; label: string }
+interface Ray { angle: number; label: string; dash?: 'dot' | 'dashdot' }
 /** A band drawn along the outer radius (polar) or near the top (rectangular); `slot` stacks several. */
 interface Arc { from: number; to: number; slot: number; label: string }
 interface MarkerSpec { sectors: Sector[]; rings: Ring[]; points: Point[]; rays: Ray[]; arcs: Arc[] }
@@ -85,14 +85,14 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
   if (o.markers.sector && o.cut === 'H') {
     for (const sign of [1, -1]) {
       const angle = signed(sign * o.sectorEdgeDeg + rot);
-      spec.rays.push({ angle, label: `Sector edge ${sign > 0 ? '+' : '−'}${o.sectorEdgeDeg}°` });
+      spec.rays.push({ angle, label: `Sector edge ${sign > 0 ? '+' : '−'}${o.sectorEdgeDeg}°`, dash: 'dashdot' });
     }
     DU_LEVELS.forEach((l, slot) => {
       const r = m.du[l.key];
-      if (r.value === null || r.angle === undefined) return;
+      if (r.value === null || !r.edges) return;
       spec.arcs.push({
-        from: r.angle - r.value / 2 + rot,
-        to: r.angle + r.value / 2 + rot,
+        from: r.edges[0] + rot,
+        to: r.edges[1] + rot,
         slot,
         label: `D/U ${l.label} (≥ ${l.db} dB): ${r.value.toFixed(1)}°`,
       });
@@ -149,7 +149,7 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
       name: ray.label,
       theta: [ray.angle, ray.angle],
       r: [floor, 0],
-      line: { color: o.theme.accent, dash: 'dot', width: 1.5 },
+      line: { color: o.theme.accent, dash: ray.dash ?? 'dot', width: 1.5 },
       hoverinfo: 'name',
     });
   }
@@ -160,7 +160,7 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
       mode: 'lines',
       name: a.label,
       theta,
-      r: theta.map(() => floor * 0.03 * a.slot),
+      r: theta.map(() => floor * 0.03 * (a.slot + 1)),
       line: { color: o.theme.accent, width: 5 },
       opacity: 0.6,
       hoverinfo: 'name',
@@ -194,7 +194,7 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
     shapes.push({ type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: ring.db, y1: ring.db, line: { color: o.theme.accent, dash: 'dash', width: 1 } });
   }
   for (const ray of spec.rays) {
-    shapes.push({ type: 'line', xref: 'x', yref: 'paper', x0: ray.angle, x1: ray.angle, y0: 0, y1: 1, line: { color: o.theme.accent, dash: 'dot', width: 1.5 } });
+    shapes.push({ type: 'line', xref: 'x', yref: 'paper', x0: ray.angle, x1: ray.angle, y0: 0, y1: 1, line: { color: o.theme.accent, dash: ray.dash ?? 'dot', width: 1.5 } });
   }
   for (const p of spec.points) {
     traces.push({
@@ -210,7 +210,8 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
   for (const a of spec.arcs) {
     const x: (number | null)[] = [];
     for (const t of arc(a.from, Math.min(a.to, a.from + 360))) {
-      const v = signed(t);
+      // +180 and -180 coincide: begin at -180 so a full-circle bar has no isolated start point.
+      const v = x.length === 0 && signed(t) === 180 ? -180 : signed(t);
       if (x.length && v < (x[x.length - 1] ?? v) - 180) x.push(null);
       x.push(v);
     }
@@ -219,7 +220,7 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
       mode: 'lines',
       name: a.label,
       x,
-      y: x.map(() => -o.floorDb * 0.03 * a.slot),
+      y: x.map(() => -o.floorDb * 0.03 * (a.slot + 1)),
       line: { color: o.theme.accent, width: 5 },
       opacity: 0.6,
       hoverinfo: 'name',

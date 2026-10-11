@@ -238,7 +238,8 @@ export function projectToState(
     }
   }
   const sectors = rawSettings.siteSectors;
-  settings.siteSectors = Number.isInteger(sectors) && (sectors as number) >= 2 && (sectors as number) <= 12 ? (sectors as number) : DEFAULT_SETTINGS.siteSectors;
+  const sectorsValid = Number.isInteger(sectors) && (sectors as number) >= 2 && (sectors as number) <= SETTING_MAX.siteSectors;
+  settings.siteSectors = sectorsValid ? (sectors as number) : DEFAULT_SETTINGS.siteSectors;
 
   const floor = num(rawView.floorDb, dv.floorDb);
   const selected = st.selected && st.selected.kind === 'group' && !groupIds.has(st.selected.id) ? null : (st.selected ?? null);
