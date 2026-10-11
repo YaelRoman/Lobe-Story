@@ -3,6 +3,7 @@ import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import type { AnalysisSettings } from '../core/analysis/metrics';
 import { sanitizeSubBands, subBandName, type BandDataset, type SubBand } from '../core/analysis/subBands';
 import { FIRST_LOBE_RANGE } from '../core/analysis/sidelobes';
+import { fixed } from './fixed';
 import { csvCell, csvText, tabSafe, tsvText } from './table';
 
 /** What a table cell shows: `original → tilted` only where the two texts differ. */
@@ -86,7 +87,7 @@ const TYPE_LABEL = {
 } as const;
 
 const GAIN_TILT_KEYS = new Set(['gainMinTilt', 'gainMidTilt', 'gainMaxTilt']);
-const f2 = (v: number | undefined): string => (v === undefined ? '' : v.toFixed(2));
+const f2 = (v: number | undefined): string => (v === undefined ? '' : fixed(v, 2));
 
 function csvLine(label: string, state: string | null, column: BandColumn, p: (typeof BAND_PARAMS)[number], cell: BandCell, settings: AnalysisSettings): string[] {
   const stat = cell.stat;

@@ -6,9 +6,10 @@ import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
 import { bwName } from './bwLabel';
+import { fixed } from './fixed';
 import { METRIC_KEYS, type MetricColumn } from '../state/metricKeys';
 
-export { METRIC_KEYS, type MetricColumn };
+export { METRIC_KEYS, type MetricColumn, fixed };
 
 export const COLUMN_GROUPS: { key: ColumnGroupKey; label: string }[] = [
   { key: 'beam', label: 'Beam' },
@@ -378,7 +379,7 @@ export function shouldReveal(
   return prev.id !== cur.id || prev.sort?.key !== cur.sort?.key || prev.sort?.dir !== cur.sort?.dir;
 }
 
-const fmt = (v: number | null) => (v === null ? '' : v.toFixed(2));
+const fmt = (v: number | null) => (v === null ? '' : fixed(v, 2));
 /** One CSV field, quoted only where CSV syntax needs it. */
 export const csvCell = (raw: string) => (/[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw);
 
@@ -396,7 +397,7 @@ export const tabSafe = (raw: string): string => raw.replace(/[\t\r\n]+/g, ' ');
 /** One tab-separated field of user-influenced text: formula-guarded as in the CSV, and a tab or line break becomes a space so it cannot split the cell. */
 export const tsvText = (raw: string): string => tabSafe(formulaSafe(raw));
 
-const oneDecimal = (r: MetricResult) => (r.value === null ? '—' : r.value.toFixed(1));
+const oneDecimal = (r: MetricResult) => (r.value === null ? '—' : fixed(r.value, 1));
 
 /** A difference as shown: signed, one decimal ("+1.2", "−0.4" as "-0.4", "0.0" when it rounds to zero). */
 export function signedOneDecimal(v: number | null): string {
@@ -508,7 +509,7 @@ const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = fa
 const rowRole = (r: MetricsRow): string => (r.isReference ? 'reference' : 'difference');
 
 /** What the Gain cell shows: the value, or the signed difference in the difference view. */
-export const gainText = (r: MetricsRow): string => (r.gain === null ? '—' : r.isDelta ? signedTwoDecimals(r.gain) : r.gain.toFixed(2));
+export const gainText = (r: MetricsRow): string => (r.gain === null ? '—' : r.isDelta ? signedTwoDecimals(r.gain) : fixed(r.gain, 2));
 
 function signedTwoDecimals(v: number): string {
   const rounded = Number(v.toFixed(2));
