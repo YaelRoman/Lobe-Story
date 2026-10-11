@@ -31,5 +31,7 @@ export const LEGEND: Partial<Legend> & { maxheight: number } = {
   yanchor: 'bottom',
   x: 0,
   xanchor: 'left',
+  font: { size: 11 },
+  tracegroupgap: 0,
   maxheight: LEGEND_MAX_HEIGHT,
 };

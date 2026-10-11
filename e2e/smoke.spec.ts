@@ -272,8 +272,12 @@ test('legends never cover axis titles or squeeze the plot', async ({ page }) => 
   const apart = (a: { y: number; height: number }, b: { y: number; height: number }) =>
     a.y + a.height <= b.y + 0.5 || b.y + b.height <= a.y + 0.5;
 
+  // More than 4 files: the file panel swatches are the legend, the cut plot keeps all of its area.
+  await expect(page.getByTestId('plot-h').locator('.main-svg').first()).toBeVisible();
+  await expect(page.getByTestId('plot-h').locator('.legend')).toHaveCount(0);
+  await expect(page.getByTestId('readout-h')).toContainText('12 traces');
+
   for (const [id, title] of [
-    ['plot-h', '.xtitle'],
     ['plot-hpbw', '.xtitle'],
   ] as const) {
     const plot = page.getByTestId(id);
@@ -292,4 +296,33 @@ test('legends never cover axis titles or squeeze the plot', async ({ page }) => 
     const span = Math.max(...bgs.map((b) => b[1])) - Math.min(...bgs.map((b) => b[0]));
     expect(span / card.height, `${id}: plot area share`).toBeGreaterThanOrEqual(0.55);
   }
+});
+
+test('polar plot stays large with many files and the read-out lists the marker values', async ({ page }) => {
+  await page.goto('/');
+  const files = Array.from({ length: 30 }, (_, i) => {
+    const f = 1700 + i * 10;
+    return file(`_${f}_X_CO_P45_08T_VeryLongAntennaModelName_Variant${i}_Y2.MSI`, msi(f));
+  });
+  await page.getByTestId('file-input').setInputFiles(files);
+  await page.getByRole('checkbox', { name: /Show all in/ }).first().check();
+  const plot = page.getByTestId('plot-h');
+  await expect(plot.locator('.polarlayer .plotbg')).toBeVisible();
+  await expect(plot.locator('.legend')).toHaveCount(0);
+  const across = await plot.locator('.polarlayer .plotbg').evaluate((e) => e.getBoundingClientRect().width);
+  expect(across).toBeGreaterThanOrEqual(300);
+
+  // The first file is highlighted: its HPBW and squint are text under each plot.
+  await expect(page.getByTestId('readout-h')).toContainText('HPBW 65.0°');
+  await page.getByRole('checkbox', { name: 'Beam direction' }).check();
+  await expect(page.getByTestId('readout-h')).toContainText('Squint');
+  await expect(page.getByTestId('readout-v')).toContainText('Tilt');
+
+  // With a single file visible the legend is back, with a compact name.
+  const boxes = page.getByRole('checkbox', { name: /Show all in/ });
+  await boxes.first().uncheck();
+  await page.getByLabel('Files and groups').getByRole('checkbox', { name: /^Show (?!all)/ }).first().check();
+  await expect(plot.locator('.legend')).toBeVisible();
+  const entry = await plot.locator('.legend .legendtext').first().textContent();
+  expect(entry!.length).toBeLessThanOrEqual(34);
 });

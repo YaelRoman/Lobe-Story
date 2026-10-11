@@ -6,6 +6,7 @@ import type { LobeResult } from '../core/analysis/sidelobes';
 import { DU_LEVELS } from '../core/analysis/sector';
 import type { MarkerKey, PlotMode } from '../state/store';
 import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
+import { LEGEND_NAME_MAX, middleEllipsis, showFileLegend } from './legend';
 
 export interface PlotSeries {
   id: string;
@@ -37,7 +38,8 @@ export interface CutFigureOptions {
   rotationDeg?: number;
 }
 
-interface Sector { from: number; to: number; label: string; opacity: number }
+/** `readout: false` marks a band that only shades the plot and carries no value of its own. */
+interface Sector { from: number; to: number; label: string; opacity: number; readout?: boolean }
 interface Ring { db: number; label: string }
 interface Point { angle: number; db: number; label: string }
 interface Ray { angle: number; label: string; dash?: 'dot' | 'dashdot' }
@@ -78,7 +80,7 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
     spec.sectors.push({ from: beam.edges[0] + rot, to: beam.edges[1] + rot, label: `HPBW ${beam.hpbw.value.toFixed(1)}°`, opacity: 0.15 });
   }
   if (o.markers.fb && o.cut === 'H') {
-    spec.sectors.push({ from: 180 - o.fbWindowDeg + rot, to: 180 + o.fbWindowDeg + rot, label: `F/B window ±${o.fbWindowDeg}°`, opacity: 0.08 });
+    spec.sectors.push({ from: 180 - o.fbWindowDeg + rot, to: 180 + o.fbWindowDeg + rot, label: `F/B window ±${o.fbWindowDeg}°`, opacity: 0.08, readout: false });
     point(m.fbWindow, (v) => `F/B ±${o.fbWindowDeg}° ${v.toFixed(1)} dB`);
   }
   const lobeMarkers = (items: { label: string; r: LobeResult }[]) => {
@@ -145,6 +147,7 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
       opacity: s.opacity,
       line: { width: 0 },
       hoverinfo: 'name',
+      showlegend: false,
     });
   }
   for (const ring of spec.rings) {
@@ -157,6 +160,7 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
       r: theta.map(() => ring.db),
       line: { color: o.theme.accent, dash: 'dash', width: 1 },
       hoverinfo: 'name',
+      showlegend: false,
     });
   }
   for (const p of spec.points) {
@@ -168,6 +172,7 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
       r: [Math.max(p.db, floor)],
       marker: { color: o.theme.accent, size: 10, symbol: 'x' },
       hoverinfo: 'name',
+      showlegend: false,
     });
   }
   for (const ray of spec.rays) {
@@ -179,6 +184,7 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
       r: [floor, 0],
       line: { color: o.theme.accent, dash: ray.dash ?? 'dot', width: 1.5 },
       hoverinfo: 'name',
+      showlegend: false,
     });
   }
   for (const a of spec.arcs) {
@@ -192,6 +198,7 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
       line: { color: o.theme.accent, width: 5 },
       opacity: 0.6,
       hoverinfo: 'name',
+      showlegend: false,
     });
   }
   return out;
@@ -233,6 +240,7 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
       y: [Math.max(p.db, -o.floorDb)],
       marker: { color: o.theme.accent, size: 10, symbol: 'x' },
       hoverinfo: 'name',
+      showlegend: false,
     });
   }
   for (const a of spec.arcs) {
@@ -252,18 +260,50 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
       line: { color: o.theme.accent, width: 5 },
       opacity: 0.6,
       hoverinfo: 'name',
+      showlegend: false,
     });
   }
   return { traces, shapes };
 }
 
+/**
+ * The values of the markers drawn for the target series (HPBW, squint, F/B, sidelobes, D/U widths…),
+ * as plain text lines for the read-out under the plot; the markers are not repeated in the legend.
+ */
+export function markerReadout(o: CutFigureOptions): string[] {
+  const target = o.series.find((s) => s.id === o.markerTarget);
+  if (!target) return [];
+  const spec = markerSpec(target, o);
+  return [
+    ...spec.sectors.filter((s) => s.readout !== false).map((s) => s.label),
+    ...spec.points.map((p) => p.label),
+    ...spec.rays.map((r) => r.label),
+    ...spec.arcs.map((a) => a.label),
+  ];
+}
+
+/**
+ * Screen angle of the radial axis (counter-clockwise from the right; 270 = straight down). The
+ * horizontal cut's beam points up, so the axis runs down the rear, turned with the azimuth; the
+ * vertical cut's beam lies along the horizon, so up/down is free.
+ */
+function radialAxisAngle(o: CutFigureOptions): number {
+  if (o.cut === 'V') return 270;
+  const rot = o.rotationDeg ?? o.series[0]?.rotationDeg ?? 0;
+  return (((270 - rot) % 360) + 360) % 360;
+}
+
+// Plotly has `meta` (referenced as %{meta} in hover labels); @types/plotly.js does not declare it.
+type FileTrace = Partial<PlotData> & { meta?: string };
+
 export function buildCutFigure(o: CutFigureOptions): Figure {
-  const data: Partial<PlotData>[] = [];
+  const data: FileTrace[] = [];
   let largest = 0;
   for (const s of o.series) {
     const { x, y } = sortedCut(s.cut, s.rotationDeg ?? o.rotationDeg ?? 0);
     const r = y.map((v) => level(v, o.floorDb));
     for (const v of r) if (v > largest) largest = v;
+    const legendName = middleEllipsis(s.label, LEGEND_NAME_MAX);
     const line = {
       color: s.color,
       width: s.id === o.markerTarget ? 2.5 : 1.5,
@@ -273,14 +313,15 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
       data.push({
         type: 'scatterpolar',
         mode: 'lines',
-        name: s.label,
+        name: legendName,
+        meta: s.label,
         theta: [...x, x[0]],
         r: [...r, r[0]],
         line,
-        hovertemplate: '%{theta:.0f}°  %{r:.2f} dB',
+        hovertemplate: '%{theta:.0f}°  %{r:.2f} dB<extra>%{meta}</extra>',
       });
     } else {
-      data.push({ type: 'scatter', mode: 'lines', name: s.label, x, y: r, line, hovertemplate: '%{x:.0f}°  %{y:.2f} dB' });
+      data.push({ type: 'scatter', mode: 'lines', name: legendName, meta: s.label, x, y: r, line, hovertemplate: '%{x:.0f}°  %{y:.2f} dB<extra>%{meta}</extra>' });
     }
   }
 
@@ -300,7 +341,7 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
     plot_bgcolor: 'rgba(0,0,0,0)',
     font: { color: o.theme.fg },
     margin: { l: 50, r: 30, t: 50, b: 40 },
-    showlegend: true,
+    showlegend: showFileLegend(o.series.length),
     legend: LEGEND,
   };
 
@@ -321,7 +362,11 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
           },
           radialaxis: {
             range: [-o.floorDb, top],
-            dtick: 10,
+            dtick: o.floorDb + top > 60 ? 20 : 10,
+            // Tick labels run along the empty rear side of the pattern instead of over the beam.
+            angle: radialAxisAngle(o),
+            tickangle: 0,
+            tickfont: { size: 10 },
             ticksuffix: ' dB',
             gridcolor: o.theme.grid,
             linecolor: o.theme.grid,

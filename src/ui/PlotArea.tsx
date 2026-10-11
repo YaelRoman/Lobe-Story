@@ -3,9 +3,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { useStore, type CutView, type Dimension, type Layout3d, type MarkerKey, type PlotMode } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
-import { buildCutFigure } from './cutFigure';
+import { buildCutFigure, markerReadout } from './cutFigure';
 import { buildCutSeries } from './cutSeries';
-import { FIGURE_THEMES } from './figureTheme';
+import { FIGURE_THEMES, type Figure } from './figureTheme';
+import { showFileLegend } from './legend';
 import { PlotlyChart } from './PlotlyChart';
 import { Pattern3D } from './Pattern3D';
 import { SimulationBar } from './SimulationBar';
@@ -27,6 +28,38 @@ const MARKER_LABELS: Record<MarkerKey, string> = {
   peak: 'Beam direction',
   sector: 'Sector',
 };
+
+interface CutPlotProps {
+  id: 'h' | 'v';
+  figure: Figure;
+  readout: string[];
+  target: string;
+  traces: number;
+}
+
+/** One cut plot with the read-out of the highlighted file's marker values underneath. */
+function CutPlot({ id, figure, readout, target, traces }: CutPlotProps) {
+  const noLegend = traces > 0 && !showFileLegend(traces);
+  return (
+    <div className="plot-col">
+      <PlotlyChart className="plot" figure={figure} testId={`plot-${id}`} />
+      {(readout.length > 0 || noLegend) && (
+        <div className="readout" data-testid={`readout-${id}`}>
+          {readout.length > 0 && (
+            <p>
+              <strong>{target}:</strong> {readout.join(' · ')}
+            </p>
+          )}
+          {noLegend && (
+            <p className="count">
+              {traces} traces: colours as in the file panel (dashed = original); hover a trace for its name.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }: Props) {
   // Only the fields used here: subscribing to the whole view would re-render on every slider tick.
@@ -64,14 +97,11 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
       sectorEdgeDeg: settings.sectorEdgeDeg,
       uslsRangeDeg: settings.uslsRangeDeg,
     };
-    return {
-      h: buildCutFigure({
-        ...common,
-        cut: 'H',
-        series: buildCutSeries(items, sim, metrics, colors, 'H'),
-      }),
-      v: buildCutFigure({ ...common, cut: 'V', series: buildCutSeries(items, sim, metrics, colors, 'V') }),
+    const make = (cut: 'H' | 'V') => {
+      const options = { ...common, cut, series: buildCutSeries(items, sim, metrics, colors, cut) };
+      return { figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === markerTarget)?.label ?? '', traces: options.series.length };
     };
+    return { h: make('H'), v: make('V') };
   }, [is3d, items, metrics, colors, view.mode, view.floorDb, view.markers, view.theme, markerTarget, settings, sim]);
 
   return (
@@ -141,8 +171,8 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
         <>
           {!markerTarget && <p className="count">Click a file to show its analysis markers.</p>}
           <div className="plots">
-            {view.cut !== 'V' && figures && <PlotlyChart className="plot" figure={figures.h} testId="plot-h" />}
-            {view.cut !== 'H' && figures && <PlotlyChart className="plot" figure={figures.v} testId="plot-v" />}
+            {view.cut !== 'V' && figures && <CutPlot id="h" {...figures.h} />}
+            {view.cut !== 'H' && figures && <CutPlot id="v" {...figures.v} />}
           </div>
         </>
       )}

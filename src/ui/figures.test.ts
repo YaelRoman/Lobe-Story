@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Legend, PlotData, Shape } from 'plotly.js';
-import { buildCutFigure, type CutFigureOptions, type PlotSeries } from './cutFigure';
+import { buildCutFigure, markerReadout, type CutFigureOptions, type PlotSeries } from './cutFigure';
 import { buildHpbwFigure } from './hpbwFigure';
 import { colorMap, PALETTE } from './colors';
 import { FIGURE_THEMES } from './figureTheme';
@@ -379,6 +379,64 @@ describe('colorMap', () => {
     const ids = Array.from({ length: PALETTE.length }, (_, i) => `f${i}`);
     const m = colorMap(ids);
     expect(new Set(m.values()).size).toBe(PALETTE.length);
+  });
+});
+
+describe('cut legend contents', () => {
+  const many = (n: number): PlotSeries[] =>
+    Array.from({ length: n }, (_, i) => ({ ...series('a')[0], id: `f${i}`, label: `${1800 + i} MHz · _${1800 + i}_X_CO_P45_08T_VeryLongAntennaModelName_Variant${i}.MSI` }));
+
+  it('lists file traces with compact names up to 4, and hides the legend beyond that', () => {
+    const f4 = buildCutFigure(opts({ series: many(4) }));
+    expect(f4.layout.showlegend).toBe(true);
+    for (const t of traces(f4)) {
+      expect(t.showlegend).not.toBe(false);
+      expect(t.name!.length).toBeLessThanOrEqual(34);
+    }
+    expect(buildCutFigure(opts({ series: many(5) })).layout.showlegend).toBe(false);
+  });
+
+  it('keeps the full file name in the hover label', () => {
+    const [t] = traces(buildCutFigure(opts({ series: many(1) }))) as (Partial<PlotData> & { meta?: string })[];
+    expect(t.hovertemplate).toContain('<extra>%{meta}</extra>');
+    expect(t.meta).toBe('1800 MHz · _1800_X_CO_P45_08T_VeryLongAntennaModelName_Variant0.MSI');
+  });
+
+  it('keeps marker traces out of the legend (the read-out lists them)', () => {
+    const s = series('a')[0];
+    const f = buildCutFigure(opts({ series: [s], markerTarget: 'a', markers: { ...NO_MARKERS, hpbw: true, peak: true } }));
+    const markerTraces = traces(f).slice(1);
+    expect(markerTraces.length).toBeGreaterThan(0);
+    expect(markerTraces.every((t) => t.showlegend === false)).toBe(true);
+    const rect = buildCutFigure(opts({ mode: 'rect', series: [s], markerTarget: 'a', markers: { ...NO_MARKERS, fb: true } }));
+    expect(traces(rect).slice(1).every((t) => t.showlegend === false)).toBe(true);
+  });
+
+  it('puts the polar radial tick labels on the empty (rear) side, never over the beam', () => {
+    const radial = (over: Partial<CutFigureOptions>) => buildCutFigure(opts(over)).layout.polar?.radialaxis;
+    expect(radial({ cut: 'H' })?.angle).toBe(270);
+    expect(radial({ cut: 'H' })?.tickangle).toBe(0);
+    expect(radial({ cut: 'H', rotationDeg: 30 })?.angle).toBe(240);
+    expect(radial({ cut: 'H', rotationDeg: -30 })?.angle).toBe(300);
+    expect(radial({ cut: 'H', series: [{ ...series('a')[0], rotationDeg: 300 }] })?.angle).toBe(330);
+    expect(radial({ cut: 'V' })?.angle).toBe(270);
+  });
+
+  it('thins the radial ticks for a deep floor', () => {
+    expect(buildCutFigure(opts({ floorDb: 40 })).layout.polar?.radialaxis?.dtick).toBe(10);
+    expect(buildCutFigure(opts({ floorDb: 80 })).layout.polar?.radialaxis?.dtick).toBe(20);
+  });
+});
+
+describe('markerReadout', () => {
+  it('lists the values of the active markers of the target, nothing without a target', () => {
+    const s = series('a')[0];
+    const m = { ...NO_MARKERS, hpbw: true, peak: true };
+    expect(markerReadout(opts({ series: [s], markerTarget: null, markers: m }))).toEqual([]);
+    const r = markerReadout(opts({ series: [s], markerTarget: 'a', markers: m }));
+    expect(r.some((x) => x.startsWith('HPBW '))).toBe(true);
+    expect(r.some((x) => x.startsWith('Squint '))).toBe(true);
+    expect(markerReadout(opts({ series: [s], markerTarget: 'a', markers: NO_MARKERS }))).toEqual([]);
   });
 });
 
