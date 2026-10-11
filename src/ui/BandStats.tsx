@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
-import { autoSubBands, buildDatasets, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
+import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
 import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, hintText, largestDataset, type BandSheet } from './bandView';
 import { buildBandHistFigure } from './bandHistFigure';
 import { downloadText } from './download';
@@ -32,7 +32,11 @@ export const BandStats = memo(function BandStats({
   sim: SimulationResult;
 }) {
   const customGroups = useStore((s) => s.customGroups);
-  const highlighted = useStore((s) => s.highlighted);
+  // Key of the highlighted file's dataset (a string), so moving the highlight within one dataset does not re-render.
+  const highlightedKey = useStore((s) => {
+    const item = s.highlighted === null ? undefined : tagged.find((t) => t.pattern.id === s.highlighted);
+    return item ? datasetKeyOf(item, s.customGroups) : null;
+  });
   const userSubBands = useStore((s) => s.view.subBands);
   const gainUnit = useStore((s) => s.view.gainUnit);
   const settings = useStore((s) => s.settings);
@@ -46,7 +50,7 @@ export const BandStats = memo(function BandStats({
   const largest = largestDataset(datasets);
   const dataset =
     datasets.find((d) => d.key === chosen) ??
-    datasets.find((d) => d.items.some((i) => i.pattern.id === highlighted)) ??
+    datasets.find((d) => d.key === highlightedKey) ??
     datasets[0];
 
   const subBands = useMemo(() => (dataset ? subBandsFor(dataset.items, userSubBands) : []), [dataset, userSubBands]);
@@ -65,6 +69,8 @@ export const BandStats = memo(function BandStats({
       ? columns[picked.column]
       : null;
   const pickedCell = picked && pickedColumn ? (tiltedColumns?.[picked.column] ?? pickedColumn).cells[picked.key] : null;
+  const pickedDetail =
+    picked && pickedColumn ? cellDisplay(pickedColumn.cells[picked.key], tiltedColumns?.[picked.column].cells[picked.key]).title : '';
   const pickedSpec = picked ? BAND_PARAMS.find((p) => p.key === picked.key) : undefined;
   const figure = useMemo(
     () =>
@@ -143,12 +149,12 @@ export const BandStats = memo(function BandStats({
           ` Beamwidth level is ${settings.levelDb} dB: the beamwidth, squint and tilt rows are not half-power values.`}
       </p>
       <div className="table-wrap">
-        <table className="band">
+        <table className="band" aria-label={`Band statistics for ${dataset.label}`}>
           <thead>
             <tr>
-              <th>Parameter</th>
+              <th scope="col">Parameter</th>
               {columns.map((c, i) => (
-                <th key={i} title={columnSummary(c)}>
+                <th key={i} scope="col" title={columnSummary(c)}>
                   {c.subBand.name}
                   <span className="count"> {c.files} files</span>
                 </th>
@@ -169,13 +175,25 @@ export const BandStats = memo(function BandStats({
                   const scope = scopeOf(dataset.key, c.subBand);
                   const clickable = shown.values.length > 0 && p.key !== 'tiltRange';
                   const isPicked = picked?.key === p.key && picked.column === i && picked.scope === scope;
+                  const toggle = () => setPicked(isPicked ? null : { key: p.key, column: i, scope });
                   return (
                     <td
                       key={i}
                       title={d.title}
                       className={[d.muted ? 'muted' : '', isPicked ? 'sel' : ''].filter(Boolean).join(' ') || undefined}
                       aria-selected={clickable ? isPicked : undefined}
-                      onClick={clickable ? () => setPicked(isPicked ? null : { key: p.key, column: i, scope }) : undefined}
+                      tabIndex={clickable ? 0 : undefined}
+                      onClick={clickable ? toggle : undefined}
+                      onKeyDown={
+                        clickable
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggle();
+                              }
+                            }
+                          : undefined
+                      }
                     >
                       {d.text}
                       {shown.n > 0 && <span className="count"> n={shown.n}</span>}
@@ -192,6 +210,9 @@ export const BandStats = memo(function BandStats({
           <p className="count">
             {bandParamLabel(pickedSpec, settings)} — {pickedColumn.subBand.name} — N = {pickedCell.n}
             {tiltedColumns ? ' (tilted)' : ''}
+          </p>
+          <p className="count band-detail" data-testid="band-detail">
+            {pickedDetail}
           </p>
           <PlotlyChart className="plot wide" figure={figure} testId="plot-band" />
         </>

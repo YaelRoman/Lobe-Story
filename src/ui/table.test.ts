@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
-  simulationLabel, toCsv, offsetLabel,
+  simulationLabel, toCsv, offsetLabel, csvCell,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
@@ -45,7 +45,7 @@ describe('buildRows and toCsv', () => {
         'File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),H-BW 10 dB (°),V-BW 10 dB (°),Squint (°),Peak az (°),Tilt (°),Peak tilt (°),Tilt error (°),F/B 180° (dB),F/B ±30° (dB)',
       ),
     ).toBe(true);
-    expect(line.startsWith('"""odd, name"".MSI",+45 · 6°T,1800,17.15,60.00,8.00,109.54,14.22,')).toBe(true);
+    expect(line.startsWith('"""odd, name"".MSI",\'+45 · 6°T,1800,17.15,60.00,8.00,109.54,14.22,')).toBe(true);
     expect(line.split(',').length).toBeGreaterThan(10);
     expect(line).toContain(',,'); // null tracking / deltas are empty
   });
@@ -392,5 +392,24 @@ describe('sidelobe columns', () => {
     expect(DEFAULT_TABLE_GROUPS.declared).toBe(false);
     const [header] = toCsv(rows, 'dBd', 30).trimEnd().split('\r\n');
     expect(header).toContain('ΔH-HPBW (°),ΔV-HPBW (°),ΔF/B (dB)');
+  });
+});
+
+describe('csvCell formula guard', () => {
+  it('prefixes a quote to text that a spreadsheet would read as a formula', () => {
+    expect(csvCell('=1+1')).toBe("'=1+1");
+    expect(csvCell('+SUM(A1)')).toBe("'+SUM(A1)");
+    expect(csvCell('-cmd')).toBe("'-cmd");
+    expect(csvCell('@x')).toBe("'@x");
+    expect(csvCell('=HYPERLINK("a","b")')).toBe('"\'=HYPERLINK(""a"",""b"")"');
+  });
+  it('leaves numbers and ordinary text alone', () => {
+    for (const t of ['-0.25', '+3', '12.50', '-1e-3', '.5', '', 'plain', '> 13.0 dB', '—']) expect(csvCell(t)).toBe(t);
+  });
+  it('guards a file name in the metrics CSV', () => {
+    const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'x', fileName: '=cmd.msi', gain: { value: 15, unit: 'dBd' } });
+    const tagged = [{ pattern, tags: {} }];
+    const rows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
+    expect(toCsv(rows, 'dBi', 30).split('\r\n')[1].startsWith("'=cmd.msi,")).toBe(true);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   autoSubBands,
   buildDatasets,
+  datasetKeyOf,
   inSubBand,
   MAX_SUB_BANDS,
   sanitizeSubBands,
@@ -136,5 +137,27 @@ describe('subBandsFor', () => {
     const r = subBandsFor(items, user);
     expect(r).toEqual(user);
     expect(r).not.toBe(user);
+  });
+});
+
+describe('datasetKeyOf', () => {
+  const groups = [{ id: 'g1', name: 'Site A' }];
+  const items = [
+    tp('a', { array: 'Y1' }),
+    tp('b', { array: 'Y1' }),
+    tp('c', { array: 'R1' }),
+    tp('e', { array: 'Y1' }, { scope: 'g1' }),
+    tp('h', { array: 'R1' }, { scope: 'zz' }),
+  ];
+  it('is the key of the dataset the file belongs to, equal for every file of one dataset', () => {
+    for (const d of buildDatasets(items, groups)) {
+      for (const i of d.items) expect(datasetKeyOf(i, groups)).toBe(d.key);
+    }
+    expect(datasetKeyOf(items[0], groups)).toBe(datasetKeyOf(items[1], groups));
+    expect(datasetKeyOf(items[0], groups)).not.toBe(datasetKeyOf(items[2], groups));
+  });
+  it('is null for a file that is in no dataset', () => {
+    expect(datasetKeyOf(tp('f', { array: 'Y1' }, { copyOf: 'a' }), groups)).toBeNull();
+    expect(datasetKeyOf(tp('g', { array: 'Y1' }, {}, 0), groups)).toBeNull();
   });
 });

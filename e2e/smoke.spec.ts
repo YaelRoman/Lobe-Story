@@ -143,8 +143,16 @@ test('computes band statistics over a sub-band', async ({ page }) => {
   await azimuthCell.click();
   await expect(page.getByTestId('plot-band').locator('.main-svg').first()).toBeVisible();
   await expect(band.getByText(/Azimuth beamwidth — 1800–1880 MHz — N = 10/)).toBeVisible();
+  await expect(band.getByTestId('band-detail')).toContainText('Double-sided (BASTA 12.4.2)');
   await azimuthCell.click();
   await expect(page.getByTestId('plot-band')).toHaveCount(0);
+  await expect(band.getByTestId('band-detail')).toHaveCount(0);
+  await azimuthCell.focus();
+  await azimuthCell.press('Enter');
+  await expect(page.getByTestId('plot-band')).toBeVisible();
+  await azimuthCell.press(' ');
+  await expect(page.getByTestId('plot-band')).toHaveCount(0);
+  await expect(band.getByRole('table', { name: 'Band statistics for Array Y2' })).toBeVisible();
 
   const download = page.waitForEvent('download');
   await band.getByRole('button', { name: 'Export band CSV' }).click();

@@ -205,7 +205,13 @@ export function buildRows(
 }
 
 const fmt = (v: number | null) => (v === null ? '' : v.toFixed(2));
-export const csvCell = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+const PLAIN_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+
+/** One CSV field. Text a spreadsheet would run as a formula (leading = + - @, not a plain number) gets a leading quote. */
+export const csvCell = (raw: string) => {
+  const s = /^[=+\-@]/.test(raw) && !PLAIN_NUMBER.test(raw) ? `'${raw}` : raw;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
 
 const oneDecimal = (r: MetricResult) => (r.value === null ? '—' : r.value.toFixed(1));
 

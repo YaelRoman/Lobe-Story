@@ -2,7 +2,7 @@
 
 Every column of the metrics table, as the code computes it, with the NGMN BASTA V13 section it
 corresponds to (section number only) or "tool-defined" when BASTA has no such parameter. Names are
-the table labels. Column groups can be hidden above the table; the CSV always has every column.
+the table labels. Column groups can be hidden above the table; the CSV always has every column. In both CSV files a text that starts with `=`, `+`, `-` or `@` and is not a plain number gets a leading `'`, so spreadsheets do not run it as a formula.
 
 ## Data and conventions
 
@@ -100,7 +100,7 @@ The "Band statistics" section below the metrics table computes the distribution-
 specification values of NGMN BASTA V13 Annex C ("65.1° ± 4.0°", "< 2.7 dB", "> 15.8 dB",
 "17.5 dBi ± 0.3 dB"): one row per parameter, one column per sub-band. The statistics reproduce the
 standard's four worked examples (65.1 ± 4.0, 2.7, 15.8 and 17.5 ± 0.35). Click a cell to see a
-histogram of its samples with the statistic drawn as vertical lines; **Export band CSV** writes
+histogram of its samples with the statistic drawn as vertical lines and the cell's detail text under the table (the cell is reachable with the keyboard: Tab, then Enter or Space); **Export band CSV** writes
 every antenna, sub-band and parameter in long form.
 
 **Dataset.** One statistic covers every loaded file, not copies, of one antenna whose frequency lies

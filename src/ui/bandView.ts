@@ -44,6 +44,10 @@ export function editSubBand(list: readonly SubBand[], index: number, patch: Part
   return sanitizeSubBands(next);
 }
 
+export function sameSubBands(a: readonly SubBand[], b: readonly SubBand[]): boolean {
+  return a.length === b.length && a.every((x, i) => x.name === b[i].name && x.minMHz === b[i].minMHz && x.maxMHz === b[i].maxMHz);
+}
+
 export interface BandSheet {
   label: string;
   columns: BandColumn[];

@@ -3,7 +3,7 @@ import { BAND_PARAMS, bandTable, type BandCell } from '../core/analysis/bandPara
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import type { SubBand } from '../core/analysis/subBands';
 import { bandItems } from '../test/bandFixture';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, editSubBand, hintText, largestDataset } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, editSubBand, hintText, largestDataset, sameSubBands } from './bandView';
 
 const items = bandItems();
 const metrics = analyzeAll(items, DEFAULT_SETTINGS);
@@ -111,5 +111,74 @@ describe('bandCsv', () => {
     expect(t[1].startsWith('Array Y1,original,')).toBe(true);
     expect(t[2].startsWith('Array Y1,tilted,')).toBe(true);
     expect(t[3].startsWith('Array Y1,original,')).toBe(true);
+  });
+});
+
+describe('bandCsv edge cases', () => {
+  const band = [{ name: '1800–1900 MHz', minMHz: 1800, maxMHz: 1900 }];
+  const csvLines = (sheets: Parameters<typeof bandCsv>[0]) => bandCsv(sheets, DEFAULT_SETTINGS).split('\r\n');
+
+  it('lists the antennas in sheet order', () => {
+    const lines = csvLines([
+      { label: 'Array Y1', columns },
+      { label: 'Array R1', columns },
+    ]);
+    expect(lines).toHaveLength(2 + 2 * BAND_PARAMS.length);
+    expect(lines.slice(1, 1 + BAND_PARAMS.length).every((l) => l.startsWith('Array Y1,'))).toBe(true);
+    expect(lines.slice(1 + BAND_PARAMS.length, -1).every((l) => l.startsWith('Array R1,'))).toBe(true);
+  });
+
+  it('writes both states, each with its own numbers, when the tilted run differs', () => {
+    const tiltedMetrics = new Map([...metrics].map(([id, m]) => [id, { ...m, h: { ...m.h, hpbw: { value: (m.h.hpbw.value ?? 0) + 10 } } }]));
+    const tilted = bandTable(items, tiltedMetrics, band, ctx);
+    const lines = csvLines([{ label: 'Array Y1', columns, tilted }]);
+    expect(lines).toHaveLength(2 + 2 * BAND_PARAMS.length);
+    const az = lines.filter((l) => l.includes('Azimuth beamwidth'));
+    expect(az).toHaveLength(2);
+    expect(az[0].startsWith('Array Y1,original,')).toBe(true);
+    expect(az[0]).toContain(',71.0° ± 9.5°,71.00,');
+    expect(az[1].startsWith('Array Y1,tilted,')).toBe(true);
+    expect(az[1]).toContain(',81.0° ± 9.5°,81.00,');
+    expect(lines.filter((l) => l.includes('Elevation beamwidth'))[0].split(',').slice(2)).toEqual(
+      lines.filter((l) => l.includes('Elevation beamwidth'))[1].split(',').slice(2),
+    );
+  });
+
+  it('writes an empty cell with no numbers and a few-samples cell with its range', () => {
+    const empty = bandTable(items, metrics, [{ name: '880–960 MHz', minMHz: 880, maxMHz: 960 }], ctx)[0];
+    const emptyLine = csvLines([{ label: 'Array Y1', columns: [empty] }]).find((l) => l.includes('Azimuth beamwidth'));
+    expect(emptyLine).toBe('Array Y1,880–960 MHz,880,960,Azimuth beamwidth,°,double-sided,0,—,,,,,,,,,0,');
+
+    const few = bandTable(items.slice(0, 4), metrics, band, ctx)[0];
+    expect(few.cells.hHpbw.state).toBe('few');
+    const line = csvLines([{ label: 'Array Y1', columns: [few] }]).find((l) => l.includes('Azimuth beamwidth'))!;
+    const f = line.split(',');
+    expect(f.slice(7, 9)).toEqual(['4', few.cells.hHpbw.text]);
+    expect(f.slice(9, 14)).toEqual(['', '', '', '', '']);
+    expect(f[14]).toBe(Math.min(...few.cells.hHpbw.values).toFixed(2));
+    expect(f[15]).toBe(Math.max(...few.cells.hHpbw.values).toFixed(2));
+    expect(f[16]).toBe('');
+  });
+
+  it('guards a text that starts like a formula', () => {
+    const line = csvLines([{ label: '=Site', columns }])[1];
+    expect(line.startsWith("'=Site,")).toBe(true);
+    const squint = { ...columns[0], cells: { ...columns[0].cells, squint: { ...columns[0].cells.squint, text: '-0.3° ± 1.0°' } } };
+    expect(csvLines([{ label: 'A', columns: [squint] }]).find((l) => l.includes('squint'))).toContain(",'-0.3° ± 1.0°,");
+  });
+});
+
+describe('sameSubBands', () => {
+  const a = [{ name: 'X', minMHz: 1, maxMHz: 2 }];
+  it('compares name and range', () => {
+    expect(sameSubBands(a, [{ name: 'X', minMHz: 1, maxMHz: 2 }])).toBe(true);
+    expect(sameSubBands(a, [{ name: 'Y', minMHz: 1, maxMHz: 2 }])).toBe(false);
+    expect(sameSubBands(a, [{ name: 'X', minMHz: 1, maxMHz: 3 }])).toBe(false);
+    expect(sameSubBands(a, [])).toBe(false);
+  });
+  it('tells a no-op edit from a real one', () => {
+    expect(sameSubBands(a, editSubBand(a, 0, { minMHz: 1 }))).toBe(true);
+    expect(sameSubBands(a, editSubBand(a, 0, { name: '  X ' }))).toBe(true);
+    expect(sameSubBands(a, editSubBand(a, 0, { minMHz: 1.5 }))).toBe(false);
   });
 });

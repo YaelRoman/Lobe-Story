@@ -78,6 +78,14 @@ export interface BandDataset {
   items: TaggedPattern[];
 }
 
+/** Key of the dataset a file belongs to, or null when it is in none (a copy, or no usable frequency). */
+export function datasetKeyOf(item: TaggedPattern, groups: readonly { id: string }[]): string | null {
+  const f = item.pattern.frequencyMHz;
+  if (item.copyOf || !Number.isFinite(f) || f <= 0) return null;
+  const scope = item.scope !== undefined && groups.some((g) => g.id === item.scope) ? item.scope : '';
+  return `${scope}\u0000${(item.tags.array ?? '').trim()}`;
+}
+
 export function buildDatasets(
   tagged: readonly TaggedPattern[],
   groups: readonly { id: string; name: string }[],
@@ -85,11 +93,10 @@ export function buildDatasets(
   const groupIndex = new Map(groups.map((g, i) => [g.id, i]));
   const map = new Map<string, { scope: string; array: string; items: TaggedPattern[] }>();
   for (const item of tagged) {
-    const f = item.pattern.frequencyMHz;
-    if (item.copyOf || !Number.isFinite(f) || f <= 0) continue;
+    const key = datasetKeyOf(item, groups);
+    if (key === null) continue;
     const scope = item.scope !== undefined && groupIndex.has(item.scope) ? item.scope : '';
     const array = (item.tags.array ?? '').trim();
-    const key = `${scope}\u0000${array}`;
     const d = map.get(key) ?? { scope, array, items: [] };
     d.items.push(item);
     map.set(key, d);

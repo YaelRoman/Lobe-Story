@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { MAX_SUB_BANDS, sanitizeSubBands, SUB_BAND_PRESETS, type SubBand } from '../core/analysis/subBands';
-import { editSubBand } from './bandView';
+import { editSubBand, sameSubBands } from './bandView';
 
-/** An input backed by its own draft string; commits on blur / Enter, and a rejected draft reverts. */
+/**
+ * An input backed by its own draft string; commits on blur / Enter. A rejected draft reverts, and so does a
+ * draft that changes nothing (`onCommit` returns false), so Enter followed by blur commits once.
+ */
 function DraftField({
   label,
   value,
@@ -14,13 +17,12 @@ function DraftField({
   value: string;
   type: 'text' | 'number';
   accept: (text: string) => boolean;
-  onCommit: (text: string) => void;
+  onCommit: (text: string) => boolean;
 }) {
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
   const commit = () => {
-    if (accept(text)) onCommit(text);
-    else setText(value);
+    if (!accept(text) || !onCommit(text)) setText(value);
   };
   return (
     <input
@@ -54,6 +56,13 @@ export function SubBandEditor({
 }) {
   const atMax = subBands.length >= MAX_SUB_BANDS;
   const add = (b: SubBand) => onChange(sanitizeSubBands([...subBands, b]));
+  /** Applies an edit; false (and no `onChange`) when it leaves the sub-bands as they are. */
+  const edit = (index: number, patch: Partial<SubBand>): boolean => {
+    const next = editSubBand(subBands, index, patch);
+    if (sameSubBands(next, subBands)) return false;
+    onChange(next);
+    return true;
+  };
   const span = automatic.length
     ? { minMHz: Math.min(...automatic.map((b) => b.minMHz)), maxMHz: Math.max(...automatic.map((b) => b.maxMHz)) }
     : { minMHz: 1, maxMHz: 6000 };
@@ -75,21 +84,21 @@ export function SubBandEditor({
               label={`Sub-band ${i + 1} name`}
               value={b.name}
               accept={() => true}
-              onCommit={(t) => onChange(editSubBand(subBands, i, { name: t }))}
+              onCommit={(t) => edit(i, { name: t })}
             />
             <DraftField
               type="number"
               label={`Sub-band ${i + 1} min (MHz)`}
               value={String(b.minMHz)}
               accept={positive}
-              onCommit={(t) => onChange(editSubBand(subBands, i, { minMHz: Number(t) }))}
+              onCommit={(t) => edit(i, { minMHz: Number(t) })}
             />
             <DraftField
               type="number"
               label={`Sub-band ${i + 1} max (MHz)`}
               value={String(b.maxMHz)}
               accept={positive}
-              onCommit={(t) => onChange(editSubBand(subBands, i, { maxMHz: Number(t) }))}
+              onCommit={(t) => edit(i, { maxMHz: Number(t) })}
             />
             <button aria-label={`Remove sub-band ${i + 1}`} onClick={() => onChange(subBands.filter((_, j) => j !== i))}>
               ✕

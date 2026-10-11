@@ -109,3 +109,4 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 .dialog p { margin: 0; }
 .dialog label { display: inline-flex; gap: 6px; align-items: center; }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.band-detail { white-space: pre-line; }
