@@ -591,6 +591,45 @@ describe('clearOfSticky', () => {
   });
 });
 
-it('keeps the key list the state needs in step with the table columns', () => {
-  expect(METRIC_COLUMNS.map((c) => c.key)).toEqual([...METRIC_KEYS]);
+const PINNED_KEYS = [
+  'hHpbw',
+  'vHpbw',
+  'hBw10',
+  'vBw10',
+  'squint',
+  'hPeak',
+  'tilt',
+  'vPeak',
+  'tiltError',
+  'fb180',
+  'fbWindow',
+  'firstUsls',
+  'usls',
+  'uslsHorizon',
+  'uslsMax',
+  'nullFill',
+  'firstLsls',
+  'hSls',
+  'tracking',
+  'spr',
+  'air',
+  'rollOff',
+  'du16',
+  'du64',
+  'du256',
+  'dH',
+  'dV',
+  'dFb',
+];
+const PINNED_HEADER =
+  'File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),H-BW 10 dB (°),V-BW 10 dB (°),Squint (°),Peak az (°),Tilt (°),Peak tilt (°),Tilt error (°),F/B 180° (dB),F/B ±30° (dB),First USLS (dB),USLS peak to 20° (dB),USLS horizon to 20° (dB),USLS max (dB),Null fill (dB),First LSLS (dB),H-SLS (dB),P2P tracking (dB),SPR (%),AIR (dB),Roll-off (dB),D/U 16QAM (°),D/U 64QAM (°),D/U 256QAM (°),ΔH-HPBW (°),ΔV-HPBW (°),ΔF/B (dB)';
+
+it('pins the order of the metric columns and of the CSV header', () => {
+  // An accidental reorder (or rename) of a column changes saved views, exports and the copy-to-spreadsheet layout: update on purpose.
+  expect(METRIC_COLUMNS.map((c) => c.key)).toEqual(PINNED_KEYS);
+  expect([...METRIC_KEYS]).toEqual(PINNED_KEYS);
+  const p = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a.msi', fileName: 'a.msi', gain: { value: 15, unit: 'dBd' } });
+  const tagged = [{ pattern: p, tags: { polarization: '+45', tiltDeg: 6 } }];
+  const fixtureRows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
+  expect(toCsv(fixtureRows, 'dBi', 30).split('\r\n')[0]).toBe(PINNED_HEADER);
 });
