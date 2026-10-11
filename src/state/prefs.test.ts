@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import { applyPrefs, PREFS_KEY, PREFS_VERSION, prefsOf, resetPrefs, serializePrefs, startPrefs, writePrefs, type StorageLike } from './prefs';
 import { initialState, useStore } from './store';
+import { isDirty } from './undo';
 import { planetText } from '../test/planetText';
 
 class FakeStorage implements StorageLike {
@@ -76,7 +77,9 @@ describe('applyPrefs', () => {
     };
     s.view = { ...s.view, simulation: { ...s.view.simulation, offsets: { 'secret.msi': { electricalDeg: 3, mechanicalDeg: 0, azimuthDeg: 0 } } } };
     const text = serializePrefs(s);
-    expect(text).not.toMatch(/secret|DATA|offsets|simulation|dimension/i);
+    // Precisely: no session values, no session keys (the `collapsed` flag mentions no "simulation").
+    expect(text).not.toMatch(/secret|DATA|Secret|"offsets"|"groupOffsets"|"names"|"files"|"membership"|"customGroups"|"tagOverrides"|"dimension"|electricalDeg|mechanicalDeg|azimuthDeg/);
+    expect(JSON.parse(text).view).not.toHaveProperty('simulation');
     expect(Object.keys(JSON.parse(text)).sort()).toEqual(['settings', 'version', 'view']);
     expect(Object.keys(prefsOf(s).view).sort()).toEqual(
       ['collapsed', 'cut', 'floorDb', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'subBands', 'tableGroups', 'theme'],
@@ -189,14 +192,45 @@ describe('startPrefs', () => {
     stop();
   });
 
-  it('remembers what a project that is opened brings (the preferences follow the screen)', () => {
+  it('does not let an opened project or an undo overwrite the stored preferences', () => {
+    const storage = new FakeStorage();
+    const stop = startPrefs({ storage, delayMs: 10 });
+    useStore.getState().updateView({ mode: 'rect' });
+    vi.advanceTimersByTime(10);
+    const mine = storage.getItem(PREFS_KEY);
+    expect(JSON.parse(mine!).view.mode).toBe('rect');
+
+    useStore.getState().addFiles([{ path: 'a.msi', bytes: new TextEncoder().encode(planetText()).buffer as ArrayBuffer }]);
+    useStore.getState().loadProject({
+      format: 'lobe-story-project', version: 1, savedAt: '', files: [], state: { view: { gainUnit: 'dBi', mode: 'polar' } as never },
+    });
+    vi.advanceTimersByTime(1000);
+    // The project is on screen, the stored preferences are still the user's own.
+    expect(useStore.getState().view.gainUnit).toBe('dBi');
+    expect(storage.getItem(PREFS_KEY)).toBe(mine);
+
+    // Undoing back to the earlier session does not write either.
+    useStore.getState().undoLast();
+    vi.advanceTimersByTime(1000);
+    expect(storage.getItem(PREFS_KEY)).toBe(mine);
+
+    // A change the user makes themselves is stored on top of their own preferences, not the project's.
+    useStore.getState().updateView({ cut: 'V' });
+    vi.advanceTimersByTime(10);
+    const stored = JSON.parse(storage.getItem(PREFS_KEY)!).view;
+    expect(stored).toMatchObject({ cut: 'V', mode: 'rect' });
+    expect(stored.gainUnit).toBe(defaults().view.gainUnit);
+    stop();
+  });
+
+  it('a project opened first does not leak into an empty store of preferences', () => {
     const storage = new FakeStorage();
     const stop = startPrefs({ storage, delayMs: 10 });
     useStore.getState().loadProject({
       format: 'lobe-story-project', version: 1, savedAt: '', files: [], state: { view: { gainUnit: 'dBi' } as never },
     });
-    vi.advanceTimersByTime(10);
-    expect(JSON.parse(storage.getItem(PREFS_KEY)!).view.gainUnit).toBe('dBi');
+    vi.advanceTimersByTime(100);
+    expect(storage.getItem(PREFS_KEY)).toBeNull();
     stop();
   });
 
@@ -243,6 +277,31 @@ describe('resetPrefs', () => {
     expect(storage.getItem(PREFS_KEY)).toBeNull();
     expect(useStore.getState().files).toHaveLength(1);
     stop();
+  });
+
+  it('leaves user sub-bands (part of the session) alone', () => {
+    const storage = new FakeStorage();
+    const sb = [{ name: 'Mine', fromMHz: 1700, toMHz: 1800 }];
+    useStore.getState().updateView({ subBands: sb as never, gainUnit: 'dBi' });
+    resetPrefs(storage);
+    expect(useStore.getState().view.subBands).toBe(sb);
+    expect(useStore.getState().view.gainUnit).toBe(defaults().view.gainUnit);
+  });
+
+  it('does not make a loaded session unsaved or drop undo when it already had the defaults', () => {
+    const st = useStore.getState();
+    st.addFiles([{ path: 'a.msi', bytes: new TextEncoder().encode(planetText()).buffer as ArrayBuffer }]);
+    useStore.getState().markSaved();
+    useStore.getState().removeFile(useStore.getState().files[0].id);
+    useStore.getState().undoLast();
+    useStore.getState().markSaved();
+    expect(isDirty(useStore.getState())).toBe(false);
+    const undo = useStore.getState().undo;
+    const view = useStore.getState().view;
+    resetPrefs(new FakeStorage());
+    expect(isDirty(useStore.getState())).toBe(false);
+    expect(useStore.getState().view).toBe(view);
+    expect(useStore.getState().undo).toBe(undo);
   });
 
   it('does not throw when storage does', () => {

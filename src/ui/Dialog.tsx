@@ -12,10 +12,12 @@ function trapTab(e: ReactKeyboardEvent<HTMLElement>): void {
   const first = items[0];
   const last = items[items.length - 1];
   const at = document.activeElement;
-  if (e.shiftKey && (at === first || !e.currentTarget.contains(at))) {
+  // The dialog container itself (focused by a click on its text) is not one of the items: it wraps too.
+  const outside = at === e.currentTarget || !e.currentTarget.contains(at);
+  if (e.shiftKey && (at === first || outside)) {
     e.preventDefault();
     last.focus();
-  } else if (!e.shiftKey && (at === last || !e.currentTarget.contains(at))) {
+  } else if (!e.shiftKey && (at === last || outside)) {
     e.preventDefault();
     first.focus();
   }

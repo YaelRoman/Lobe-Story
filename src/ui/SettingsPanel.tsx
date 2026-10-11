@@ -143,9 +143,9 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
       </button>
       <button
         style={{ gridColumn: '1 / -1' }}
-        title="Theme, gain unit, plot options, markers, columns, 3D options, analysis settings and sub-bands go back to their defaults, and the browser forgets them."
+        title="Theme, gain unit, cut, plot mode, plot floor, markers, table columns, 3D options, collapsed controls and analysis settings go back to their defaults, and the browser forgets them. Your sub-bands and the loaded files are not touched."
         onClick={() =>
-          void confirmDialog('Reset the remembered display preferences (theme, units, plot options, analysis settings) to their defaults?', 'Reset preferences').then(
+          void confirmDialog('Reset the theme, gain unit, cut, plot mode, plot floor, markers, table columns, 3D options, collapsed controls and analysis settings to their defaults? Your sub-bands and the loaded files are not touched.', 'Reset preferences').then(
             (ok) => {
               if (ok) resetPrefs();
             },

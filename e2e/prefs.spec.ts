@@ -46,7 +46,7 @@ test('theme, gain unit, markers and analysis settings come back after a reload; 
 
   // Reset preferences asks first, then restores the defaults and forgets the key.
   await page.getByRole('button', { name: 'Reset preferences' }).click();
-  const ask = page.getByRole('dialog', { name: /Reset the remembered display preferences/ });
+  const ask = page.getByRole('dialog', { name: /Reset the theme, gain unit/ });
   await ask.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('button', { name: 'dBi', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Reset preferences' })).toBeFocused();

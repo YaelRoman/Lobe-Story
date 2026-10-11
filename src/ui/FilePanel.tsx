@@ -1,9 +1,10 @@
-import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useStore } from '../state/store';
 import { fullTags, warningsFor, type ErrorEntry, type GroupView } from '../state/selectors';
 import { UNGROUPED } from '../core/grouping';
 import { nameOf } from '../core/names';
 import { TagEditor } from './TagEditor';
+import { sameTags } from './tagEdit';
 import { offsetLabel } from './table';
 import { confirmDialog, promptDialog } from './dialogs';
 import { neighbourOrder } from './undoKeys';
@@ -245,6 +246,12 @@ function GroupMenu({
   );
 }
 
+/** Starts dragging file `id` (to a group); stops the event so the row's own handler does not run it twice. */
+function startDrag(e: DragEvent<HTMLElement>, id: string): void {
+  e.stopPropagation();
+  e.dataTransfer.setData(DRAG_TYPE, id);
+}
+
 export const FilePanel = memo(function FilePanel({ groups, errors, warnings, colors, drawerOpen }: Props) {
   const visible = useStore((s) => s.visible);
   const highlighted = useStore((s) => s.highlighted);
@@ -338,10 +345,18 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
       closeAll(d);
       d.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     };
+    // Tabbing (or clicking) to something outside an open menu closes it; the focus stays where it went.
+    const onFocusOut = (e: FocusEvent) => {
+      const menu = (e.target as HTMLElement).closest('details.menu[open]');
+      const to = e.relatedTarget as Node | null;
+      if (menu && to && !menu.contains(to)) menu.removeAttribute('open');
+    };
     document.addEventListener('click', onDocClick);
     document.addEventListener('keydown', onKeyDown);
     root.addEventListener('toggle', onToggle, true);
+    root.addEventListener('focusout', onFocusOut);
     return () => {
+      root.removeEventListener('focusout', onFocusOut);
       document.removeEventListener('click', onDocClick);
       document.removeEventListener('keydown', onKeyDown);
       root.removeEventListener('toggle', onToggle, true);
@@ -497,7 +512,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                     data-focus-key={`file:${id}`}
                     className={highlighted === id ? 'hl' : undefined}
                     draggable
-                    onDragStart={(e) => e.dataTransfer.setData(DRAG_TYPE, id)}
+                    onDragStart={(e) => startDrag(e, id)}
                     onClick={() => select({ kind: 'file', id })}
                   >
                     <input
@@ -527,6 +542,9 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                       <button
                         type="button"
                         className="row-main"
+                        // Firefox starts no drag from a button inside a draggable parent: the button is draggable itself.
+                        draggable
+                        onDragStart={(e) => startDrag(e, id)}
                         data-nav
                         tabIndex={stop === `file:${id}` ? 0 : -1}
                         aria-current={highlighted === id || undefined}
@@ -579,7 +597,8 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                       <TagEditor
                         tags={tags}
                         onSave={(t) => {
-                          setTags(id, t);
+                          // Saving what is already shown must not turn inferred tags into an override.
+                          if (!sameTags(t, tags)) setTags(id, t);
                           setEditing(null);
                           returnFocus(`file:${id}`, '[data-edit-tags]');
                         }}

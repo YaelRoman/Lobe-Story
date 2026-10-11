@@ -17,7 +17,7 @@ interface Props {
   figure: Figure;
   className?: string;
   testId?: string;
-  /** The plot's accessible name (the plot itself is a picture for assistive technology). */
+  /** The plot's accessible name (a group, not an image: Plotly's modebar buttons inside must stay reachable). */
   ariaLabel?: string;
   onRelayout?: RelayoutHandler;
   /** Replaces the modebar's image download by one of a labelled version of the figure (legend on, highlighted file's values). */
@@ -88,7 +88,7 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
   }, []);
 
   return (
-    <div className={className} data-testid={testId} role={ariaLabel ? 'img' : undefined} aria-label={ariaLabel} style={{ position: 'relative' }}>
+    <div className={className} data-testid={testId} role={ariaLabel ? 'group' : undefined} aria-label={ariaLabel} style={{ position: 'relative' }}>
       <div ref={ref} style={{ width: '100%', height: '100%' }} />
       {error && (
         <p className="plot-error" role="status">

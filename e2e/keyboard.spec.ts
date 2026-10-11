@@ -215,3 +215,71 @@ test('the Open buttons show a focus ring and open the file chooser from the keyb
   await page.keyboard.press('Enter');
   expect((await chooser).isMultiple()).toBe(true);
 });
+
+test('Shift+Tab and Tab from the dialog container itself wrap inside the dialog', async ({ page }) => {
+  await load(page);
+  const menu = page.locator('.panel').getByLabel('Actions for b.msi');
+  await menu.focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('menuitem', { name: 'Create site…' }).focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Number of sectors (2–12)' });
+  await expect(dialog.getByRole('textbox')).toBeFocused();
+  // Clicking the text puts the focus on the dialog container (tabindex -1).
+  await dialog.locator('p').first().click();
+  expect(await dialog.evaluate((el) => el === document.activeElement)).toBe(true);
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.locator('button[type=submit]')).toBeFocused();
+  await dialog.locator('p').first().click();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('textbox')).toBeFocused();
+});
+
+test('an open menu closes when the focus leaves it', async ({ page }) => {
+  await load(page);
+  const panel = page.locator('.panel');
+  const menu = panel.getByLabel('Actions for a.msi');
+  await menu.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('menuitem', { name: 'Duplicate' })).toBeFocused();
+  // Tab walks through the items; leaving the last one closes the menu (and the focus stays where it went).
+  const items = await page.getByRole('menuitem').count();
+  for (let i = 0; i < items - 1; i++) {
+    await page.keyboard.press('Tab');
+    await expect(panel.locator('details.menu[open]')).toHaveCount(1);
+  }
+  await page.keyboard.press('Tab');
+  await expect(panel.locator('details.menu[open]')).toHaveCount(0);
+  expect(await page.evaluate(() => !!document.activeElement?.closest('details.menu'))).toBe(false);
+});
+
+test('saving the tag editor unchanged does not create an override', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800))]);
+  const panel = page.locator('.panel');
+  await expect(panel.locator('li')).toHaveCount(1);
+  await panel.getByLabel('Edit tags of a.msi').click();
+  await panel.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(panel.getByLabel('Polarization')).toHaveCount(0);
+  // A plain file clears without asking; an override would make Clear ask first.
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(panel.locator('li')).toHaveCount(0);
+});
+
+test('a file row can be dragged by its name onto a custom group', async ({ page }) => {
+  await load(page);
+  const panel = page.locator('.panel');
+  await panel.getByLabel('Actions for a.msi').click();
+  await page.getByRole('menuitem', { name: 'Move to new group…' }).click();
+  await page.getByRole('dialog', { name: 'Name of the new group' }).getByRole('textbox').fill('North');
+  await page.keyboard.press('Enter');
+  const north = panel.locator('section.group.custom', { hasText: 'North' });
+  await expect(north.locator('li')).toHaveCount(1);
+  await panel.locator('li', { hasText: 'b.msi' }).locator('.row-main').dragTo(north.locator('header'));
+  await expect(north.locator('li')).toHaveCount(2);
+  await expect(north.locator('li', { hasText: 'b.msi' })).toHaveCount(1);
+  // The name area still activates by click.
+  await north.locator('li', { hasText: 'b.msi' }).locator('.row-main').click();
+  await expect(north.locator('li', { hasText: 'b.msi' })).toHaveClass(/hl/);
+});

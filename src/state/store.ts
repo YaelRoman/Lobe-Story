@@ -327,6 +327,13 @@ const ZERO_OFFSET: OffsetState = { electricalDeg: 0, mechanicalDeg: 0, azimuthDe
 const isZeroOffset = (o: OffsetState) => o.electricalDeg === 0 && o.mechanicalDeg === 0 && o.azimuthDeg === 0;
 
 type State = StoreData & StoreActions;
+
+let sessionSwaps = 0;
+/**
+ * How many times a whole session was put on screen (project opened, undo applied). Those bring their own
+ * settings and view; a subscriber that sees this number change knows the change was not the user's own.
+ */
+export const sessionSwapCount = (): number => sessionSwaps;
 type Update = State | Partial<State>;
 
 export const useStore = create<State>()((rawSet, get) => {
@@ -401,6 +408,7 @@ export const useStore = create<State>()((rawSet, get) => {
   undoLast: () =>
     set((s) => {
       if (!s.undo) return s;
+      sessionSwaps++;
       const { snapshot } = s.undo;
       // The theme is a display preference, not part of the session being restored.
       return { ...snapshot, view: { ...snapshot.view, theme: s.view.theme }, undo: null, loadMessage: null, loadFailed: 0 };
@@ -412,6 +420,7 @@ export const useStore = create<State>()((rawSet, get) => {
 
   loadProject: (project) =>
     set((s) => {
+      sessionSwaps++;
       const next = projectToState(project, initialState(), s.view.theme, loadText);
       const hadSession = s.files.length > 0 || s.pendingFiles.length > 0;
       return {

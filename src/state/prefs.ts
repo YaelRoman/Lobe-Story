@@ -1,11 +1,11 @@
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import { clampFloor } from '../core/analysis/settingLimits';
 import { oneOf, sanitizeDisplayView, sanitizeSettings } from './project';
-import { initialState, useStore, type StoreData, type ViewState } from './store';
+import { initialState, sessionSwapCount, useStore, type StoreData, type ViewState } from './store';
 
 /**
- * Display preferences remembered per browser. They are what the user last had on screen, so a project
- * that is opened (it brings its own settings and view) becomes the remembered state too. Nothing of a
+ * Display preferences remembered per browser. They change only when the user changes them: a project
+ * that is opened (it brings its own settings and view) is shown but not remembered. Nothing of a
  * session is stored: no pattern data, file names, groups, offsets, tags or selections.
  */
 export const PREFS_KEY = 'lobe-story:prefs:v1';
@@ -103,9 +103,38 @@ export interface PrefsOptions {
   delayMs?: number;
 }
 
+/** The preference values of `s` by name ("settings.levelDb", "view.mode", ...), as comparable text. */
+function prefEntries(s: Pick<StoreData, 'settings' | 'view'>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [k, v] of Object.entries(s.settings)) out.set(`settings.${k}`, JSON.stringify(v));
+  for (const k of VIEW_KEYS) out.set(`view.${k}`, JSON.stringify(s.view[k]));
+  return out;
+}
+
+/** The stored preferences (on top of the defaults) with the values of `changed` put in. */
+function mergeChanged(storage: StorageLike, s: Pick<StoreData, 'settings' | 'view'>, defaults: Pick<StoreData, 'settings' | 'view'>, changed: Set<string>): Pick<StoreData, 'settings' | 'view'> {
+  let text: string | null = null;
+  try {
+    text = storage.getItem(PREFS_KEY);
+  } catch {
+    text = null;
+  }
+  const base = applyPrefs(text, defaults) ?? defaults;
+  const settings: Record<string, unknown> = { ...base.settings };
+  const view: Record<string, unknown> = { ...base.view };
+  for (const name of changed) {
+    const [group, key] = name.split('.');
+    if (group === 'settings') settings[key] = (s.settings as unknown as Record<string, unknown>)[key];
+    else view[key] = (s.view as unknown as Record<string, unknown>)[key];
+  }
+  return { settings: settings as unknown as AnalysisSettings, view: view as unknown as ViewState };
+}
+
 /**
- * Restores the stored preferences into the store, then keeps them up to date: every change of the
- * settings or view is written after `delayMs` of quiet, and at once when the page is hidden or closed.
+ * Restores the stored preferences into the store, then keeps them up to date: a preference the user
+ * changes is written after `delayMs` of quiet, and at once when the page is hidden or closed. What a
+ * project that is opened (or an undo) puts on screen is not the user's choice and is never stored;
+ * only the keys the user changes are written, on top of what was stored before.
  * Returns a function that stops it.
  */
 export function startPrefs({ storage = browserStorage(), delayMs = 300 }: PrefsOptions = {}): () => void {
@@ -122,18 +151,27 @@ export function startPrefs({ storage = browserStorage(), delayMs = 300 }: PrefsO
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let last = serializePrefs(useStore.getState());
+  const pending = new Set<string>();
   const flush = () => {
     clearTimeout(timer);
     timer = undefined;
-    const s = useStore.getState();
-    const now = serializePrefs(s);
-    if (now === last) return;
-    last = now;
-    writePrefs(storage, s, defaults);
+    if (pending.size === 0) return;
+    const changed = new Set(pending);
+    pending.clear();
+    if (!storage) return;
+    try {
+      writePrefs(storage, mergeChanged(storage, useStore.getState(), defaults, changed), defaults);
+    } catch {
+      // Storage gone: preferences are a convenience, never an error.
+    }
   };
+  let swaps = sessionSwapCount();
   const unsubscribe = useStore.subscribe((s, prev) => {
-    if (s.settings === prev.settings && s.view === prev.view) return;
+    const swapped = sessionSwapCount() !== swaps;
+    swaps = sessionSwapCount();
+    if (swapped || (s.settings === prev.settings && s.view === prev.view)) return;
+    const before = prefEntries(prev);
+    for (const [name, text] of prefEntries(s)) if (before.get(name) !== text) pending.add(name);
     clearTimeout(timer);
     timer = setTimeout(flush, delayMs);
   });
@@ -147,12 +185,28 @@ export function startPrefs({ storage = browserStorage(), delayMs = 300 }: PrefsO
   };
 }
 
-/** Puts every remembered preference back to its default and forgets the stored ones. */
+/** The view preferences a reset restores: user sub-bands are part of the session (saved in project files), so they stay. */
+const RESET_VIEW_KEYS = VIEW_KEYS.filter((k) => k !== 'subBands');
+
+/**
+ * Puts the remembered display preferences back to their defaults and forgets the stored ones. Session
+ * content is not touched, and a value that already is the default is not set again (no new object, so
+ * a loaded session does not become unsaved and an offered undo stays).
+ */
 export function resetPrefs(storage: StorageLike | null = browserStorage()): void {
   const d = initialState();
   const { updateSettings, updateView } = useStore.getState();
-  updateSettings({ ...DEFAULT_SETTINGS });
-  updateView(prefsOf(d).view);
+  const cur = useStore.getState();
+  const settings: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
+    if (JSON.stringify((cur.settings as unknown as Record<string, unknown>)[k]) !== JSON.stringify(v)) settings[k] = v;
+  }
+  if (Object.keys(settings).length > 0) updateSettings(settings as Partial<AnalysisSettings>);
+  const view: Record<string, unknown> = {};
+  for (const k of RESET_VIEW_KEYS) {
+    if (JSON.stringify(cur.view[k]) !== JSON.stringify(d.view[k])) view[k] = d.view[k];
+  }
+  if (Object.keys(view).length > 0) updateView(view as Partial<ViewState>);
   try {
     storage?.removeItem(PREFS_KEY);
   } catch {
