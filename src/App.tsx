@@ -9,6 +9,7 @@ import { useWindowDrop } from './ui/useWindowDrop';
 import { PlotArea } from './ui/PlotArea';
 import { HpbwChart } from './ui/HpbwChart';
 import { MetricsTable } from './ui/MetricsTable';
+import { BandStats } from './ui/BandStats';
 import { Dialog } from './ui/Dialog';
 import { pendingLabel } from './state/project';
 import { useSimulation } from './ui/useSimulation';
@@ -84,6 +85,7 @@ export default function App() {
               <PlotArea groups={groups} metrics={metrics} colors={colors} sim={sim} />
               <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
               <MetricsTable groups={groups} metrics={metrics} colors={colors} sim={sim} />
+              <BandStats tagged={tagged} metrics={metrics} sim={sim} />
             </>
           )}
         </main>

@@ -1,0 +1,124 @@
+import { useEffect, useState } from 'react';
+import { MAX_SUB_BANDS, sanitizeSubBands, SUB_BAND_PRESETS, type SubBand } from '../core/analysis/subBands';
+import { editSubBand } from './bandView';
+
+/** An input backed by its own draft string; commits on blur / Enter, and a rejected draft reverts. */
+function DraftField({
+  label,
+  value,
+  type,
+  accept,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  type: 'text' | 'number';
+  accept: (text: string) => boolean;
+  onCommit: (text: string) => void;
+}) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const commit = () => {
+    if (accept(text)) onCommit(text);
+    else setText(value);
+  };
+  return (
+    <input
+      type={type}
+      aria-label={label}
+      value={text}
+      min={type === 'number' ? 0 : undefined}
+      step={type === 'number' ? 'any' : undefined}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+      }}
+    />
+  );
+}
+
+const positive = (text: string): boolean => {
+  const n = text.trim() === '' ? NaN : Number(text);
+  return Number.isFinite(n) && n > 0;
+};
+
+export function SubBandEditor({
+  subBands,
+  automatic,
+  onChange,
+}: {
+  subBands: SubBand[];
+  automatic: SubBand[];
+  onChange(next: SubBand[]): void;
+}) {
+  const atMax = subBands.length >= MAX_SUB_BANDS;
+  const add = (b: SubBand) => onChange(sanitizeSubBands([...subBands, b]));
+  const span = automatic.length
+    ? { minMHz: Math.min(...automatic.map((b) => b.minMHz)), maxMHz: Math.max(...automatic.map((b) => b.maxMHz)) }
+    : { minMHz: 1, maxMHz: 6000 };
+
+  return (
+    <div className="subbands" role="group" aria-label="Sub-bands">
+      {subBands.length === 0 ? (
+        <div className="subband-row">
+          <span className="count">Automatic: one sub-band per group of frequencies no more than 100 MHz apart.</span>
+          <button disabled={automatic.length === 0} onClick={() => onChange(automatic)}>
+            Start from automatic
+          </button>
+        </div>
+      ) : (
+        subBands.map((b, i) => (
+          <div className="subband-row" key={i}>
+            <DraftField
+              type="text"
+              label={`Sub-band ${i + 1} name`}
+              value={b.name}
+              accept={() => true}
+              onCommit={(t) => onChange(editSubBand(subBands, i, { name: t }))}
+            />
+            <DraftField
+              type="number"
+              label={`Sub-band ${i + 1} min (MHz)`}
+              value={String(b.minMHz)}
+              accept={positive}
+              onCommit={(t) => onChange(editSubBand(subBands, i, { minMHz: Number(t) }))}
+            />
+            <DraftField
+              type="number"
+              label={`Sub-band ${i + 1} max (MHz)`}
+              value={String(b.maxMHz)}
+              accept={positive}
+              onCommit={(t) => onChange(editSubBand(subBands, i, { maxMHz: Number(t) }))}
+            />
+            <button aria-label={`Remove sub-band ${i + 1}`} onClick={() => onChange(subBands.filter((_, j) => j !== i))}>
+              ✕
+            </button>
+          </div>
+        ))
+      )}
+      <div className="subband-row">
+        <button disabled={atMax} onClick={() => add({ name: '', ...span })}>
+          Add sub-band
+        </button>
+        <select
+          aria-label="Add a common sub-band"
+          value=""
+          disabled={atMax}
+          onChange={(e) => {
+            const preset = SUB_BAND_PRESETS[Number(e.target.value)];
+            if (preset) add(preset);
+          }}
+        >
+          <option value="">Common sub-bands…</option>
+          {SUB_BAND_PRESETS.map((p, i) => (
+            <option key={p.name} value={i}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        {subBands.length > 0 && <button onClick={() => onChange([])}>Use automatic</button>}
+      </div>
+    </div>
+  );
+}

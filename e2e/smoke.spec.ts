@@ -23,6 +23,8 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await expect(page.getByRole('columnheader', { name: /^Peak tilt/ })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^D\/U 256QAM/ })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^First USLS/ })).toBeVisible();
+  await expect(page.getByTestId('band-stats-hint')).toContainText('Largest set loaded: 2.');
+  await expect(page.getByTestId('band-stats').locator('table')).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: /^USLS peak to 20°/ })).toBeVisible();
   const declared = page.getByRole('checkbox', { name: 'Show Declared Δ columns' });
   await expect(declared).not.toBeChecked();
@@ -96,6 +98,49 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await expect(page.getByLabel('Offsets: mech +3°')).toHaveCount(0);
   await expect(page.getByTestId('sim-badge')).toHaveCount(0);
   await expect(page.locator('tbody tr').nth(0)).not.toContainText('→');
+});
+
+test('computes band statistics over a sub-band', async ({ page }) => {
+  await page.goto('/');
+  const text = (f: number) => planetText({ headers: ['NAME A', `FREQUENCY ${f}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] });
+  const files = [1800, 1820, 1840, 1860, 1880].flatMap((f) =>
+    ['P45', 'M45'].map((pol) => file(`_${f}_X_CO_${pol}_08T_Y2.MSI`, text(f))),
+  );
+  await page.getByTestId('file-input').setInputFiles(files);
+
+  const band = page.getByTestId('band-stats');
+  const row = (name: RegExp) => band.getByRole('row', { name });
+  const header = (name: RegExp) => band.getByRole('columnheader', { name });
+  await expect(header(/^1800–1880 MHz/)).toBeVisible();
+  await expect(row(/^Azimuth beamwidth/)).toContainText('65.0° ± 0.0°');
+  await expect(row(/^Azimuth beamwidth/)).toContainText('n=10');
+  await expect(row(/^Gain, all tilts/)).toContainText('15.0 dBd ± 0.0 dB');
+  await expect(row(/^P2P tracking/)).toContainText('< 0.0 dB');
+  await expect(row(/^P2P tracking/)).toContainText('n=10');
+  await expect(row(/^Downtilt deviation/)).toContainText('< 0.0°');
+  await expect(row(/^Electrical tilt range/)).toContainText('8°');
+
+  await band.getByRole('button', { name: 'Sub-bands' }).click();
+  await band.getByRole('button', { name: 'Start from automatic' }).click();
+  const max = band.getByLabel('Sub-band 1 max (MHz)');
+  await max.fill('1840');
+  await max.press('Enter');
+  await expect(header(/^1800–1840 MHz/)).toBeVisible();
+  await expect(row(/^Azimuth beamwidth/)).toContainText('n=6');
+  await expect(row(/^Azimuth beamwidth/)).toContainText('65.0°');
+  await expect(row(/^Azimuth beamwidth/)).not.toContainText('±');
+  await band.getByRole('button', { name: 'Use automatic' }).click();
+  await expect(header(/^1800–1880 MHz/)).toBeVisible();
+
+  await band.getByLabel('Add a common sub-band').selectOption({ label: '880–960 MHz' });
+  await expect(header(/^880–960 MHz/)).toContainText('0 files');
+  await expect(row(/^Azimuth beamwidth/)).toContainText('—');
+  await band.getByRole('button', { name: 'Use automatic' }).click();
+
+  const download = page.waitForEvent('download');
+  await band.getByRole('button', { name: 'Export band CSV' }).click();
+  expect((await download).suggestedFilename()).toBe('band-statistics.csv');
+  await expect(band.getByText(/error/i)).toHaveCount(0);
 });
 
 test('builds a three-sector site from one pattern', async ({ page }) => {

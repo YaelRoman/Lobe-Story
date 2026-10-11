@@ -205,7 +205,7 @@ export function buildRows(
 }
 
 const fmt = (v: number | null) => (v === null ? '' : v.toFixed(2));
-const csvCell = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+export const csvCell = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
 
 const oneDecimal = (r: MetricResult) => (r.value === null ? '—' : r.value.toFixed(1));
 
