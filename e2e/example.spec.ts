@@ -105,7 +105,8 @@ test('Definitions buttons in the metrics table and the band statistics open the 
   const dialog = page.getByRole('dialog', { name: 'Help and glossary' });
   for (const section of [page.locator('section', { has: page.locator('table.metrics') }), page.getByTestId('band-stats')]) {
     const button = section.getByRole('button', { name: 'Definitions' });
-    // A re-render can still swallow the click: retry opening until the dialog shows.
+    // The button is not remounted while the page settles (checked in a real browser), so this retry is only a guard:
+    // the plots finish laying out right after Load example and a click can land while the page is still moving.
     await expect(async () => {
       await button.click();
       await expect(dialog).toBeVisible({ timeout: 1000 });

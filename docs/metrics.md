@@ -27,8 +27,9 @@ the table labels. Column groups can be hidden above the table; the CSV always ha
 | Tilt error | ° | Tilt minus the nominal tilt of the file, signed, on the half-power axis (the band statistics use the beam peak instead, see below). Not available when the nominal tilt is unknown. | 7.2.8.2 |
 
 If the cut never drops by the level on one side, the beamwidth, squint and tilt are not available.
-Changing the beamwidth level changes the H/V-HPBW, Squint and Tilt columns (they keep their
-"HPBW" names); BASTA values need 3 dB. Peak az and Peak tilt can differ from Squint and Tilt on
+Changing the beamwidth level changes the H/V beamwidth, Squint and Tilt columns; the beamwidth
+headers, CSV columns, tooltips and plot labels then read "BW@x dB" (x = the level) instead of
+"HPBW". BASTA values need 3 dB. Peak az and Peak tilt can differ from Squint and Tilt on
 asymmetric beams.
 
 ## Front/back

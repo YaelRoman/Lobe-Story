@@ -54,6 +54,7 @@ export default function App() {
   const [helpOpener, setHelpOpener] = useState<HTMLElement | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const openHelp = useCallback<OpenHelp>((event) => {
+    // The button is taken from its click event: the focused element at this point can be a stale one.
     setHelpOpener(event.currentTarget instanceof HTMLElement ? event.currentTarget : null);
     setHelpOpen(true);
   }, []);

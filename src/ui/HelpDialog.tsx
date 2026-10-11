@@ -22,7 +22,6 @@ export function HelpDialog({ onClose, opener }: { onClose: () => void; opener: H
       if (!dialog.open) onCloseRef.current();
     };
     dialog.addEventListener('close', onNativeClose);
-    // The button that was clicked, taken from its click event: the focused element at this point can be a stale one.
     if (!dialog.open) dialog.showModal();
     // The dialog itself, so it opens at its top (the title is read first) and Tab then reaches the links.
     dialog.focus({ preventScroll: true });
