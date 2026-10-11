@@ -338,3 +338,22 @@ test('a file with an implausible gain or a frequency of 0 loads with a warning m
   await page.getByRole('button', { name: 'Show all', exact: true }).click();
   await expect(page.getByTestId('freq-left-out')).toHaveText('1 ticked file has no frequency above 0 MHz and is left out of this chart.');
 });
+
+test('Ctrl+Z still undoes a Remove after the toast has faded, and says "Nothing to undo" afterwards', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900))]);
+  const panel = page.locator('.panel');
+  await page.getByLabel('Actions for b.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  await expect(panel.locator('li')).toHaveCount(1);
+  await page.locator('h1').hover();
+  await page.clock.fastForward(11_000);
+  await expect(page.getByTestId('undo-toast')).toHaveCount(0);
+  await page.keyboard.press('Control+z');
+  await expect(panel.locator('li')).toHaveCount(2);
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('copy-note')).toHaveText('Nothing to undo');
+  await expect(page.getByRole('status')).toContainText('Nothing to undo');
+  await expect(panel.locator('li')).toHaveCount(2);
+});

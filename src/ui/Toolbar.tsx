@@ -39,7 +39,7 @@ export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
     if (clearNeedsConfirm(state)) {
       const n = state.files.length;
       const what = n === 0 ? 'Clear the session with all its groups' : `Clear ${n} file${n === 1 ? '' : 's'} and all groups`;
-      const ok = await confirmDialog(`${what}, names and offsets? You can undo this for a few seconds.`, 'Clear');
+      const ok = await confirmDialog(`${what}, names and offsets? You can undo this with Ctrl/Cmd+Z until your next change.`, 'Clear');
       if (!ok) return;
     }
     clear();

@@ -26,6 +26,8 @@ export interface UndoEntry {
   id: number;
   label: string;
   snapshot: Snapshot;
+  /** The toast that offers the undo is on screen. It fades after a while; the snapshot stays for Ctrl/Cmd+Z until a later edit withdraws it. */
+  shown: boolean;
 }
 
 /**

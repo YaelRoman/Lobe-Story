@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { isTextEntry, isUndoShortcut, undoShortcut } from './undoKeys';
 
-/** How long a destructive action stays undoable. */
+/** How long the toast offering an undo stays; the undo itself stays available to Ctrl/Cmd+Z until a later edit withdraws it. */
 export const UNDO_MS = 10_000;
 /** The least time the offer stays after the pointer or the focus leaves it. */
 const RESUME_MIN_MS = 3_000;
@@ -11,6 +11,7 @@ const RESUME_MIN_MS = 3_000;
 function Offer({ label }: { label: string }) {
   const undoLast = useStore((s) => s.undoLast);
   const dismissUndo = useStore((s) => s.dismissUndo);
+  const fadeUndo = useStore((s) => s.fadeUndo);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const remaining = useRef(UNDO_MS);
@@ -20,23 +21,12 @@ function Offer({ label }: { label: string }) {
   useEffect(() => {
     if (paused) return;
     const started = Date.now();
-    const timer = window.setTimeout(dismissUndo, remaining.current);
+    const timer = window.setTimeout(fadeUndo, remaining.current);
     return () => {
       window.clearTimeout(timer);
       remaining.current = Math.max(RESUME_MIN_MS, remaining.current - (Date.now() - started));
     };
-  }, [paused, dismissUndo]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!isUndoShortcut(e)) return;
-      if (isTextEntry(e.target as HTMLElement | null) || useStore.getState().dialog) return;
-      e.preventDefault();
-      undoLast();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [undoLast]);
+  }, [paused, fadeUndo]);
 
   return (
     <div
@@ -63,6 +53,29 @@ function Offer({ label }: { label: string }) {
  */
 export function UndoToast() {
   const undo = useStore((s) => s.undo);
-  if (!undo) return null;
+  useUndoShortcut();
+  if (!undo?.shown) return null;
   return <Offer key={undo.id} label={undo.label} />;
+}
+
+/** What Ctrl/Cmd+Z announces when there is nothing to take back. */
+export const NOTHING_TO_UNDO = 'Nothing to undo';
+
+/**
+ * Ctrl/Cmd+Z outside a text field and a dialog takes back the last destructive action while its snapshot is kept
+ * (also after the toast has faded), or says there is nothing to undo.
+ */
+function useUndoShortcut() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isUndoShortcut(e)) return;
+      const state = useStore.getState();
+      if (isTextEntry(e.target as HTMLElement | null) || state.dialog) return;
+      e.preventDefault();
+      if (state.undo) state.undoLast();
+      else state.setCopyNote(NOTHING_TO_UNDO);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 }

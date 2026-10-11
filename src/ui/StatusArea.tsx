@@ -27,7 +27,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const copyNote = useStore((s) => s.copyNote);
   const copySeq = useStore((s) => s.copySeq);
   const setLoadMessage = useStore((s) => s.setLoadMessage);
-  const undoLabel = useStore((s) => s.undo?.label);
+  const undoLabel = useStore((s) => (s.undo?.shown ? s.undo.label : undefined));
   const pendingFiles = useStore((s) => s.pendingFiles);
   const dismissPending = useStore((s) => s.dismissPending);
   const pending = pendingFiles.length > 0 ? pendingLabel(pendingFiles) : null;

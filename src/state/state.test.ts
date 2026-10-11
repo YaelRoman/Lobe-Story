@@ -649,6 +649,61 @@ describe('undo of destructive actions', () => {
   });
 });
 
+describe('the undo outlives its toast (R2-U3)', () => {
+  const st = useStore.getState;
+
+  it('fadeUndo hides the offer but keeps the snapshot for undoLast; dismissUndo drops it', () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    st().removeFile('a.MSI');
+    expect(st().undo?.shown).toBe(true);
+    st().fadeUndo();
+    expect(st().undo?.shown).toBe(false);
+    expect(st().undo?.label).toBe('Removed a.MSI');
+    st().undoLast();
+    expect(st().files.map((f) => f.id).sort()).toEqual(['a.MSI', 'b.MSI']);
+    expect(st().undo).toBeNull();
+    st().removeFile('a.MSI');
+    st().dismissUndo();
+    expect(st().undo).toBeNull();
+  });
+
+  it('a faded undo is still withdrawn by a later edit, and survives a highlight or a theme change', () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    st().removeFile('a.MSI');
+    st().fadeUndo();
+    st().setHighlighted('b.MSI');
+    st().updateView({ theme: st().view.theme === 'dark' ? 'light' : 'dark' });
+    expect(st().undo).not.toBeNull();
+    st().rename('b.MSI', 'Beta');
+    expect(st().undo).toBeNull();
+    const files = st().files;
+    st().undoLast();
+    expect(st().files).toBe(files);
+  });
+
+  it('applying a faded undo counts as a session swap and a file-set swap like any other', async () => {
+    const { sessionSwapCount, fileSetSwapCount } = await import('./store');
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    st().removeFile('a.MSI');
+    st().fadeUndo();
+    const [swaps, sets] = [sessionSwapCount(), fileSetSwapCount()];
+    st().undoLast();
+    expect(sessionSwapCount()).toBe(swaps + 1);
+    expect(fileSetSwapCount()).toBe(sets + 1);
+  });
+
+  it('a faded undo does not make the session count as saved or unsaved by itself', () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    st().markSaved();
+    st().removeFile('a.MSI');
+    expect(isDirty(st())).toBe(true);
+    st().fadeUndo();
+    expect(isDirty(st())).toBe(true);
+    st().undoLast();
+    expect(isDirty(st())).toBe(false);
+  });
+});
+
 describe('unsaved work', () => {
   const st = useStore.getState;
 

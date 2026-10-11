@@ -111,7 +111,7 @@ export interface StoreData {
   copyNote: string | null;
   /** Counts every copy note, so an identical one is re-announced and restarts the fade. */
   copySeq: number;
-  /** The last destructive action's snapshot, offered for undo for a short time. */
+  /** The last destructive action's snapshot: offered in a toast for a short time, then available to Ctrl/Cmd+Z until a later edit withdraws it. */
   undo: UndoEntry | null;
   /** The saveable state as of the last Save project / Open project; null = never saved. See undo.ts `isDirty`. */
   saved: SavedMark | null;
@@ -151,7 +151,10 @@ export interface AddFilesOptions {
 export interface StoreActions {
   addFiles(inputs: FileInput[], options?: AddFilesOptions): void;
   undoLast(): void;
+  /** Remove the offer and its snapshot (the toast's ✕). */
   dismissUndo(): void;
+  /** The toast fades; the snapshot stays for Ctrl/Cmd+Z. */
+  fadeUndo(): void;
   markSaved(): void;
   loadProject(project: ProjectFile): void;
   dismissPending(): void;
@@ -362,7 +365,7 @@ const nextGroupName = (groups: CustomGroup[], prefix: string): string => {
 let undoSeq = 0;
 /** The `undo` field for an action about to change `s`: its snapshot, labelled for the toast. */
 const undoEntry = (s: StoreData, label: string): { undo: UndoEntry } => ({
-  undo: { id: ++undoSeq, label, snapshot: takeSnapshot(s) },
+  undo: { id: ++undoSeq, label, snapshot: takeSnapshot(s), shown: true },
 });
 
 /** Whether every value of `partial` is already what `current` holds (an update that changes nothing). */
@@ -479,6 +482,8 @@ export const useStore = create<State>()((rawSet, get) => {
     }),
 
   dismissUndo: () => set({ undo: null }),
+
+  fadeUndo: () => set((s) => (s.undo?.shown ? { undo: { ...s.undo, shown: false } } : s)),
 
   markSaved: () => set((s) => ({ saved: markOf(s) })),
 

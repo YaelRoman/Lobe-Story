@@ -47,6 +47,9 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   in the Δ view is marked "(differences vs <reference>)" or "(reference)" there, not in the data.
 - CSV export of the metrics table and PNG export of any plot (the cut plots export with a legend
   of every file and the highlighted file's values).
+- Undo: Remove, Delete group, Clear, Show all / none and opening a project over a session can be taken back
+  with the Undo button for a few seconds and then with Ctrl/Cmd+Z until the next change you make (one step; a
+  later edit withdraws it). Ctrl/Cmd+Z with nothing to undo says so.
 - **Load example** on the empty page loads a small synthetic dual-polarised panel generated in code (24 files,
   not a real antenna) so every feature can be tried; **Help** explains the main terms.
 
