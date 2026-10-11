@@ -3,34 +3,47 @@ import type { PatternMetrics } from '../core/analysis/metrics';
 import type { GroupView } from '../state/selectors';
 import { isTilted, type TiltSettings, type SimSettings } from '../core/analysis/tilt';
 import { nameOf } from '../core/names';
+import type { ColumnGroupKey } from '../state/store';
 
 export type MetricColumn =
-  | 'hHpbw' | 'vHpbw' | 'fb180' | 'fbWindow' | 'usls' | 'nullFill'
-  | 'squint' | 'tilt' | 'tiltError' | 'tracking'
-  | 'spr' | 'air' | 'rollOff' | 'du16' | 'du64' | 'du256'
+  | 'hHpbw' | 'vHpbw' | 'squint' | 'tilt' | 'tiltError'
+  | 'fb180' | 'fbWindow' | 'usls' | 'nullFill'
+  | 'tracking' | 'spr' | 'air' | 'rollOff' | 'du16' | 'du64' | 'du256'
   | 'dH' | 'dV' | 'dFb';
 
-export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string }[] = [
-  { key: 'hHpbw', label: 'H-HPBW', unit: '°' },
-  { key: 'vHpbw', label: 'V-HPBW', unit: '°' },
-  { key: 'fb180', label: 'F/B 180°', unit: 'dB' },
-  { key: 'fbWindow', label: 'F/B window', unit: 'dB' },
-  { key: 'usls', label: 'USLS', unit: 'dB' },
-  { key: 'nullFill', label: 'Null fill', unit: 'dB' },
-  { key: 'squint', label: 'Squint', unit: '°' },
-  { key: 'tilt', label: 'Tilt', unit: '°' },
-  { key: 'tiltError', label: 'Tilt error', unit: '°' },
-  { key: 'tracking', label: 'P2P tracking', unit: 'dB' },
-  { key: 'spr', label: 'SPR', unit: '%' },
-  { key: 'air', label: 'AIR', unit: 'dB' },
-  { key: 'rollOff', label: 'Roll-off', unit: 'dB' },
-  { key: 'du16', label: 'D/U 16QAM', unit: '°' },
-  { key: 'du64', label: 'D/U 64QAM', unit: '°' },
-  { key: 'du256', label: 'D/U 256QAM', unit: '°' },
-  { key: 'dH', label: 'ΔH-HPBW', unit: '°' },
-  { key: 'dV', label: 'ΔV-HPBW', unit: '°' },
-  { key: 'dFb', label: 'ΔF/B', unit: 'dB' },
+export const COLUMN_GROUPS: { key: ColumnGroupKey; label: string }[] = [
+  { key: 'beam', label: 'Beam' },
+  { key: 'fb', label: 'Front/back' },
+  { key: 'sidelobes', label: 'Sidelobes' },
+  { key: 'sector', label: 'Sector' },
+  { key: 'declared', label: 'Declared Δ' },
 ];
+
+export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string; group: ColumnGroupKey }[] = [
+  { key: 'hHpbw', label: 'H-HPBW', unit: '°', group: 'beam' },
+  { key: 'vHpbw', label: 'V-HPBW', unit: '°', group: 'beam' },
+  { key: 'squint', label: 'Squint', unit: '°', group: 'beam' },
+  { key: 'tilt', label: 'Tilt', unit: '°', group: 'beam' },
+  { key: 'tiltError', label: 'Tilt error', unit: '°', group: 'beam' },
+  { key: 'fb180', label: 'F/B 180°', unit: 'dB', group: 'fb' },
+  { key: 'fbWindow', label: 'F/B window', unit: 'dB', group: 'fb' },
+  { key: 'usls', label: 'USLS', unit: 'dB', group: 'sidelobes' },
+  { key: 'nullFill', label: 'Null fill', unit: 'dB', group: 'sidelobes' },
+  { key: 'tracking', label: 'P2P tracking', unit: 'dB', group: 'sector' },
+  { key: 'spr', label: 'SPR', unit: '%', group: 'sector' },
+  { key: 'air', label: 'AIR', unit: 'dB', group: 'sector' },
+  { key: 'rollOff', label: 'Roll-off', unit: 'dB', group: 'sector' },
+  { key: 'du16', label: 'D/U 16QAM', unit: '°', group: 'sector' },
+  { key: 'du64', label: 'D/U 64QAM', unit: '°', group: 'sector' },
+  { key: 'du256', label: 'D/U 256QAM', unit: '°', group: 'sector' },
+  { key: 'dH', label: 'ΔH-HPBW', unit: '°', group: 'declared' },
+  { key: 'dV', label: 'ΔV-HPBW', unit: '°', group: 'declared' },
+  { key: 'dFb', label: 'ΔF/B', unit: 'dB', group: 'declared' },
+];
+
+export function visibleColumns(groups: Record<ColumnGroupKey, boolean>): typeof METRIC_COLUMNS {
+  return METRIC_COLUMNS.filter((c) => groups[c.group]);
+}
 
 /** Header text for a column; the F/B window label depends on the current setting. */
 export function columnLabel(c: { key: MetricColumn; label: string }, fbWindowDeg: number): string {
@@ -85,13 +98,13 @@ function cellsOf(m: PatternMetrics): Record<MetricColumn, MetricResult> {
   return {
     hHpbw: m.h.hpbw,
     vHpbw: m.v.hpbw,
+    squint: m.squint,
+    tilt: m.tilt,
+    tiltError: m.tiltError,
     fb180: m.fb180,
     fbWindow: m.fbWindow,
     usls: m.usls,
     nullFill: m.nullFill,
-    squint: m.squint,
-    tilt: m.tilt,
-    tiltError: m.tiltError,
     tracking: m.beamTracking,
     spr: m.spr,
     air: m.air,

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildRows, columnTitle, convertGain, formatCell, METRIC_COLUMNS, simulationLabel, toCsv, offsetLabel } from './table';
+import {
+  buildRows, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
+  simulationLabel, toCsv, offsetLabel,
+} from './table';
+import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import { analyzeTilted, tiltTagged, effectiveFor, isTilted, tiltEach, type SimSettings } from '../core/analysis/tilt';
 import { groupPatterns } from '../state/selectors';
@@ -36,8 +40,12 @@ describe('buildRows and toCsv', () => {
   it('writes CSV with escaped cells and empty nulls', () => {
     const csv = toCsv(rows, 'dBi', 30);
     const [header, line] = csv.trimEnd().split('\r\n');
-    expect(header.startsWith('File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),F/B 180° (dB),F/B ±30° (dB)')).toBe(true);
-    expect(line.startsWith('"""odd, name"".MSI",+45 · 6°T,1800,17.15,60.00,8.00,40.00,')).toBe(true);
+    expect(
+      header.startsWith(
+        'File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),Squint (°),Tilt (°),Tilt error (°),F/B 180° (dB),F/B ±30° (dB)',
+      ),
+    ).toBe(true);
+    expect(line.startsWith('"""odd, name"".MSI",+45 · 6°T,1800,17.15,60.00,8.00,')).toBe(true);
     expect(line.split(',').length).toBeGreaterThan(10);
     expect(line).toContain(',,'); // null tracking / deltas are empty
   });
@@ -245,5 +253,27 @@ describe('sector columns', () => {
     expect(columnTitle('du64', s)).toContain('≥ 20 dB');
     expect(columnTitle('du256', s)).toContain('≥ 25 dB');
     expect(columnTitle('hHpbw', s)).toBeUndefined();
+  });
+});
+
+describe('column groups', () => {
+  const order = COLUMN_GROUPS.map((g) => g.key);
+
+  it('keeps each group contiguous, in group order', () => {
+    const idx = METRIC_COLUMNS.map((c) => order.indexOf(c.group));
+    expect(idx.every((i) => i >= 0)).toBe(true);
+    expect(idx).toEqual([...idx].sort((a, b) => a - b));
+  });
+
+  it('shows all but the declared columns by default', () => {
+    const keys = visibleColumns(DEFAULT_TABLE_GROUPS).map((c) => c.key);
+    expect(keys).toHaveLength(16);
+    for (const k of ['dH', 'dV', 'dFb']) expect(keys).not.toContain(k);
+  });
+
+  it('filters by group', () => {
+    const none = Object.fromEntries(order.map((k) => [k, false])) as Record<ColumnGroupKey, boolean>;
+    expect(visibleColumns(none)).toEqual([]);
+    expect(visibleColumns({ ...none, fb: true }).map((c) => c.key)).toEqual(['fb180', 'fbWindow']);
   });
 });

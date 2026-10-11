@@ -7,7 +7,7 @@ import {
   projectToState,
   serializeProject,
 } from './project';
-import { initialState, loadText, useStore, type StoreData } from './store';
+import { DEFAULT_TABLE_GROUPS, initialState, loadText, useStore, type StoreData } from './store';
 import { selectInstances } from './selectors';
 import { planetText } from '../test/planetText';
 
@@ -199,6 +199,19 @@ describe('damaged values', () => {
     const s = restore(withState({ view: { markers: { sector: true } } }));
     expect(s.view.markers.sector).toBe(true);
     expect(restore(withState({ view: { markers: { sector: 'on' } } })).view.markers.sector).toBe(false);
+  });
+
+  it('restores the table column groups', () => {
+    expect(restore(withState({})).view.tableGroups).toEqual(DEFAULT_TABLE_GROUPS);
+    const s = restore(withState({ view: { tableGroups: { sector: false, declared: 'yes', bogus: true } } }));
+    expect(s.view.tableGroups).toEqual({ beam: true, fb: true, sidelobes: true, sector: false, declared: false });
+  });
+
+  it('round-trips the table column groups', () => {
+    const before = { ...initialState() };
+    before.view = { ...before.view, tableGroups: { ...DEFAULT_TABLE_GROUPS, sector: false, declared: true } };
+    const s = restore(serializeProject(before, true));
+    expect(s.view.tableGroups).toEqual({ ...DEFAULT_TABLE_GROUPS, sector: false, declared: true });
   });
 
   it('dedupes files by path, first wins', () => {

@@ -20,6 +20,16 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await expect(page.getByText('Missing HORIZONTAL block')).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^SPR/ })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^D\/U 256QAM/ })).toBeVisible();
+  const declared = page.getByRole('checkbox', { name: 'Show Declared Δ columns' });
+  await expect(declared).not.toBeChecked();
+  await expect(page.getByRole('columnheader', { name: /^ΔH-HPBW/ })).toHaveCount(0);
+  await declared.check();
+  await expect(page.getByRole('columnheader', { name: /^ΔH-HPBW/ })).toBeVisible();
+  const sectorCols = page.getByRole('checkbox', { name: 'Show Sector columns' });
+  await sectorCols.uncheck();
+  await expect(page.getByRole('columnheader', { name: /^SPR/ })).toHaveCount(0);
+  await sectorCols.check();
+  await expect(page.getByRole('columnheader', { name: /^SPR/ })).toBeVisible();
 
   await expect(page.getByTestId('plot-h').locator('.main-svg').first()).toBeVisible();
   await expect(page.getByTestId('plot-v').locator('.main-svg').first()).toBeVisible();

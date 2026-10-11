@@ -209,11 +209,17 @@ export function projectToState(
   const rawView: Record<string, unknown> = isObj(st.view) ? (st.view as Record<string, unknown>) : {};
   const rawSim: Record<string, unknown> = isObj(rawView.simulation) ? rawView.simulation : {};
   const rawMarkers: Record<string, unknown> = isObj(rawView.markers) ? rawView.markers : {};
+  const rawGroups: Record<string, unknown> = isObj(rawView.tableGroups) ? rawView.tableGroups : {};
   const dv = defaults.view;
 
   const markers = { ...dv.markers };
   for (const k of Object.keys(markers) as (keyof typeof markers)[]) {
     if (typeof rawMarkers[k] === 'boolean') markers[k] = rawMarkers[k] as boolean;
+  }
+
+  const tableGroups = { ...dv.tableGroups };
+  for (const k of Object.keys(tableGroups) as (keyof typeof tableGroups)[]) {
+    if (typeof rawGroups[k] === 'boolean') tableGroups[k] = rawGroups[k] as boolean;
   }
 
   const simulation: SimulationState = {
@@ -264,6 +270,7 @@ export function projectToState(
       theme,
       floorDb: floor > 0 ? floor : dv.floorDb,
       markers,
+      tableGroups,
       dimension: oneOf(rawView.dimension, ['2d', '3d'] as const, dv.dimension),
       method3d: oneOf(rawView.method3d, ['summation', 'weighted'] as const, dv.method3d),
       layout3d: oneOf(rawView.layout3d, ['grid', 'overlay'] as const, dv.layout3d),

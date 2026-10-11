@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
-import { buildRows, columnLabel, columnTitle, formatCell, METRIC_COLUMNS, simulationLabel, toCsv } from './table';
+import { buildRows, COLUMN_GROUPS, columnLabel, columnTitle, formatCell, simulationLabel, toCsv, visibleColumns } from './table';
 import { downloadText } from './download';
 import type { SimulationResult } from './useSimulation';
 
@@ -20,6 +20,9 @@ export const MetricsTable = memo(function MetricsTable({
   const fbWindowDeg = useStore((s) => s.settings.fbWindowDeg);
   const sectorEdgeDeg = useStore((s) => s.settings.sectorEdgeDeg);
   const siteSectors = useStore((s) => s.settings.siteSectors);
+  const tableGroups = useStore((s) => s.view.tableGroups);
+  const updateView = useStore((s) => s.updateView);
+  const columns = visibleColumns(tableGroups);
   const highlighted = useStore((s) => s.highlighted);
   const setHighlighted = useStore((s) => s.setHighlighted);
   const setVisible = useStore((s) => s.setVisible);
@@ -44,6 +47,18 @@ export const MetricsTable = memo(function MetricsTable({
         >
           Export CSV
         </button>
+        <span className="count">Columns</span>
+        {COLUMN_GROUPS.map(({ key, label }) => (
+          <label key={key}>
+            <input
+              type="checkbox"
+              aria-label={`Show ${label} columns`}
+              checked={tableGroups[key]}
+              onChange={(e) => updateView({ tableGroups: { ...tableGroups, [key]: e.target.checked } })}
+            />
+            {label}
+          </label>
+        ))}
         {sim.tiltActive && <p className="count">{simulationLabel(sim.tilt, sim.offsetCount, sim.groupOffsetCount)}</p>}
       </div>
       <div className="table-wrap">
@@ -54,7 +69,7 @@ export const MetricsTable = memo(function MetricsTable({
               <th>Group</th>
               <th>MHz</th>
               <th>Gain ({gainUnit})</th>
-              {METRIC_COLUMNS.map((c) => (
+              {columns.map((c) => (
                 <th key={c.key} title={columnTitle(c.key, { sectorEdgeDeg, siteSectors })}>
                   {columnLabel(c, fbWindowDeg)} ({c.unit})
                 </th>
@@ -75,7 +90,7 @@ export const MetricsTable = memo(function MetricsTable({
                 <td>{r.group}</td>
                 <td>{r.freq}</td>
                 <td>{r.gain === null ? '—' : r.gain.toFixed(2)}</td>
-                {METRIC_COLUMNS.map((c) => {
+                {columns.map((c) => {
                   const cell = formatCell(r.cells[c.key], r.tilted?.[c.key]);
                   return (
                     <td key={c.key} title={cell.title}>
