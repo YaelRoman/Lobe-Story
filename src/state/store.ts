@@ -9,6 +9,7 @@ import { isPatternFile, type FileInput } from './files';
 import { projectToState, type ProjectFile } from './project';
 import { isCleanLoad, loadSummary, planLoad, type PendingFile } from './duplicates';
 import { changesSession, markOf, takeSnapshot, type SavedMark, type UndoEntry } from './undo';
+import { uniqueGroupName } from './groupNames';
 import { clampSim, SIM_LIMITS, type OffsetState, type SimulationKey } from './simLimits';
 
 export { clampSim, SIM_LIMITS };
@@ -80,7 +81,7 @@ export interface ViewState {
 
 export type DialogState =
   | { kind: 'confirm'; message: string; confirmLabel: string }
-  | { kind: 'prompt'; message: string; initial: string; confirmLabel: string }
+  | { kind: 'prompt'; message: string; initial: string; confirmLabel: string; hint?: string }
   | { kind: 'save-project' }
   | { kind: 'choice'; message: string; choices: { value: string; label: string }[] }
   | null;
@@ -160,6 +161,13 @@ export interface StoreActions {
   setGroupOffset(groupId: string, partial: Partial<OffsetState>): void;
   clearGroupOffsets(groupId: string): void;
   select(selection: Selection): void;
+  /**
+   * A click on a file in the panel or the table: ticks it and highlights it; clicking the highlighted,
+   * ticked file again clears the highlight.
+   */
+  pickFile(id: string): void;
+  /** Clears the highlight and the selection (Esc). */
+  clearHighlight(): void;
   createSite(id: string, sectors: number): string | null;
 }
 
@@ -577,7 +585,7 @@ export const useStore = create<State>()((rawSet, get) => {
   createGroup: (name) => {
     const s = get();
     const id = nextGroupId(s.customGroups);
-    const label = name?.trim() || nextGroupName(s.customGroups, 'Group');
+    const label = name?.trim() ? uniqueGroupName(s.customGroups, name.trim()) : nextGroupName(s.customGroups, 'Group');
     set({ customGroups: [...s.customGroups, { id, name: label }] });
     return id;
   },
@@ -587,7 +595,9 @@ export const useStore = create<State>()((rawSet, get) => {
       const trimmed = name.trim();
       const group = s.customGroups.find((g) => g.id === id);
       if (!trimmed || !group || group.name === trimmed) return s;
-      return { customGroups: s.customGroups.map((g) => (g.id === id ? { ...g, name: trimmed } : g)) };
+      const name2 = uniqueGroupName(s.customGroups, trimmed, id);
+      if (group.name === name2) return s;
+      return { customGroups: s.customGroups.map((g) => (g.id === id ? { ...g, name: name2 } : g)) };
     }),
 
   deleteGroup: (id) =>
@@ -611,7 +621,7 @@ export const useStore = create<State>()((rawSet, get) => {
     if (!g) return null;
     const d = draftOf(s);
     const newId = nextGroupId(d.customGroups);
-    d.customGroups.push({ id: newId, name: `${g.name} (copy)` });
+    d.customGroups.push({ id: newId, name: uniqueGroupName(d.customGroups, `${g.name} (copy)`) });
     if (d.groupOffsets[id]) d.groupOffsets[newId] = { ...d.groupOffsets[id] };
     for (const member of Object.keys(s.membership).filter((m) => s.membership[m] === id)) {
       d.membership[duplicateInto(d, member)] = newId;
@@ -656,6 +666,14 @@ export const useStore = create<State>()((rawSet, get) => {
 
   select: (selection) =>
     set(selection?.kind === 'file' ? { selected: selection, highlighted: selection.id } : { selected: selection }),
+
+  pickFile: (id) =>
+    set((s) => {
+      if (s.highlighted === id && s.visible[id]) return { highlighted: null, selected: null };
+      return { visible: s.visible[id] ? s.visible : { ...s.visible, [id]: true }, highlighted: id, selected: { kind: 'file', id } };
+    }),
+
+  clearHighlight: () => set((s) => (s.highlighted === null && s.selected === null ? s : { highlighted: null, selected: null })),
 
   createSite: (id, sectors) => {
     const s = get();

@@ -2,12 +2,14 @@
   --bg: #ffffff;
   --panel: #f6f8fa;
   --fg: #1f2328;
-  --muted: #6e7781;
+  --muted: #57606a;
   --border: #d0d7de;
   --accent: #0969da;
+  /* Background of filled, white-text controls (at least 4.5:1 against #fff); --accent stays for text and outlines. */
+  --accent-fill: #0969da;
   --hl: #ddf4ff;
   --danger: #cf222e;
-  --warn: #9a6700;
+  --warn: #8a5a00;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -17,6 +19,7 @@
   --muted: #8b949e;
   --border: #30363d;
   --accent: #4493f8;
+  --accent-fill: #1f6feb;
   --hl: #1f2d3d;
   --danger: #ff7b72;
   --warn: #d29922;
@@ -29,7 +32,7 @@ h2 { font-size: 15px; margin: 0; }
 .toolbar { position: relative; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .toolbar h1 { font-size: 16px; margin: 0 auto 0 0; }
 button, .button { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
-button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
+button[aria-pressed='true'] { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
 .seg { display: inline-flex; }
 .seg button { border-radius: 0; }
 .seg button:first-child { border-radius: 6px 0 0 6px; }
@@ -94,10 +97,10 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 .sim-field { display: inline-flex; gap: 6px; align-items: center; }
 .sim-field input[type='range'] { width: 140px; }
 .sim-field input[type='number'] { width: 70px; }
-.badge { padding: 2px 8px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; }
+.badge { padding: 2px 8px; border-radius: 999px; background: var(--accent-fill); color: #fff; font-size: 12px; }
 .seg button:disabled { opacity: 0.5; cursor: not-allowed; }
 .sim-offsets { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; flex-basis: 100%; padding-top: 6px; border-top: 1px dashed var(--border); }
-.offset-badge { padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; }
+.offset-badge { padding: 0 6px; border-radius: 999px; background: var(--accent-fill); color: #fff; font-size: 11px; }
 .menu { position: relative; }
 .menu summary { list-style: none; cursor: pointer; padding: 0 6px; border: 1px solid var(--border); border-radius: 4px; }
 .menu summary::-webkit-details-marker { display: none; }
@@ -186,7 +189,7 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 .empty-state h2 { font-size: 18px; }
 .empty-state p { margin: 0; color: var(--muted); }
 .empty-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.empty-actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.empty-actions button.primary { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
 dialog.help { width: min(640px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
 dialog.help::backdrop { background: rgb(0 0 0 / 40%); }
 dialog.help:focus { outline: none; }
@@ -194,3 +197,11 @@ dialog.help:focus { outline: none; }
 .glossary dt { font-weight: 600; }
 .glossary dd { margin: 0; color: var(--muted); }
 dialog.help a { color: var(--accent); }
+
+/* Inline validation messages (Settings, tag editor). */
+.field-message { grid-column: 1 / -1; margin: -2px 0 0; font-size: 12px; color: var(--muted); }
+.field-message.error { color: var(--danger); }
+.settings { max-width: min(360px, calc(100vw - 24px)); }
+input[aria-invalid='true'] { border-color: var(--danger); }
+.group.drop-target { outline: 2px dashed var(--accent); outline-offset: 0; border-radius: 4px; }
+.empty-group { margin: 0 0 8px; font-size: 12px; }

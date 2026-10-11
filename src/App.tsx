@@ -16,6 +16,7 @@ import { StatusArea } from './ui/StatusArea';
 import { useUnsavedGuard } from './ui/useUnsavedGuard';
 import { EmptyState } from './ui/EmptyState';
 import { HelpDialog } from './ui/HelpDialog';
+import { useEscapeClear } from './ui/useEscapeClear';
 
 export default function App() {
   const files = useStore((s) => s.files);
@@ -50,6 +51,7 @@ export default function App() {
   const colors = useMemo(() => colorMap(visibleIds), [visibleIds]);
   const dragging = useWindowDrop();
   useUnsavedGuard();
+  useEscapeClear();
   // Phone layout: the file panel is a drawer, closed until asked for (on wider screens it is always shown).
   const [filesOpen, setFilesOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);

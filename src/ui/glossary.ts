@@ -10,7 +10,7 @@ export interface GlossaryEntry {
 }
 
 export const GLOSSARY: readonly GlossaryEntry[] = [
-  { term: 'HPBW', text: 'Half-power beamwidth: the angle between the two points where the pattern is 3 dB below its peak (the level can be changed in Settings).' },
+  { term: 'HPBW', text: 'Half-power beamwidth: the angle between the two points where the pattern is 3 dB below its peak (the level can be changed in Settings; the labels then read BW@x dB instead of HPBW).' },
   { term: 'Squint', text: 'How far the middle of the horizontal beam points away from 0° (the antenna’s boresight).' },
   { term: 'Tilt', text: 'The elevation angle of the vertical beam, positive below the horizon. Electrical tilt is set inside the antenna and is read from the file name (for example 05T) or its header.' },
   { term: 'F/B', text: 'Front-to-back ratio: how many dB lower the strongest level behind the antenna (180° ± a window) is than the peak. Bigger is better.' },

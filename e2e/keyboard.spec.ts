@@ -67,6 +67,9 @@ test('the file list is one tab stop; arrows, Enter and Space work the rows', asy
   expect(n).toBeLessThan(120);
   await page.keyboard.press('ArrowDown');
   await expect(rows.nth(1)).toBeFocused();
+  // b.msi is already the highlighted file: Enter clears the highlight, the next Enter sets it again.
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.metrics tbody tr.hl')).toHaveCount(0);
   await page.keyboard.press('Enter');
   await expect(page.locator('.metrics tbody tr.hl')).toHaveCount(1);
   await expect(rows.nth(1)).toHaveAttribute('aria-current', 'true');

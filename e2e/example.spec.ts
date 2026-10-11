@@ -124,3 +124,42 @@ test('Help dialog: a click in its padding does not close it, a click on the back
   await page.mouse.click(box.x - 20, box.y + 20);
   await expect(dialog).toHaveCount(0);
 });
+
+test('selection and labels: a panel click ticks and highlights, a second click or Esc clears; labels follow the beamwidth level', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+
+  const item = page.locator('.panel li').nth(5);
+  await expect(item.getByRole('checkbox')).not.toBeChecked();
+  await item.locator('.row-main').click();
+  await expect(item.getByRole('checkbox')).toBeChecked();
+  await expect(item).toHaveClass(/hl/);
+  await item.locator('.row-main').click();
+  await expect(item).not.toHaveClass(/hl/);
+  await expect(item.getByRole('checkbox')).toBeChecked();
+  await item.locator('.row-main').click();
+  await expect(item).toHaveClass(/hl/);
+  await page.keyboard.press('Escape');
+  await expect(item).not.toHaveClass(/hl/);
+
+  // Esc belongs to an open menu first: the highlight stays.
+  await item.locator('.row-main').click();
+  await item.locator('summary').click();
+  await page.keyboard.press('Escape');
+  await expect(item).toHaveClass(/hl/);
+
+  // A refused setting says why; the beamwidth level renames the beamwidth labels.
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const level = page.getByLabel('Beamwidth level (dB)');
+  await level.fill('-5');
+  await level.press('Enter');
+  await expect(page.getByRole('alert')).toContainText('from 0.5 to 20');
+  await level.fill('10');
+  await level.press('Enter');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('table.metrics thead th', { hasText: 'H-BW@10 dB (°)' })).toBeVisible();
+  await expect(page.getByTestId('readout-h')).toContainText('BW@10 dB');
+  await expect(page.locator('.marker-options')).toContainText('−10 dB / BW@10 dB');
+});

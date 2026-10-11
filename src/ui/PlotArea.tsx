@@ -4,6 +4,7 @@ import { useStore, type CutView, type Dimension, type Layout3d, type MarkerKey, 
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildCutFigure, markerReadout } from './cutFigure';
+import { bwMarkerLabel } from './bwLabel';
 import { buildCutSeries } from './cutSeries';
 import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend } from './legend';
@@ -20,18 +21,19 @@ interface Props {
   sim: SimulationResult;
 }
 
-const MARKER_LABELS: Record<MarkerKey, string> = {
-  hpbw: '−3 dB / HPBW',
+/** The marker names in display order; the first follows the beamwidth level of the settings. */
+const markerLabels = (levelDb: number): Record<MarkerKey, string> => ({
+  hpbw: bwMarkerLabel(levelDb),
   fb: 'F/B window',
   usls: 'Sidelobes',
   null: 'Null fill',
   peak: 'Beam direction',
   sector: 'Sector',
-};
+});
 
 /** The names of the markers that are on, for the folded "Markers" control. */
-const shownMarkers = (markers: Record<MarkerKey, boolean>): string => {
-  const on = (Object.keys(MARKER_LABELS) as MarkerKey[]).filter((k) => markers[k]).map((k) => MARKER_LABELS[k]);
+const shownMarkers = (markers: Record<MarkerKey, boolean>, labels: Record<MarkerKey, string>): string => {
+  const on = (Object.keys(labels) as MarkerKey[]).filter((k) => markers[k]).map((k) => labels[k]);
   return on.length > 0 ? on.join(' · ') : 'none';
 };
 
@@ -94,6 +96,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
   const markerTarget =
     highlighted && visible[highlighted] ? highlighted : items.length === 1 ? items[0].pattern.id : null;
   const is3d = view.dimension === '3d';
+  const labels = markerLabels(settings.levelDb);
 
   const figures = useMemo(() => {
     if (is3d) return null;
@@ -167,16 +170,16 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
             >
               <span aria-hidden="true">{view.markersFolded ? '▸' : '▾'}</span> Markers
             </button>
-            {view.markersFolded && <span className="count">{shownMarkers(view.markers)}</span>}
+            {view.markersFolded && <span className="count">{shownMarkers(view.markers, labels)}</span>}
             <div id="marker-options" className="marker-options" hidden={view.markersFolded}>
-              {(Object.keys(MARKER_LABELS) as MarkerKey[]).map((key) => (
+              {(Object.keys(labels) as MarkerKey[]).map((key) => (
                 <label key={key}>
                   <input
                     type="checkbox"
                     checked={view.markers[key]}
                     onChange={(e) => updateView({ markers: { ...view.markers, [key]: e.target.checked } })}
                   />
-                  {MARKER_LABELS[key]}
+                  {labels[key]}
                 </label>
               ))}
             </div>
@@ -189,7 +192,13 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
         <Pattern3D items={items} colors={colors} sim={sim} />
       ) : (
         <>
-          {!markerTarget && <p className="count">Click a file to show its analysis markers.</p>}
+          {!markerTarget && (
+            <p className="count">
+              {highlighted
+                ? 'The highlighted file is not ticked: tick it to see its analysis markers.'
+                : 'Click a file in the panel or the table to show its analysis markers (Esc clears the highlight).'}
+            </p>
+          )}
           <div className="plots">
             {view.cut !== 'V' && figures && <CutPlot id="h" {...figures.h} />}
             {view.cut !== 'H' && figures && <CutPlot id="v" {...figures.v} />}

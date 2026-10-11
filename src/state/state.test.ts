@@ -1113,3 +1113,74 @@ describe('actions that change nothing', () => {
     expect(st().undo).toBeNull();
   });
 });
+
+describe('file selection from the panel and the table', () => {
+  const st = useStore.getState;
+  const load = () => st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+
+  it('ticks an unticked file and highlights it', () => {
+    load();
+    expect(st().visible['b.MSI']).toBeFalsy();
+    st().pickFile('b.MSI');
+    expect(st().visible['b.MSI']).toBe(true);
+    expect(st().highlighted).toBe('b.MSI');
+    expect(st().selected).toEqual({ kind: 'file', id: 'b.MSI' });
+  });
+
+  it('clears the highlight on a second click, keeping the file ticked', () => {
+    load();
+    st().pickFile('b.MSI');
+    st().pickFile('b.MSI');
+    expect(st().highlighted).toBeNull();
+    expect(st().selected).toBeNull();
+    expect(st().visible['b.MSI']).toBe(true);
+  });
+
+  it('ticks a highlighted file that was unticked instead of clearing it', () => {
+    load();
+    st().pickFile('b.MSI');
+    st().toggleVisible('b.MSI');
+    st().pickFile('b.MSI');
+    expect(st().highlighted).toBe('b.MSI');
+    expect(st().visible['b.MSI']).toBe(true);
+  });
+
+  it('clearHighlight drops the highlight and the selection, and is a no-op without them', () => {
+    load();
+    st().select({ kind: 'group', id: 'g1' });
+    st().clearHighlight();
+    expect(st().selected).toBeNull();
+    expect(st().highlighted).toBeNull();
+    const before = st();
+    st().clearHighlight();
+    expect(st()).toBe(before);
+  });
+});
+
+describe('group names stay unique', () => {
+  const st = useStore.getState;
+  const names = () => st().customGroups.map((g) => g.name);
+
+  it('suffixes a created group that repeats a name', () => {
+    st().createGroup('North');
+    st().createGroup('North');
+    st().createGroup(' north ');
+    expect(names()).toEqual(['North', 'North (2)', 'north (3)']);
+  });
+
+  it('suffixes a rename onto an existing name but accepts keeping its own', () => {
+    const a = st().createGroup('A');
+    const b = st().createGroup('B');
+    st().renameGroup(b, 'A');
+    expect(names()).toEqual(['A', 'A (2)']);
+    st().renameGroup(a, 'A');
+    expect(names()).toEqual(['A', 'A (2)']);
+  });
+
+  it('suffixes a second copy of a group', () => {
+    const a = st().createGroup('A');
+    st().duplicateGroup(a);
+    st().duplicateGroup(a);
+    expect(names()).toEqual(['A', 'A (copy)', 'A (copy) (2)']);
+  });
+});

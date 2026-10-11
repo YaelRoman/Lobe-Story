@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
+import { parseTilt } from './tagEdit';
 import type { Tags } from '../core/types';
 
 export function TagEditor({ tags, onSave, onCancel }: { tags: Tags; onSave: (t: Tags) => void; onCancel: () => void }) {
@@ -7,12 +8,21 @@ export function TagEditor({ tags, onSave, onCancel }: { tags: Tags; onSave: (t: 
   const [port, setPort] = useState(tags.port ?? '');
   const [array, setArray] = useState(tags.array ?? '');
 
+  const [tiltError, setTiltError] = useState<string | null>(null);
+  const tiltRef = useRef<HTMLInputElement>(null);
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const t = Number(tilt);
+    const parsed = parseTilt(tilt);
+    if (!parsed.ok) {
+      // Nothing is saved: the message says why and the focus goes to the field.
+      setTiltError(parsed.message);
+      tiltRef.current?.focus();
+      return;
+    }
     onSave({
       polarization: pol.trim() || undefined,
-      tiltDeg: tilt.trim() !== '' && Number.isFinite(t) ? t : undefined,
+      tiltDeg: parsed.value,
       port: port.trim() || undefined,
       array: array.trim() || undefined,
     });
@@ -31,7 +41,24 @@ export function TagEditor({ tags, onSave, onCancel }: { tags: Tags; onSave: (t: 
       <label htmlFor="tag-pol">Polarization</label>
       <input id="tag-pol" type="text" autoFocus value={pol} placeholder="+45 / -45" onChange={(e) => setPol(e.target.value)} />
       <label htmlFor="tag-tilt">Tilt (°)</label>
-      <input id="tag-tilt" type="text" inputMode="decimal" value={tilt} onChange={(e) => setTilt(e.target.value)} />
+      <input
+        id="tag-tilt"
+        ref={tiltRef}
+        type="text"
+        inputMode="decimal"
+        value={tilt}
+        aria-invalid={tiltError !== null || undefined}
+        aria-describedby={tiltError ? 'tag-tilt-msg' : undefined}
+        onChange={(e) => {
+          setTilt(e.target.value);
+          setTiltError(null);
+        }}
+      />
+      {tiltError && (
+        <span id="tag-tilt-msg" className="field-message error" role="alert">
+          {tiltError}
+        </span>
+      )}
       <label htmlFor="tag-port">Port</label>
       <input id="tag-port" type="text" value={port} onChange={(e) => setPort(e.target.value)} />
       <label htmlFor="tag-array">Array</label>

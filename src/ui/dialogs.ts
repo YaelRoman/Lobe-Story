@@ -35,8 +35,10 @@ export function promptDialog(
   message: string,
   initial = '',
   validate?: (text: string) => string | null,
+  /** Extra sentence under the question, e.g. what the action will also change. */
+  hint?: string,
 ): Promise<string | null> {
-  return open<string | null>({ kind: 'prompt', message, initial, confirmLabel: 'OK' }, null, validate);
+  return open<string | null>({ kind: 'prompt', message, initial, confirmLabel: 'OK', ...(hint ? { hint } : {}) }, null, validate);
 }
 
 export function saveProjectDialog(): Promise<{ includeFiles: boolean } | null> {

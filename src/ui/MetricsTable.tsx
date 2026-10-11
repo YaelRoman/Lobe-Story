@@ -39,7 +39,7 @@ export const MetricsTable = memo(function MetricsTable({
   const updateView = useStore((s) => s.updateView);
   const columns = visibleColumns(tableGroups);
   const highlighted = useStore((s) => s.highlighted);
-  const setHighlighted = useStore((s) => s.setHighlighted);
+  const pickFile = useStore((s) => s.pickFile);
   const setVisible = useStore((s) => s.setVisible);
 
   // Sorting is a view of this table only (not saved in projects); the CSV export follows it.
@@ -85,16 +85,12 @@ export const MetricsTable = memo(function MetricsTable({
     const target = e.target as HTMLElement;
     if (target.hasAttribute('data-nav')) moveFocus(e, Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-nav]')), target);
   };
-  const showRow = (id: string) => {
-    setVisible([id], true);
-    setHighlighted(id);
-  };
   const toggleRow = (id: string) => setVisible([id], !useStore.getState().visible[id]);
 
   const sortLabel = (key: SortKey): string => {
     const fixed: Partial<Record<SortKey, string>> = { file: 'File', group: 'Group', freq: 'MHz', gain: `Gain (${gainUnit})` };
     const col = columns.find((c) => c.key === key);
-    return fixed[key] ?? (col ? columnLabel(col, fbWindowDeg, uslsRangeDeg) : key);
+    return fixed[key] ?? (col ? columnLabel(col, fbWindowDeg, uslsRangeDeg, levelDb) : key);
   };
 
   const header = (key: SortKey, content: string, title?: string, className?: string) => (
@@ -116,7 +112,7 @@ export const MetricsTable = memo(function MetricsTable({
           onClick={() =>
             downloadText(
               'pattern-metrics.csv',
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg),
+              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb),
               'text/csv;charset=utf-8',
             )
           }
@@ -162,7 +158,7 @@ export const MetricsTable = memo(function MetricsTable({
               {columns.map((c) =>
                 header(
                   c.key,
-                  `${columnLabel(c, fbWindowDeg, uslsRangeDeg)} (${c.unit})`,
+                  `${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)} (${c.unit})`,
                   columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg }),
                 ),
               )}
@@ -180,7 +176,7 @@ export const MetricsTable = memo(function MetricsTable({
                 key={r.id}
                 data-row-id={r.id}
                 className={r.id === highlighted ? 'hl' : undefined}
-                onClick={() => showRow(r.id)}
+                onClick={() => pickFile(r.id)}
               >
                 <td>
                   <button
@@ -191,7 +187,7 @@ export const MetricsTable = memo(function MetricsTable({
                     aria-current={r.id === highlighted || undefined}
                     title={
                       (r.file.length > FILE_NAME_MAX ? `${r.file}\n${r.id}` : r.id) +
-                      '\nEnter: highlight · Space: show or hide · Up/Down: next row'
+                      '\nEnter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row'
                     }
                     {...onSpace(() => toggleRow(r.id))}
                   >

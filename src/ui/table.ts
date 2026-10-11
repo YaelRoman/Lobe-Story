@@ -5,6 +5,7 @@ import { isTilted, type TiltSettings, type SimSettings } from '../core/analysis/
 import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
+import { bwName } from './bwLabel';
 
 export type MetricColumn =
   | 'hHpbw' | 'vHpbw' | 'hBw10' | 'vBw10' | 'squint' | 'hPeak' | 'tilt' | 'vPeak' | 'tiltError'
@@ -55,8 +56,12 @@ export function visibleColumns(groups: Record<ColumnGroupKey, boolean>): typeof 
   return METRIC_COLUMNS.filter((c) => groups[c.group]);
 }
 
-/** Header text for a column; the F/B window and USLS window labels depend on the current settings. */
-export function columnLabel(c: { key: MetricColumn; label: string }, fbWindowDeg: number, uslsRangeDeg = 20): string {
+/** Header text for a column; the beamwidth, F/B window and USLS window labels depend on the current settings. */
+export function columnLabel(c: { key: MetricColumn; label: string }, fbWindowDeg: number, uslsRangeDeg = 20, levelDb = 3): string {
+  if (c.key === 'hHpbw') return `H-${bwName(levelDb)}`;
+  if (c.key === 'vHpbw') return `V-${bwName(levelDb)}`;
+  if (c.key === 'dH') return `ΔH-${bwName(levelDb)}`;
+  if (c.key === 'dV') return `ΔV-${bwName(levelDb)}`;
   if (c.key === 'fbWindow') return `F/B ±${fbWindowDeg}°`;
   if (c.key === 'usls') return `USLS peak to ${uslsRangeDeg}°`;
   if (c.key === 'uslsHorizon') return `USLS horizon to ${uslsRangeDeg}°`;
@@ -77,17 +82,17 @@ export function columnTitle(
   const w = settings.fbWindowDeg ?? 30;
   switch (key) {
     case 'hHpbw':
-      return `Horizontal half-power beamwidth (BASTA 6.1.6): distance between the two points ${level} dB below the peak of the azimuth cut`;
+      return `Horizontal ${level === 3 ? 'half-power ' : ''}beamwidth (BASTA 6.1.6): distance between the two points ${level} dB below the peak of the azimuth cut`;
     case 'vHpbw':
-      return `Vertical half-power beamwidth (BASTA 6.1.6): distance between the two points ${level} dB below the peak of the elevation cut`;
+      return `Vertical ${level === 3 ? 'half-power ' : ''}beamwidth (BASTA 6.1.6): distance between the two points ${level} dB below the peak of the elevation cut`;
     case 'fbWindow':
       return `Front/back ratio (BASTA 7.2.9.1): highest azimuth level within 180° ± ${w}°, in dB below the peak (co-pol only)`;
     case 'fb180':
       return 'Level of the azimuth cut at exactly 180°, in dB below the peak';
     case 'dH':
-      return 'Computed H-HPBW minus the value declared in the file header; — when the header has none';
+      return `Computed H-${bwName(level)} minus the value declared in the file header; — when the header has none`;
     case 'dV':
-      return 'Computed V-HPBW minus the value declared in the file header; — when the header has none';
+      return `Computed V-${bwName(level)} minus the value declared in the file header; — when the header has none`;
     case 'dFb':
       return 'Computed F/B at 180° minus the value declared in the file header; — when the header has none';
     case 'firstUsls':
@@ -360,12 +365,13 @@ export function toCsv(
   fbWindowDeg: number,
   sim?: SimSettings | ((id: string) => SimSettings),
   uslsRangeDeg = 20,
+  levelDb = 3,
 ): string {
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
   const tilted = typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim);
   const withSource = rows.some((r) => r.source !== r.file);
   const metricHeader = METRIC_COLUMNS.flatMap((c) => {
-    const label = columnLabel(c, fbWindowDeg, uslsRangeDeg);
+    const label = columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
     return tilted ? [`${label} original (${c.unit})`, `${label} tilted (${c.unit})`] : [`${label} (${c.unit})`];
   });
   const header = [

@@ -529,3 +529,23 @@ describe('layout-only projects with numbered same-name files (B1)', () => {
     expect(direct.pendingFiles).toEqual([{ path: 'q.msi' }]);
   });
 });
+
+describe('group names on load', () => {
+  it('gives a later group of the same name a suffix', () => {
+    const state = {
+      customGroups: [
+        { id: 'g1', name: 'North' },
+        { id: 'g2', name: 'north' },
+        { id: 'g3', name: 'North' },
+      ],
+    };
+    const out = projectToState(
+      { format: PROJECT_FORMAT, version: 1, savedAt: '', files: [], state },
+      initialState(),
+      { theme: 'light', collapsed: initialState().view.collapsed },
+      loadText,
+    );
+    expect(out.customGroups!.map((g) => g.name)).toEqual(['North', 'north (2)', 'North (3)']);
+    expect(out.customGroups!.map((g) => g.id)).toEqual(['g1', 'g2', 'g3']);
+  });
+});

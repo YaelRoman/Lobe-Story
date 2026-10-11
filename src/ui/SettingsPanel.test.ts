@@ -72,4 +72,37 @@ describe('SettingsPanel limits', () => {
     typeAndBlur(inputFor('Sectors per site'), '4.5');
     expect(useStore.getState().settings.siteSectors).toBe(3);
   });
+
+  const messageOf = (label: string): string | null => {
+    const input = inputFor(label);
+    const id = input.getAttribute('aria-describedby');
+    return id ? (host.querySelector(`#${id}`)?.textContent ?? null) : null;
+  };
+
+  it('says why an entry was refused, and drops the message when the user types again', () => {
+    const input = inputFor('Beamwidth level');
+    typeAndBlur(input, '-5');
+    expect(useStore.getState().settings.levelDb).toBe(3);
+    expect(messageOf('Beamwidth level')).toBe('Not applied: enter a number from 0.5 to 20 (kept 3).');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('0.5 to 20');
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '4');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(messageOf('Beamwidth level')).toBeNull();
+  });
+
+  it('asks for a whole number where one is needed, and for the plot floor range', () => {
+    typeAndBlur(inputFor('Sectors per site'), '4.5');
+    expect(messageOf('Sectors per site')).toBe('Not applied: enter a whole number from 2 to 12 (kept 3).');
+    typeAndBlur(inputFor('Plot floor'), '3');
+    expect(messageOf('Plot floor')).toBe('Not applied: enter a number from 10 to 80 (kept 40).');
+  });
+
+  it('tells when the plot floor was raised to clear the level ring', () => {
+    typeAndBlur(inputFor('Beamwidth level'), '15');
+    typeAndBlur(inputFor('Plot floor'), '12');
+    expect(useStore.getState().view.floorDb).toBe(16);
+    expect(messageOf('Plot floor')).toContain('Used 16');
+  });
 });

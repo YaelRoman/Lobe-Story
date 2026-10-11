@@ -19,33 +19,48 @@ const FIELDS: { key: keyof AnalysisSettings; label: string }[] = [
   { key: 'siteSectors', label: 'Sectors per site' },
 ];
 
+/** What a rejected entry is told: the accepted range, and that the previous value stays. */
+function rangeMessage(limit: { min: number; max: number; integer?: boolean }, kept: number): string {
+  return `Not applied: enter ${limit.integer ? 'a whole number' : 'a number'} from ${limit.min} to ${limit.max} (kept ${kept}).`;
+}
+
 /**
  * A number input backed by its own draft string so the user can freely clear/retype a
  * value (including "0.5") without every keystroke being coerced back into the store.
- * The draft commits on blur/Enter when `accept` returns a number; a rejected draft
- * reverts to the last committed `value` instead of applying a wrong number.
+ * The draft commits on blur/Enter when `accept` returns a number. A rejected draft is not
+ * applied: the field goes back to the last committed `value` and a message beside it says
+ * which range is accepted. The message goes away when the user types again.
  */
 function NumberField({
+  id,
   label,
   value,
   min,
   max,
   step,
+  integer,
   title,
   accept,
+  adjusted,
   onCommit,
 }: {
+  id: string;
   label: string;
   value: number;
   min: number;
   max: number;
   step: number;
+  integer?: boolean;
   title?: string;
   /** The value to commit for a typed number, or null to reject it. */
   accept: (n: number) => number | null;
+  /** What to tell the user when `accept` returned a different number than the one typed. */
+  adjusted?: (used: number) => string;
   onCommit: (n: number) => void;
 }) {
   const [text, setText] = useState(String(value));
+  // 'error': the entry was rejected; 'note': it was accepted but changed to fit.
+  const [message, setMessage] = useState<{ kind: 'error' | 'note'; text: string } | null>(null);
 
   useEffect(() => {
     setText(String(value));
@@ -54,26 +69,44 @@ function NumberField({
   const commit = () => {
     const n = text.trim() === '' ? NaN : Number(text);
     const ok = accept(n);
-    if (ok !== null) onCommit(ok);
-    else setText(String(value));
+    if (ok === null) {
+      setText(String(value));
+      setMessage({ kind: 'error', text: rangeMessage({ min, max, integer }, value) });
+      return;
+    }
+    setMessage(ok !== n && adjusted ? { kind: 'note', text: adjusted(ok) } : null);
+    setText(String(ok));
+    onCommit(ok);
   };
 
   return (
-    <label style={{ display: 'contents' }} title={title}>
-      <span>{label}</span>
-      <input
-        type="number"
-        min={min}
-        max={max}
-        step={step}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit();
-        }}
-      />
-    </label>
+    <>
+      <label style={{ display: 'contents' }} title={title}>
+        <span>{label}</span>
+        <input
+          id={id}
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={text}
+          aria-describedby={message ? `${id}-msg` : undefined}
+          onChange={(e) => {
+            setText(e.target.value);
+            setMessage(null);
+          }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+          }}
+        />
+      </label>
+      {message && (
+        <span id={`${id}-msg`} className={message.kind === 'error' ? 'field-message error' : 'field-message'} role={message.kind === 'error' ? 'alert' : 'status'}>
+          {message.text}
+        </span>
+      )}
+    </>
   );
 }
 
@@ -87,6 +120,8 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
   const floorDb = useStore((s) => s.view.floorDb);
   const updateSettings = useStore((s) => s.updateSettings);
   const updateView = useStore((s) => s.updateView);
+  // Bumped by Reset so every field drops what was typed (and its message) even when the value was already the default.
+  const [epoch, setEpoch] = useState(0);
 
   // The panel takes the focus when it opens and closes when the user clicks outside it.
   useEffect(() => {
@@ -116,7 +151,8 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
     >
       {FIELDS.map((f) => (
         <NumberField
-          key={f.key}
+          key={`${f.key}-${epoch}`}
+          id={`setting-${f.key}`}
           label={f.label}
           value={settings[f.key]}
           {...SETTING_LIMITS[f.key]}
@@ -126,10 +162,13 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
         />
       ))}
       <NumberField
+        key={`floor-${epoch}`}
+        id="setting-floorDb"
         label="Plot floor (dB)"
         value={floorDb}
         {...FLOOR_LIMITS}
         accept={(n) => clampFloor(n, settings.levelDb)}
+        adjusted={(used) => `Used ${used}: the plot floor must lie at least 1 dB beyond the ${settings.levelDb} dB level ring.`}
         onCommit={(n) => updateView({ floorDb: n })}
       />
       <span />
@@ -137,6 +176,7 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
         onClick={() => {
           updateSettings(DEFAULT_SETTINGS);
           updateView({ floorDb: DEFAULT_FLOOR_DB });
+          setEpoch((n) => n + 1);
         }}
       >
         Reset

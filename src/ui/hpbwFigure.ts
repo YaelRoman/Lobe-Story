@@ -1,4 +1,5 @@
 import type { Data, PlotData } from 'plotly.js';
+import { bwName } from './bwLabel';
 import { LEGEND_NAME_MAX, middleEllipsis } from './legend';
 import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
 
@@ -17,7 +18,7 @@ export interface HpbwSeries {
   ghost?: boolean;
 }
 
-export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme): Figure {
+export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelDb = 3): Figure {
   const data: Partial<PlotData>[] = [];
   for (const s of series) {
     const x = s.points.map((p) => p.freq);
@@ -45,8 +46,8 @@ export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme): Figur
       margin: { l: 60, r: 20, t: 20, b: 50 },
       legend: LEGEND,
       xaxis: { automargin: true, title: { text: 'Frequency (MHz)', standoff: 8 }, gridcolor: theme.grid, anchor: 'y2' },
-      yaxis: { title: { text: 'H-HPBW (°)' }, domain: [0.55, 1], gridcolor: theme.grid },
-      yaxis2: { title: { text: 'V-HPBW (°)' }, domain: [0, 0.45], gridcolor: theme.grid },
+      yaxis: { title: { text: `H-${bwName(levelDb)} (°)` }, domain: [0.55, 1], gridcolor: theme.grid },
+      yaxis2: { title: { text: `V-${bwName(levelDb)} (°)` }, domain: [0, 0.45], gridcolor: theme.grid },
     },
   };
 }

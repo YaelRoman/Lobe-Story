@@ -62,9 +62,21 @@ function DialogBody({ dialog }: { dialog: NonNullable<DialogState> }) {
         }}
       >
         <p>{title}</p>
+        {dialog.kind === 'prompt' && dialog.hint && (
+          <p className="count" id="dialog-hint">
+            {dialog.hint}
+          </p>
+        )}
         {dialog.kind === 'prompt' && (
           <>
-            <input type="text" autoFocus aria-label={dialog.message} value={text} onChange={(e) => setText(e.target.value)} />
+            <input
+              type="text"
+              autoFocus
+              aria-label={dialog.message}
+              aria-describedby={dialog.hint ? 'dialog-hint' : undefined}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
             {error && (
               <p className="reason" role="alert">
                 {error}

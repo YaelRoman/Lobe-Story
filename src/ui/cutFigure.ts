@@ -1,4 +1,5 @@
 import type { Data, Layout, PlotData, Shape } from 'plotly.js';
+import { bwName } from './bwLabel';
 import type { Cut } from '../core/types';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { signed } from '../core/analysis/grid';
@@ -77,7 +78,7 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
 
   if (o.markers.hpbw && beam.edges && beam.hpbw.value !== null) {
     spec.rings.push({ db: -(offset + o.levelDb), label: `−${o.levelDb} dB` });
-    spec.sectors.push({ from: beam.edges[0] + rot, to: beam.edges[1] + rot, label: `HPBW ${beam.hpbw.value.toFixed(1)}°`, opacity: 0.15 });
+    spec.sectors.push({ from: beam.edges[0] + rot, to: beam.edges[1] + rot, label: `${bwName(o.levelDb)} ${beam.hpbw.value.toFixed(1)}°`, opacity: 0.15 });
   }
   if (o.markers.fb && o.cut === 'H') {
     spec.sectors.push({ from: 180 - o.fbWindowDeg + rot, to: 180 + o.fbWindowDeg + rot, label: `F/B window ±${o.fbWindowDeg}°`, opacity: 0.08, readout: false });
@@ -344,7 +345,7 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
   const spec = target ? markerSpec(target, o) : { sectors: [], rings: [], points: [], rays: [], arcs: [] };
   const hpbw = target ? (o.cut === 'H' ? target.metrics.h : target.metrics.v).hpbw.value : null;
   const cone = o.cut === 'H' && o.series.some((s) => s.coneCut) ? ' · cut through the tilted beam peak' : '';
-  const title = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — HPBW ${hpbw.toFixed(1)}°` : ''}${cone}`;
+  const title = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — ${bwName(o.levelDb)} ${hpbw.toFixed(1)}°` : ''}${cone}`;
 
   const base: Partial<Layout> = {
     title: { text: title, font: { size: 14 } },

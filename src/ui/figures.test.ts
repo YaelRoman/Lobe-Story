@@ -112,6 +112,16 @@ describe('buildCutFigure', () => {
     expect(buildCutFigure(opts({ mode: 'polar' })).layout.hovermode).toBeUndefined();
   });
 
+  it('names the beamwidth after the level: HPBW at 3 dB, BW@x dB otherwise', () => {
+    const markers = { ...NO_MARKERS, hpbw: true };
+    const f = buildCutFigure(opts({ markers, markerTarget: 'a', levelDb: 10 }));
+    const names = traces(f).map((t) => t.name);
+    expect(names.some((n) => /^BW@10 dB \d/.test(n ?? ''))).toBe(true);
+    expect(names.some((n) => /^HPBW/.test(n ?? ''))).toBe(false);
+    expect(names).toContain('−10 dB');
+    expect(String((f.layout.title as { text: string }).text)).toMatch(/^Horizontal cut — BW@10 dB /);
+  });
+
   it('draws markers only for the target series', () => {
     const markers = { ...NO_MARKERS, hpbw: true };
     expect(buildCutFigure(opts({ markers })).data).toHaveLength(1);

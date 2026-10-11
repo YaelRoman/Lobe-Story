@@ -557,3 +557,23 @@ describe('shouldReveal', () => {
     expect(shouldReveal({ id: 'a', sort: null }, { id: null, sort: null })).toBe(false);
   });
 });
+
+describe('beamwidth labels follow the level', () => {
+  const col = (key: string) => METRIC_COLUMNS.find((c) => c.key === key)!;
+  it('keeps HPBW at 3 dB and renames the beamwidth columns elsewhere', () => {
+    expect(columnLabel(col('hHpbw'), 30)).toBe('H-HPBW');
+    expect(columnLabel(col('hHpbw'), 30, 20, 10)).toBe('H-BW@10 dB');
+    expect(columnLabel(col('vHpbw'), 30, 20, 1.5)).toBe('V-BW@1.5 dB');
+    expect(columnLabel(col('dH'), 30, 20, 10)).toBe('ΔH-BW@10 dB');
+    expect(columnLabel(col('dV'), 30, 20, 3)).toBe('ΔV-HPBW');
+    expect(columnLabel(col('hBw10'), 30, 20, 10)).toBe('H-BW 10 dB');
+  });
+  it('writes the level into the CSV header too', () => {
+    const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a.MSI', fileName: 'a.MSI' });
+    const tagged = [{ pattern, tags: {} }];
+    const rows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBd');
+    const header = toCsv(rows, 'dBd', 30, undefined, 20, 10).split('\r\n')[0];
+    expect(header).toContain('H-BW@10 dB (°)');
+    expect(header).not.toContain('H-HPBW');
+  });
+});

@@ -12,6 +12,10 @@ import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 
 const DRAG_TYPE = 'text/x-pattern-id';
 
+/** Said in the Create site dialog: what the new site also changes (see store `createSite`). */
+const SITE_HINT =
+  'The new site is shown alone, in the 3D overlay: every other file is unticked (tick them again to bring them back).';
+
 /** Closes the <details> menu that contains `el` and puts the focus back on its trigger. */
 const closeMenu = (el: HTMLElement) => {
   const menu = el.closest('details');
@@ -159,7 +163,7 @@ function FileMenu({
               return t.trim() !== '' && Number.isInteger(n) && n >= 2 && n <= 12
                 ? null
                 : 'Enter a whole number from 2 to 12';
-            }).then((answer) => {
+            }, SITE_HINT).then((answer) => {
               if (answer !== null) createSite(id, Number(answer));
             });
           }}
@@ -262,6 +266,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   const toggleVisible = useStore((s) => s.toggleVisible);
   const setVisible = useStore((s) => s.setVisible);
   const select = useStore((s) => s.select);
+  const pickFile = useStore((s) => s.pickFile);
   const setTags = useStore((s) => s.setTags);
   const setMembership = useStore((s) => s.setMembership);
   const rename = useStore((s) => s.rename);
@@ -269,6 +274,8 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   const removeFile = useStore((s) => s.removeFile);
   const [editing, setEditing] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  // The custom group (or tag group key) a dragged file is over: it is outlined as a drop target.
+  const [dropKey, setDropKey] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
   // The one row (or group header) that is a tab stop; the arrow keys move it (roving tabindex).
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -378,6 +385,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
       ref={panelRef}
       tabIndex={-1}
       onKeyDown={onPanelKeys}
+      onDragEnd={() => setDropKey(null)}
       onFocus={(e) => {
         const key = (e.target as HTMLElement).closest<HTMLElement>('[data-focus-key]')?.dataset.focusKey;
         if (key && navKeys.includes(key)) setActiveKey(key);
@@ -422,11 +430,18 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
           <section
             key={g.key}
             data-focus-key={`group:${g.key}`}
-            className={custom ? 'group custom' : 'group'}
+            className={`${custom ? 'group custom' : 'group'}${dropKey === g.key ? ' drop-target' : ''}`}
             onDragOver={(e) => {
-              if (g.key !== UNGROUPED && e.dataTransfer.types.includes(DRAG_TYPE)) e.preventDefault();
+              if (g.key !== UNGROUPED && e.dataTransfer.types.includes(DRAG_TYPE)) {
+                e.preventDefault();
+                if (dropKey !== g.key) setDropKey(g.key);
+              }
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropKey((k) => (k === g.key ? null : k));
             }}
             onDrop={(e) => {
+              setDropKey(null);
               const id = e.dataTransfer.getData(DRAG_TYPE);
               if (!id || g.key === UNGROUPED) return;
               if (custom) setMembership(id, custom);
@@ -448,6 +463,10 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                 data-nav={custom ? undefined : true}
                 tabIndex={custom ? subTab(`group:${g.key}`) : stop === `group:${g.key}` ? 0 : -1}
                 checked={ids.length > 0 && ids.every((id) => visible[id])}
+                // Partly ticked: the box shows a dash instead of looking unticked.
+                ref={(el) => {
+                  if (el) el.indeterminate = ids.some((id) => visible[id]) && !ids.every((id) => visible[id]);
+                }}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => setVisible(ids, e.target.checked)}
               />
@@ -501,6 +520,9 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                 />
               )}
             </header>
+            {custom && ids.length === 0 && (
+              <p className="count empty-group">Empty: drag files here, or use ⋯ › Move to {g.label} on a file.</p>
+            )}
             <ul>
               {g.items.map(({ pattern, tags }) => {
                 const id = pattern.id;
@@ -513,7 +535,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                     className={highlighted === id ? 'hl' : undefined}
                     draggable
                     onDragStart={(e) => startDrag(e, id)}
-                    onClick={() => select({ kind: 'file', id })}
+                    onClick={() => pickFile(id)}
                   >
                     <input
                       type="checkbox"
@@ -548,7 +570,7 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
                         data-nav
                         tabIndex={stop === `file:${id}` ? 0 : -1}
                         aria-current={highlighted === id || undefined}
-                        title="Enter: highlight · Space: show or hide · Up/Down: next row"
+                        title="Enter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row"
                         {...onSpace(() => toggleVisible(id))}
                       >
                         <span className="swatch" style={{ background: colors.get(id) ?? 'transparent' }} />

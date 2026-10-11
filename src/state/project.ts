@@ -1,3 +1,4 @@
+import { uniqueGroupName } from './groupNames';
 import type { Tags } from '../core/types';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import { clampSetting, FLOOR_LIMITS } from '../core/analysis/settingLimits';
@@ -281,7 +282,9 @@ export function projectToState(
   }
 
   const st = project.state;
-  const customGroups = st.customGroups ?? [];
+  // Two groups with one name cannot be told apart in menus: a later one gets a suffix.
+  const customGroups: CustomGroup[] = [];
+  for (const g of st.customGroups ?? []) customGroups.push({ ...g, name: uniqueGroupName(customGroups, g.name) });
   const groupIds = new Set(customGroups.map((g) => g.id));
   const membership: Record<string, string> = {};
   for (const [id, gid] of Object.entries(st.membership ?? {})) {
