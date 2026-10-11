@@ -84,6 +84,20 @@ export function appliedAfterRedraw(own: PreviewRestyle | null, restyledMeanwhile
 }
 
 /**
+ * Numbers the redraws (`Plotly.react` calls) of one plot so that only the latest one's completion counts: when a second
+ * redraw starts before the first resolves, the first one's settle must not clear the second's pending flags.
+ */
+export function createRedrawGate() {
+  let latest = 0;
+  return {
+    /** A redraw starts; returns its number. */
+    start: (): number => ++latest,
+    /** Whether the redraw with this number is still the latest one. */
+    isLatest: (n: number): boolean => n === latest,
+  };
+}
+
+/**
  * The traces as they are handed to Plotly. Plotly keeps the objects it is given and `Plotly.restyle` changes their
  * `line.width` and `opacity` in place, so the figure builder's own traces must not be the ones drawn: the export
  * is built from them and must never carry a hover or focus preview. A copy of each trace and of its `line` is enough.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appliedAfterRedraw, focusPreviews, hoverPreviews, ownTraces, previewRestyle, restyleDiff } from './hoverPreview';
+import { appliedAfterRedraw, createRedrawGate, focusPreviews, hoverPreviews, ownTraces, previewRestyle, restyleDiff } from './hoverPreview';
 import { exportFigure } from './exportFigure';
 import type { Figure } from './figureTheme';
 import { buildCutFigure, DIMMED_OPACITY, type PlotSeries } from './cutFigure';
@@ -145,5 +145,28 @@ describe('appliedAfterRedraw', () => {
     const stale = appliedAfterRedraw(own, true);
     expect(stale).toBeNull();
     expect(restyleDiff(stale, previewRestyle(traces('a', 'b'), null, 'a'))).toEqual(own);
+  });
+});
+
+describe('createRedrawGate', () => {
+  it('lets only the latest redraw settle, however the redraws overlap', () => {
+    const gate = createRedrawGate();
+    const first = gate.start();
+    expect(gate.isLatest(first)).toBe(true);
+    const second = gate.start();
+    expect(gate.isLatest(first)).toBe(false);
+    expect(gate.isLatest(second)).toBe(true);
+    // A third redraw supersedes the second as well, and a late finish of an older one never becomes the latest again.
+    const third = gate.start();
+    expect([first, second, third].map(gate.isLatest)).toEqual([false, false, true]);
+    expect(new Set([first, second, third]).size).toBe(3);
+  });
+  it('keeps the gates of two plots apart', () => {
+    const a = createRedrawGate();
+    const b = createRedrawGate();
+    const n = a.start();
+    b.start();
+    b.start();
+    expect(a.isLatest(n)).toBe(true);
   });
 });

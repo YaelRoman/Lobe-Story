@@ -3,7 +3,7 @@ import Plotly from 'plotly.js-dist-min';
 import type { Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
-import { appliedAfterRedraw, hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
+import { appliedAfterRedraw, createRedrawGate, hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
 const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
 
@@ -45,6 +45,8 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
   // A redraw (Plotly.react) is pending; a restyle sent meanwhile lands on the new traces, so the redraw's own look is no longer what is shown.
   const redrawing = useRef(false);
   const restyledDuringRedraw = useRef(false);
+  // Only the latest redraw's completion clears the two flags above (an older one resolving late must not).
+  const redrawGate = useRef(createRedrawGate());
 
   useEffect(() => {
     handler.current = onRelayout;
@@ -85,6 +87,7 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
     const el = ref.current;
     if (!el) return;
     setError(null);
+    const generation = redrawGate.current.start();
     redrawing.current = true;
     restyledDuringRedraw.current = false;
     void Plotly.react(
@@ -118,6 +121,7 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
       },
     )
       .then(() => {
+        if (!redrawGate.current.isLatest(generation)) return;
         // A redraw starts from the figure's own look (the highlight's emphasis); show a preview that is active again.
         // If the preview changed while the redraw was pending, what is drawn is unknown: the next restyle sends everything,
         // even when the preview has ended since (otherwise the old target would stay drawn thick).
@@ -131,7 +135,9 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
         el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
       })
       .catch(() => {
+        if (!redrawGate.current.isLatest(generation)) return;
         redrawing.current = false;
+        restyledDuringRedraw.current = false;
         setError('This plot could not be drawn (WebGL unavailable?)');
       });
   }, [figure, labelled, previewing]);
