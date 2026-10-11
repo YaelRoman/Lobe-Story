@@ -27,6 +27,8 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const copyNote = useStore((s) => s.copyNote);
   const copySeq = useStore((s) => s.copySeq);
   const setLoadMessage = useStore((s) => s.setLoadMessage);
+  const setCopyNote = useStore((s) => s.setCopyNote);
+  const undoId = useStore((s) => s.undo?.id);
   const undoLabel = useStore((s) => (s.undo?.shown ? s.undo.label : undefined));
   const pendingFiles = useStore((s) => s.pendingFiles);
   const dismissPending = useStore((s) => s.dismissPending);
@@ -39,8 +41,16 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
     return () => window.clearTimeout(timer);
   }, [loadMessage, loadTone, loadSeq, setLoadMessage]);
 
+  // A copy note is for the moment of the copy: the next status line or undo offer replaces it (it never stacks above them).
+  useEffect(() => {
+    if (loadMessage) setCopyNote(null);
+  }, [loadSeq, loadMessage, setCopyNote]);
+  useEffect(() => {
+    if (undoId !== undefined) setCopyNote(null);
+  }, [undoId, setCopyNote]);
+
   return (
-    <>
+    <div className="status-area">
       {loadMessage && (
         <div className={loadTone === 'info' ? 'load-message info' : 'load-message'} data-testid="load-status">
           <span>{loadMessage}</span>
@@ -61,8 +71,8 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
         </div>
       )}
       {copyNote && (
-        <div className="load-message info" data-testid="copy-note">
-          <span>{copyNote}</span>
+        <div className="copy-toast" data-testid="copy-note">
+          {copyNote}
         </div>
       )}
       <UndoToast />
@@ -83,6 +93,6 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
         )}
         {pending && <span>{pending}</span>}
       </div>
-    </>
+    </div>
   );
 }

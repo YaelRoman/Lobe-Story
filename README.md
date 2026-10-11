@@ -46,7 +46,7 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - Copy to the clipboard for a spreadsheet: **Copy table** on the metrics table and on the band
   statistics (tab-separated, as shown), **Copy row** (the button by the file name, or Ctrl/Cmd+C on
   the name), and a single value (click a cell, then the Copy value button that appears in it; or
-  Right arrow into the cells and Enter / Ctrl+C). The status line says what was copied; a row copied
+  Right arrow into the cells and Enter / Ctrl+C). A small toast in the corner of the status area says what was copied (it takes no room and is replaced by the next status line); a row copied
   in the Δ view is marked "(differences vs <reference>)" or "(reference)" there, not in the data.
 - CSV export of the metrics table and PNG export of any plot (the cut plots export with a legend
   of every file and the highlighted file's values).

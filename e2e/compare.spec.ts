@@ -81,6 +81,20 @@ test.describe('copy to the clipboard', () => {
   const rowTexts = (page: Page, n: number) =>
     page.locator('.metrics tbody tr').nth(n).locator('td[data-col]').allInnerTexts();
 
+  test('the copy note is a floating toast: the page does not move, and the next status line replaces it', async ({ page }) => {
+    await loadExample(page);
+    const top = () => page.locator('.body').evaluate((el) => el.getBoundingClientRect().top);
+    const before = await top();
+    await page.getByRole('button', { name: 'Copy table' }).first().click();
+    const note = page.getByTestId('copy-note');
+    await expect(note).toContainText('Copied 24 rows');
+    expect(await top()).toBe(before);
+    await page.getByRole('button', { name: 'Show none', exact: true }).click();
+    await expect(page.getByTestId('undo-toast')).toBeVisible();
+    await expect(note).toHaveCount(0);
+    expect(await top()).toBeGreaterThanOrEqual(before);
+  });
+
   test('Copy table copies the visible columns in the current order, as the cells show them', async ({ page }) => {
     await loadExample(page);
     await page.getByRole('checkbox', { name: 'Show Sidelobes columns' }).uncheck();

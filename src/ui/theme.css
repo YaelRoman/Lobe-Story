@@ -82,6 +82,9 @@ th[scope='row'] { text-align: left; white-space: nowrap; }
 .subband-row input[type='text'] { width: 160px; }
 .subband-row input[type='number'] { width: 90px; }
 .empty { margin: auto; max-width: 440px; text-align: center; color: var(--muted); }
+.status-area { position: relative; flex: none; }
+/* The copy confirmation floats in the corner under the status bars: it takes no room, so the page never moves. */
+.copy-toast { position: absolute; top: 100%; right: 12px; z-index: 9; margin-top: 6px; max-width: min(420px, calc(100vw - 24px)); padding: 4px 12px; font-size: 13px; color: var(--fg); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 2px 10px rgb(0 0 0 / 22%); pointer-events: none; overflow-wrap: anywhere; }
 .load-message { display: flex; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--panel); color: var(--warn); font-size: 13px; }
 .load-message button { padding: 0 6px; }
 .load-message button:last-child { margin-left: auto; }
