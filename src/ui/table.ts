@@ -18,36 +18,40 @@ export const COLUMN_GROUPS: { key: ColumnGroupKey; label: string }[] = [
   { key: 'declared', label: 'Declared Δ' },
 ];
 
-export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string; group: ColumnGroupKey }[] = [
-  { key: 'hHpbw', label: 'H-HPBW', unit: '°', group: 'beam' },
-  { key: 'vHpbw', label: 'V-HPBW', unit: '°', group: 'beam' },
-  { key: 'hBw10', label: 'H-BW 10 dB', unit: '°', group: 'beam' },
-  { key: 'vBw10', label: 'V-BW 10 dB', unit: '°', group: 'beam' },
-  { key: 'squint', label: 'Squint', unit: '°', group: 'beam' },
-  { key: 'hPeak', label: 'Peak az', unit: '°', group: 'beam' },
-  { key: 'tilt', label: 'Tilt', unit: '°', group: 'beam' },
-  { key: 'vPeak', label: 'Peak tilt', unit: '°', group: 'beam' },
-  { key: 'tiltError', label: 'Tilt error', unit: '°', group: 'beam' },
-  { key: 'fb180', label: 'F/B 180°', unit: 'dB', group: 'fb' },
-  { key: 'fbWindow', label: 'F/B window', unit: 'dB', group: 'fb' },
-  { key: 'firstUsls', label: 'First USLS', unit: 'dB', group: 'sidelobes' },
-  { key: 'usls', label: 'USLS peak to 20°', unit: 'dB', group: 'sidelobes' },
-  { key: 'uslsHorizon', label: 'USLS horizon to 20°', unit: 'dB', group: 'sidelobes' },
-  { key: 'uslsMax', label: 'USLS max', unit: 'dB', group: 'sidelobes' },
-  { key: 'nullFill', label: 'Null fill', unit: 'dB', group: 'sidelobes' },
-  { key: 'firstLsls', label: 'First LSLS', unit: 'dB', group: 'sidelobes' },
-  { key: 'hSls', label: 'H-SLS', unit: 'dB', group: 'sidelobes' },
-  { key: 'tracking', label: 'P2P tracking', unit: 'dB', group: 'sector' },
-  { key: 'spr', label: 'SPR', unit: '%', group: 'sector' },
-  { key: 'air', label: 'AIR', unit: 'dB', group: 'sector' },
-  { key: 'rollOff', label: 'Roll-off', unit: 'dB', group: 'sector' },
-  { key: 'du16', label: 'D/U 16QAM', unit: '°', group: 'sector' },
-  { key: 'du64', label: 'D/U 64QAM', unit: '°', group: 'sector' },
-  { key: 'du256', label: 'D/U 256QAM', unit: '°', group: 'sector' },
-  { key: 'dH', label: 'ΔH-HPBW', unit: '°', group: 'declared' },
-  { key: 'dV', label: 'ΔV-HPBW', unit: '°', group: 'declared' },
-  { key: 'dFb', label: 'ΔF/B', unit: 'dB', group: 'declared' },
-];
+/** What the table says about each metric column; `Record` makes a key without an entry (or an entry without a key) a compile error. */
+const COLUMN_INFO: Record<MetricColumn, { label: string; unit: string; group: ColumnGroupKey }> = {
+  hHpbw: { label: 'H-HPBW', unit: '°', group: 'beam' },
+  vHpbw: { label: 'V-HPBW', unit: '°', group: 'beam' },
+  hBw10: { label: 'H-BW 10 dB', unit: '°', group: 'beam' },
+  vBw10: { label: 'V-BW 10 dB', unit: '°', group: 'beam' },
+  squint: { label: 'Squint', unit: '°', group: 'beam' },
+  hPeak: { label: 'Peak az', unit: '°', group: 'beam' },
+  tilt: { label: 'Tilt', unit: '°', group: 'beam' },
+  vPeak: { label: 'Peak tilt', unit: '°', group: 'beam' },
+  tiltError: { label: 'Tilt error', unit: '°', group: 'beam' },
+  fb180: { label: 'F/B 180°', unit: 'dB', group: 'fb' },
+  fbWindow: { label: 'F/B window', unit: 'dB', group: 'fb' },
+  firstUsls: { label: 'First USLS', unit: 'dB', group: 'sidelobes' },
+  usls: { label: 'USLS peak to 20°', unit: 'dB', group: 'sidelobes' },
+  uslsHorizon: { label: 'USLS horizon to 20°', unit: 'dB', group: 'sidelobes' },
+  uslsMax: { label: 'USLS max', unit: 'dB', group: 'sidelobes' },
+  nullFill: { label: 'Null fill', unit: 'dB', group: 'sidelobes' },
+  firstLsls: { label: 'First LSLS', unit: 'dB', group: 'sidelobes' },
+  hSls: { label: 'H-SLS', unit: 'dB', group: 'sidelobes' },
+  tracking: { label: 'P2P tracking', unit: 'dB', group: 'sector' },
+  spr: { label: 'SPR', unit: '%', group: 'sector' },
+  air: { label: 'AIR', unit: 'dB', group: 'sector' },
+  rollOff: { label: 'Roll-off', unit: 'dB', group: 'sector' },
+  du16: { label: 'D/U 16QAM', unit: '°', group: 'sector' },
+  du64: { label: 'D/U 64QAM', unit: '°', group: 'sector' },
+  du256: { label: 'D/U 256QAM', unit: '°', group: 'sector' },
+  dH: { label: 'ΔH-HPBW', unit: '°', group: 'declared' },
+  dV: { label: 'ΔV-HPBW', unit: '°', group: 'declared' },
+  dFb: { label: 'ΔF/B', unit: 'dB', group: 'declared' },
+};
+
+/** The metric columns, in the order of `METRIC_KEYS` (the one list of keys; see state/metricKeys.ts). */
+export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string; group: ColumnGroupKey }[] = METRIC_KEYS.map((key) => ({ key, ...COLUMN_INFO[key] }));
 
 export function visibleColumns(groups: Record<ColumnGroupKey, boolean>): typeof METRIC_COLUMNS {
   return METRIC_COLUMNS.filter((c) => groups[c.group]);
