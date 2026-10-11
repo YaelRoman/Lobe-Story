@@ -83,7 +83,7 @@ the beam peak.
 | Label | Unit | Definition | BASTA |
 |---|---|---|---|
 | P2P tracking | dB | Largest difference over the whole sector, one value per degree, between this file and its opposite-polarization partner (±45, same tilt, array and frequency, adjacent odd/even ports, same group). Gain-aware when both gains are declared: \|(G1 − G2) − (att1 − att2)\|; otherwise shapes only. | 7.8.5 |
-| SPR | % | Power outside ±S° divided by power inside, times 100, from the linear power of the azimuth cut. Inside edge samples are half-weighted. Co-polar only. | 7.8.1.6 |
+| SPR | % | Power outside ±S° divided by power inside, times 100, from the linear power of the azimuth cut. Inside edge samples are half-weighted. Co-polar only. By definition this is outside ÷ inside, not a share of the total, so it can exceed 100 % for wide or omnidirectional patterns (an omnidirectional pattern with a ±60° sector gives 200 %). | 7.8.1.6 |
 | AIR | dB | 10·log10(power inside / power outside). Co-polar only. "—" if nothing lies outside. | 7.8.1.6 |
 | Roll-off | dB | Level below the peak at the sector edges; the worse of the two edges. | 7.8.1.4 |
 | D/U 16QAM, 64QAM, 256QAM | ° | Width of the contiguous azimuth region around 0° where this pattern exceeds the strongest copy of itself rotated by 360°/N (N = "Sectors per site", default 3) by at least 15, 20, 25 dB. "—" when 0° itself is below the threshold; 360° if it never drops below it. | tool-defined |

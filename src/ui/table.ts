@@ -127,7 +127,7 @@ export function columnTitle(
     case 'tracking':
       return `Azimuth beam port-to-port tracking within ±${e}° (gain-aware when both gains are declared)`;
     case 'spr':
-      return `Sector power ratio: power outside ±${e}° / power inside (co-pol)`;
+      return `Sector power ratio: power outside ±${e}° divided by power inside, times 100 (co-pol). It is not a share of the total, so it can exceed 100 % for wide or omnidirectional patterns`;
     case 'air':
       return 'Azimuth interference ratio: 10·log10(inside/outside), co-pol only';
     case 'rollOff':

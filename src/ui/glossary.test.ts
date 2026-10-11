@@ -17,6 +17,11 @@ describe('glossary', () => {
   });
 });
 
+it('the SPR entry says it is outside divided by inside and can exceed 100 %', () => {
+  const spr = GLOSSARY.find((g) => g.term === 'SPR / AIR')!;
+  expect(spr.text).toContain('exceed 100 %');
+});
+
 it('the help says what the file panel filter, fold and preview do', () => {
   for (const word of ['filter', 'folds', 'previews']) expect(PANEL_HELP).toContain(word);
 });

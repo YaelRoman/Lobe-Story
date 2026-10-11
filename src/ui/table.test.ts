@@ -242,7 +242,8 @@ describe('sector columns', () => {
 
   it('builds tooltips from the sector settings', () => {
     const s = { sectorEdgeDeg: 45, siteSectors: 6 };
-    expect(columnTitle('spr', s)).toBe('Sector power ratio: power outside ±45° / power inside (co-pol)');
+    expect(columnTitle('spr', s)).toContain('power outside ±45° divided by power inside, times 100');
+    expect(columnTitle('spr', s)).toContain('can exceed 100 % for wide or omnidirectional patterns');
     expect(columnTitle('air', s)).toBe('Azimuth interference ratio: 10·log10(inside/outside), co-pol only');
     expect(columnTitle('rollOff', s)).toBe('Level at the ±45° sector edges below the peak (worse edge)');
     expect(columnTitle('tracking', s)).toBe(
