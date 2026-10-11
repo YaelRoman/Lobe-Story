@@ -29,8 +29,8 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - Compare against a reference: the ⋯ menu of a file has **Use as reference**. The reference is
   marked with a pin, drawn in the 2D cut plots as a thick dashed line that is never dimmed (also
   when unticked) and marked in the frequency chart. **Δ vs reference** above the metrics table
-  shows every metric as a signed difference from it (CSV and copy follow); the reference is saved
-  with the project.
+  shows every metric and the gain as a signed difference from it; the reference row stays first with
+  its own values, and the CSV and copy follow with a Row column. The reference is saved with the project.
 - Automatic grouping by polarization, tilt, port and array (editable; drag files between groups).
 - Column groups can be shown or hidden above the metrics table (saved with the project); the CSV
   always contains every column.
@@ -38,8 +38,8 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   gain statistics over every loaded file of an antenna in a frequency sub-band (automatic or
   user-defined sub-bands, saved with the project), with CSV export and a histogram of any cell.
 - Copy to the clipboard for a spreadsheet: **Copy table** on the metrics table and on the band
-  statistics (tab-separated, as shown), **Copy row**, and a single value (click a cell, then the copy
-  mark that appears; or Right arrow into the cells and Enter / Ctrl+C).
+  statistics (tab-separated, as shown), **Copy row**, and a single value (click a cell, then the Copy
+  value button that appears in it; or Right arrow into the cells and Enter / Ctrl+C).
 - CSV export of the metrics table and PNG export of any plot (the cut plots export with a legend
   of every file and the highlighted file's values).
 - **Load example** on the empty page loads a small synthetic dual-polarised panel generated in code (24 files,

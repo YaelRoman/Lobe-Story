@@ -234,9 +234,18 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 tr:hover .copy-row, tr:focus-within .copy-row, tr.hl .copy-row, .copy-row:focus-visible { opacity: 1; }
 .metrics td[data-col] { position: relative; }
 .metrics td[data-col]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.metrics td[data-col]:focus::after { content: '⧉'; position: absolute; top: 50%; left: 0; width: 16px; height: 16px; transform: translateY(-50%); text-align: center; font-size: 12px; line-height: 16px; color: var(--muted); background: var(--bg); border-radius: 3px; cursor: copy; }
+/* The one copy button, in the focused cell: at its left edge, over the free space of a right-aligned number. */
+.copy-cell { position: absolute; top: 50%; left: 2px; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; font-size: 12px; line-height: 1; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; cursor: copy; }
+.copy-cell::before { content: '⧉'; }
+.copy-cell:hover { color: var(--fg); }
+.copy-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--fg); }
+tr.hl .copy-cell { background: var(--hl); }
+.ref-tag { flex: none; margin-left: 2px; padding: 0 5px; font-size: 11px; font-weight: 600; line-height: 1.5; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; }
 @media (max-width: 760px) {
   .copy-row { min-width: 28px; min-height: 28px; }
+  .copy-cell { width: 28px; height: 28px; font-size: 14px; }
+  /* The focused cell makes room for its button, so it never covers a wide `original → tilted` text. */
+  .metrics td[data-col]:focus-within { padding-left: 36px; }
 }
 
 /* Reference file: pin mark, marked table row and the difference toggle. */

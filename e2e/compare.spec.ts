@@ -25,7 +25,7 @@ test('the frequency chart plots any metric, defaults to the beamwidths and remem
   expect(await chart.locator('.scatterlayer .trace .lines path').count()).toBeGreaterThan(0);
   await expect(page.getByRole('heading', { name: /^F\/B 180° vs frequency/ })).toBeVisible();
 
-  // A display preference: it is not unsaved work, and it is remembered.
+  // A display preference, and it is remembered (that it is not unsaved work is covered in state.test.ts).
   await page.waitForFunction(() => (localStorage.getItem('lobe-story:prefs:v1') ?? '').includes('fb180'));
 });
 
@@ -65,22 +65,39 @@ test.describe('copy to the clipboard', () => {
     expect(before).not.toBeNull();
     await row.hover();
     await row.getByRole('button', { name: /^Copy row / }).click();
-    await expect(page.getByTestId('load-status')).toContainText('Copied 1 row');
+    const rowName = (await row.locator('.file-cell').innerText()).trim();
+    await expect(page.getByTestId('load-status')).toContainText(`Copied row ${rowName}`);
     expect((await clip(page)).split('\t').slice(4)).toEqual(await rowTexts(page, 2));
     expect(await highlighted.getAttribute('data-row-id')).toBe(before);
 
-    // A click on the copy mark at the left edge of a cell copies that value and is not a click on the row.
+    // One value by mouse: the first click on a cell is a click on its row and shows the one Copy value button in it.
     const cell = row.locator('td[data-col="fb180"]');
     const text = (await cell.innerText()).trim();
-    // The first click on a cell is a click on its row (it focuses the cell and shows the mark).
+    await expect(page.locator('.copy-cell')).toHaveCount(0);
     await cell.click({ position: { x: 40, y: 8 } });
-    await expect(highlighted).toHaveAttribute('data-row-id', await row.getAttribute('data-row-id') ?? '');
-    const box = (await cell.boundingBox())!;
-    await page.mouse.click(box.x + 6, box.y + box.height / 2);
-    await expect(page.getByTestId('load-status')).toContainText('Copied the value');
-    expect(await clip(page)).toBe(text);
-    // Not a second click on the row: the highlight is still there (a second row click would clear it).
     await expect(highlighted).toHaveAttribute('data-row-id', (await row.getAttribute('data-row-id')) ?? '');
+    const button = page.locator('.copy-cell');
+    await expect(button).toHaveCount(1);
+    await expect(button).toHaveAccessibleName(`Copy value ${text}`);
+    await button.click();
+    await expect(page.getByTestId('load-status')).toContainText(`Copied ${text}`);
+    expect(await clip(page)).toBe(text);
+    // The button is not a click on the row: the highlight is still there. Copying again says so again (the line is re-shown).
+    await expect(highlighted).toHaveAttribute('data-row-id', (await row.getAttribute('data-row-id')) ?? '');
+    await page.getByRole('button', { name: 'Dismiss message' }).click();
+    await expect(page.getByTestId('load-status')).toHaveCount(0);
+    await cell.focus();
+    await button.click();
+    await expect(page.getByTestId('load-status')).toContainText(`Copied ${text}`);
+    // A second click on the cell itself is an ordinary row click: it clears the highlight.
+    await cell.click({ position: { x: 40, y: 8 } });
+    await expect(highlighted).toHaveCount(0);
+    // By keyboard: Tab from the focused cell reaches the button, Enter on it copies.
+    await cell.focus();
+    await page.keyboard.press('Tab');
+    await expect(button).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect.poll(() => clip(page)).toBe(text);
     // Keyboard: the file name button, Right arrow into the cells, Ctrl+C copies the focused value.
     await row.locator('.file-cell').focus();
     await page.keyboard.press('ArrowRight');
@@ -142,12 +159,17 @@ test.describe('reference file', () => {
 
     // Δ vs reference: a known cell. Another file's cell is a signed difference; the reference row keeps its absolute value.
     const cell = (tr: ReturnType<typeof page.locator>, col: string) => tr.locator(`td[data-col="${col}"]`).innerText();
-    const absolute = await cell(page.locator('.metrics tbody tr').nth(0), 'fb180');
+    const firstOther = page.locator('.metrics tbody tr:not(.ref)').first();
+    const absolute = await cell(firstOther, 'fb180');
     const refAbsolute = await cell(refRow, 'fb180');
     await page.getByLabel('Δ vs reference').check();
-    const diff = await cell(page.locator('.metrics tbody tr').nth(0), 'fb180');
+    const diff = await cell(firstOther, 'fb180');
+    // The reference row is pinned first in the difference view.
+    await expect(page.locator('.metrics tbody tr').first()).toHaveClass(/\bref\b/);
+    await expect(refRow.locator('.ref-tag')).toHaveText('reference');
     expect(diff).toMatch(/^[+-]?\d+\.\d$|^0\.0$/);
-    expect(Number(diff)).toBeCloseTo(Number(absolute) - Number(refAbsolute), 0);
+    // Three values each rounded to one decimal: the difference can be off by 0.15 at most.
+    expect(Math.abs(Number(diff) - (Number(absolute) - Number(refAbsolute)))).toBeLessThanOrEqual(0.15 + 1e-9);
     expect(await cell(refRow, 'fb180')).toBe(refAbsolute);
     await expect(page.getByRole('columnheader', { name: /^Δ F\/B 180°/ })).toBeVisible();
     // Another file's difference carries a sign (the example files differ from each other in F/B).
@@ -161,6 +183,8 @@ test.describe('reference file', () => {
       await expect(page.getByTestId('load-status')).toContainText('Copied 24 rows');
       const text = await page.evaluate(() => navigator.clipboard.readText());
       expect(text.split('\r\n')[0]).toContain(`F/B 180° Δ vs ${name} (dB)`);
+      expect(text.split('\r\n')[0].split('\t').slice(0, 3)).toEqual(['File', 'Group', 'Row']);
+      expect(text.split('\r\n')[1].split('\t')[2]).toBe('reference');
     }
 
     // The frequency chart marks the reference.

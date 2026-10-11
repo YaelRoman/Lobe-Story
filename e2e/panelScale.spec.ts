@@ -161,7 +161,7 @@ test('keyboard focus and a highlight never leave a row under the sticky tools bl
   }
   // A highlight from the table brings the row into view below the tools block.
   await page.getByRole('button', { name: 'Show all', exact: true }).click();
-  await page.locator('tr[data-row-id]', { hasText: manyName(MANY - 1) }).locator('.file-cell').click();
+  await page.locator('tr[data-row-id]', { hasText: manyName(MANY - 1) }).click();
   await expect(panel.locator('li.hl')).toHaveCount(1);
   await expect.poll(async () => (await clearOfTools(page, '.panel li.hl')).top).toBeGreaterThanOrEqual(-1);
   expect((await clearOfTools(page, '.panel li.hl')).bottom).toBeGreaterThanOrEqual(-1);
@@ -178,7 +178,7 @@ test('a highlight in a folded group unfolds it and scrolls the row into view', a
   await rest.getByRole('button', { name: /^Collapse / }).click();
   await expect(rest.locator('li')).toHaveCount(0);
   await page.getByRole('button', { name: 'Show all', exact: true }).click();
-  await page.locator('tr[data-row-id]', { hasText: manyName(MANY - 1) }).locator('.file-cell').click();
+  await page.locator('tr[data-row-id]', { hasText: manyName(MANY - 1) }).click();
   await expect(rest.locator('li')).toHaveCount(MANY - 1);
   await expect(panel.locator('li.hl')).toContainText(manyName(MANY - 1));
   await expect.poll(async () => (await clearOfTools(page, '.panel li.hl')).bottom).toBeGreaterThanOrEqual(-1);

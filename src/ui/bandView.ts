@@ -3,7 +3,7 @@ import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import type { AnalysisSettings } from '../core/analysis/metrics';
 import { sanitizeSubBands, subBandName, type BandDataset, type SubBand } from '../core/analysis/subBands';
 import { FIRST_LOBE_RANGE } from '../core/analysis/sidelobes';
-import { csvCell, csvText, tsvText } from './table';
+import { csvCell, csvText, tabSafe, tsvText } from './table';
 
 /** What a table cell shows: `original → tilted` only where the two texts differ. */
 export function cellDisplay(original: BandCell, tilted?: BandCell): { text: string; title: string; muted: boolean } {
@@ -145,10 +145,11 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
  * count) and a line per parameter with the cell text (`original → tilted` under a simulation). Tab-separated.
  */
 export function bandTsv(columns: readonly BandColumn[], tilted: readonly BandColumn[] | null, settings: AnalysisSettings): string {
-  const header = ['Parameter', ...columns.map((c) => tsvText(`${c.subBand.name} (${filesText(c.files)})`))];
+  // Only the sub-band names are user text (formula-guarded); the labels and cells are computed, so they only lose tabs and line breaks.
+  const header = ['Parameter', ...columns.map((c) => `${tsvText(c.subBand.name)} (${filesText(c.files)})`)];
   const lines = BAND_PARAMS.map((p) => [
-    tsvText(bandParamLabel(p, settings)),
-    ...columns.map((c, i) => tsvText(cellDisplay(c.cells[p.key], tilted?.[i].cells[p.key]).text)),
+    tabSafe(bandParamLabel(p, settings)),
+    ...columns.map((c, i) => tabSafe(cellDisplay(c.cells[p.key], tilted?.[i].cells[p.key]).text)),
   ]);
   return [header, ...lines].map((l) => l.join('\t')).join('\r\n') + '\r\n';
 }

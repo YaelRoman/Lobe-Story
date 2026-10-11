@@ -1,18 +1,18 @@
-import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
   ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, nextSort, revealScrollTop, simulationLabel,
-  cellText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
+  cellText, clearOfSticky, gainText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
 import { useTablePreview } from './useTablePreview';
 import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { downloadText } from './download';
-import { copiedRows, copyAndAnnounce } from './clipboard';
-import { copyShortcut, onCopyMark } from './copyKeys';
+import { copiedRow, copiedRows, copiedValue, copyAndAnnounce } from './clipboard';
+import { copyShortcut } from './copyKeys';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
 import { PinMark } from './PinMark';
 import type { MetricColumn } from './table';
@@ -76,6 +76,10 @@ export const MetricsTable = memo(function MetricsTable({
     [baseRows, reference, deltaOn, sort],
   );
   const deltaVs = deltaOn ? (referenceName ?? undefined) : undefined;
+  // In the difference view under a tilt simulation the differences are of the tilted values: the exports say so.
+  const deltaTilted = deltaOn && sim.tiltActive;
+  // The cell that has focus shows the one copy button (a row id and a column key).
+  const [focusedCell, setFocusedCell] = useState<{ id: string; col: string } | null>(null);
 
   // A highlight set from the panel or a plot brings its row into view inside the table (not the page).
   // Only when the highlighted file or the sort changes: rebuilt rows (slider ticks) must not move the scroll.
@@ -102,11 +106,14 @@ export const MetricsTable = memo(function MetricsTable({
   const copy = (text: string, done: string) => void copyAndAnnounce(text, done, setLoadMessage);
   const copyRow = (id: string) => {
     const r = rowById.get(id);
-    if (r) copy(rowToTsv(r, columns), 'Copied 1 row');
+    if (r) copy(rowToTsv(r, columns), copiedRow(r.file));
   };
   const copyCell = (id: string, key: string) => {
     const r = rowById.get(id);
-    if (r) copy(cellText(r, key as MetricColumn), 'Copied the value');
+    if (r) {
+      const text = cellText(r, key as MetricColumn);
+      copy(text, copiedValue(text));
+    }
   };
   const onBodyKeys = (e: KeyboardEvent<HTMLElement>) => {
     const target = e.target as HTMLElement;
@@ -142,18 +149,23 @@ export const MetricsTable = memo(function MetricsTable({
       else return;
       e.preventDefault();
       if (to) {
-        to.focus();
+        to.focus({ preventScroll: true });
         to.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        revealCell(to);
       }
     }
   };
-  // A click on the copy mark of the focused cell (the mark shows after a first click on it) copies the value and is not a click on the row.
-  const focusedCell = useRef<Element | null>(null);
-  const onBodyClickCapture = (e: MouseEvent<HTMLElement>) => {
-    const td = (e.target as HTMLElement).closest<HTMLElement>('td[data-col]');
-    if (!td || !onCopyMark(e.clientX, e.clientY, td.getBoundingClientRect(), focusedCell.current === td)) return;
-    e.stopPropagation();
-    copyCell(td.closest<HTMLElement>('tr')?.dataset.rowId ?? '', td.dataset.col ?? '');
+  // The browser's own scrolling knows nothing of the sticky File column and header: move the cell out from under them.
+  const revealCell = (cell: HTMLElement) => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const w = wrap.getBoundingClientRect();
+    const area = { left: w.left, right: w.left + wrap.clientWidth, top: w.top, bottom: w.top + wrap.clientHeight };
+    const coveredLeft = cell.closest('tr')?.firstElementChild?.getBoundingClientRect().width ?? 0;
+    const coveredTop = Math.ceil(wrap.querySelector('thead')?.getBoundingClientRect().height ?? 0);
+    const { dx, dy } = clearOfSticky(cell.getBoundingClientRect(), area, coveredLeft, coveredTop);
+    if (dx) wrap.scrollLeft += dx;
+    if (dy) wrap.scrollTop += dy;
   };
   const toggleRow = (id: string) => setVisible([id], !useStore.getState().visible[id]);
 
@@ -182,7 +194,7 @@ export const MetricsTable = memo(function MetricsTable({
           onClick={() =>
             downloadText(
               'pattern-metrics.csv',
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs),
+              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted),
               'text/csv;charset=utf-8',
             )
           }
@@ -191,7 +203,7 @@ export const MetricsTable = memo(function MetricsTable({
         </button>
         <button
           title="Copy the table as shown (visible columns, current order) to paste into a spreadsheet"
-          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs), copiedRows(rows.length))}
+          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted), copiedRows(rows.length))}
         >
           Copy table
         </button>
@@ -254,26 +266,32 @@ export const MetricsTable = memo(function MetricsTable({
               {header('file', 'File')}
               {header('group', 'Group')}
               {header('freq', 'MHz')}
-              {header('gain', `Gain (${gainUnit})`)}
+              {header('gain', `${deltaOn ? 'Δ ' : ''}Gain (${gainUnit})`)}
               {columns.map((c) =>
                 header(
                   c.key,
                   `${deltaOn ? 'Δ ' : ''}${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)} (${c.unit})`,
-                  (deltaOn ? `Difference from ${referenceName} (the reference row shows its own values). ` : '') +
-                    (columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg }) ?? ''),
+                  [
+                    deltaOn ? `Difference from ${referenceName} (the reference row, first, shows its own values).` : '',
+                    columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg }) ?? '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined,
                 ),
               )}
             </tr>
           </thead>
           <tbody
             onKeyDown={onBodyKeys}
-            onPointerDownCapture={() => {
-              focusedCell.current = document.activeElement;
-            }}
-            onClickCapture={onBodyClickCapture}
             onFocus={(e) => {
-              const id = (e.target as HTMLElement).closest<HTMLElement>('tr')?.dataset.rowId;
+              const target = e.target as HTMLElement;
+              const id = target.closest<HTMLElement>('tr')?.dataset.rowId;
               if (id) setActiveRow(id);
+              const td = target.closest<HTMLElement>('td[data-col]');
+              setFocusedCell(id && td?.dataset.col ? { id, col: td.dataset.col } : null);
+            }}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusedCell(null);
             }}
           >
             {rows.map((r) => (
@@ -317,16 +335,31 @@ export const MetricsTable = memo(function MetricsTable({
                   >
                     <span aria-hidden="true">⧉</span>
                   </button>
+                  {r.isReference && deltaOn && <span className="ref-tag">reference</span>}
                   </div>
                 </td>
                 <td>{r.group}</td>
                 <td>{r.freq}</td>
-                <td>{r.gain === null ? '—' : r.gain.toFixed(2)}</td>
+                <td>{gainText(r)}</td>
                 {columns.map((c) => {
                   const cell = rowCell(r, c.key);
                   return (
                     <td key={c.key} data-col={c.key} tabIndex={-1} title={cell.title} className={cell.title ? 'has-reason' : undefined}>
                       {cell.text}
+                      {focusedCell?.id === r.id && focusedCell.col === c.key && (
+                        <button
+                          type="button"
+                          className="copy-cell"
+                          aria-label={`Copy value ${cell.text}`}
+                          title="Copy this value (Enter or Ctrl/Cmd+C on the cell does the same)"
+                          // Keeps the focus on the cell where a click would not focus the button (Safari), so the button stays.
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyCell(r.id, c.key);
+                          }}
+                        />
+                      )}
                     </td>
                   );
                 })}

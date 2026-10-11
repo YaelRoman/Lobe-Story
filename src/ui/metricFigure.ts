@@ -31,10 +31,11 @@ export const minSpanForUnit = (unit: string): number => MIN_SPAN_BY_UNIT[unit] ?
 export const metricAxisTitle = (label: string, unit: string): string => `${label} (${unit})`;
 
 /** What the exported chart says about itself. */
-export function metricCaption(label: string, unit: string, simulated: boolean, reference = false): ExportCaption {
+/** `declared`: the metric has values declared in the file (hollow markers); only then does the caption explain them. */
+export function metricCaption(label: string, unit: string, simulated: boolean, reference = false, declared = false): ExportCaption {
   return {
     title: `${metricAxisTitle(label, unit)} against frequency, one line per group`,
-    file: `${label} in ${unit}: one line per group · hollow markers: values declared in the file`,
+    file: `${label} in ${unit}: one line per group${declared ? ' · hollow markers: values declared in the file' : ''}`,
     items: [...(simulated ? ['Faint lines: original patterns before the simulated tilt'] : []), ...(reference ? ['Diamond: the reference file'] : [])],
   };
 }

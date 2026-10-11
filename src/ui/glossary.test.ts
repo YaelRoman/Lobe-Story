@@ -53,5 +53,7 @@ describe('canOfferExample', () => {
 });
 
 it('the help has a line for each feature', () => {
-  expect(FEATURE_HELP.some((l) => l.includes('Metric menu'))).toBe(true);
+  const lines = (word: string) => FEATURE_HELP.filter((l) => l.includes(word));
+  for (const word of ['Metric menu', 'Reference file', 'Copy']) expect(lines(word).length, word).toBeGreaterThan(0);
+  expect(FEATURE_HELP.every((l) => l.length > 20)).toBe(true);
 });

@@ -23,6 +23,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const loadMessage = useStore((s) => s.loadMessage);
   const loadTone = useStore((s) => s.loadTone);
   const loadFailed = useStore((s) => s.loadFailed);
+  const loadSeq = useStore((s) => s.loadSeq);
   const setLoadMessage = useStore((s) => s.setLoadMessage);
   const undoLabel = useStore((s) => s.undo?.label);
   const pendingFiles = useStore((s) => s.pendingFiles);
@@ -34,7 +35,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
     if (!loadMessage || loadTone !== 'info') return;
     const timer = window.setTimeout(() => setLoadMessage(null), CLEAN_LOAD_MS);
     return () => window.clearTimeout(timer);
-  }, [loadMessage, loadTone, setLoadMessage]);
+  }, [loadMessage, loadTone, loadSeq, setLoadMessage]);
 
   return (
     <>
@@ -65,7 +66,8 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
         </div>
       )}
       <div className="visually-hidden" role="status" aria-atomic="false" data-testid="announcer">
-        {loadMessage && <span>{loadMessage} </span>}
+        {/* Keyed by the message count: an identical message is a new node and is read again. */}
+        {loadMessage && <span key={loadSeq}>{loadMessage} </span>}
         {undoLabel && (
           <span>
             {undoLabel}. Undo: {undoShortcut()}.{' '}

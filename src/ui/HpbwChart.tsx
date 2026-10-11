@@ -43,6 +43,9 @@ export const HpbwChart = memo(function HpbwChart({
   const both = metric === 'hHpbw';
 
   const label = labelOf(column);
+  const vColumn = METRIC_COLUMNS.find((c) => c.key === 'vHpbw') ?? METRIC_COLUMNS[0];
+  // The diamond is only mentioned when it is drawn: the reference file exists here and has metrics.
+  const refDrawn = reference !== null && sim.metrics.has(reference) && groups.some((g) => g.items.some((i) => i.pattern.id === reference));
 
   const figure = useMemo(() => {
     const series: HpbwSeries[] = [];
@@ -93,8 +96,8 @@ export const HpbwChart = memo(function HpbwChart({
   }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, column.unit, reference]);
 
   const exportCaption = useMemo(
-    () => (both ? hpbwCaption(levelDb, simulated, reference !== null) : metricCaption(label, column.unit, simulated, reference !== null)),
-    [both, levelDb, simulated, label, column.unit, reference],
+    () => (both ? hpbwCaption(levelDb, simulated, refDrawn) : metricCaption(label, column.unit, simulated, refDrawn, Boolean(DECLARED[metric]))),
+    [both, levelDb, simulated, label, column.unit, refDrawn, metric],
   );
 
   if (!figure) return null;
@@ -105,7 +108,7 @@ export const HpbwChart = memo(function HpbwChart({
         <h2>
           {heading} vs frequency (groups with a visible file{both || DECLARED[metric] ? '; hollow markers = declared' : ''})
           {sim.tiltActive ? ' — faint lines = original' : ''}
-          {reference !== null ? ' — diamond = reference' : ''}
+          {refDrawn ? ' — diamond = reference' : ''}
         </h2>
         <div className="freq-metric">
           <label htmlFor="freq-metric">Metric</label>
@@ -114,7 +117,7 @@ export const HpbwChart = memo(function HpbwChart({
               <optgroup key={g.key} label={g.label}>
                 {METRIC_COLUMNS.filter((c) => c.group === g.key).map((c) => (
                   <option key={c.key} value={c.key}>
-                    {labelOf(c)} ({c.unit}){c.key === 'hHpbw' ? ` with ${labelOf(METRIC_COLUMNS[1])}` : ''}
+                    {labelOf(c)} ({c.unit}){c.key === 'hHpbw' ? ` with ${labelOf(vColumn)}` : ''}
                   </option>
                 ))}
               </optgroup>

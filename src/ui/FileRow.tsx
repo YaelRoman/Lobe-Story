@@ -72,6 +72,8 @@ export const FileRow = memo(function FileRow({
   const id = pattern.id;
   const name = nameOf(pattern);
   const subTab = tabStop ? undefined : -1;
+  // The reference is drawn in the cut plots as a dashed line in the text colour (ticked or not): its swatch says so.
+  const swatch = isReference ? swatchBackground('var(--fg)', 'longdash') : color ? swatchBackground(color, dash ?? 'solid') : 'transparent';
   // A row that goes away (filtered out, removed) while previewed would never see its pointer leave.
   useEffect(
     () => () => {
@@ -103,7 +105,7 @@ export const FileRow = memo(function FileRow({
       />
       {renaming ? (
         <>
-          <span className="swatch" style={{ background: color ? swatchBackground(color, dash ?? 'solid') : 'transparent' }} />
+          <span className="swatch" style={{ background: swatch }} />
           <span>{pattern.frequencyMHz} MHz</span>
           <NameEditor
             initial={name}
@@ -126,10 +128,14 @@ export const FileRow = memo(function FileRow({
           data-nav
           tabIndex={tabStop ? 0 : -1}
           aria-current={highlighted || undefined}
-          title="Enter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row"
+          title={
+            (isReference
+              ? `Reference file: drawn in the 2D cuts as a thick dashed line in the text colour${shown ? '' : ' although it is not ticked'}\n`
+              : '') + 'Enter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row'
+          }
           {...onSpace(() => toggleVisible(id))}
         >
-          <span className="swatch" style={{ background: color ? swatchBackground(color, dash ?? 'solid') : 'transparent' }} />
+          <span className="swatch" style={{ background: swatch }} />
           <span>{pattern.frequencyMHz} MHz</span>
           {isReference && <PinMark />}
           <span className="fname" title={pattern.fileName}>

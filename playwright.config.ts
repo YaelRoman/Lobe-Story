@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: 'e2e',
+  // Six software-WebGL (swiftshader) workers flake on a normal machine ("session closed"); four are stable. CI picks its own.
+  workers: process.env.CI ? undefined : 4,
   use: { baseURL: 'http://localhost:4173' },
   projects: [
     {

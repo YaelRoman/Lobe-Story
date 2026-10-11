@@ -146,3 +146,29 @@ describe('the reference in a project file', () => {
     expect(restore(parsed.project).reference).toBe('b.MSI');
   });
 });
+
+describe('a dismissed layout-only project', () => {
+  it('takes a reference to a file that never came, and the difference view, with it', () => {
+    load();
+    st().setReference('b.MSI');
+    st().updateView({ deltaVsReference: true });
+    const parsed = parseProject(serializeProject(st(), false));
+    if (!parsed.ok) throw new Error(parsed.error);
+    st().clear();
+    st().loadProject(parsed.project);
+    expect(st().pendingFiles.length).toBeGreaterThan(0);
+    expect(st().reference).toBe('b.MSI');
+    st().dismissPending();
+    expect(st().reference).toBeNull();
+    expect(st().view.deltaVsReference).toBe(false);
+  });
+
+  it('keeps a reference that is a loaded file', () => {
+    load();
+    st().setReference('a.MSI');
+    st().updateView({ deltaVsReference: true });
+    st().dismissPending();
+    expect(st().reference).toBe('a.MSI');
+    expect(st().view.deltaVsReference).toBe(true);
+  });
+});

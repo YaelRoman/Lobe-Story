@@ -1035,6 +1035,25 @@ describe('the frequency-chart metric', () => {
     useStore.getState().updateView({ freqMetric: 'fb180' });
     expect(isDirty(useStore.getState())).toBe(false);
     expect(JSON.parse(serializeProject(useStore.getState(), false)).state.view).not.toHaveProperty('freqMetric');
+    useStore.getState().removeFile('a.MSI');
+    expect(useStore.getState().undo).not.toBeNull();
+    useStore.getState().updateView({ freqMetric: 'spr' });
+    // Changing the preference does not withdraw the offer; undo restores the files and leaves the choice alone.
+    expect(useStore.getState().undo).not.toBeNull();
+    useStore.getState().undoLast();
+    expect(useStore.getState().files).toHaveLength(1);
+    expect(useStore.getState().view.freqMetric).toBe('spr');
+  });
+
+  it('is kept when a project is opened, and a metric inside a project file is ignored', () => {
+    useStore.getState().addFiles([input('a.MSI', msi(1800))]);
+    const written = JSON.parse(serializeProject(useStore.getState(), false));
+    written.state.view.freqMetric = 'air';
+    const parsed = parseProject(JSON.stringify(written));
+    if (!parsed.ok) throw new Error(parsed.error);
+    useStore.getState().updateView({ freqMetric: 'fb180' });
+    useStore.getState().loadProject(parsed.project);
+    expect(useStore.getState().view.freqMetric).toBe('fb180');
   });
 });
 
@@ -1269,5 +1288,26 @@ describe('opening a project together with its pattern files', () => {
     st().addFiles([input('a.MSI', msi(1800))]);
     expect(st().loadMessage).toBe('No new files loaded: 1 already loaded (skipped)');
     expect(st().loadTone).toBe('warn');
+  });
+});
+
+describe('the status line after a copy', () => {
+  beforeEach(() => useStore.setState(initialState()));
+
+  it('counts every message, so an identical one is a change the status region and its fade timer see', () => {
+    const a = useStore.getState().loadSeq;
+    useStore.getState().setLoadMessage('Copied 65.0', 'info');
+    const b = useStore.getState().loadSeq;
+    useStore.getState().setLoadMessage('Copied 65.0', 'info');
+    expect(b).toBeGreaterThan(a);
+    expect(useStore.getState().loadSeq).toBeGreaterThan(b);
+  });
+
+  it('keeps the "Show errors" count of a failed load when an info message (a copy) replaces its line', () => {
+    useStore.setState({ loadFailed: 2, loadMessage: '2 files could not be read', loadTone: 'warn' });
+    useStore.getState().setLoadMessage('Copied 65.0', 'info');
+    expect(useStore.getState().loadFailed).toBe(2);
+    useStore.getState().setLoadMessage('Could not save the project');
+    expect(useStore.getState().loadFailed).toBe(0);
   });
 });

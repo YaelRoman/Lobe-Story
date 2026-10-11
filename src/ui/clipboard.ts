@@ -10,6 +10,7 @@ function copyWithTextarea(text: string): boolean {
   document.body.appendChild(area);
   try {
     area.select();
+    area.setSelectionRange(0, text.length);
     return document.execCommand('copy');
   } catch {
     return false;
@@ -31,6 +32,12 @@ export async function copyText(text: string): Promise<boolean> {
   }
   return typeof document !== 'undefined' && copyWithTextarea(text);
 }
+
+/** "Copied 65.0": says which value, so a second copy of another value reads differently. */
+export const copiedValue = (text: string): string => `Copied ${text}`;
+
+/** "Copied row a.msi". */
+export const copiedRow = (name: string): string => `Copied row ${name}`;
 
 /** "Copied 24 rows" / "Copied 1 row". */
 export const copiedRows = (n: number): string => `Copied ${n} row${n === 1 ? '' : 's'}`;

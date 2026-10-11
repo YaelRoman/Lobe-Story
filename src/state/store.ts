@@ -10,7 +10,7 @@ import { projectToState, type ProjectFile } from './project';
 import { isCleanLoad, loadSummary, planLoad, type PendingFile } from './duplicates';
 import { changesSession, markOf, takeSnapshot, type SavedMark, type UndoEntry } from './undo';
 import { uniqueGroupName } from './groupNames';
-import type { MetricColumn } from '../ui/table';
+import type { MetricColumn } from './metricKeys';
 import { clampSim, SIM_LIMITS, type OffsetState, type SimulationKey } from './simLimits';
 
 export { clampSim, SIM_LIMITS };
@@ -104,6 +104,8 @@ export interface StoreData {
   loadTone: 'info' | 'warn';
   /** How many files failed to parse in the load `loadMessage` describes (drives its "Show" button). */
   loadFailed: number;
+  /** Counts every status message, so an identical one is still a change (re-announced, fade timer restarted). */
+  loadSeq: number;
   /** The last destructive action's snapshot, offered for undo for a short time. */
   undo: UndoEntry | null;
   /** The saveable state as of the last Save project / Open project; null = never saved. See undo.ts `isDirty`. */
@@ -208,6 +210,7 @@ export function initialState(): StoreData {
     loadMessage: null,
     loadTone: 'info',
     loadFailed: 0,
+    loadSeq: 0,
     undo: null,
     saved: null,
     copies: {},
@@ -466,7 +469,13 @@ export const useStore = create<State>()((rawSet, get) => {
       };
     }),
 
-  dismissPending: () => set((s) => (s.pendingFiles.length === 0 ? s : { pendingFiles: [] })),
+  // A reference to a file the project was still waiting for goes with the waiting list.
+  dismissPending: () =>
+    set((s) => {
+      if (s.pendingFiles.length === 0) return s;
+      if (s.reference === null || instanceExists(s, s.reference)) return { pendingFiles: [] };
+      return { pendingFiles: [], reference: null, view: { ...s.view, deltaVsReference: false } };
+    }),
   openDialog: (dialog) => set({ dialog }),
   closeDialog: () => set({ dialog: null }),
 
@@ -559,7 +568,9 @@ export const useStore = create<State>()((rawSet, get) => {
 
   updateView: (partial) => set((state) => (sameValues(state.view, partial) ? state : { view: { ...state.view, ...partial } })),
 
-  setLoadMessage: (message, tone = 'warn') => set({ loadMessage: message, loadTone: tone, loadFailed: 0 }),
+  // A transient info message (a copy) must not take the "Show errors" button away from a failed load.
+  setLoadMessage: (message, tone = 'warn') =>
+    set((s) => ({ loadMessage: message, loadTone: tone, loadSeq: s.loadSeq + 1, ...(tone === 'info' && message !== null ? {} : { loadFailed: 0 }) })),
 
   updateSimulation: (partial) =>
     set((state) => {

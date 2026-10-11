@@ -50,6 +50,11 @@ describe('buildMetricFigure', () => {
     expect(c.items).toHaveLength(1);
     expect(metricCaption('F/B 180°', 'dB', false).items).toHaveLength(0);
   });
+
+  it('explains the hollow markers only for a metric that has declared values', () => {
+    expect(metricCaption('Squint', '°', false).file).toBe('Squint in °: one line per group');
+    expect(metricCaption('F/B 180°', 'dB', false, false, true).file).toContain('hollow markers: values declared in the file');
+  });
 });
 
 describe('the reference point', () => {

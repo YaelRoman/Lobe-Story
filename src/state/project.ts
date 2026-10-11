@@ -3,7 +3,7 @@ import type { Tags } from '../core/types';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import { clampSetting, FLOOR_LIMITS } from '../core/analysis/settingLimits';
 import { sanitizeSubBands } from '../core/analysis/subBands';
-import { METRIC_COLUMNS, type MetricColumn } from '../ui/table';
+import { METRIC_KEYS, type MetricColumn } from './metricKeys';
 import { clampSim, type OffsetState } from './simLimits';
 import { fingerprint, isFingerprint, type PendingFile } from './duplicates';
 import type { CustomGroup, LoadedFile, Selection, SimulationState, StoreData, ViewState } from './store';
@@ -237,7 +237,7 @@ export function sanitizeSettings(raw: unknown): AnalysisSettings {
 
 /** The metric of a stored object, or `fallback` when it is not a metric column. */
 export const sanitizeMetric = (v: unknown, fallback: MetricColumn): MetricColumn =>
-  METRIC_COLUMNS.some((c) => c.key === v) ? (v as MetricColumn) : fallback;
+  (METRIC_KEYS as readonly unknown[]).includes(v) ? (v as MetricColumn) : fallback;
 
 /** The display part of the view (everything but the theme and the simulation) of a stored object; bad or missing values take `dv`'s. */
 export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewState): Omit<ViewState, 'theme' | 'simulation' | 'freqMetric'> {

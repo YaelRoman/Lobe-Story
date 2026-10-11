@@ -238,4 +238,11 @@ describe('bandTsv', () => {
     expect(lines[1].split('\t')[1]).toBe('25.0 ± 2.0 → 24.0 ± 2.0');
     expect(bandTsv([column('a', '1')], null, settings).split('\r\n')[1].split('\t')[1]).toBe('1');
   });
+
+  it('guards only the user text: a computed negative cell is copied without a leading quote', () => {
+    const line = bandTsv([column('-odd\tname', '-0.4° ± 0.6°')], null, settings).split('\r\n');
+    expect(line[0].split('\t')[1]).toBe("'-odd name (4 files)");
+    expect(line[1].split('\t')[1]).toBe('-0.4° ± 0.6°');
+    expect(bandTsv([column('a', 'x\ty')], null, settings).split('\r\n')[1].split('\t')).toHaveLength(2);
+  });
 });

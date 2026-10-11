@@ -94,25 +94,71 @@ describe('the difference from the reference', () => {
     expect(signedOneDecimal(null)).toBe('—');
   });
 
-  it('sorts by what is shown: the differences, with the reference at its own value', () => {
-    const out = sortRows(markReference(rows, 'ref', true), { key: 'hHpbw', dir: 'asc' });
-    expect(out.map((r) => r.id)).toEqual(['o', 't', 'ref']);
+  it('pins the reference row first in the difference view, whatever the sort; the others sort by their differences', () => {
+    const marked = markReference(rows, 'ref', true);
+    expect(sortRows(marked, { key: 'hHpbw', dir: 'asc' }).map((r) => r.id)).toEqual(['ref', 'o', 't']);
+    expect(sortRows(marked, { key: 'hHpbw', dir: 'desc' }).map((r) => r.id)).toEqual(['ref', 't', 'o']);
+    expect(sortRows(marked, null).map((r) => r.id)).toEqual(['ref', 'o', 't']);
+    expect(sortRows(marked, { key: 'file', dir: 'desc' }).map((r) => r.id)).toEqual(['ref', 't', 'o']);
+  });
+
+  it('sorts the reference like any row when the difference view is off', () => {
+    const marked = markReference(rows, 'ref', false);
+    expect(sortRows(marked, { key: 'hHpbw', dir: 'desc' }).map((r) => r.id)).toEqual(['t', 'o', 'ref']);
+    expect(sortRows(marked, null)).toBe(marked);
+  });
+
+  it('differences the gain as well, and keeps the reference gain absolute', () => {
+    const g = markReference([rowOf({ id: 'ref', gain: 15 }), rowOf({ id: 'o', gain: 16.5 }), rowOf({ id: 'n', gain: null })], 'ref', true);
+    expect(g.map((r) => r.gain)).toEqual([15, 1.5, null]);
+  });
+
+  it('adds a Row column (reference / difference) after the file and group columns in the CSV and the TSV', () => {
+    const out = sortRows(markReference(rows, 'ref', true), null);
+    const cols = METRIC_COLUMNS.slice(0, 1);
+    const tsv = toTsv(out, cols, 'dBd', 30, 20, 3, 'ref.msi').trimEnd().split('\r\n');
+    expect(tsv[0].split('\t').slice(0, 4)).toEqual(['File', 'Group', 'Row', 'MHz']);
+    expect(tsv.slice(1).map((l) => l.split('\t')[2])).toEqual(['reference', 'difference', 'difference']);
+    expect(tsv[0].split('\t')[4]).toBe('Gain Δ vs ref.msi (dBd)');
+    const csv = toCsv(out, 'dBd', 30, undefined, 20, 3, 'ref.msi').trimEnd().split('\r\n');
+    const at = csv[0].split(',').indexOf('Group') + 1;
+    expect(csv[0].split(',')[at]).toBe('Row');
+    expect(csv.slice(1).map((l) => l.split(',')[at])).toEqual(['reference', 'difference', 'difference']);
+    // Without the difference view there is no Row column.
+    expect(toTsv(rows, cols, 'dBd', 30).split('\r\n')[0]).toBe('File\tGroup\tMHz\tGain (dBd)\tH-HPBW (°)');
+    expect(toCsv(rows, 'dBd', 30).split('\r\n')[0]).not.toContain('Row');
+  });
+
+  it('says in the headers that the values are the tilted ones when a simulation is on', () => {
+    const out = markReference(rows, 'ref', true);
+    const tsv = toTsv(out, METRIC_COLUMNS.slice(0, 1), 'dBd', 30, 20, 3, 'ref.msi', true).split('\r\n')[0];
+    expect(tsv).toContain('H-HPBW Δ vs ref.msi, tilted values (°)');
+    expect(toCsv(out, 'dBd', 30, undefined, 20, 3, 'ref.msi', true).split('\r\n')[0]).toContain('H-HPBW Δ vs ref.msi, tilted values (°)');
+    expect(toTsv(out, METRIC_COLUMNS.slice(0, 1), 'dBd', 30, 20, 3, 'ref.msi').split('\r\n')[0]).not.toContain('tilted');
   });
 
   it('puts "Δ vs <name>" in the CSV and TSV headers and the differences in their cells', () => {
     const out = markReference(rows, 'ref', true);
     const cols = METRIC_COLUMNS.slice(0, 2);
     const tsv = toTsv(out, cols, 'dBd', 30, 20, 3, 'ref.msi').trimEnd().split('\r\n');
-    expect(tsv[0].split('\t').slice(4)).toEqual(['H-HPBW Δ vs ref.msi (°)', 'V-HPBW Δ vs ref.msi (°)']);
-    expect(tsv[1].split('\t').slice(4)).toEqual(['+1.3', '+1.3']);
-    expect(tsv[2].split('\t').slice(4)).toEqual(['10.0', '11.0']);
+    expect(tsv[0].split('\t').slice(5)).toEqual(['H-HPBW Δ vs ref.msi (°)', 'V-HPBW Δ vs ref.msi (°)']);
+    expect(tsv[1].split('\t').slice(5)).toEqual(['+1.3', '+1.3']);
+    expect(tsv[2].split('\t').slice(5)).toEqual(['10.0', '11.0']);
     const csv = toCsv(out, 'dBd', 30, (id) => ({ electricalDeg: id === 't' ? 1 : 0, mechanicalDeg: 0, azimuthDeg: 0 }), 20, 3, 'ref.msi').split('\r\n');
     expect(csv[0]).toContain('H-HPBW Δ vs ref.msi (°)');
     expect(csv[0]).not.toContain('original');
     const head = csv[0].split(',');
+    expect(head[head.indexOf('Group') + 1]).toBe('Row');
     expect(csv[1].split(',')[head.indexOf('H-HPBW Δ vs ref.msi (°)')]).toBe('1.25');
     // The reference row keeps its shown value, as the cells do.
     expect(csv[2].split(',')[head.indexOf('H-HPBW Δ vs ref.msi (°)')]).toBe('10.00');
+  });
+
+  it('keeps a tab and a formula in the reference name out of the TSV header (no new cell, no leading =)', () => {
+    const header = toTsv(markReference(rows, 'ref', true), METRIC_COLUMNS.slice(0, 2), 'dBd', 30, 20, 3, 'a\t=1').split('\r\n')[0].split('\t');
+    expect(header).toHaveLength(2 + 1 + 2 + 2);
+    expect(header.every((c) => !c.startsWith('='))).toBe(true);
+    expect(header.slice(5)).toEqual(['H-HPBW Δ vs a =1 (°)', 'V-HPBW Δ vs a =1 (°)']);
   });
 
   it('keeps a formula-like reference name inside the header text (the cell does not start with it)', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
-  simulationLabel, toCsv, offsetLabel, csvCell, csvText,
+  simulationLabel, toCsv, offsetLabel, csvCell, csvText, clearOfSticky, METRIC_KEYS,
   nextSort, revealScrollTop, sortIfShown, shouldReveal, sortRows, sortValue, ariaSort, type MetricsRow, type SortState,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
@@ -576,4 +576,21 @@ describe('beamwidth labels follow the level', () => {
     expect(header).toContain('H-BW@10 dB (°)');
     expect(header).not.toContain('H-HPBW');
   });
+});
+
+describe('clearOfSticky', () => {
+  const area = { left: 0, right: 400, top: 0, bottom: 300 };
+  it('does not scroll for a cell that is visible beside the sticky column and below the header', () => {
+    expect(clearOfSticky({ left: 200, right: 260, top: 100, bottom: 130 }, area, 120, 30)).toEqual({ dx: 0, dy: 0 });
+  });
+  it('scrolls back so a cell under the sticky File column or the header comes out from under it', () => {
+    expect(clearOfSticky({ left: 100, right: 160, top: 10, bottom: 40 }, area, 120, 30)).toEqual({ dx: -20, dy: -20 });
+  });
+  it('scrolls forward for a cell past the right or bottom edge', () => {
+    expect(clearOfSticky({ left: 380, right: 450, top: 290, bottom: 320 }, area, 120, 30)).toEqual({ dx: 50, dy: 20 });
+  });
+});
+
+it('keeps the key list the state needs in step with the table columns', () => {
+  expect(METRIC_COLUMNS.map((c) => c.key)).toEqual([...METRIC_KEYS]);
 });

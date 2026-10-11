@@ -6,12 +6,9 @@ import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
 import { bwName } from './bwLabel';
+import { METRIC_KEYS, type MetricColumn } from '../state/metricKeys';
 
-export type MetricColumn =
-  | 'hHpbw' | 'vHpbw' | 'hBw10' | 'vBw10' | 'squint' | 'hPeak' | 'tilt' | 'vPeak' | 'tiltError'
-  | 'fb180' | 'fbWindow' | 'firstUsls' | 'usls' | 'uslsHorizon' | 'uslsMax' | 'nullFill' | 'firstLsls' | 'hSls'
-  | 'tracking' | 'spr' | 'air' | 'rollOff' | 'du16' | 'du64' | 'du256'
-  | 'dH' | 'dV' | 'dFb';
+export { METRIC_KEYS, type MetricColumn };
 
 export const COLUMN_GROUPS: { key: ColumnGroupKey; label: string }[] = [
   { key: 'beam', label: 'Beam' },
@@ -232,9 +229,10 @@ export function buildRows(
 const shown = (r: MetricsRow, key: MetricColumn): MetricResult => r.tilted?.[key] ?? r.cells[key];
 
 /**
- * The rows with the reference file's row marked. With `delta`, every other row's cells become the difference from the
- * reference (the value a cell shows, i.e. the tilted one under a simulation, minus the reference's); a cell is missing
- * when either side is. The reference row keeps its own values. Null when the reference has no row.
+ * The rows with the reference file's row marked. With `delta`, every other row's cells and gain become the difference
+ * from the reference (the value a cell shows, i.e. the tilted one under a simulation, minus the reference's); a value
+ * is missing when either side is. The reference row keeps its own values. The rows are returned as given (not marked)
+ * when the reference has no row.
  */
 export function markReference(rows: MetricsRow[], referenceId: string | null, delta: boolean): MetricsRow[] {
   const ref = referenceId === null ? undefined : rows.find((r) => r.id === referenceId);
@@ -251,7 +249,8 @@ export function markReference(rows: MetricsRow[], referenceId: string | null, de
           ? { value: mine.value - theirs.value }
           : { value: null, reason: mine.value === null ? (mine.reason ?? 'no value for this file') : 'the reference file has no value' };
     }
-    return { ...r, cells, tilted: undefined, isDelta: true };
+    const gain = r.gain !== null && ref.gain !== null ? r.gain - ref.gain : null;
+    return { ...r, cells, gain, tilted: undefined, isDelta: true };
   });
 }
 
@@ -290,8 +289,22 @@ export function sortValue(row: MetricsRow, key: SortKey): number | string | null
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
-/** A sorted copy of the rows; missing values stay last in both directions, ties keep their order. */
+/** The rows with the reference row first when the rows are differences from it (rows not in the difference view come back as given). */
+function pinReference(rows: MetricsRow[]): MetricsRow[] {
+  const at = rows.findIndex((r) => r.isReference);
+  if (at <= 0 || !rows.some((r) => r.isDelta)) return rows;
+  return [rows[at], ...rows.slice(0, at), ...rows.slice(at + 1)];
+}
+
+/**
+ * A sorted copy of the rows; missing values stay last in both directions, ties keep their order. In the difference view
+ * the reference row is the baseline and stays first whatever the sort; the others sort by their differences.
+ */
 export function sortRows(rows: MetricsRow[], sort: SortState | null): MetricsRow[] {
+  return pinReference(sortByKey(rows, sort));
+}
+
+function sortByKey(rows: MetricsRow[], sort: SortState | null): MetricsRow[] {
   if (!sort) return rows;
   const sign = sort.dir === 'asc' ? 1 : -1;
   return rows
@@ -322,6 +335,21 @@ export function revealScrollTop(
   const bottom = row.top + row.height;
   if (bottom > view.scrollTop + view.clientHeight) return bottom - view.clientHeight;
   return view.scrollTop;
+}
+
+interface Box { left: number; right: number; top: number; bottom: number }
+
+/**
+ * How far the table wrapper must scroll (`dx`, `dy`, added to scrollLeft / scrollTop) so a cell is fully inside `area`
+ * and not under the sticky File column (`coveredLeft` wide) or the sticky header (`coveredTop` high).
+ */
+export function clearOfSticky(cell: Box, area: Box, coveredLeft: number, coveredTop: number): { dx: number; dy: number } {
+  const edge = (lo: number, hi: number, areaLo: number, areaHi: number, covered: number) =>
+    lo < areaLo + covered ? lo - (areaLo + covered) : hi > areaHi ? hi - areaHi : 0;
+  return {
+    dx: edge(cell.left, cell.right, area.left, area.right, coveredLeft),
+    dy: edge(cell.top, cell.bottom, area.top, area.bottom, coveredTop),
+  };
 }
 
 const FIXED_SORT_KEYS: readonly SortKey[] = ['file', 'group', 'freq', 'gain'];
@@ -358,8 +386,11 @@ export function formulaSafe(raw: string): string {
   return /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
 }
 
+/** A tab or line break becomes a space, so text cannot split a tab-separated cell or line (for computed text, which needs no formula guard). */
+export const tabSafe = (raw: string): string => raw.replace(/[\t\r\n]+/g, ' ');
+
 /** One tab-separated field of user-influenced text: formula-guarded as in the CSV, and a tab or line break becomes a space so it cannot split the cell. */
-export const tsvText = (raw: string): string => formulaSafe(raw).replace(/[\t\r\n]+/g, ' ');
+export const tsvText = (raw: string): string => tabSafe(formulaSafe(raw));
 
 const oneDecimal = (r: MetricResult) => (r.value === null ? '—' : r.value.toFixed(1));
 
@@ -412,6 +443,7 @@ export function toCsv(
   uslsRangeDeg = 20,
   levelDb = 3,
   deltaVs?: string,
+  deltaTilted = false,
 ): string {
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
   // The difference view has one column per metric (the difference of the shown values), whatever the simulation.
@@ -419,14 +451,15 @@ export function toCsv(
   const withSource = rows.some((r) => r.source !== r.file);
   const metricHeader = METRIC_COLUMNS.flatMap((c) => {
     const label = columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
-    return tilted ? [`${label} original (${c.unit})`, `${label} tilted (${c.unit})`] : [columnHeader(label, c.unit, deltaVs)];
+    return tilted ? [`${label} original (${c.unit})`, `${label} tilted (${c.unit})`] : [columnHeader(label, c.unit, deltaVs, deltaTilted)];
   });
   const header = [
     'File',
     ...(withSource ? ['Source file'] : []),
     'Group',
+    ...(deltaVs !== undefined ? ['Row'] : []),
     'Frequency (MHz)',
-    `Gain (${gainUnit})`,
+    columnHeader('Gain', gainUnit, deltaVs, deltaTilted),
     ...metricHeader,
     ...(tilted ? ['Electrical tilt Δ (°)', 'Mechanical tilt (°)', 'Azimuth (°)'] : []),
   ];
@@ -435,6 +468,7 @@ export function toCsv(
     ...(withSource ? [csvText(r.source)] : []),
     csvText(r.group),
     ...[
+      ...(deltaVs !== undefined ? [rowRole(r)] : []),
       String(r.freq),
       fmt(r.gain),
       ...METRIC_COLUMNS.flatMap((c) =>
@@ -463,13 +497,25 @@ export function rowCell(r: MetricsRow, key: MetricColumn): { text: string; title
 }
 
 /** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */
-const columnHeader = (label: string, unit: string, deltaVs?: string): string => (deltaVs === undefined ? `${label} (${unit})` : `${label} Δ vs ${deltaVs} (${unit})`);
+const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false): string =>
+  deltaVs === undefined ? `${label} (${unit})` : `${label} Δ vs ${deltaVs}${tilted ? ', tilted values' : ''} (${unit})`;
+
+/** The "Row" column of the difference view's exports: which row is the baseline, so a "Δ vs …" column can be filtered. */
+const rowRole = (r: MetricsRow): string => (r.isReference ? 'reference' : 'difference');
+
+/** What the Gain cell shows: the value, or the signed difference in the difference view. */
+export const gainText = (r: MetricsRow): string => (r.gain === null ? '—' : r.isDelta ? signedTwoDecimals(r.gain) : r.gain.toFixed(2));
+
+function signedTwoDecimals(v: number): string {
+  const rounded = Number(v.toFixed(2));
+  return rounded === 0 ? '0.00' : rounded > 0 ? `+${rounded.toFixed(2)}` : rounded.toFixed(2);
+}
 
 type CopyColumn = { key: MetricColumn; label: string; unit: string };
 
 /** The values of one row as shown (file, group, MHz, gain, then the columns), tab-separated, no header. */
-export function rowToTsv(r: MetricsRow, columns: readonly CopyColumn[]): string {
-  return [tsvText(r.file), tsvText(r.group), String(r.freq), r.gain === null ? '—' : r.gain.toFixed(2), ...columns.map((c) => cellText(r, c.key))].join('\t');
+export function rowToTsv(r: MetricsRow, columns: readonly CopyColumn[], withRole = false): string {
+  return [tsvText(r.file), tsvText(r.group), ...(withRole ? [rowRole(r)] : []), String(r.freq), gainText(r), ...columns.map((c) => cellText(r, c.key))].join('\t');
 }
 
 /**
@@ -484,7 +530,16 @@ export function toTsv(
   uslsRangeDeg = 20,
   levelDb = 3,
   deltaVs?: string,
+  deltaTilted = false,
 ): string {
-  const header = ['File', 'Group', 'MHz', `Gain (${gainUnit})`, ...columns.map((c) => columnHeader(columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), c.unit, deltaVs))];
-  return [header.join('\t'), ...rows.map((r) => rowToTsv(r, columns))].join('\r\n') + '\r\n';
+  const withRole = deltaVs !== undefined;
+  const header = [
+    'File',
+    'Group',
+    ...(withRole ? ['Row'] : []),
+    'MHz',
+    columnHeader('Gain', gainUnit, deltaVs, deltaTilted),
+    ...columns.map((c) => columnHeader(columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), c.unit, deltaVs, deltaTilted)),
+  ];
+  return [header.map(tsvText).join('\t'), ...rows.map((r) => rowToTsv(r, columns, withRole))].join('\r\n') + '\r\n';
 }
