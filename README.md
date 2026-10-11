@@ -18,6 +18,9 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - Automatic grouping by polarization, tilt, port and array (editable; drag files between groups).
 - Column groups can be shown or hidden above the metrics table (saved with the project); the CSV
   always contains every column.
+- Band statistics per NGMN BASTA V13 Annex C: mean ± tolerance, 84th / 16th percentile limits and
+  gain statistics over every loaded file of an antenna in a frequency sub-band (automatic or
+  user-defined sub-bands, saved with the project), with CSV export and a histogram of any cell.
 - CSV export of the metrics table and PNG export of any plot.
 
 Metrics follow the NGMN BASTA V13 definitions where the two co-polar cuts allow; see

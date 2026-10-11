@@ -24,7 +24,7 @@ the table labels. Column groups can be hidden above the table; the CSV always ha
 | Peak az | ° | Azimuth of the strongest sample, refined with a three-point parabola through it and its neighbours. | 6.1.4 |
 | Tilt | ° | Elevation of the midpoint of the V-HPBW points (the half-power beam axis), positive below the horizon. | 6.1.8 |
 | Peak tilt | ° | Elevation of the strongest sample, refined as Peak az. | 6.1.4 |
-| Tilt error | ° | Tilt minus the nominal tilt of the file, signed. BASTA's downtilt deviation is its absolute value. Not available when the nominal tilt is unknown. | 7.2.8.2 |
+| Tilt error | ° | Tilt minus the nominal tilt of the file, signed, on the half-power axis (the band statistics use the beam peak instead, see below). Not available when the nominal tilt is unknown. | 7.2.8.2 |
 
 If the cut never drops by the level on one side, the beamwidth, squint and tilt are not available.
 Changing the beamwidth level changes the H/V-HPBW, Squint and Tilt columns (they keep their
@@ -94,6 +94,64 @@ and ΔF/B (F/B 180°). Not available when the header lacks the value, and not co
 files in a tilt simulation (the declared values describe the measured pattern). Hidden by default.
 Not a BASTA parameter (tool-defined).
 
+## Band statistics
+
+The "Band statistics" section below the metrics table computes the distribution-based
+specification values of NGMN BASTA V13 Annex C ("65.1° ± 4.0°", "< 2.7 dB", "> 15.8 dB",
+"17.5 dBi ± 0.3 dB"): one row per parameter, one column per sub-band. The statistics reproduce the
+standard's four worked examples (65.1 ± 4.0, 2.7, 15.8 and 17.5 ± 0.35). Click a cell to see a
+histogram of its samples with the statistic drawn as vertical lines; **Export band CSV** writes
+every antenna, sub-band and parameter in long form.
+
+**Dataset.** One statistic covers every loaded file, not copies, of one antenna whose frequency lies
+in the sub-band: all nominal tilts, all ports and both polarizations are pooled. An antenna is the
+set of files that share a custom group (if any) and an array tag. Files of different antennas, or of
+different beamwidth-fan or pan settings, must be kept apart with custom groups or array tags.
+Plot visibility does not matter. N, the number of samples, is shown in every cell.
+
+**Sub-bands.** With none defined, each cluster of frequencies whose neighbours are at most 100 MHz
+apart is one sub-band. A user-defined list (name, min, max; inclusive with ±0.5 MHz, overlap allowed,
+at most 12) replaces the automatic one and is saved with the project; the editor offers common
+ranges as presets. BASTA's own sub-band tables are examples and are not enforced, and the tool does
+not check that all frequency samples required by Annex B are present.
+
+**Recipe.**
+- Percentile p: index x = 1 + (N − 1)·p/100 into the ascending values, linearly interpolated, x not rounded.
+- Double-sided: mean, 6.7th and 93.3rd percentile; tolerance = mean of the two distances to the mean. Means of dB quantities (gain, roll-off, AIR) are taken over linear power and converted back; degrees use the arithmetic mean.
+- Single-sided maximum ("<") = 84th percentile; minimum (">") = 16th percentile.
+- 3 dB excursion rule (12.2), dB rows with the "Exc" mark below: a minimum is lowered to the lowest value + 3 dB if that value is more than 3 dB under the percentile; a maximum is raised to the highest value − 3 dB the same way. The cell then ends in `*`, and the tooltip and the CSV "Adjusted" column say so.
+- Fewer than 10 samples: no statistic, the range of the values is shown instead (muted). Gain at one tilt needs only one file.
+
+| Label | Type | Samples | BASTA |
+|---|---|---|---|
+| Gain, all tilts | double, power mean | 1 per file | 7.2.10, 12.6.2 |
+| Gain, lowest / middle / highest tilt | mean only, power mean | files at that nominal tilt | 12.6.1 |
+| Electrical tilt range | nominal range | distinct nominal tilts | 7.2.7 |
+| Azimuth beamwidth, Elevation beamwidth, Azimuth beam squint | double | 1 per file | 7.2.5.1, 7.2.8.1, 7.8.1.5 |
+| Downtilt deviation | maximum | 1 per file | 7.2.8.2, 12.7 |
+| F/B ±W°, First USLS, First LSLS, H-SLS | minimum, Exc | 1 per file | 7.2.9.1, 7.8.4.2, 7.2.11, 7.8.4.1 |
+| USLS peak / horizon to R°, USLS max | minimum, Exc, 22 dB rule | 1 per file | 7.8.4.3, 7.8.4.5, 7.8.4.4 |
+| Null fill | maximum, no Exc | 1 per file | 7.8.3 |
+| P2P tracking (sector edges) | maximum, Exc | 2 per ± pair | 7.8.5, 12.4.5 |
+| Roll-off (both edges) | double, power mean | 2 per file | 7.8.1.4 |
+| AIR | double, power mean | 1 per file | 7.8.1.6 |
+
+**Special rules.**
+- "Not available" sidelobe windows (no sidelobe in the window, per file "—") count as 22 dB when at most half of the samples are not available (12.5.3); otherwise the cell is "n/a". Other missing values (undefined beamwidth, no gain) are left out and counted as "without a value" in the tooltip.
+- USLS max uses the 22 dB rule too, by extension of 12.5.3.
+- Gain is the declared header gain in the selected unit; the 0.8 dB repeatability margin appears in the tooltip only. The middle tilt is the nominal tilt nearest the midpoint of the lowest and highest.
+- Downtilt deviation is |beam peak elevation − nominal tilt| (7.2.8.2, 12.7), not the half-power axis of the per-file Tilt error column; it differs by a few tenths of a degree on asymmetric beams. The nominal tilt includes a simulated electrical and mechanical offset.
+- Null fill is a pure 84th percentile without the excursion rule: on 1° data the deepest single null decides the value in most cells, which says nothing about the antenna.
+- Roll-off uses both sector edges of every file as separate samples. P2P tracking uses the two sector-edge differences of each ± pair (a pair counts once, only when both files are in the dataset and name each other); the per-file column shows the maximum over the sector instead, so the statistic can be lower than the worst cell there.
+
+**Limits.**
+- Co-polar cuts only: F/B and AIR are not total-power values; no cross-polar or 3D parameters.
+- 1° data; BASTA asks for 0.5° when the beamwidth is below 20°.
+- Nominal tilts and array membership come from file names and headers and can be corrected with the tag editor.
+- With a tilt simulation a cell shows original → tilted where they differ; simulated values are estimates, not measurements.
+- A beamwidth level other than 3 dB changes the beamwidth, squint and tilt rows (a warning is shown).
+- No pass/fail grading against limits.
+
 ## Settings
 
 | Setting | Default | Changes |
@@ -126,8 +184,6 @@ Not a BASTA parameter (tool-defined).
 - **"Not available" cells.** A window with no sidelobe in it shows "—" for that file. BASTA
   substitutes 22 dB only in statistics over a set of measurements, so no substitute is applied per
   file.
-- **No band statistics.** BASTA's distribution-based specifications over a frequency band are not
-  computed; every value belongs to one file.
 - **Tilt simulation.** Metrics of a simulated tilt are estimates from a two-cut reconstruction.
   The elevation cut is shifted. The simulated horizontal cut is the cut through the tilted beam
   peak (the cone at the peak's elevation), reconstructed from the two cuts with the selected 3D
