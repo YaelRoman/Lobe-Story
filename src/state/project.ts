@@ -152,7 +152,7 @@ export function parseProject(text: string): ParsedProject {
 
 const num = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 
-const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
+export const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
   allowed.includes(v as T) ? (v as T) : fallback;
 
 function cleanMap<T>(raw: unknown, ok: (v: unknown) => v is T): Record<string, T> {
@@ -201,6 +201,52 @@ function cleanOffsets(raw: unknown, keep: (id: string) => boolean): Record<strin
   return out;
 }
 
+/** The analysis settings of a stored object: every field validated by its limits, else the default. */
+export function sanitizeSettings(raw: unknown): AnalysisSettings {
+  const rawSettings: Record<string, unknown> = isObj(raw) ? raw : {};
+  const settings: AnalysisSettings = { ...DEFAULT_SETTINGS };
+  for (const k of Object.keys(settings) as (keyof AnalysisSettings)[]) {
+    const v = rawSettings[k];
+    if (typeof v === 'number') {
+      const ok = clampSetting(k, v);
+      if (ok !== null) settings[k] = ok;
+    }
+  }
+  if (rawSettings.sectorEdgeDeg === undefined) {
+    const legacy = rawSettings.trackingWindowDeg;
+    const ok = typeof legacy === 'number' ? clampSetting('sectorEdgeDeg', legacy) : null;
+    if (ok !== null) settings.sectorEdgeDeg = ok;
+  }
+  return settings;
+}
+
+/** The display part of the view (everything but the theme and the simulation) of a stored object; bad or missing values take `dv`'s. */
+export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewState): Omit<ViewState, 'theme' | 'simulation'> {
+  const rawMarkers: Record<string, unknown> = isObj(rawView.markers) ? rawView.markers : {};
+  const rawGroups: Record<string, unknown> = isObj(rawView.tableGroups) ? rawView.tableGroups : {};
+  const markers = { ...dv.markers };
+  for (const k of Object.keys(markers) as (keyof typeof markers)[]) {
+    if (typeof rawMarkers[k] === 'boolean') markers[k] = rawMarkers[k] as boolean;
+  }
+  const tableGroups = { ...dv.tableGroups };
+  for (const k of Object.keys(tableGroups) as (keyof typeof tableGroups)[]) {
+    if (typeof rawGroups[k] === 'boolean') tableGroups[k] = rawGroups[k] as boolean;
+  }
+  const floor = num(rawView.floorDb, dv.floorDb);
+  return {
+    cut: oneOf(rawView.cut, ['H', 'V', 'both'] as const, dv.cut),
+    mode: oneOf(rawView.mode, ['polar', 'rect'] as const, dv.mode),
+    gainUnit: oneOf(rawView.gainUnit, ['dBd', 'dBi'] as const, dv.gainUnit),
+    floorDb: floor >= FLOOR_LIMITS.min && floor <= FLOOR_LIMITS.max ? floor : dv.floorDb,
+    markers,
+    tableGroups,
+    subBands: sanitizeSubBands(rawView.subBands),
+    dimension: oneOf(rawView.dimension, ['2d', '3d'] as const, dv.dimension),
+    method3d: oneOf(rawView.method3d, ['summation', 'weighted'] as const, dv.method3d),
+    layout3d: oneOf(rawView.layout3d, ['grid', 'overlay'] as const, dv.layout3d),
+  };
+}
+
 /**
  * The store state for a parsed project: files with text are parsed with `loadText`, files without
  * become `pendingFiles`; every part is sanitised against `defaults`; the theme is the caller's.
@@ -232,19 +278,7 @@ export function projectToState(
 
   const rawView: Record<string, unknown> = isObj(st.view) ? (st.view as Record<string, unknown>) : {};
   const rawSim: Record<string, unknown> = isObj(rawView.simulation) ? rawView.simulation : {};
-  const rawMarkers: Record<string, unknown> = isObj(rawView.markers) ? rawView.markers : {};
-  const rawGroups: Record<string, unknown> = isObj(rawView.tableGroups) ? rawView.tableGroups : {};
   const dv = defaults.view;
-
-  const markers = { ...dv.markers };
-  for (const k of Object.keys(markers) as (keyof typeof markers)[]) {
-    if (typeof rawMarkers[k] === 'boolean') markers[k] = rawMarkers[k] as boolean;
-  }
-
-  const tableGroups = { ...dv.tableGroups };
-  for (const k of Object.keys(tableGroups) as (keyof typeof tableGroups)[]) {
-    if (typeof rawGroups[k] === 'boolean') tableGroups[k] = rawGroups[k] as boolean;
-  }
 
   const simulation: SimulationState = {
     electricalDeg: clampSim('electricalDeg', num(rawSim.electricalDeg, 0)),
@@ -255,22 +289,8 @@ export function projectToState(
     groupOffsets: cleanOffsets(rawSim.groupOffsets, (id) => groupIds.has(id)),
   };
 
-  const rawSettings: Record<string, unknown> = isObj(st.settings) ? (st.settings as unknown as Record<string, unknown>) : {};
-  const settings: AnalysisSettings = { ...DEFAULT_SETTINGS };
-  for (const k of Object.keys(settings) as (keyof AnalysisSettings)[]) {
-    const v = rawSettings[k];
-    if (typeof v === 'number') {
-      const ok = clampSetting(k, v);
-      if (ok !== null) settings[k] = ok;
-    }
-  }
-  if (rawSettings.sectorEdgeDeg === undefined) {
-    const legacy = rawSettings.trackingWindowDeg;
-    const ok = typeof legacy === 'number' ? clampSetting('sectorEdgeDeg', legacy) : null;
-    if (ok !== null) settings.sectorEdgeDeg = ok;
-  }
+  const settings = sanitizeSettings(st.settings);
 
-  const floor = num(rawView.floorDb, dv.floorDb);
   const selected = st.selected && st.selected.kind === 'group' && !groupIds.has(st.selected.id) ? null : (st.selected ?? null);
 
   return {
@@ -286,20 +306,7 @@ export function projectToState(
     selected,
     settings,
     loadMessage: null,
-    view: {
-      cut: oneOf(rawView.cut, ['H', 'V', 'both'] as const, dv.cut),
-      mode: oneOf(rawView.mode, ['polar', 'rect'] as const, dv.mode),
-      gainUnit: oneOf(rawView.gainUnit, ['dBd', 'dBi'] as const, dv.gainUnit),
-      theme,
-      floorDb: floor >= FLOOR_LIMITS.min && floor <= FLOOR_LIMITS.max ? floor : dv.floorDb,
-      markers,
-      tableGroups,
-      subBands: sanitizeSubBands(rawView.subBands),
-      dimension: oneOf(rawView.dimension, ['2d', '3d'] as const, dv.dimension),
-      method3d: oneOf(rawView.method3d, ['summation', 'weighted'] as const, dv.method3d),
-      layout3d: oneOf(rawView.layout3d, ['grid', 'overlay'] as const, dv.layout3d),
-      simulation,
-    },
+    view: { ...sanitizeDisplayView(rawView, dv), theme, simulation },
   };
 }
 

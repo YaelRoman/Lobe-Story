@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useStore } from '../state/store';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
+import { resetPrefs } from '../state/prefs';
+import { confirmDialog } from './dialogs';
 import { clampFloor, clampSetting, FLOOR_LIMITS, SETTING_LIMITS } from '../core/analysis/settingLimits';
 
 const DEFAULT_FLOOR_DB = 40;
@@ -109,7 +111,7 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
       onBlur={(e) => {
         // Tab (or a programmatic move) to something outside the panel and its button closes it.
         const to = e.relatedTarget as Node | null;
-        if (to && !ref.current?.contains(to) && !opener.current?.contains(to)) onClose(false);
+        if (to && !ref.current?.contains(to) && !opener.current?.contains(to) && !useStore.getState().dialog) onClose(false);
       }}
     >
       {FIELDS.map((f) => (
@@ -138,6 +140,19 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
         }}
       >
         Reset
+      </button>
+      <button
+        style={{ gridColumn: '1 / -1' }}
+        title="Theme, gain unit, plot options, markers, columns, 3D options, analysis settings and sub-bands go back to their defaults, and the browser forgets them."
+        onClick={() =>
+          void confirmDialog('Reset the remembered display preferences (theme, units, plot options, analysis settings) to their defaults?', 'Reset preferences').then(
+            (ok) => {
+              if (ok) resetPrefs();
+            },
+          )
+        }
+      >
+        Reset preferences
       </button>
     </div>
   );

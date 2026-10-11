@@ -16,7 +16,7 @@ beforeEach(() => {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
-  act(() => root.render(createElement(SettingsPanel)));
+  act(() => root.render(createElement(SettingsPanel, { onClose: () => undefined, opener: { current: null } })));
 });
 
 afterEach(() => {
