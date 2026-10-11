@@ -1,5 +1,6 @@
 import { createStore } from 'zustand/vanilla';
-import { seriesIdOf, traceStyle } from './cutFigure';
+import { traceStyle } from './cutFigure';
+import { isReferenceUid, seriesIdOf } from './traceUid';
 
 /**
  * The file under the pointer or the keyboard focus in the panel or the table (null: none). A tiny store of its
@@ -36,21 +37,20 @@ export interface PreviewRestyle {
 
 /**
  * The restyle that previews `hovered` on a drawn figure: its traces thick and the other files dimmed. File traces
- * are the ones with a string `uid` (the series id). A hovered file that is not drawn, or none, leaves the figure's
+ * are the ones whose `uid` is a file trace's (see `traceUid`). A hovered file that is not drawn, or none, leaves the figure's
  * own emphasis (`base`, the highlighted file) in place, so leaving a row restores the highlight exactly.
  */
 export function previewRestyle(data: readonly { uid?: unknown }[], hovered: string | null, base: string | null): PreviewRestyle | null {
-  const uids = data.map((t) => (typeof t.uid === 'string' ? t.uid : null));
   // The reference file's trace belongs to its file as any other: hovering its row previews it, and it is never dimmed.
-  const ids = uids.map((u) => (u === null ? null : seriesIdOf(u)));
+  const ids = data.map((t) => seriesIdOf(t.uid));
   const drawn = (id: string | null) => id !== null && ids.some((u) => u === id);
   const target = drawn(hovered) ? hovered : drawn(base) ? base : null;
   const indices: number[] = [];
   const widths: number[] = [];
   const opacities: (number | null)[] = [];
-  uids.forEach((uid, i) => {
-    if (uid === null) return;
-    const style = traceStyle(uid, target);
+  ids.forEach((id, i) => {
+    if (id === null) return;
+    const style = traceStyle(id, target, isReferenceUid(data[i].uid));
     indices.push(i);
     widths.push(style.width);
     opacities.push(style.opacity);

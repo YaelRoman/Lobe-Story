@@ -1,0 +1,83 @@
+import { expect, test, type Page } from '@playwright/test';
+import { planetText } from '../src/test/planetText';
+import { seriesIdOf } from '../src/ui/traceUid';
+
+const file = (name: string, freq: number) => ({
+  name,
+  mimeType: 'text/plain',
+  buffer: Buffer.from(planetText({ headers: ['NAME A', `FREQUENCY ${freq}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] })),
+});
+
+/** Collects the page's uncaught errors. */
+function pageErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  return errors;
+}
+
+/** The page is alive (toolbar and table there) and the horizontal cut is drawn as a rectangular plot with `traces` lines. */
+async function expectRectangularPlot(page: Page, traces: number) {
+  await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible();
+  await expect(page.locator('.metrics tbody tr').first()).toBeVisible();
+  await expect(page.getByTestId('plot-h').locator('.scatterlayer .trace .lines path')).toHaveCount(traces);
+}
+
+/** Ticks every file (the button is disabled when all are ticked already). */
+async function showAll(page: Page, count: number) {
+  const all = page.getByRole('button', { name: 'Show all', exact: true });
+  if (await all.isEnabled()) await all.click();
+  await expect(page.locator('.panel li input[type="checkbox"]:checked')).toHaveCount(count);
+}
+
+test('a numbered copy of a same-name file survives a plot redraw', async ({ page }) => {
+  const errors = pageErrors(page);
+  await page.goto('/');
+  const input = page.getByTestId('file-input');
+  await input.setInputFiles([file('a.msi', 1910)]);
+  await expect(page.getByRole('status')).toHaveText(/^Loaded 1 file/);
+  await input.setInputFiles([file('a.msi', 1930)]);
+  await expect(page.getByRole('status')).toContainText('added as a numbered copy');
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  await showAll(page, 2);
+
+  await page.getByRole('button', { name: 'Rectangular', exact: true }).click();
+  await expectRectangularPlot(page, 2);
+  await page.getByRole('button', { name: 'Polar', exact: true }).click();
+  await expect(page.getByTestId('plot-h').locator('.polarlayer')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('a file name full of selector characters survives plot redraws, hover preview and unticking', async ({ page }) => {
+  const errors = pageErrors(page);
+  await page.goto('/');
+  const hostile = `quote'=<b>:(2).msi`;
+  await page.getByTestId('file-input').setInputFiles([file(hostile, 1910), file('plain.msi', 1930)]);
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  await showAll(page, 2);
+
+  await page.getByRole('button', { name: 'Rectangular', exact: true }).click();
+  await expectRectangularPlot(page, 2);
+
+  // The trace uids are plain CSS identifiers, and the hover preview still finds the file's trace through them.
+  const drawn = () =>
+    page.evaluate(() => {
+      const gd = document.querySelector('[data-testid="plot-h"] .js-plotly-plot') as unknown as { data: { uid?: string; line?: { width?: number } }[] };
+      return gd.data.filter((t) => typeof t.uid === 'string').map((t) => [t.uid!, t.line?.width] as const);
+    });
+  const uids = (await drawn()).map((t) => t[0]);
+  expect(uids).toHaveLength(2);
+  for (const uid of uids) expect(uid).toMatch(/^[a-z][A-Za-z0-9_-]*$/);
+  await page.locator('body').press('Escape');
+  const row = page.locator('tr[data-row-id]', { hasText: hostile });
+  const id = await row.getAttribute('data-row-id');
+  expect(id).toContain(hostile);
+  await row.hover();
+  await expect.poll(async () => (await drawn()).find((t) => seriesIdOf(t[0]) === id)?.[1]).toBe(2.5);
+  await page.mouse.move(2, 2);
+
+  // Removing the trace from the plot is the redraw that used to blank the page.
+  await page.locator('.panel li', { hasText: hostile }).locator('input[type="checkbox"]').uncheck();
+  await expectRectangularPlot(page, 1);
+  expect(errors).toEqual([]);
+});

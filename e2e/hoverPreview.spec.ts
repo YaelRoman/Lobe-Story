@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
+import { seriesIdOf } from '../src/ui/traceUid';
 
 const COUNT = 24;
 const text = (freq: number) => planetText({ headers: ['NAME A', `FREQUENCY ${freq}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] });
@@ -17,12 +18,15 @@ async function loadAllShown(page: Page) {
   await expect(page.locator('[aria-current]')).toHaveCount(0);
 }
 
-/** [uid, line width, opacity] of every file trace of the horizontal cut plot, as Plotly holds them now. */
-const traces = (page: Page) =>
-  page.evaluate(() => {
+/** [file id, line width, opacity] of every file trace of the horizontal cut plot, as Plotly holds them now. */
+const traces = async (page: Page) => {
+  const drawn = await page.evaluate(() => {
     const gd = document.querySelector('[data-testid="plot-h"] .js-plotly-plot') as unknown as { data: { uid?: string; line?: { width?: number }; opacity?: number }[] };
     return gd.data.filter((t) => typeof t.uid === 'string').map((t) => [t.uid, t.line?.width, t.opacity ?? 1] as const);
   });
+  // The trace uid is the file id written as a CSS identifier.
+  return drawn.map(([uid, width, opacity]) => [seriesIdOf(uid), width, opacity] as const);
+};
 const widthOf = async (page: Page, fileName: string) => {
   const row = page.locator('tr[data-row-id]', { hasText: fileName });
   const id = await row.getAttribute('data-row-id');

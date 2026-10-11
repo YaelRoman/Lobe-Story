@@ -4,10 +4,15 @@ import { exportFigure } from './exportFigure';
 import type { Figure } from './figureTheme';
 import { buildCutFigure, DIMMED_OPACITY, type PlotSeries } from './cutFigure';
 import { FIGURE_THEMES } from './figureTheme';
+import { traceUid } from './traceUid';
 import { analyzePattern } from '../core/analysis/metrics';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
 
-const traces = (...ids: string[]): { uid?: string }[] => [...ids.map((uid) => ({ uid })), {}];
+/** File traces as the figure builder marks them ("r#reference": the reference file r), then a trace that is not a file's. */
+const traces = (...ids: string[]): { uid?: string }[] => [
+  ...ids.map((id) => ({ uid: id.endsWith('#reference') ? traceUid(id.slice(0, -'#reference'.length), true) : traceUid(id) })),
+  {},
+];
 
 describe('previewRestyle', () => {
   it('is null when the plot has no file traces', () => {
@@ -129,7 +134,7 @@ describe('the reference trace in a preview', () => {
     const other = previewRestyle(data, 'b', 'a')!;
     expect(other.update['line.width']).toEqual([1.5, 3.5, 2.5]);
     expect(other.update.opacity).toEqual([DIMMED_OPACITY, null, null]);
-    // The reference file highlighted (its trace is "r#reference"): the others dim around it, as the figure builder drew them.
+    // The reference file highlighted (its trace is the reference one): the others dim around it, as the figure builder drew them.
     const own = previewRestyle(data, null, 'r')!;
     expect(own.update['line.width']).toEqual([1.5, 3.5, 1.5]);
     expect(own.update.opacity).toEqual([DIMMED_OPACITY, null, DIMMED_OPACITY]);

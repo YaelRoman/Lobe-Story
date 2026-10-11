@@ -8,6 +8,7 @@ import { DU_LEVELS } from '../core/analysis/sector';
 import type { MarkerKey, PlotMode } from '../state/store';
 import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
 import { LEGEND_NAME_MAX, middleEllipsis, showFileLegend } from './legend';
+import { traceUid } from './traceUid';
 
 export interface PlotSeries {
   id: string;
@@ -308,19 +309,14 @@ const BASE_WIDTH = 1.5;
 const EMPHASISED_WIDTH = 2.5;
 const REFERENCE_WIDTH = 3.5;
 
-/** Suffix of the `uid` of the reference file's trace: it never takes part in dimming and keeps its width. */
-export const REFERENCE_UID_SUFFIX = '#reference';
-export const isReferenceUid = (uid: string): boolean => uid.endsWith(REFERENCE_UID_SUFFIX);
-/** The series id behind a trace `uid` (the reference suffix removed). */
-export const seriesIdOf = (uid: string): string => (isReferenceUid(uid) ? uid.slice(0, -REFERENCE_UID_SUFFIX.length) : uid);
-
 /**
  * How a file trace looks while `emphasised` is the emphasised file (null: none): the line width and the opacity
  * (null = Plotly's default, fully opaque). The figure builder and the hover preview share this, so a preview
  * restores exactly what the figure was built with. The dashed original of the emphasised file stays bright, thin.
+ * The `reference` file's trace never takes part in dimming and keeps its width.
  */
-export function traceStyle(seriesId: string, emphasised: string | null): { width: number; opacity: number | null } {
-  if (isReferenceUid(seriesId)) return { width: REFERENCE_WIDTH, opacity: null };
+export function traceStyle(seriesId: string, emphasised: string | null, reference = false): { width: number; opacity: number | null } {
+  if (reference) return { width: REFERENCE_WIDTH, opacity: null };
   const dimmed = emphasised !== null && seriesId !== emphasised && seriesId !== `${emphasised}#original`;
   return { width: seriesId === emphasised ? EMPHASISED_WIDTH : BASE_WIDTH, opacity: dimmed ? DIMMED_OPACITY : null };
 }
@@ -340,10 +336,9 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
     const r = y.map((v) => level(v, o.floorDb));
     for (const v of r) if (v > largest) largest = v;
     const legendName = middleEllipsis(s.label, LEGEND_NAME_MAX);
-    const uid = s.reference ? `${s.id}${REFERENCE_UID_SUFFIX}` : s.id;
-    const style = traceStyle(uid, emphasised);
-    // `uid` carries the series id, so the hover preview can restyle a file's traces without a rebuild.
-    const extra = { uid, legendrank: s.reference ? -1 : i, ...(style.opacity !== null ? { opacity: style.opacity } : {}) };
+    const style = traceStyle(s.id, emphasised, !!s.reference);
+    // `uid` carries the series id (as a safe CSS identifier), so the hover preview can restyle a file's traces without a rebuild.
+    const extra = { uid: traceUid(s.id, !!s.reference), legendrank: s.reference ? -1 : i, ...(style.opacity !== null ? { opacity: style.opacity } : {}) };
     const line = {
       color: s.reference ? o.theme.fg : s.color,
       width: style.width,

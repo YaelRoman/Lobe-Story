@@ -7,6 +7,7 @@ import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
 import { tiltPattern } from '../core/analysis/tilt';
 import { hBeamWithLobes, patternFrom, quadBeam, vBeamWithLobes, vFarLobes } from '../test/synthetic';
+import { seriesIdOf, traceUid } from './traceUid';
 
 const NO_MARKERS = { hpbw: false, fb: false, usls: false, null: false, peak: false, sector: false };
 
@@ -539,7 +540,7 @@ describe('the reference file in the cut plots', () => {
     for (const theme of ['light', 'dark'] as const) {
       const f = buildCutFigure(opts({ series: [ref, base, { ...base, id: 'b', label: 'b' }], markerTarget: 'a', theme: FIGURE_THEMES[theme] }));
       const t = traces(f) as (Partial<PlotData> & { uid?: string })[];
-      expect(t.map((x) => x.uid)).toEqual(['b', 'a', 'r#reference']);
+      expect(t.map((x) => x.uid)).toEqual([traceUid('b'), traceUid('a'), traceUid('r', true)]);
       const r = t[2];
       expect(r.line).toMatchObject({ color: FIGURE_THEMES[theme].fg, dash: 'dash', width: 3.5 });
       expect(r.opacity).toBeUndefined();
@@ -560,13 +561,23 @@ describe('the reference file in the cut plots', () => {
   it('keeps the reference thick and bright when it is itself the highlighted file, and dims the others', () => {
     const f = buildCutFigure(opts({ series: [base, ref], markerTarget: 'r' }));
     const t = traces(f) as (Partial<PlotData> & { uid?: string })[];
-    expect(t.find((x) => x.uid === 'r#reference')!.line!.width).toBe(3.5);
-    expect(t.find((x) => x.uid === 'a')!.opacity).toBeLessThan(1);
+    expect(t.find((x) => x.uid === traceUid('r', true))!.line!.width).toBe(3.5);
+    expect(t.find((x) => x.uid === traceUid('a'))!.opacity).toBeLessThan(1);
+  });
+
+  it('gives every file trace a uid that is a plain CSS identifier, whatever the file id, and the same on every build', () => {
+    const hostile = `quote'=<b>:(2).msi`;
+    const make = () => buildCutFigure(opts({ series: [{ ...base, id: 'a (2).msi' }, { ...base, id: hostile }, { ...ref, id: 'r (1).msi' }], markerTarget: hostile }));
+    const uids = (traces(make()) as { uid?: string }[]).map((t) => t.uid);
+    expect(uids.filter((u) => u !== undefined)).toHaveLength(3);
+    for (const u of uids) if (u !== undefined) expect(u).toMatch(/^[a-z][A-Za-z0-9_-]*$/);
+    expect(uids.map((u) => seriesIdOf(u))).toEqual(['a (2).msi', hostile, 'r (1).msi']);
+    expect((traces(make()) as { uid?: string }[]).map((t) => t.uid)).toEqual(uids);
   });
 
   it('is drawn on top in rectangular mode too, and counted for the legend', () => {
     const f = buildCutFigure(opts({ mode: 'rect', series: [ref, base] }));
-    expect((traces(f) as { uid?: string }[]).map((t) => t.uid)).toEqual(['a', 'r#reference']);
+    expect((traces(f) as { uid?: string }[]).map((t) => t.uid)).toEqual([traceUid('a'), traceUid('r', true)]);
     expect(f.data[1]).toMatchObject({ type: 'scatter' });
   });
 });
