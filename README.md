@@ -21,16 +21,18 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - File panel for hundreds of files: a filter box (name, group or MHz; every word must match) with
   Show all / Show none / Only matches / Add matches (each can be undone), collapsible groups that
   show "ticked / total", and a count of the files shown. Click a file to highlight it, click again
-  or press Esc to clear. Hovering a file, or moving the keyboard focus to it, previews its trace in
+  or press Esc to clear. Hovering a file with a mouse or pen, or moving the keyboard focus to it, previews its trace in
   the cut plots (thick line, the others dimmed) without changing anything.
 - Colours follow the file panel: one colour per file up to 10 visible files; above that one colour
-  per group with a shade per file (a shade keeps its place when other files are unticked), and above
-  10 groups a line pattern tells repeated hues apart.
+  per group with a shade per file (a shade keeps its place when other files are unticked, and a
+  group keeps its hue when another group is unticked), and above 10 groups a line pattern tells
+  repeated hues apart.
 - Compare against a reference: the ⋯ menu of a file has **Use as reference**. The reference is
   marked with a pin, drawn in the 2D cut plots as a thick dashed line that is never dimmed (also
   when unticked) and marked in the frequency chart. **Δ vs reference** above the metrics table
   shows every metric and the gain as a signed difference from it; the reference row stays first with
-  its own values, and the CSV and copy follow with a Row column. The reference is saved with the project.
+  its own values. **Copy table** and the CSV follow what is shown, with a Row column (`reference` /
+  `difference`) and "Δ vs <reference>" headers. The reference is saved with the project.
 - Automatic grouping by polarization, tilt, port and array (editable; drag files between groups).
 - Column groups can be shown or hidden above the metrics table (saved with the project); the CSV
   always contains every column.
@@ -38,8 +40,10 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   gain statistics over every loaded file of an antenna in a frequency sub-band (automatic or
   user-defined sub-bands, saved with the project), with CSV export and a histogram of any cell.
 - Copy to the clipboard for a spreadsheet: **Copy table** on the metrics table and on the band
-  statistics (tab-separated, as shown), **Copy row**, and a single value (click a cell, then the Copy
-  value button that appears in it; or Right arrow into the cells and Enter / Ctrl+C).
+  statistics (tab-separated, as shown), **Copy row** (the button by the file name, or Ctrl/Cmd+C on
+  the name), and a single value (click a cell, then the Copy value button that appears in it; or
+  Right arrow into the cells and Enter / Ctrl+C). The status line says what was copied; a row copied
+  in the Δ view is marked "(differences vs <reference>)" or "(reference)" there, not in the data.
 - CSV export of the metrics table and PNG export of any plot (the cut plots export with a legend
   of every file and the highlighted file's values).
 - **Load example** on the empty page loads a small synthetic dual-polarised panel generated in code (24 files,
@@ -59,6 +63,13 @@ re-opening a changed file adds it as a numbered second entry (`name (2).msi`) in
 the first. In a folder or a multi-file selection only `*.lobestory.json` is taken for a project,
 and the app asks before opening it. Project files stay on your computer; nothing is uploaded.
 
+## Settings
+
+The analysis settings (the Settings button) show their accepted range beside each field; an entry outside
+it is not applied and says why. The plot floor is kept at least 1 dB beyond the beamwidth level: if
+the level is raised past it, or a project is opened that has it that way, the floor is raised and
+the status line says so.
+
 ## Planned
 
 - **QA batch mode** (not started): pass/fail limits per file or antenna, defect
@@ -71,9 +82,13 @@ and the app asks before opening it. Project files stay on your computer; nothing
 npm install
 npm run dev        # http://localhost:5173
 npm test           # unit tests
-npm run e2e        # Playwright end-to-end tests (Chromium, as in CI)
+npm run e2e        # Playwright end-to-end tests (Chromium, as in CI; builds and serves the app on port 4173)
 npm run build
 ```
+
+The end-to-end config retries a failed test once (headless Chromium now and then drops a file chooser
+or a software-WebGL session when the machine is busy), so a test that fails and then passes shows as
+"flaky": look at it, but it does not fail the run. It runs four workers; more flake on software WebGL.
 
 To run the end-to-end tests in Firefox as well (not part of CI), install it once and select its project:
 

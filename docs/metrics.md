@@ -95,6 +95,17 @@ and ΔF/B (F/B 180°). Not available when the header lacks the value, and not co
 files in a tilt simulation (the declared values describe the measured pattern). Hidden by default.
 Not a BASTA parameter (tool-defined).
 
+## Difference from a reference
+
+With a reference file chosen (⋯ menu of a file, **Use as reference**) and **Δ vs reference** on, every
+other row shows each column and the gain as this file's value minus the reference's, signed, in the
+column's unit; the reference row stays first with its own values. Under a tilt simulation the
+tilted value is used where a cell has one (the original → tilted pair becomes one difference). A
+difference is "—" when either file has no value for that column. The CSV and **Copy table** carry
+the same cells, headers "… Δ vs <reference>" and a Row column (`reference` / `difference`); **Copy
+row** copies the row without that column. The frequency chart's Metric menu plots any of the
+columns above against frequency, the reference file's point marked with a diamond.
+
 ## Band statistics
 
 The "Band statistics" section below the metrics table computes the distribution-based
@@ -168,14 +179,16 @@ not check that all frequency samples required by Annex B are present.
 
 ## Settings
 
-| Setting | Default | Changes |
-|---|---|---|
-| Beamwidth level (dB) | 3 | Level of H/V-HPBW, Squint, Tilt, Tilt error and the Δ columns. Not the 10 dB or sidelobe columns. |
-| F/B window ± (°) | 30 | Width of the F/B ±W° search. |
-| USLS window (°) | 20 | R in the two windowed USLS columns. |
-| First-lobe limit (× V-HPBW) | 1.78 | Distance within which a first sidelobe counts as distinct (1 to 10). |
-| Sector edge (±°) | 60 | Sector size for P2P tracking, SPR, AIR, Roll-off, H-SLS. |
-| Sectors per site | 3 | Neighbour spacing for D/U aperture. |
+The panel shows each range; the same limits apply to projects and saved preferences.
+
+| Setting | Default | Range | Changes |
+|---|---|---|---|
+| Beamwidth level (dB) | 3 | 0.5 to 20 | Level of H/V-HPBW, Squint, Tilt, Tilt error and the Δ columns. Not the 10 dB or sidelobe columns. |
+| F/B window ± (°) | 30 | 1 to 180 | Width of the F/B ±W° search. |
+| USLS window (°) | 20 | 1 to 90 | R in the two windowed USLS columns. |
+| First-lobe limit (× V-HPBW) | 1.78 | 1 to 10 | Distance within which a first sidelobe counts as distinct. |
+| Sector edge (±°) | 60 | 1 to 179 | Sector size for P2P tracking, SPR, AIR, Roll-off, H-SLS. |
+| Sectors per site | 3 | 2 to 12, whole | Neighbour spacing for D/U aperture. |
 
 ## Known limits and differences from BASTA
 
