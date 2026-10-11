@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import Plotly from 'plotly.js-dist-min';
 import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
@@ -71,6 +71,34 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
     preview.current = { figure, base: previewBase ?? null };
   }, [onRelayout, figure, labelledExport, previewBase]);
 
+  // The same config object for every redraw of this chart. `Plotly.react` compares the config it is given with the
+  // one it has, functions by identity: a download handler made anew for each redraw counts as a changed config, and
+  // the library then purges the chart and plots it from nothing instead of updating it. The handler reads the latest
+  // figure and caption from a ref, so it never needs to change.
+  const config = useMemo<Partial<PlotlyConfig>>(() => {
+    const labelledDownload = {
+      name: 'toImageLabelled',
+      title: 'Download plot as a png (with legend and values)',
+      icon: Plotly.Icons.camera,
+      click: () => {
+        const cur = exporting.current;
+        // Always light colours on white, whatever the screen theme: the image is rebuilt from a copy, the drawn figure is not touched.
+        const out = exportFigure(cur.figure, cur.labelledExport?.caption, useStore.getState().view.theme);
+        void Plotly.downloadImage(
+          { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
+          { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },
+        );
+      },
+    };
+    return {
+      responsive: true,
+      ...CHART_PRIVACY,
+      toImageButtonOptions: IMAGE_OPTIONS,
+      // An explicit list: the library's default set has the charting library's cloud upload button and select tools in it.
+      modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined) as unknown as PlotlyConfig['modeBarButtons'],
+    };
+  }, [toolbar, labelled]);
+
   /** Brings the drawn traces to the current preview, restyling only those whose look changes. */
   const restylePreview = (el: HTMLElement) => {
     const { figure: fig, base } = preview.current;
@@ -107,31 +135,11 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
     const generation = redrawGate.current.start();
     redrawing.current = true;
     restyledDuringRedraw.current = false;
-    const labelledDownload = {
-      name: 'toImageLabelled',
-      title: 'Download plot as a png (with legend and values)',
-      icon: Plotly.Icons.camera,
-      click: () => {
-        const cur = exporting.current;
-        // Always light colours on white, whatever the screen theme: the image is rebuilt from a copy, the drawn figure is not touched.
-        const out = exportFigure(cur.figure, cur.labelledExport?.caption, useStore.getState().view.theme);
-        void Plotly.downloadImage(
-          { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
-          { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },
-        );
-      },
-    };
     void Plotly.react(
       el,
       ownTraces(figure.data) as unknown as PlotlyNativeData[],
       { ...figure.layout, autosize: true } as Partial<PlotlyNativeLayout>,
-      {
-        responsive: true,
-        ...CHART_PRIVACY,
-        toImageButtonOptions: IMAGE_OPTIONS,
-        // An explicit list: the library's default set has the charting library's cloud upload button and select tools in it.
-        modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined) as unknown as PlotlyConfig['modeBarButtons'],
-      },
+      config,
     )
       .then(() => {
         if (!redrawGate.current.isLatest(generation)) return;
@@ -153,7 +161,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
         restyledDuringRedraw.current = false;
         setError('This plot could not be drawn (WebGL unavailable?)');
       });
-  }, [figure, labelled, previewing, toolbar]);
+  }, [figure, config, previewing]);
 
   useEffect(() => {
     const el = ref.current;
