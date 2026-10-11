@@ -259,6 +259,30 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
 
   return (
     <aside className="panel" aria-label="Files and groups" ref={panelRef}>
+      {errors.length > 0 && (
+        <section className="group errors" data-testid="panel-errors" tabIndex={-1} aria-label="Files that could not be read">
+          <header>
+            <span>Errors</span>
+            <span className="count">{errors.length}</span>
+          </header>
+          <ul className="errors-list">
+            {errors.map((e) => (
+              <li key={e.id}>
+                <span className="fname" title={e.path}>
+                  {e.path}
+                </span>
+                <button aria-label={`Remove ${e.path}`} onClick={() => removeFile(e.id)}>
+                  ✕
+                </button>
+                <span className="reason">
+                  {e.error}
+                  {e.line !== undefined ? ` (line ${e.line})` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {groups.map((g) => {
         const ids = g.items.map((i) => i.pattern.id);
         const custom = g.customId;
@@ -395,30 +419,6 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
           </section>
         );
       })}
-      {errors.length > 0 && (
-        <section className="group errors">
-          <header>
-            <span>Errors</span>
-            <span className="count">{errors.length}</span>
-          </header>
-          <ul>
-            {errors.map((e) => (
-              <li key={e.id}>
-                <span className="fname" title={e.path}>
-                  {e.path}
-                </span>
-                <button aria-label={`Remove ${e.path}`} onClick={() => removeFile(e.id)}>
-                  ✕
-                </button>
-                <span className="reason">
-                  {e.error}
-                  {e.line !== undefined ? ` (line ${e.line})` : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </aside>
   );
 });

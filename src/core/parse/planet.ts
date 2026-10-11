@@ -84,8 +84,17 @@ function checkCut(label: string, cut: Cut): ParseWarning[] {
   return warnings;
 }
 
+/** True when some line starts with a Planet header or block keyword (a quick content sniff). */
+function looksLikePlanet(lines: string[]): boolean {
+  return lines.some((line) => {
+    const key = /^\s*(\S+)/.exec(line)?.[1].toUpperCase();
+    return key !== undefined && (KNOWN_HEADERS.has(key) || key === 'HORIZONTAL' || key === 'VERTICAL');
+  });
+}
+
 export function parsePlanet(text: string, fileName: string): ParseResult {
   const lines = text.split(/\r?\n/);
+  if (!looksLikePlanet(lines)) return { ok: false, error: 'Not a Planet pattern file' };
   const headers = new Map<string, { value: string; line: number }>();
   const warnings: ParseWarning[] = [];
   let horizontal: Cut | undefined;

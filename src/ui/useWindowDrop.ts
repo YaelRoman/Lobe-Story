@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../state/store';
 import { inputsFromDataTransfer } from '../state/files';
+import { openSelection } from './openSelection';
 
 /** Accepts files and folders dropped anywhere on the window. Ignores internal drags (regrouping). */
 export function useWindowDrop(): boolean {
-  const addFiles = useStore((s) => s.addFiles);
   const setLoadMessage = useStore((s) => s.setLoadMessage);
   const [dragging, setDragging] = useState(false);
 
@@ -32,9 +32,7 @@ export function useWindowDrop(): boolean {
       const dt = e.dataTransfer;
       void (async () => {
         try {
-          const { inputs, failed } = await inputsFromDataTransfer(dt);
-          addFiles(inputs);
-          if (failed > 0) setLoadMessage(`Could not read ${failed} file(s)`);
+          await openSelection(await inputsFromDataTransfer(dt));
         } catch {
           setLoadMessage('Could not read the dropped files');
         }
@@ -50,7 +48,7 @@ export function useWindowDrop(): boolean {
       window.removeEventListener('dragover', over);
       window.removeEventListener('drop', drop);
     };
-  }, [addFiles, setLoadMessage]);
+  }, [setLoadMessage]);
 
   return dragging;
 }

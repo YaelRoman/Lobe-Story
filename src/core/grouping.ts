@@ -13,7 +13,11 @@ const ARRAY_NAME = /_([A-Za-z]{1,2}\d?)$/;
 const ARRAY_COMMENT = /Array\s+(\S+)/i;
 
 export function inferTags(p: Pattern): Tags {
-  const base = p.fileName.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
+  // A trailing " (2)" is a duplicate's number (ours or the operating system's), not part of the tags.
+  const base = p.fileName
+    .replace(/^.*[\\/]/, '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/\s+\(\d+\)$/, '');
   const dashed = DASHED_NAME.exec(base);
   if (dashed) return { polarization: dashed[3] === '+' ? '+45' : '-45', tiltDeg: Number(dashed[2]), port: dashed[1] };
 

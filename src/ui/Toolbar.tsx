@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useStore } from '../state/store';
 import { inputsFromFileList } from '../state/files';
-import { parseProject, serializeProject } from '../state/project';
+import { serializeProject } from '../state/project';
+import { openSelection } from './openSelection';
 import { SettingsPanel } from './SettingsPanel';
-import { confirmDialog, saveProjectDialog } from './dialogs';
+import { saveProjectDialog } from './dialogs';
 import { downloadText } from './download';
 
 export function Toolbar() {
-  const addFiles = useStore((s) => s.addFiles);
   const clear = useStore((s) => s.clear);
   const gainUnit = useStore((s) => s.view.gainUnit);
   const theme = useStore((s) => s.view.theme);
@@ -15,16 +15,11 @@ export function Toolbar() {
   const hasFiles = useStore((s) => s.files.length > 0);
   const hasSessionState = useStore((s) => s.files.length > 0 || s.pendingFiles.length > 0);
   const setLoadMessage = useStore((s) => s.setLoadMessage);
-  const loadProject = useStore((s) => s.loadProject);
   const [showSettings, setShowSettings] = useState(false);
 
   const onPick = async (input: HTMLInputElement) => {
     try {
-      if (input.files) {
-        const { inputs, failed } = await inputsFromFileList(input.files);
-        addFiles(inputs);
-        if (failed > 0) setLoadMessage(`Could not read ${failed} file(s)`);
-      }
+      if (input.files) await openSelection(await inputsFromFileList(input.files));
     } catch {
       setLoadMessage('Could not read the selected files');
     } finally {
@@ -51,15 +46,7 @@ export function Toolbar() {
     try {
       const file = input.files?.[0];
       if (!file) return;
-      const parsed = parseProject(await file.text());
-      if (!parsed.ok) {
-        setLoadMessage(parsed.error);
-        return;
-      }
-      const { files, pendingFiles } = useStore.getState();
-      const hasSession = files.length > 0 || pendingFiles.length > 0;
-      if (hasSession && !(await confirmDialog('Replace the current session?', 'Replace'))) return;
-      loadProject(parsed.project);
+      await openSelection({ inputs: [], projects: [{ path: file.name, text: await file.text() }], failed: 0 });
     } catch {
       setLoadMessage('Could not read the project file');
     } finally {
@@ -77,7 +64,7 @@ export function Toolbar() {
           className="visually-hidden"
           type="file"
           multiple
-          accept=".msi,.pln,.txt"
+          accept=".msi,.pln,.txt,.json"
           onChange={(e) => void onPick(e.currentTarget)}
         />
       </label>

@@ -132,3 +132,17 @@ describe('parsePlanet', () => {
     expect(offset.warnings[0].message).toMatch(/VERTICAL/);
   });
 });
+
+describe('content that is not a Planet pattern', () => {
+  it.each([
+    ['plain notes', 'Meeting notes\nbuy cables\n'],
+    ['binary bytes', '\u0000\u0001\u0002PK\u0003\u0004\nÿþ'],
+    ['empty text', ''],
+  ])('reports %s as not a pattern file', (_label, text) => {
+    expect(parsePlanet(text, 'x.txt')).toEqual({ ok: false, error: 'Not a Planet pattern file' });
+  });
+
+  it('keeps the specific error for a file that looks like a pattern but is incomplete', () => {
+    expect(parsePlanet('NAME X\nFREQUENCY 900\n', 'x.pln')).toEqual({ ok: false, error: 'Missing HORIZONTAL block' });
+  });
+});

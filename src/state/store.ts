@@ -7,6 +7,7 @@ import type { SubBand } from '../core/analysis/subBands';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
 import { matchPending, projectToState, type ProjectFile } from './project';
+import { hasSameNameAndText, loadSummary, numberedPath } from './duplicates';
 import { clampSim, SIM_LIMITS, type OffsetState, type SimulationKey } from './simLimits';
 
 export { clampSim, SIM_LIMITS };
@@ -79,6 +80,8 @@ export interface StoreData {
   view: ViewState;
   /** Short status line for the load boundary (empty selection, unreadable files). Dismissible. */
   loadMessage: string | null;
+  /** How many files failed to parse in the load `loadMessage` describes (drives its "Show" button). */
+  loadFailed: number;
   /** Copy id (`path#copy-n`) → its source path, in insertion order. */
   copies: Record<string, { sourceId: string }>;
   /** Instance id → display name (renames). */
@@ -94,8 +97,13 @@ export interface StoreData {
   dialog: DialogState;
 }
 
+export interface AddFilesOptions {
+  /** Files the browser failed to read before they reached the store. */
+  unreadable?: number;
+}
+
 export interface StoreActions {
-  addFiles(inputs: FileInput[]): void;
+  addFiles(inputs: FileInput[], options?: AddFilesOptions): void;
   loadProject(project: ProjectFile): void;
   dismissPending(): void;
   openDialog(dialog: NonNullable<DialogState>): void;
@@ -142,6 +150,7 @@ export function initialState(): StoreData {
     highlighted: null,
     settings: { ...DEFAULT_SETTINGS },
     loadMessage: null,
+    loadFailed: 0,
     copies: {},
     names: {},
     customGroups: [],
@@ -265,41 +274,75 @@ const isZeroOffset = (o: OffsetState) => o.electricalDeg === 0 && o.mechanicalDe
 export const useStore = create<StoreData & StoreActions>()((set, get) => ({
   ...initialState(),
 
-  addFiles: (inputs) =>
+  addFiles: (inputs, options = {}) =>
     set((state) => {
-      const byId = new Map<string, LoadedFile>();
+      const unreadable = options.unreadable ?? 0;
+      // Everything loaded so far plus what this selection adds, by id, in display order.
+      const working = new Map<string, LoadedFile>(state.files.map((f) => [f.id, f]));
+      const fresh = new Set<string>();
       const matched = new Set<string>();
       let pendingFiles = state.pendingFiles;
+      let skipped = 0;
+      let renamed = 0;
+      let sawPattern = false;
       for (const input of inputs) {
         if (!isPatternFile(input.path)) continue;
+        sawPattern = true;
+        const text = decodeText(input.bytes);
         // A file a layout-only project is waiting for loads under its saved path.
         const target = matchPending(pendingFiles, input.path);
         if (target !== null) {
           matched.add(target);
           pendingFiles = pendingFiles.filter((p) => p !== target);
         }
-        const path = target ?? input.path;
-        byId.set(path, loadText(path, decodeText(input.bytes)));
+        let path = target ?? input.path;
+        const existing = working.get(path);
+        if (existing && hasSameNameAndText(path, text, (p) => working.get(p)?.text)) {
+          skipped++;
+          continue;
+        }
+        // Same name, different content: keep both. A file that failed to parse is just replaced.
+        if (existing && existing.result.ok) {
+          path = numberedPath(path, (p) => working.has(p) || pendingFiles.includes(p));
+          renamed++;
+        }
+        working.set(path, loadText(path, text));
+        fresh.add(path);
       }
-      if (byId.size === 0) {
-        return { loadMessage: 'No .msi/.pln/.txt files found in the selection' };
+      if (!sawPattern) {
+        return {
+          loadFailed: 0,
+          loadMessage:
+            unreadable > 0 ? `Could not read ${unreadable} file(s)` : 'No .msi/.pln/.txt files found in the selection',
+        };
       }
-      const loaded = [...byId.values()];
-      const files = [...state.files.filter((f) => !byId.has(f.id)), ...loaded];
+      const files = [...working.values()];
+      const loaded = files.filter((f) => fresh.has(f.id));
+      const failed = loaded.filter((f) => !f.result.ok).length;
+      const report = {
+        loadFailed: failed,
+        loadMessage: loadSummary({ loaded: loaded.length - failed, failed, skipped, renamed, unreadable }),
+      };
+      if (loaded.length === 0) return report;
       // Matched files keep the visibility/selection saved in the project.
       const firstOk = loaded.find((f) => f.result.ok && !matched.has(f.id));
-      if (!firstOk) return { files, pendingFiles, loadMessage: null };
+      if (!firstOk) return { files, pendingFiles, ...report };
       return {
         files,
         pendingFiles,
         visible: { ...state.visible, [firstOk.id]: true },
         highlighted: firstOk.id,
         selected: { kind: 'file', id: firstOk.id },
-        loadMessage: null,
+        ...report,
       };
     }),
 
-  loadProject: (project) => set((s) => projectToState(project, initialState(), s.view.theme, loadText)),
+  loadProject: (project) =>
+    set((s) => ({
+      ...projectToState(project, initialState(), s.view.theme, loadText),
+      loadFailed: 0,
+      loadMessage: null,
+    })),
 
   dismissPending: () => set({ pendingFiles: [] }),
   openDialog: (dialog) => set({ dialog }),
@@ -333,6 +376,7 @@ export const useStore = create<StoreData & StoreActions>()((set, get) => ({
       tagOverrides: {},
       highlighted: null,
       loadMessage: null,
+      loadFailed: 0,
       copies: {},
       names: {},
       customGroups: [],

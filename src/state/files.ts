@@ -3,10 +3,21 @@ export interface FileInput {
   bytes: ArrayBuffer;
 }
 
+/** A `.json` file from a selection or drop: possibly a saved project (see ui/openSelection.ts). */
+export interface ProjectCandidate {
+  path: string;
+  text: string;
+}
+
 /** Result of reading a selection or drop: the files that read OK, and how many did not. */
 export interface ReadInputsResult {
   inputs: FileInput[];
+  projects: ProjectCandidate[];
   failed: number;
+}
+
+export function isProjectFile(path: string): boolean {
+  return /\.json$/i.test(path);
 }
 
 export function isPatternFile(path: string): boolean {
@@ -15,17 +26,18 @@ export function isPatternFile(path: string): boolean {
 
 export async function inputsFromFileList(list: FileList): Promise<ReadInputsResult> {
   const inputs: FileInput[] = [];
+  const projects: ProjectCandidate[] = [];
   let failed = 0;
   for (const file of Array.from(list)) {
     const path = file.webkitRelativePath || file.name;
-    if (!isPatternFile(path)) continue;
     try {
-      inputs.push({ path, bytes: await file.arrayBuffer() });
+      if (isPatternFile(path)) inputs.push({ path, bytes: await file.arrayBuffer() });
+      else if (isProjectFile(path)) projects.push({ path, text: await file.text() });
     } catch {
       failed++;
     }
   }
-  return { inputs, failed };
+  return { inputs, projects, failed };
 }
 
 /** Reads dropped files and folders (recursively). Entries are captured synchronously, before any await. */
@@ -34,16 +46,19 @@ export async function inputsFromDataTransfer(dt: DataTransfer): Promise<ReadInpu
     .map((item) => item.webkitGetAsEntry())
     .filter((e): e is FileSystemEntry => e !== null);
   const inputs: FileInput[] = [];
+  const projects: ProjectCandidate[] = [];
   let failed = 0;
   const walk = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
     if (entry.isFile) {
       const path = prefix + entry.name;
-      if (!isPatternFile(path)) return;
+      const pattern = isPatternFile(path);
+      if (!pattern && !isProjectFile(path)) return;
       try {
         const file = await new Promise<File>((resolve, reject) =>
           (entry as FileSystemFileEntry).file(resolve, reject),
         );
-        inputs.push({ path, bytes: await file.arrayBuffer() });
+        if (pattern) inputs.push({ path, bytes: await file.arrayBuffer() });
+        else projects.push({ path, text: await file.text() });
       } catch {
         failed++;
       }
@@ -62,5 +77,5 @@ export async function inputsFromDataTransfer(dt: DataTransfer): Promise<ReadInpu
     }
   };
   for (const entry of entries) await walk(entry, '');
-  return { inputs, failed };
+  return { inputs, projects, failed };
 }

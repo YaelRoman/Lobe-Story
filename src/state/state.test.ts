@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
-import { initialState, useStore, clampSim } from './store';
+import { initialState, useStore, clampSim, loadText } from './store';
 import { groupPatterns, selectErrors, selectTagged, selectWarnings, selectInstances, buildPanelGroups, instanceIds, instanceName, warningsFor } from './selectors';
 import { DEFAULT_HEADERS, planetText, points } from '../test/planetText';
 
@@ -55,19 +55,104 @@ describe('store', () => {
     st().addFiles([input('readme.docx', 'x')]);
     expect(st().loadMessage).toBe('No .msi/.pln/.txt files found in the selection');
     st().addFiles([input('a.MSI', msi(1800))]);
-    expect(st().loadMessage).toBeNull();
+    expect(st().loadMessage).toBe('Loaded 1 file');
     st().setLoadMessage('Could not read 2 file(s)');
     expect(st().loadMessage).toBe('Could not read 2 file(s)');
     st().setLoadMessage(null);
     expect(st().loadMessage).toBeNull();
   });
 
-  it('replaces a file loaded again from the same path', () => {
+  it('skips a file loaded again with identical content and says so', () => {
+    useStore.getState().addFiles([input('a.MSI', msi(1800))]);
+    const before = useStore.getState().files;
+    useStore.getState().addFiles([input('a.MSI', msi(1800))]);
+    expect(useStore.getState().files).toBe(before);
+    expect(useStore.getState().loadMessage).toBe('No new files loaded: 1 already loaded (skipped)');
+  });
+
+  it('keeps both when the same name arrives with different content', () => {
     useStore.getState().addFiles([input('a.MSI', msi(1800))]);
     useStore.getState().addFiles([input('a.MSI', msi(1850))]);
-    const files = useStore.getState().files;
-    expect(files).toHaveLength(1);
-    expect(files[0].result.ok && files[0].result.pattern.frequencyMHz).toBe(1850);
+    const s = useStore.getState();
+    expect(s.files.map((f) => f.id)).toEqual(['a.MSI', 'a (2).MSI']);
+    expect(s.files.map((f) => f.result.ok && f.result.pattern.frequencyMHz)).toEqual([1800, 1850]);
+    expect(s.files[1].result.ok && s.files[1].result.pattern.id).toBe('a (2).MSI');
+    expect(s.loadMessage).toContain('Loaded 1 file');
+    expect(s.loadMessage).toContain('1 same-name file with different content added as a numbered copy');
+    useStore.getState().addFiles([input('a.MSI', msi(1900))]);
+    expect(useStore.getState().files.map((f) => f.id)).toEqual(['a.MSI', 'a (2).MSI', 'a (3).MSI']);
+  });
+
+  it('still reads the tags from a numbered file name', () => {
+    const name = '_1800_X_CO_P45_08T_Y2.MSI';
+    useStore.getState().addFiles([input(name, msi(1800)), input(name, msi(1850))]);
+    const s = useStore.getState();
+    const t = selectInstances(s.files, s.tagOverrides, s.copies, s.names, s.membership);
+    expect(t[0].tags.tiltDeg).toBeDefined();
+    expect(t[1].tags).toEqual(t[0].tags);
+  });
+
+  it('handles same-name files inside one selection, including a repeat of identical content', () => {
+    useStore.getState().addFiles([
+      input('a.MSI', msi(1800)),
+      input('a.MSI', msi(1850)),
+      input('a.MSI', msi(1800)),
+      input('b/a.MSI', msi(1800)),
+    ]);
+    const s = useStore.getState();
+    expect(s.files.map((f) => f.id)).toEqual(['a.MSI', 'a (2).MSI', 'b/a.MSI']);
+    expect(s.loadMessage).toContain('1 already loaded (skipped)');
+  });
+
+  it('numbers a duplicate before the extension and keeps copies of the original attached to it', () => {
+    useStore.getState().addFiles([input('dir/p.msi', msi(1800))]);
+    const c = useStore.getState().duplicate('dir/p.msi')!;
+    useStore.getState().addFiles([input('dir/p.msi', msi(1850))]);
+    const s = useStore.getState();
+    expect(s.files.map((f) => f.id)).toEqual(['dir/p.msi', 'dir/p (2).msi']);
+    expect(instanceIds(s.files, s.copies)).toEqual(['dir/p.msi', c, 'dir/p (2).msi']);
+    const t = selectInstances(s.files, s.tagOverrides, s.copies, s.names, s.membership);
+    expect(t.find((i) => i.pattern.id === c)!.pattern.frequencyMHz).toBe(1800);
+  });
+
+  it('recognises identical content among a name and its numbered entries', () => {
+    useStore.getState().addFiles([input('a.MSI', msi(1800)), input('a.MSI', msi(1850))]);
+    useStore.getState().addFiles([input('a.MSI', msi(1850)), input('a.MSI', msi(1800))]);
+    expect(useStore.getState().files.map((f) => f.id)).toEqual(['a.MSI', 'a (2).MSI']);
+    expect(useStore.getState().loadMessage).toBe('No new files loaded: 2 already loaded (skipped)');
+  });
+
+  it('replaces an earlier file of the same name that failed to parse', () => {
+    useStore.getState().addFiles([input('a.MSI', 'NAME X\nFREQUENCY 900\n')]);
+    useStore.getState().addFiles([input('a.MSI', msi(1800))]);
+    const s = useStore.getState();
+    expect(s.files.map((f) => f.id)).toEqual(['a.MSI']);
+    expect(s.files[0].result.ok).toBe(true);
+  });
+
+  it('keeps the pending-file match by path or unique name working next to duplicate handling', () => {
+    useStore.setState({ pendingFiles: ['site/_1800_X.msi', 'site/other.msi'] });
+    useStore.getState().addFiles([input('_1800_X.msi', msi(1800))]);
+    let s = useStore.getState();
+    expect(s.files.map((f) => f.id)).toEqual(['site/_1800_X.msi']);
+    expect(s.pendingFiles).toEqual(['site/other.msi']);
+    useStore.getState().addFiles([input('site/_1800_X.msi', msi(1800))]);
+    expect(useStore.getState().loadMessage).toBe('No new files loaded: 1 already loaded (skipped)');
+    useStore.getState().addFiles([input('other.msi', msi(1900))]);
+    s = useStore.getState();
+    expect(s.pendingFiles).toEqual([]);
+    expect(s.files.map((f) => f.id)).toEqual(['site/_1800_X.msi', 'site/other.msi']);
+  });
+
+  it('reports loaded, unparsable and unreadable counts after a load', () => {
+    const bad = (n: string) => input(n, 'just some notes\n');
+    useStore.getState().addFiles([input('a.MSI', msi(1800)), bad('n1.txt'), bad('n2.txt')], { unreadable: 1 });
+    const s = useStore.getState();
+    expect(s.loadMessage).toBe('Loaded 1 file · 2 could not be parsed · 1 could not be read');
+    expect(s.loadFailed).toBe(2);
+    expect(selectErrors(s.files).map((e) => e.error)).toEqual(['Not a Planet pattern file', 'Not a Planet pattern file']);
+    useStore.getState().addFiles([], { unreadable: 3 });
+    expect(useStore.getState().loadMessage).toBe('Could not read 3 file(s)');
   });
 
   it('keeps failed files as errors', () => {
@@ -384,7 +469,7 @@ describe('instances and panel groups', () => {
     const c = st().duplicate('a.MSI')!;
     const g = st().createGroup('S');
     st().setMembership(c, g);
-    st().addFiles([input('a.MSI', msi(1850))]);
+    useStore.setState({ files: [loadText('a.MSI', msi(1850))] }); // the source re-read in place
     const s = st();
     const t = selectInstances(s.files, s.tagOverrides, s.copies, s.names, s.membership);
     expect(t.map((i) => i.pattern.frequencyMHz)).toEqual([1850, 1850]);

@@ -14,6 +14,13 @@ import { Dialog } from './ui/Dialog';
 import { pendingLabel } from './state/project';
 import { useSimulation } from './ui/useSimulation';
 
+/** Scrolls the panel's Errors section into view and moves focus to it. */
+function showErrors() {
+  const section = document.querySelector<HTMLElement>('[data-testid="panel-errors"]');
+  section?.scrollIntoView?.({ block: 'start' });
+  section?.focus();
+}
+
 export default function App() {
   const files = useStore((s) => s.files);
   const overrides = useStore((s) => s.tagOverrides);
@@ -21,6 +28,7 @@ export default function App() {
   const theme = useStore((s) => s.view.theme);
   const visible = useStore((s) => s.visible);
   const loadMessage = useStore((s) => s.loadMessage);
+  const loadFailed = useStore((s) => s.loadFailed);
   const setLoadMessage = useStore((s) => s.setLoadMessage);
   const pendingFiles = useStore((s) => s.pendingFiles);
   const dismissPending = useStore((s) => s.dismissPending);
@@ -61,6 +69,7 @@ export default function App() {
       {loadMessage && (
         <div className="load-message" role="status">
           <span>{loadMessage}</span>
+          {loadFailed > 0 && errors.length > 0 && <button onClick={showErrors}>Show errors</button>}
           <button aria-label="Dismiss message" onClick={() => setLoadMessage(null)}>
             ✕
           </button>
