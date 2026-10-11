@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from './state/store';
 import { buildPanelGroups, selectErrors, selectInstances, selectWarnings } from './state/selectors';
 import { analyzeAll } from './core/analysis/metrics';
@@ -53,6 +53,7 @@ export default function App() {
   // Phone layout: the file panel is a drawer, closed until asked for (on wider screens it is always shown).
   const [filesOpen, setFilesOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const openHelp = useCallback(() => setHelpOpen(true), []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -60,7 +61,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Toolbar onHelp={() => setHelpOpen(true)} />
+      <Toolbar onHelp={openHelp} />
       <StatusArea hasErrors={errors.length > 0} beforeShowErrors={() => setFilesOpen(true)} />
       <div className="body">
         {files.length > 0 && (
@@ -81,13 +82,13 @@ export default function App() {
         )}
         <main>
           {tagged.length === 0 ? (
-            <EmptyState onHelp={() => setHelpOpen(true)} />
+            <EmptyState onHelp={openHelp} />
           ) : (
             <>
               <PlotArea groups={groups} metrics={metrics} colors={colors} sim={sim} />
               <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
-              <MetricsTable groups={groups} metrics={metrics} colors={colors} sim={sim} />
-              <BandStats tagged={tagged} metrics={metrics} sim={sim} />
+              <MetricsTable groups={groups} metrics={metrics} colors={colors} sim={sim} onHelp={openHelp} />
+              <BandStats tagged={tagged} metrics={metrics} sim={sim} onHelp={openHelp} />
             </>
           )}
         </main>

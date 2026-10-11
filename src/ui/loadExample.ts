@@ -10,3 +10,8 @@ export function loadExample(): void {
   });
   useStore.getState().addFiles(inputs, { note: EXAMPLE_NOTE, noteIsInfo: true });
 }
+
+/** Whether "Load example" is offered: not while a layout-only project waits for its pattern files (the example would mix with them). */
+export function canOfferExample(s: { pendingFiles: readonly unknown[] }): boolean {
+  return s.pendingFiles.length === 0;
+}

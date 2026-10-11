@@ -68,12 +68,28 @@ const DU_DB: Partial<Record<MetricColumn, number>> = { du16: 15, du64: 20, du256
 /** Header tooltip for a column; the sector columns depend on the sector settings (E, S). */
 export function columnTitle(
   key: MetricColumn,
-  settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number; lobeLimitFactor?: number },
+  settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number; lobeLimitFactor?: number; levelDb?: number; fbWindowDeg?: number },
 ): string | undefined {
   const e = settings.sectorEdgeDeg;
   const r = settings.uslsRangeDeg ?? 20;
   const f = settings.lobeLimitFactor ?? 1.78;
+  const level = settings.levelDb ?? 3;
+  const w = settings.fbWindowDeg ?? 30;
   switch (key) {
+    case 'hHpbw':
+      return `Horizontal half-power beamwidth (BASTA 6.1.6): distance between the two points ${level} dB below the peak of the azimuth cut`;
+    case 'vHpbw':
+      return `Vertical half-power beamwidth (BASTA 6.1.6): distance between the two points ${level} dB below the peak of the elevation cut`;
+    case 'fbWindow':
+      return `Front/back ratio (BASTA 7.2.9.1): highest azimuth level within 180° ± ${w}°, in dB below the peak (co-pol only)`;
+    case 'fb180':
+      return 'Level of the azimuth cut at exactly 180°, in dB below the peak';
+    case 'dH':
+      return 'Computed H-HPBW minus the value declared in the file header; — when the header has none';
+    case 'dV':
+      return 'Computed V-HPBW minus the value declared in the file header; — when the header has none';
+    case 'dFb':
+      return 'Computed F/B at 180° minus the value declared in the file header; — when the header has none';
     case 'firstUsls':
       return `First upper sidelobe suppression (BASTA 7.8.4.2): first sidelobe peak within ${f} × V-HPBW above the beam peak, else the level at 1.55 × V-HPBW above it (merged sidelobe)`;
     case 'usls':

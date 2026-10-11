@@ -1,4 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { planetText } from '../src/test/planetText';
+
+const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
+const msi = (freq: number) => planetText({ headers: ['NAME A', `FREQUENCY ${freq}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] });
 
 test('first run: Load example fills the plots, the table and the band statistics', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -51,4 +55,72 @@ test('Help / glossary: keyboard accessible, Esc closes, focus comes back, links 
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(toolbarHelp).toBeFocused();
+});
+
+test('empty state: the three open actions are real buttons that use the toolbar inputs', async ({ page }) => {
+  await page.goto('/');
+  const empty = page.getByTestId('empty-state');
+  for (const [name, input] of [['Open files', 'file-input'], ['Open folder', 'folder-input'], ['Open project', 'project-input']] as const) {
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), empty.getByRole('button', { name }).click()]);
+    expect(chooser.isMultiple()).toBe(input !== 'project-input');
+  }
+  // Keyboard: focus the button, press Enter.
+  const open = empty.getByRole('button', { name: 'Open files' });
+  await open.focus();
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.keyboard.press('Enter')]);
+  await chooser.setFiles([file('a.msi', msi(1800))]);
+  await expect(page.locator('.panel li')).toHaveCount(1);
+});
+
+test('empty state: no Load example while a layout-only project waits for its pattern files', async ({ page }) => {
+  await page.goto('/');
+  const layoutOnly = JSON.stringify({
+    format: 'lobe-story-project',
+    version: 1,
+    savedAt: '2026-01-01T00:00:00.000Z',
+    files: [{ path: 'a.MSI' }],
+    state: {},
+  });
+  await page.getByTestId('project-input').setInputFiles([file('p.lobestory.json', layoutOnly)]);
+  await expect(page.getByTestId('pending-files')).toBeVisible();
+  const empty = page.getByTestId('empty-state');
+  await expect(empty).toBeVisible();
+  await expect(empty.getByRole('button', { name: 'Load example' })).toHaveCount(0);
+  await expect(empty.getByRole('button', { name: 'Open files' })).toBeVisible();
+  await expect(empty).toContainText('Planet pattern files');
+  await page.getByTestId('pending-files').getByRole('button', { name: 'Dismiss' }).click();
+  await expect(empty.getByRole('button', { name: 'Load example' })).toBeVisible();
+});
+
+test('Definitions buttons in the metrics table and the band statistics open the glossary and get the focus back', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  await expect(page.locator('.metrics tbody tr').first()).toBeVisible();
+  await expect(page.getByTestId('load-status')).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'Help and glossary' });
+  for (const section of [page.locator('section', { has: page.locator('table.metrics') }), page.getByTestId('band-stats')]) {
+    const button = section.getByRole('button', { name: 'Definitions' });
+    await button.click();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(button).toBeFocused();
+  }
+  // Every column header of the table has a tooltip.
+  const titles = await page.locator('table.metrics thead th').evaluateAll((ths) => ths.map((th) => th.getAttribute('title')));
+  expect(titles.slice(4).every((t) => t && t.length > 0)).toBe(true);
+});
+
+test('Help dialog: a click in its padding does not close it, a click on the backdrop does', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Help / glossary' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Help and glossary' });
+  const box = (await dialog.boundingBox())!;
+  await page.mouse.click(box.x + 4, box.y + 4);
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(box.x - 20, box.y + 20);
+  await expect(dialog).toHaveCount(0);
 });

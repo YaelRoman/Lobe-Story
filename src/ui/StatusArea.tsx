@@ -9,7 +9,6 @@ export const CLEAN_LOAD_MS = 6_000;
 
 /** Scrolls the panel's Errors section into view and moves focus to it. */
 function showErrors() {
-  // On a phone the panel is a closed drawer until the caller has opened it: wait for it to be shown.
   const section = document.querySelector<HTMLElement>('[data-testid="panel-errors"]');
   section?.scrollIntoView?.({ block: 'start' });
   section?.focus();
@@ -42,12 +41,17 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
       {loadMessage && (
         <div className={loadTone === 'info' ? 'load-message info' : 'load-message'} data-testid="load-status">
           <span>{loadMessage}</span>
-          {loadFailed > 0 && hasErrors && <button
+          {loadFailed > 0 && hasErrors && (
+            <button
               onClick={() => {
                 beforeShowErrors?.();
+                // On a phone the panel is a closed drawer until beforeShowErrors has opened it: wait for it to be shown.
                 requestAnimationFrame(showErrors);
               }}
-            >Show errors</button>}
+            >
+              Show errors
+            </button>
+          )}
           <button aria-label="Dismiss message" onClick={() => setLoadMessage(null)}>
             ✕
           </button>

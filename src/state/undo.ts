@@ -39,7 +39,7 @@ export function takeSnapshot(s: StoreData): Snapshot {
 
 /**
  * What an offered undo protects: every part of the session a later action could change and the
- * undo would then silently throw away. The highlight, the selection and the theme are not work.
+ * undo would then silently throw away. The highlight, the selection, the theme and the fold state are not work.
  */
 const SESSION_KEYS = [
   'files',
@@ -54,7 +54,7 @@ const SESSION_KEYS = [
 ] as const;
 
 /**
- * Whether applying `patch` to `prev` changes session data or the view (other than the theme).
+ * Whether applying `patch` to `prev` changes session data or the view (other than the theme and the fold state).
  * The store runs every update through this, so an offered undo is withdrawn by any such change
  * without each action having to remember it.
  */
@@ -64,6 +64,7 @@ export function changesSession(prev: StoreData, patch: Partial<StoreData>): bool
   if (view === undefined || view === prev.view) return false;
   const keys = new Set([...Object.keys(view), ...Object.keys(prev.view)]) as Set<keyof StoreData['view']>;
   keys.delete('theme');
+  keys.delete('collapsed');
   return [...keys].some((k) => !Object.is(view[k], prev.view[k]));
 }
 
@@ -98,7 +99,7 @@ export function markOf(s: Saveable): SavedMark {
 }
 
 /**
- * Unsaved work: at least one pattern is loaded and what Save project would write (the theme, the
+ * Unsaved work: at least one pattern is loaded and what Save project would write (the theme, the fold state, the
  * highlight and the selection aside) differs from the last saved or opened project — or there is
  * no such project yet. Compared by value, so a change that was put back is not unsaved work.
  * Attaching the files a layout-only project asked for is not a change: the file list is the same.

@@ -9,6 +9,7 @@ import {
 import { middleEllipsis } from './legend';
 import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { downloadText } from './download';
+import { DefinitionsButton } from './HelpDialog';
 import type { SimulationResult } from './useSimulation';
 
 const FILE_NAME_MAX = 28;
@@ -19,7 +20,9 @@ export const MetricsTable = memo(function MetricsTable({
   groups,
   metrics,
   sim,
+  onHelp,
 }: {
+  onHelp: () => void;
   groups: GroupView[];
   metrics: Map<string, PatternMetrics>;
   colors: Map<string, string>;
@@ -31,6 +34,7 @@ export const MetricsTable = memo(function MetricsTable({
   const siteSectors = useStore((s) => s.settings.siteSectors);
   const uslsRangeDeg = useStore((s) => s.settings.uslsRangeDeg);
   const lobeLimitFactor = useStore((s) => s.settings.lobeLimitFactor);
+  const levelDb = useStore((s) => s.settings.levelDb);
   const tableGroups = useStore((s) => s.view.tableGroups);
   const updateView = useStore((s) => s.updateView);
   const columns = visibleColumns(tableGroups);
@@ -127,6 +131,7 @@ export const MetricsTable = memo(function MetricsTable({
             </button>
           </span>
         )}
+        <DefinitionsButton onHelp={onHelp} />
         <span className="count">Columns</span>
         {COLUMN_GROUPS.map(({ key, label }) => (
           <label key={key}>
@@ -158,7 +163,7 @@ export const MetricsTable = memo(function MetricsTable({
                 header(
                   c.key,
                   `${columnLabel(c, fbWindowDeg, uslsRangeDeg)} (${c.unit})`,
-                  columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor }),
+                  columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg }),
                 ),
               )}
             </tr>

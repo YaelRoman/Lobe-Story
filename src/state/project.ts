@@ -30,7 +30,7 @@ export interface ProjectState {
   highlighted: string | null;
   selected: Selection;
   settings: AnalysisSettings;
-  view: Omit<ViewState, 'theme'>;
+  view: Omit<ViewState, 'theme' | 'collapsed'>;
 }
 
 export interface ProjectFile {
@@ -68,12 +68,13 @@ export function sessionFiles(s: Pick<StoreData, 'files' | 'pendingFiles'>): Pend
 
 /**
  * The work a project file keeps, apart from the file list and from what is only "where the user
- * was looking" (highlight, selection) and the theme. `serializeProject` writes exactly this, and
+ * was looking" (highlight, selection) and display chrome (theme, folded bars). `serializeProject` writes exactly this, and
  * unsaved-work tracking (undo.ts) compares exactly this, so the two cannot drift apart.
  */
 export function sessionState(s: SessionSource): Omit<ProjectState, 'highlighted' | 'selected'> {
   const view: Partial<ViewState> = { ...s.view };
   delete view.theme;
+  delete view.collapsed;
   return {
     tagOverrides: s.tagOverrides,
     visible: s.visible,
@@ -82,11 +83,11 @@ export function sessionState(s: SessionSource): Omit<ProjectState, 'highlighted'
     customGroups: s.customGroups,
     membership: s.membership,
     settings: s.settings,
-    view: view as Omit<ViewState, 'theme'>,
+    view: view as Omit<ViewState, 'theme' | 'collapsed'>,
   };
 }
 
-/** The session as a project file. The theme is never saved. */
+/** The session as a project file. The theme and the fold state are never saved. */
 export function serializeProject(s: StoreData, includeFiles: boolean, now: Date = new Date()): string {
   const project: ProjectFile = {
     format: PROJECT_FORMAT,
@@ -260,12 +261,12 @@ export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewSt
 
 /**
  * The store state for a parsed project: files with text are parsed with `loadText`, files without
- * become `pendingFiles`; every part is sanitised against `defaults`; the theme is the caller's.
+ * become `pendingFiles`; every part is sanitised against `defaults`; the theme and the fold state (`chrome`) are the caller's.
  */
 export function projectToState(
   project: ProjectFile,
   defaults: StoreData,
-  theme: ViewState['theme'],
+  chrome: Pick<ViewState, 'theme' | 'collapsed'>,
   loadText: (path: string, text: string) => LoadedFile,
 ): Partial<StoreData> {
   const files: LoadedFile[] = [];
@@ -317,7 +318,7 @@ export function projectToState(
     selected,
     settings,
     loadMessage: null,
-    view: { ...sanitizeDisplayView(rawView, dv), theme, simulation },
+    view: { ...sanitizeDisplayView(rawView, dv), ...chrome, simulation },
   };
 }
 

@@ -410,8 +410,8 @@ export const useStore = create<State>()((rawSet, get) => {
       if (!s.undo) return s;
       sessionSwaps++;
       const { snapshot } = s.undo;
-      // The theme is a display preference, not part of the session being restored.
-      return { ...snapshot, view: { ...snapshot.view, theme: s.view.theme }, undo: null, loadMessage: null, loadFailed: 0 };
+      // The theme and the fold state are display preferences, not part of the session being restored.
+      return { ...snapshot, view: { ...snapshot.view, theme: s.view.theme, collapsed: s.view.collapsed }, undo: null, loadMessage: null, loadFailed: 0 };
     }),
 
   dismissUndo: () => set({ undo: null }),
@@ -421,7 +421,7 @@ export const useStore = create<State>()((rawSet, get) => {
   loadProject: (project) =>
     set((s) => {
       sessionSwaps++;
-      const next = projectToState(project, initialState(), s.view.theme, loadText);
+      const next = projectToState(project, initialState(), { theme: s.view.theme, collapsed: s.view.collapsed }, loadText);
       const hadSession = s.files.length > 0 || s.pendingFiles.length > 0;
       return {
         ...next,

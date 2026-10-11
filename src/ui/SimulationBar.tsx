@@ -182,10 +182,10 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
       )}
       {collapsed && (
         <span className="count" data-testid="sim-summary">
-          {simSummary(global, fileCount, groupCount)}
+          {simSummary(global, fileCount, groupCount, tiltActive ? method : undefined)}
         </span>
       )}
-      {!collapsed && <div id="sim-body" className="sim-body">
+      <div id="sim-body" className="sim-body" hidden={collapsed}>
       {SLIDERS.map((s) => (
         <GlobalField key={s.key} k={s.key} label={s.label} />
       ))}
@@ -230,7 +230,7 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
         Reset
       </button>
       <OffsetsRow />
-      </div>}
+      </div>
     </div>
   );
 }

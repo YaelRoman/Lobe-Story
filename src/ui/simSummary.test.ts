@@ -10,4 +10,10 @@ describe('simSummary', () => {
       'Tilt Δ 0° · Mech 0° · Az 0° · 1 file offset · 2 group offsets',
     );
   });
+  it('names the 3D method when a tilt is active', () => {
+    expect(simSummary({ electricalDeg: 3, mechanicalDeg: 2, azimuthDeg: 0 }, 0, 0, 'weighted')).toBe(
+      'Tilt Δ 3° · Mech 2° · Az 0° · 3D method: Weighted',
+    );
+    expect(simSummary({ electricalDeg: 3, mechanicalDeg: 2, azimuthDeg: 0 }, 0, 0, 'summation')).toContain('3D method: Summation');
+  });
 });

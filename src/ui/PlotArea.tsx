@@ -129,17 +129,15 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
           onChange={(dimension) => updateView({ dimension })}
         />
         {is3d ? (
-          <>
-            <Seg<Layout3d>
-              label="3D layout"
-              value={view.layout3d}
-              options={[
-                ['grid', 'Side by side'],
-                ['overlay', 'Overlay'],
-              ]}
-              onChange={(layout3d) => updateView({ layout3d })}
-            />
-          </>
+          <Seg<Layout3d>
+            label="3D layout"
+            value={view.layout3d}
+            options={[
+              ['grid', 'Side by side'],
+              ['overlay', 'Overlay'],
+            ]}
+            onChange={(layout3d) => updateView({ layout3d })}
+          />
         ) : (
           <>
             <Seg<CutView>
@@ -170,8 +168,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
               <span aria-hidden="true">{view.markersFolded ? '▸' : '▾'}</span> Markers
             </button>
             {view.markersFolded && <span className="count">{shownMarkers(view.markers)}</span>}
-            {!view.markersFolded && (
-              <div id="marker-options" className="marker-options">
+            <div id="marker-options" className="marker-options" hidden={view.markersFolded}>
               {(Object.keys(MARKER_LABELS) as MarkerKey[]).map((key) => (
                 <label key={key}>
                   <input
@@ -182,8 +179,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
                   {MARKER_LABELS[key]}
                 </label>
               ))}
-              </div>
-            )}
+            </div>
           </>
         )}
       </div>

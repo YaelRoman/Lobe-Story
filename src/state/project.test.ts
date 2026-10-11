@@ -35,6 +35,7 @@ export function buildSession(): StoreData {
 export const snapshot = (s: StoreData) => {
   const view: Record<string, unknown> = { ...s.view };
   delete view.theme;
+  delete view.collapsed;
   return {
     files: s.files.map((f) => ({ id: f.id, text: f.text, ok: f.result.ok })),
     tagOverrides: s.tagOverrides,
@@ -50,10 +51,10 @@ export const snapshot = (s: StoreData) => {
   };
 };
 
-const restore = (json: string, theme: 'light' | 'dark' = 'light'): StoreData => {
+const restore = (json: string, theme: 'light' | 'dark' = 'light', collapsed = initialState().view.collapsed): StoreData => {
   const parsed = parseProject(json);
   if (!parsed.ok) throw new Error(parsed.error);
-  return { ...initialState(), ...projectToState(parsed.project, initialState(), theme, loadText) };
+  return { ...initialState(), ...projectToState(parsed.project, initialState(), { theme, collapsed }, loadText) };
 };
 
 describe('source text', () => {
@@ -256,10 +257,12 @@ describe('damaged values', () => {
     expect(s.view.tableGroups).toEqual({ beam: true, fb: true, sidelobes: true, sector: false, declared: false });
   });
 
-  it('restores the folded controls, optional and sanitised', () => {
-    expect(restore(withState({})).view.collapsed).toEqual(initialState().view.collapsed);
-    const s = restore(withState({ view: { collapsed: { simBar: true, markers: 'x', bogus: true } } }));
-    expect(s.view.collapsed).toEqual({ simBar: true, markers: initialState().view.collapsed.markers });
+  it('keeps the current fold state: a saved one is ignored, and none is written', () => {
+    const folded = { simBar: true, markers: false };
+    const raw = JSON.parse(serializeProject(buildSession(), true));
+    expect(raw.state.view.collapsed).toBeUndefined();
+    raw.state.view.collapsed = { simBar: false, markers: true };
+    expect(restore(JSON.stringify(raw), 'light', folded).view.collapsed).toEqual(folded);
   });
 
   it('round-trips the table column groups', () => {
@@ -387,10 +390,11 @@ describe('store.loadProject', () => {
     const json = serializeProject(st(), true);
     st().clear();
     st().addFiles([input('other.MSI', msi(700))]);
-    st().updateView({ theme: 'dark' });
+    st().updateView({ theme: 'dark', collapsed: { simBar: true, markers: true } });
     open(json);
     expect(snapshot(st())).toEqual(before);
     expect(st().view.theme).toBe('dark');
+    expect(st().view.collapsed).toEqual({ simBar: true, markers: true });
     expect(st().files.some((f) => f.id === 'other.MSI')).toBe(false);
   });
 
@@ -519,7 +523,7 @@ describe('layout-only projects with numbered same-name files (B1)', () => {
     const direct = projectToState(
       { format: PROJECT_FORMAT, version: 1, savedAt: '', files: [{ path: 'q.msi', fp: 7 as never }], state: {} },
       initialState(),
-      'light',
+      { theme: 'light', collapsed: initialState().view.collapsed },
       loadText,
     );
     expect(direct.pendingFiles).toEqual([{ path: 'q.msi' }]);

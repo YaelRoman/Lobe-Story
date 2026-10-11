@@ -38,7 +38,10 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
       tabIndex={-1}
       aria-labelledby="help-title"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        // Only a click outside the dialog's box is a backdrop click: one in its padding, or the end of a text selection, is not.
+        const r = e.currentTarget.getBoundingClientRect();
+        const outside = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+        if (e.target === e.currentTarget && outside) onClose();
       }}
     >
       <h2 id="help-title">Help and glossary</h2>
@@ -71,5 +74,14 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
         </button>
       </div>
     </dialog>
+  );
+}
+
+/** A small button that opens the Help dialog from a table or section; the dialog gives the focus back to it. */
+export function DefinitionsButton({ onHelp }: { onHelp: () => void }) {
+  return (
+    <button type="button" aria-haspopup="dialog" title="What the terms and columns mean" onClick={onHelp}>
+      Definitions
+    </button>
   );
 }

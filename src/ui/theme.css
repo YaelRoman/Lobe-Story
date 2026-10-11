@@ -162,6 +162,7 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 /* Collapsible secondary controls. */
 .fold { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; background: transparent; border-color: transparent; padding: 4px 6px; }
 .sim-body, .marker-options { display: contents; }
+.sim-body[hidden], .marker-options[hidden] { display: none; }
 .files-toggle { display: none; }
 @media (max-width: 760px) {
   /* The file panel is a drawer above the plots; main keeps the rest of the screen. */
@@ -185,7 +186,7 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 .empty-state h2 { font-size: 18px; }
 .empty-state p { margin: 0; color: var(--muted); }
 .empty-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.empty-actions button:first-child { background: var(--accent); border-color: var(--accent); color: #fff; }
+.empty-actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 dialog.help { width: min(640px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
 dialog.help::backdrop { background: rgb(0 0 0 / 40%); }
 dialog.help:focus { outline: none; }

@@ -10,6 +10,7 @@ import { downloadText } from './download';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
 import { SubBandEditor } from './SubBandEditor';
+import { DefinitionsButton } from './HelpDialog';
 import type { SimulationResult } from './useSimulation';
 
 /** A clicked cell; `scope` ties it to the dataset and sub-band it was clicked in. */
@@ -26,7 +27,9 @@ export const BandStats = memo(function BandStats({
   tagged,
   metrics,
   sim,
+  onHelp,
 }: {
+  onHelp: () => void;
   tagged: TaggedPattern[];
   metrics: Map<string, PatternMetrics>;
   sim: SimulationResult;
@@ -93,7 +96,10 @@ export const BandStats = memo(function BandStats({
   if (!dataset || largest < MIN_SAMPLES) {
     return (
       <section data-testid="band-stats">
-        <h2>Band statistics</h2>
+        <div className="controls">
+          <h2>Band statistics</h2>
+          <DefinitionsButton onHelp={onHelp} />
+        </div>
         <p className="count" data-testid="band-stats-hint">
           {hintText(largest)}
         </p>
@@ -119,6 +125,7 @@ export const BandStats = memo(function BandStats({
     <section data-testid="band-stats">
       <div className="controls">
         <h2>Band statistics</h2>
+        <DefinitionsButton onHelp={onHelp} />
         {datasets.length > 1 ? (
           <select aria-label="Antenna" value={dataset.key} onChange={(e) => setChosen(e.target.value)}>
             {datasets.map((d) => (

@@ -601,6 +601,12 @@ describe('undo of destructive actions', () => {
     st().undoLast();
     expect(st().view.theme).toBe(theme);
     st().clear();
+    st().updateView({ collapsed: { simBar: !st().view.collapsed.simBar, markers: st().view.collapsed.markers } });
+    const folds = st().view.collapsed;
+    st().undoLast();
+    expect(st().files.length).toBeGreaterThan(0);
+    expect(st().view.collapsed).toEqual(folds);
+    st().clear();
     st().dismissUndo();
     expect(st().undo).toBeNull();
   });
@@ -766,6 +772,7 @@ describe('an offered undo is withdrawn by any later change to the session (B2)',
     st().setHighlighted('c.MSI');
     st().select({ kind: 'file', id: 'b.MSI' });
     st().updateView({ theme: st().view.theme === 'dark' ? 'light' : 'dark' });
+    st().updateView({ collapsed: { simBar: !st().view.collapsed.simBar, markers: st().view.collapsed.markers } });
     st().setLoadMessage('x');
     expect(st().undo).not.toBeNull();
     st().undoLast();
@@ -882,6 +889,13 @@ describe('unsaved work covers everything a project file stores (B4)', () => {
     expect(isDirty(st())).toBe(false);
   });
 
+  it('folding or unfolding the bars does not count', () => {
+    saved();
+    const c = st().view.collapsed;
+    st().updateView({ collapsed: { simBar: !c.simBar, markers: !c.markers } });
+    expect(isDirty(st())).toBe(false);
+  });
+
   it('a change that is put back is not unsaved work', () => {
     saved();
     st().toggleVisible('b.MSI');
@@ -967,6 +981,7 @@ describe('changesSession', () => {
     expect(changesSession(s, { names: s.names, view: s.view })).toBe(false);
     expect(changesSession(s, { highlighted: 'x', selected: null, loadMessage: 'm', dialog: null, saved: null })).toBe(false);
     expect(changesSession(s, { view: { ...s.view, theme: s.view.theme === 'dark' ? 'light' : 'dark' } })).toBe(false);
+    expect(changesSession(s, { view: { ...s.view, collapsed: { simBar: !s.view.collapsed.simBar, markers: s.view.collapsed.markers } } })).toBe(false);
     for (const k of ['files', 'pendingFiles', 'customGroups'] as const) expect(changesSession(s, { [k]: [] })).toBe(true);
     for (const k of ['tagOverrides', 'visible', 'copies', 'names', 'membership'] as const) expect(changesSession(s, { [k]: {} })).toBe(true);
     expect(changesSession(s, { settings: { ...s.settings } })).toBe(true);
@@ -990,6 +1005,7 @@ describe('the saved mark', () => {
     expect(Object.keys(marked).sort()).toEqual(Object.keys(written.state).filter((k) => k !== 'highlighted' && k !== 'selected').sort());
     expect(Object.keys(marked.view).sort()).toEqual(Object.keys(written.state.view).sort());
     expect(marked.view.theme).toBeUndefined();
+    expect(marked.view.collapsed).toBeUndefined();
     expect(Object.keys(markOf(s).files)).toEqual(written.files.map((f: { path: string }) => f.path));
   });
 

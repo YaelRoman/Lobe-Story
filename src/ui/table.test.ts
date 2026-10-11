@@ -253,7 +253,13 @@ describe('sector columns', () => {
     );
     expect(columnTitle('du64', s)).toContain('≥ 20 dB');
     expect(columnTitle('du256', s)).toContain('≥ 25 dB');
-    expect(columnTitle('hHpbw', s)).toBeUndefined();
+    expect(columnTitle('hHpbw', { ...s, levelDb: 6 })).toContain('6 dB below the peak');
+    expect(columnTitle('fbWindow', { ...s, fbWindowDeg: 25 })).toContain('180° ± 25°');
+  });
+
+  it('gives every column a header tooltip', () => {
+    const s = { sectorEdgeDeg: 60, siteSectors: 3 };
+    for (const c of METRIC_COLUMNS) expect(columnTitle(c.key, s), c.key).toBeTruthy();
   });
 });
 
@@ -296,7 +302,7 @@ describe('column groups', () => {
       'Electrical downtilt: bisector of the beamwidth points of the elevation cut (BASTA half-power beam axis), positive below the horizon',
     );
     expect(columnTitle('tiltError', s)).toBe('Tilt minus the nominal tilt, signed (BASTA downtilt deviation is its absolute value)');
-    expect(columnTitle('hHpbw', s)).toBeUndefined();
+    expect(columnTitle('hHpbw', s)).toContain('3 dB below the peak');
   });
 
   it('filters by group', () => {

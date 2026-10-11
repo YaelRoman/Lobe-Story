@@ -19,13 +19,17 @@ test('the simulation bar folds to one line that keeps the badge and summary, and
   await fold.focus();
   await page.keyboard.press('Enter');
   await expect(fold).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByLabel('Electrical tilt Δ (°) value')).toHaveCount(0);
+  // Folded means hidden, not removed: aria-controls keeps pointing at an element that exists.
+  await expect(page.getByLabel('Electrical tilt Δ (°) value')).toBeHidden();
+  await expect(page.locator('#sim-body')).toBeHidden();
+  await expect(fold).toHaveAttribute('aria-controls', 'sim-body');
   await expect(page.getByTestId('sim-badge')).toBeVisible();
   await expect(page.getByTestId('sim-summary')).toContainText('Tilt Δ 3°');
   await expect(fold).toBeFocused();
 
   await page.getByRole('button', { name: /Markers/ }).click();
-  await expect(page.getByRole('checkbox', { name: 'Sidelobes', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'Sidelobes', exact: true })).toBeHidden();
+  await expect(page.locator('#marker-options')).toBeHidden();
 
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('lobe-story:prefs:v1') ?? '{}').view?.collapsed?.simBar === true);
   await page.reload();
