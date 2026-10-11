@@ -2,12 +2,25 @@ import { memo, useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
-import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary } from '../core/analysis/bandParams';
+import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
 import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, hintText, largestDataset, type BandSheet } from './bandView';
+import { buildBandHistFigure } from './bandHistFigure';
 import { downloadText } from './download';
+import { FIGURE_THEMES } from './figureTheme';
+import { PlotlyChart } from './PlotlyChart';
 import { SubBandEditor } from './SubBandEditor';
 import type { SimulationResult } from './useSimulation';
+
+/** A clicked cell; `scope` ties it to the dataset and sub-band it was clicked in. */
+interface Picked {
+  key: BandParamKey;
+  column: number;
+  scope: string;
+}
+
+const scopeOf = (datasetKey: string, b: { name: string; minMHz: number; maxMHz: number }): string =>
+  `${datasetKey}\u0000${b.name}\u0000${b.minMHz}\u0000${b.maxMHz}`;
 
 export const BandStats = memo(function BandStats({
   tagged,
@@ -26,6 +39,8 @@ export const BandStats = memo(function BandStats({
   const updateView = useStore((s) => s.updateView);
   const [chosen, setChosen] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<Picked | null>(null);
+  const theme = useStore((s) => s.view.theme);
 
   const datasets = useMemo(() => buildDatasets(tagged, customGroups), [tagged, customGroups]);
   const largest = largestDataset(datasets);
@@ -43,6 +58,28 @@ export const BandStats = memo(function BandStats({
   const tiltedColumns = useMemo(
     () => (dataset && sim.tiltActive ? bandTable(dataset.items, sim.metrics, subBands, ctx) : null),
     [dataset, sim.tiltActive, sim.metrics, subBands, ctx],
+  );
+
+  const pickedColumn =
+    picked && dataset && columns[picked.column] && scopeOf(dataset.key, columns[picked.column].subBand) === picked.scope
+      ? columns[picked.column]
+      : null;
+  const pickedCell = picked && pickedColumn ? (tiltedColumns?.[picked.column] ?? pickedColumn).cells[picked.key] : null;
+  const pickedSpec = picked ? BAND_PARAMS.find((p) => p.key === picked.key) : undefined;
+  const figure = useMemo(
+    () =>
+      pickedCell && pickedSpec
+        ? buildBandHistFigure(
+            {
+              values: pickedCell.values,
+              stat: pickedCell.stat,
+              label: bandParamLabel(pickedSpec, settings),
+              unit: pickedCell.unit,
+            },
+            FIGURE_THEMES[theme],
+          )
+        : null,
+    [pickedCell, pickedSpec, settings, theme],
   );
 
   if (!dataset || largest < MIN_SAMPLES) {
@@ -129,8 +166,17 @@ export const BandStats = memo(function BandStats({
                   const tilted = tiltedColumns?.[i].cells[p.key];
                   const shown = tilted ?? original;
                   const d = cellDisplay(original, tilted);
+                  const scope = scopeOf(dataset.key, c.subBand);
+                  const clickable = shown.values.length > 0 && p.key !== 'tiltRange';
+                  const isPicked = picked?.key === p.key && picked.column === i && picked.scope === scope;
                   return (
-                    <td key={i} title={d.title} className={d.muted ? 'muted' : undefined}>
+                    <td
+                      key={i}
+                      title={d.title}
+                      className={[d.muted ? 'muted' : '', isPicked ? 'sel' : ''].filter(Boolean).join(' ') || undefined}
+                      aria-selected={clickable ? isPicked : undefined}
+                      onClick={clickable ? () => setPicked(isPicked ? null : { key: p.key, column: i, scope }) : undefined}
+                    >
                       {d.text}
                       {shown.n > 0 && <span className="count"> n={shown.n}</span>}
                     </td>
@@ -141,6 +187,15 @@ export const BandStats = memo(function BandStats({
           </tbody>
         </table>
       </div>
+      {figure && pickedCell && pickedSpec && pickedColumn && (
+        <>
+          <p className="count">
+            {bandParamLabel(pickedSpec, settings)} — {pickedColumn.subBand.name} — N = {pickedCell.n}
+            {tiltedColumns ? ' (tilted)' : ''}
+          </p>
+          <PlotlyChart className="plot wide" figure={figure} testId="plot-band" />
+        </>
+      )}
       {anyAdjusted(columns, tiltedColumns) && (
         <p className="count" data-testid="band-adjusted-legend">
           {ADJUSTED_LEGEND}

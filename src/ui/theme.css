@@ -61,6 +61,8 @@ th:nth-child(-n + 2), td:nth-child(-n + 2) { text-align: left; }
 tbody tr { cursor: pointer; }
 tr.hl td { background: var(--hl); }
 td.muted { color: var(--muted); }
+td.sel { outline: 2px solid var(--accent, currentColor); outline-offset: -2px; }
+td[aria-selected] { cursor: pointer; }
 th[scope='row'] { text-align: left; white-space: nowrap; }
 .band thead th, .band td { text-align: right; }
 .band thead th:first-child { text-align: left; }

@@ -139,6 +139,13 @@ test('computes band statistics over a sub-band', async ({ page }) => {
   await expect(row(/^Azimuth beamwidth/)).toContainText('—');
   await band.getByRole('button', { name: 'Use automatic' }).click();
 
+  const azimuthCell = row(/^Azimuth beamwidth/).getByRole('cell').first();
+  await azimuthCell.click();
+  await expect(page.getByTestId('plot-band').locator('.main-svg').first()).toBeVisible();
+  await expect(band.getByText(/Azimuth beamwidth — 1800–1880 MHz — N = 10/)).toBeVisible();
+  await azimuthCell.click();
+  await expect(page.getByTestId('plot-band')).toHaveCount(0);
+
   const download = page.waitForEvent('download');
   await band.getByRole('button', { name: 'Export band CSV' }).click();
   expect((await download).suggestedFilename()).toBe('band-statistics.csv');
