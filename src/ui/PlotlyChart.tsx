@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import Plotly from 'plotly.js-dist-min';
 import type { Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
+import { exportFigure, type ExportCaption } from './exportFigure';
+
+const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
 
 type RelayoutHandler = (el: HTMLElement, update: Record<string, unknown>) => void;
 
@@ -15,16 +18,22 @@ interface Props {
   className?: string;
   testId?: string;
   onRelayout?: RelayoutHandler;
+  /** Replaces the modebar's image download by one of a labelled version of the figure (legend on, highlighted file's values). */
+  labelledExport?: { caption?: ExportCaption };
 }
 
-export function PlotlyChart({ figure, className, testId, onRelayout }: Props) {
+export function PlotlyChart({ figure, className, testId, onRelayout, labelledExport }: Props) {
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
   const [error, setError] = useState<string | null>(null);
 
+  const labelled = labelledExport !== undefined;
+  const exporting = useRef({ figure, labelledExport });
+
   useEffect(() => {
     handler.current = onRelayout;
-  }, [onRelayout]);
+    exporting.current = { figure, labelledExport };
+  }, [onRelayout, figure, labelledExport]);
 
   useEffect(() => {
     const el = ref.current;
@@ -37,7 +46,27 @@ export function PlotlyChart({ figure, className, testId, onRelayout }: Props) {
       {
         responsive: true,
         displaylogo: false,
-        toImageButtonOptions: { format: 'png', scale: 2, filename: 'antenna-pattern' },
+        toImageButtonOptions: IMAGE_OPTIONS,
+        ...(labelled
+          ? {
+              modeBarButtonsToRemove: ['toImage' as const],
+              modeBarButtonsToAdd: [
+                {
+                  name: 'toImageLabelled',
+                  title: 'Download plot as a png (with legend and values)',
+                  icon: Plotly.Icons.camera,
+                  click: () => {
+                    const cur = exporting.current;
+                    const out = exportFigure(cur.figure, cur.labelledExport?.caption);
+                    void Plotly.downloadImage(
+                      { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
+                      { ...IMAGE_OPTIONS, width: out.layout.width ?? null, height: out.layout.height ?? null },
+                    );
+                  },
+                },
+              ],
+            }
+          : {}),
       },
     )
       .then(() => {
@@ -47,7 +76,7 @@ export function PlotlyChart({ figure, className, testId, onRelayout }: Props) {
       .catch(() => {
         setError('This plot could not be drawn (WebGL unavailable?)');
       });
-  }, [figure]);
+  }, [figure, labelled]);
 
   useEffect(() => {
     const el = ref.current;

@@ -382,6 +382,46 @@ describe('colorMap', () => {
   });
 });
 
+describe('highlighted file emphasis', () => {
+  const three = (): PlotSeries[] => ['a', 'b', 'c'].map((id) => ({ ...series('a')[0], id, label: id }));
+  type Emph = Partial<PlotData> & { legendrank?: number };
+  const byName = (f: { data: unknown[] }, name: string) => (f.data as Emph[]).find((t) => t.name === name)!;
+
+  for (const mode of ['polar', 'rect'] as const) {
+    it(`dims the other files and draws the highlighted one last at width 2.5 (${mode})`, () => {
+      const f = buildCutFigure(opts({ mode, series: three(), markerTarget: 'b' }));
+      const t = traces(f);
+      expect(t.map((x) => x.name)).toEqual(['a', 'c', 'b']);
+      expect(byName(f, 'b').opacity).toBeUndefined();
+      expect(byName(f, 'b').line?.width).toBe(2.5);
+      for (const n of ['a', 'c']) {
+        expect(byName(f, n).opacity).toBeCloseTo(0.35);
+        expect(byName(f, n).line?.width).toBe(1.5);
+      }
+    });
+
+    it(`leaves every trace at full opacity and in order when nothing is highlighted (${mode})`, () => {
+      const f = buildCutFigure(opts({ mode, series: three(), markerTarget: null }));
+      expect(traces(f).map((x) => x.name)).toEqual(['a', 'b', 'c']);
+      expect(traces(f).every((x) => x.opacity === undefined && x.line?.width === 1.5)).toBe(true);
+    });
+  }
+
+  it('keeps the legend order of the series when the highlight moves a trace to the top', () => {
+    const f = buildCutFigure(opts({ series: three(), markerTarget: 'a' }));
+    expect(['a', 'b', 'c'].map((n) => byName(f, n).legendrank)).toEqual([0, 1, 2]);
+  });
+
+  it('does not dim anything when the highlighted id matches no series, and keeps the file’s own original trace bright', () => {
+    const f = buildCutFigure(opts({ series: three(), markerTarget: 'zzz' }));
+    expect(traces(f).every((x) => x.opacity === undefined)).toBe(true);
+    const withOriginal = [...three(), { ...three()[0], id: 'a#original', label: 'a (original)', dash: true }];
+    const g = buildCutFigure(opts({ series: withOriginal, markerTarget: 'a' }));
+    expect(byName(g, 'a (original)').opacity).toBeUndefined();
+    expect(byName(g, 'b').opacity).toBeCloseTo(0.35);
+  });
+});
+
 describe('cut legend contents', () => {
   const many = (n: number): PlotSeries[] =>
     Array.from({ length: n }, (_, i) => ({ ...series('a')[0], id: `f${i}`, label: `${1800 + i} MHz · _${1800 + i}_X_CO_P45_08T_VeryLongAntennaModelName_Variant${i}.MSI` }));

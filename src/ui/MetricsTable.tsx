@@ -4,7 +4,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
   ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, formatCell, nextSort, revealScrollTop, simulationLabel,
-  sortRows, toCsv, visibleColumns, type SortKey, type SortState,
+  shouldReveal, sortIfShown, sortRows, toCsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
 import { downloadText } from './download';
@@ -38,8 +38,14 @@ export const MetricsTable = memo(function MetricsTable({
   const setVisible = useStore((s) => s.setVisible);
 
   // Sorting is a view of this table only (not saved in projects); the CSV export follows it.
-  const [sort, setSort] = useState<SortState | null>(null);
+  const [chosenSort, setSort] = useState<SortState | null>(null);
+  // Hiding the sorted column clears the sort (rows and CSV would stay reordered with no indicator).
+  const sort = sortIfShown(chosenSort, columns);
+  useEffect(() => {
+    if (chosenSort && !sort) setSort(null);
+  }, [chosenSort, sort]);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const revealed = useRef<{ id: string | null; sort: SortState | null } | null>(null);
 
   const rows = useMemo(
     () =>
@@ -51,9 +57,13 @@ export const MetricsTable = memo(function MetricsTable({
   );
 
   // A highlight set from the panel or a plot brings its row into view inside the table (not the page).
+  // Only when the highlighted file or the sort changes: rebuilt rows (slider ticks) must not move the scroll.
   useEffect(() => {
     const wrap = wrapRef.current;
-    const row = highlighted === null ? null : wrap?.querySelector<HTMLElement>('tr.hl');
+    const cur = { id: highlighted, sort };
+    const reveal = shouldReveal(revealed.current, cur);
+    revealed.current = highlighted === null ? null : cur;
+    const row = reveal ? wrap?.querySelector<HTMLElement>('tr.hl') : null;
     if (!wrap || !row) return;
     const headerHeight = wrap.querySelector('thead')?.getBoundingClientRect().height ?? 0;
     const top = revealScrollTop(
@@ -61,7 +71,13 @@ export const MetricsTable = memo(function MetricsTable({
       { scrollTop: wrap.scrollTop, clientHeight: wrap.clientHeight, headerHeight },
     );
     if (top !== wrap.scrollTop) wrap.scrollTop = top;
-  }, [highlighted, rows]);
+  }, [highlighted, rows, sort]);
+
+  const sortLabel = (key: SortKey): string => {
+    const fixed: Partial<Record<SortKey, string>> = { file: 'File', group: 'Group', freq: 'MHz', gain: `Gain (${gainUnit})` };
+    const col = columns.find((c) => c.key === key);
+    return fixed[key] ?? (col ? columnLabel(col, fbWindowDeg, uslsRangeDeg) : key);
+  };
 
   const header = (key: SortKey, content: string, title?: string, className?: string) => (
     <th key={key} title={title} className={className} aria-sort={ariaSort(sort, key)}>
@@ -89,6 +105,14 @@ export const MetricsTable = memo(function MetricsTable({
         >
           Export CSV
         </button>
+        {sort && (
+          <span className="count sort-hint" data-testid="sort-hint">
+            Sorted by {sortLabel(sort.key)} {sort.dir === 'asc' ? '↑' : '↓'} (CSV follows)
+            <button type="button" onClick={() => setSort(null)}>
+              Clear sort
+            </button>
+          </span>
+        )}
         <span className="count">Columns</span>
         {COLUMN_GROUPS.map(({ key, label }) => (
           <label key={key}>
@@ -136,8 +160,10 @@ export const MetricsTable = memo(function MetricsTable({
                   setHighlighted(r.id);
                 }}
               >
-                <td title={r.file.length > FILE_NAME_MAX ? `${r.file}\n${r.id}` : r.id}>
-                  {middleEllipsis(r.file, FILE_NAME_MAX)}
+                <td>
+                  <span className="file-cell" title={r.file.length > FILE_NAME_MAX ? `${r.file}\n${r.id}` : r.id}>
+                    {middleEllipsis(r.file, FILE_NAME_MAX)}
+                  </span>
                 </td>
                 <td>{r.group}</td>
                 <td>{r.freq}</td>

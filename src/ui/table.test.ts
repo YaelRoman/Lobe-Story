@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
   simulationLabel, toCsv, offsetLabel, csvCell, csvText,
-  nextSort, revealScrollTop, sortRows, sortValue, ariaSort, type MetricsRow, type SortState,
+  nextSort, revealScrollTop, sortIfShown, shouldReveal, sortRows, sortValue, ariaSort, type MetricsRow, type SortState,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
@@ -511,5 +511,43 @@ describe('revealScrollTop', () => {
   });
   it('scrolls down so the row ends at the bottom edge', () => {
     expect(revealScrollTop({ top: 390, height: 20 }, view)).toBe(110);
+  });
+});
+
+describe('sortIfShown', () => {
+  const cols = visibleColumns({ ...DEFAULT_TABLE_GROUPS });
+  const hidden = METRIC_COLUMNS.find((c) => !cols.some((v) => v.key === c.key))!;
+  it('keeps a sort on a fixed column or a displayed metric column', () => {
+    for (const key of ['file', 'group', 'freq', 'gain'] as const) {
+      const s: SortState = { key, dir: 'asc' };
+      expect(sortIfShown(s, [])).toBe(s);
+    }
+    const s: SortState = { key: cols[0].key, dir: 'desc' };
+    expect(sortIfShown(s, cols)).toBe(s);
+  });
+  it('clears a sort whose column is no longer displayed', () => {
+    expect(hidden).toBeDefined();
+    expect(sortIfShown({ key: hidden.key, dir: 'asc' }, cols)).toBeNull();
+    expect(sortIfShown(null, cols)).toBeNull();
+  });
+});
+
+describe('shouldReveal', () => {
+  const asc: SortState = { key: 'freq', dir: 'asc' };
+  it('reveals when the highlighted id or the sort changes', () => {
+    expect(shouldReveal({ id: 'a', sort: null }, { id: 'b', sort: null })).toBe(true);
+    expect(shouldReveal({ id: 'a', sort: null }, { id: 'a', sort: asc })).toBe(true);
+    expect(shouldReveal({ id: 'a', sort: asc }, { id: 'a', sort: { key: 'freq', dir: 'desc' } })).toBe(true);
+    expect(shouldReveal({ id: 'a', sort: asc }, { id: 'a', sort: { key: 'gain', dir: 'asc' } })).toBe(true);
+  });
+  it('does not reveal when only the rows changed (same id, equal sort)', () => {
+    expect(shouldReveal({ id: 'a', sort: asc }, { id: 'a', sort: { ...asc } })).toBe(false);
+    expect(shouldReveal({ id: 'a', sort: null }, { id: 'a', sort: null })).toBe(false);
+  });
+  it('reveals on the first run', () => {
+    expect(shouldReveal(null, { id: 'a', sort: null })).toBe(true);
+  });
+  it('never reveals without a highlight', () => {
+    expect(shouldReveal({ id: 'a', sort: null }, { id: null, sort: null })).toBe(false);
   });
 });

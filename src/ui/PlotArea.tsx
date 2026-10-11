@@ -42,21 +42,24 @@ function CutPlot({ id, figure, readout, target, traces }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
-      <PlotlyChart className="plot" figure={figure} testId={`plot-${id}`} />
-      {(readout.length > 0 || noLegend) && (
-        <div className="readout" data-testid={`readout-${id}`}>
-          {readout.length > 0 && (
-            <p>
-              <strong>{target}:</strong> {readout.join(' · ')}
-            </p>
-          )}
-          {noLegend && (
-            <p className="count">
-              {traces} traces: colours as in the file panel (dashed = original); hover a trace for its name.
-            </p>
-          )}
-        </div>
-      )}
+      <PlotlyChart
+        className="plot"
+        figure={figure}
+        testId={`plot-${id}`}
+        labelledExport={{ caption: target ? { file: target, items: readout } : undefined }}
+      />
+      <div className="readout" data-testid={`readout-${id}`}>
+        {readout.length > 0 && (
+          <p>
+            <strong>{target}:</strong> {readout.join(' · ')}
+          </p>
+        )}
+        {noLegend && (
+          <p className="count">
+            {traces} traces: colours as in the file panel (dashed = original); hover a trace for its name.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

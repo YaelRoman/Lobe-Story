@@ -294,19 +294,29 @@ function radialAxisAngle(o: CutFigureOptions): number {
 }
 
 // Plotly has `meta` (referenced as %{meta} in hover labels); @types/plotly.js does not declare it.
-type FileTrace = Partial<PlotData> & { meta?: string };
+type FileTrace = Partial<PlotData> & { meta?: string; legendrank?: number };
+
+/** Opacity of the other files' traces while one file is highlighted. */
+export const DIMMED_OPACITY = 0.35;
 
 export function buildCutFigure(o: CutFigureOptions): Figure {
   const data: FileTrace[] = [];
   let largest = 0;
-  for (const s of o.series) {
+  // With a highlighted file, the other files are dimmed and the highlighted trace is drawn last
+  // (on top); its own dashed original stays bright so the comparison is readable.
+  const emphasised = o.series.some((s) => s.id === o.markerTarget) ? o.markerTarget : null;
+  const order = o.series.map((s, i) => ({ s, i }));
+  if (emphasised !== null) order.sort((p, q) => Number(p.s.id === emphasised) - Number(q.s.id === emphasised) || p.i - q.i);
+  for (const { s, i } of order) {
     const { x, y } = sortedCut(s.cut, s.rotationDeg ?? o.rotationDeg ?? 0);
     const r = y.map((v) => level(v, o.floorDb));
     for (const v of r) if (v > largest) largest = v;
     const legendName = middleEllipsis(s.label, LEGEND_NAME_MAX);
+    const dimmed = emphasised !== null && s.id !== emphasised && s.id !== `${emphasised}#original`;
+    const extra = { legendrank: i, ...(dimmed ? { opacity: DIMMED_OPACITY } : {}) };
     const line = {
       color: s.color,
-      width: s.id === o.markerTarget ? 2.5 : 1.5,
+      width: s.id === emphasised ? 2.5 : 1.5,
       ...(s.dash ? { dash: 'dash' as const } : {}),
     };
     if (o.mode === 'polar') {
@@ -318,10 +328,11 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
         theta: [...x, x[0]],
         r: [...r, r[0]],
         line,
+        ...extra,
         hovertemplate: '%{theta:.0f}°  %{r:.2f} dB<extra>%{meta}</extra>',
       });
     } else {
-      data.push({ type: 'scatter', mode: 'lines', name: legendName, meta: s.label, x, y: r, line, hovertemplate: '%{x:.0f}°  %{y:.2f} dB<extra>%{meta}</extra>' });
+      data.push({ type: 'scatter', mode: 'lines', name: legendName, meta: s.label, x, y: r, line, ...extra, hovertemplate: '%{x:.0f}°  %{y:.2f} dB<extra>%{meta}</extra>' });
     }
   }
 

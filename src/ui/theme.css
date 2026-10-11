@@ -52,7 +52,7 @@ main { flex: 1; min-width: 0; overflow: auto; padding: 12px; display: flex; flex
 .controls label, .sim-bar label { display: inline-flex; gap: 4px; align-items: center; }
 .plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; }
 .plot-col { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.readout { font-size: 12px; }
+.readout { font-size: 12px; min-height: 4.2em; }
 .readout p { margin: 0; }
 .plot { height: 460px; border: 1px solid var(--border); border-radius: 8px; }
 .plot-error { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); max-width: 80%; margin: 0; text-align: center; color: var(--danger); font-size: 13px; }
@@ -134,10 +134,12 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 .metrics th:nth-child(n + 3) .sort-btn { justify-content: flex-end; }
 .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .sort-arrow { display: inline-block; width: 1em; font-size: 10px; text-align: left; }
+.file-cell { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sort-hint { display: inline-flex; gap: 6px; align-items: center; }
 .metrics td.has-reason { text-decoration: underline dotted; text-underline-offset: 3px; }
 @media (max-width: 760px) {
   .metrics-wrap { max-height: 60vh; }
-  .metrics td:first-child { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+  .metrics .file-cell { max-width: 110px; }
 }
 .errors-list { max-height: 200px; overflow: auto; }
 .errors:focus { outline: 2px solid var(--danger); outline-offset: 1px; }

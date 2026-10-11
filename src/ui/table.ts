@@ -273,6 +273,28 @@ export function revealScrollTop(
   return view.scrollTop;
 }
 
+const FIXED_SORT_KEYS: readonly SortKey[] = ['file', 'group', 'freq', 'gain'];
+
+/** The sort, or null when it orders by a metric column that is not displayed (a sort nobody can see or clear). */
+export function sortIfShown(sort: SortState | null, columns: readonly { key: MetricColumn }[]): SortState | null {
+  if (!sort) return null;
+  if (FIXED_SORT_KEYS.includes(sort.key) || columns.some((c) => c.key === sort.key)) return sort;
+  return null;
+}
+
+/**
+ * Whether the table should scroll the highlighted row into view: only when the highlighted id or
+ * the sort changed since the last time, never because the rows were rebuilt (slider ticks, gain unit).
+ */
+export function shouldReveal(
+  prev: { id: string | null; sort: SortState | null } | null,
+  cur: { id: string | null; sort: SortState | null },
+): boolean {
+  if (cur.id === null) return false;
+  if (!prev) return true;
+  return prev.id !== cur.id || prev.sort?.key !== cur.sort?.key || prev.sort?.dir !== cur.sort?.dir;
+}
+
 const fmt = (v: number | null) => (v === null ? '' : v.toFixed(2));
 /** One CSV field, quoted only where CSV syntax needs it. */
 export const csvCell = (raw: string) => (/[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw);
