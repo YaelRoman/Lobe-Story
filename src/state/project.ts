@@ -3,6 +3,7 @@ import type { Tags } from '../core/types';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import { clampSetting, FLOOR_LIMITS } from '../core/analysis/settingLimits';
 import { sanitizeSubBands } from '../core/analysis/subBands';
+import { METRIC_COLUMNS, type MetricColumn } from '../ui/table';
 import { clampSim, type OffsetState } from './simLimits';
 import { fingerprint, isFingerprint, type PendingFile } from './duplicates';
 import type { CustomGroup, LoadedFile, Selection, SimulationState, StoreData, ViewState } from './store';
@@ -21,6 +22,10 @@ export interface ProjectFileEntry {
   fp?: string;
 }
 
+/** View fields that are display chrome: remembered per browser (prefs.ts), never saved in a project and never unsaved work. */
+export type ChromeKey = 'theme' | 'collapsed' | 'freqMetric';
+export const CHROME_KEYS: readonly ChromeKey[] = ['theme', 'collapsed', 'freqMetric'];
+
 export interface ProjectState {
   tagOverrides: Record<string, Partial<Tags>>;
   visible: Record<string, boolean>;
@@ -31,7 +36,7 @@ export interface ProjectState {
   highlighted: string | null;
   selected: Selection;
   settings: AnalysisSettings;
-  view: Omit<ViewState, 'theme' | 'collapsed'>;
+  view: Omit<ViewState, ChromeKey>;
 }
 
 export interface ProjectFile {
@@ -74,8 +79,7 @@ export function sessionFiles(s: Pick<StoreData, 'files' | 'pendingFiles'>): Pend
  */
 export function sessionState(s: SessionSource): Omit<ProjectState, 'highlighted' | 'selected'> {
   const view: Partial<ViewState> = { ...s.view };
-  delete view.theme;
-  delete view.collapsed;
+  for (const k of CHROME_KEYS) delete view[k];
   return {
     tagOverrides: s.tagOverrides,
     visible: s.visible,
@@ -84,7 +88,7 @@ export function sessionState(s: SessionSource): Omit<ProjectState, 'highlighted'
     customGroups: s.customGroups,
     membership: s.membership,
     settings: s.settings,
-    view: view as Omit<ViewState, 'theme' | 'collapsed'>,
+    view: view as Omit<ViewState, ChromeKey>,
   };
 }
 
@@ -227,8 +231,12 @@ export function sanitizeSettings(raw: unknown): AnalysisSettings {
   return settings;
 }
 
+/** The metric of a stored object, or `fallback` when it is not a metric column. */
+export const sanitizeMetric = (v: unknown, fallback: MetricColumn): MetricColumn =>
+  METRIC_COLUMNS.some((c) => c.key === v) ? (v as MetricColumn) : fallback;
+
 /** The display part of the view (everything but the theme and the simulation) of a stored object; bad or missing values take `dv`'s. */
-export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewState): Omit<ViewState, 'theme' | 'simulation'> {
+export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewState): Omit<ViewState, 'theme' | 'simulation' | 'freqMetric'> {
   const rawMarkers: Record<string, unknown> = isObj(rawView.markers) ? rawView.markers : {};
   const rawGroups: Record<string, unknown> = isObj(rawView.tableGroups) ? rawView.tableGroups : {};
   const markers = { ...dv.markers };
@@ -267,7 +275,7 @@ export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewSt
 export function projectToState(
   project: ProjectFile,
   defaults: StoreData,
-  chrome: Pick<ViewState, 'theme' | 'collapsed'>,
+  chrome: Pick<ViewState, ChromeKey>,
   loadText: (path: string, text: string) => LoadedFile,
 ): Partial<StoreData> {
   const files: LoadedFile[] = [];

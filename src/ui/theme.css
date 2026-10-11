@@ -221,3 +221,8 @@ input[aria-invalid='true'] { border-color: var(--danger); }
   .fold-group { min-width: 32px; min-height: 32px; }
   .bulk button, .panel-tools p button { min-height: 32px; }
 }
+
+/* Frequency chart: heading and the metric selector on one line (wrapping on a phone). */
+.freq-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; justify-content: space-between; }
+.freq-metric { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.freq-metric select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; max-width: 100%; }

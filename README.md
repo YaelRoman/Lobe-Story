@@ -12,7 +12,8 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   (below) and differences from declared header values.
 - Sector metrics: SPR/AIR over the sector edges, roll-off, port-to-port tracking over the sector
   (gain-aware), and the D/U aperture for 16/64/256QAM, with a Sector marker on the horizontal cut.
-- −3 dB markers on the plots and an HPBW vs. frequency chart per group.
+- −3 dB markers on the plots and a frequency chart per group: HPBW by default, and a Metric menu
+  plots any table column against frequency (the choice is remembered in the browser).
 - 3D patterns reconstructed from the two cuts (summation or Gil et al. weighted): the side-by-side
   grid with linked cameras draws at most 6 files and the overlay in one scene at most 12. When more
   are ticked, a note under the plot says which are drawn (the highlighted file first, then the

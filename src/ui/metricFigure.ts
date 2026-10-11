@@ -1,0 +1,79 @@
+import type { Data, PlotData } from 'plotly.js';
+import type { ExportCaption } from './exportFigure';
+import { LEGEND_NAME_MAX, middleEllipsis } from './legend';
+import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
+import { minSpanRange } from './hpbwFigure';
+
+/** One file's value of the plotted metric at its frequency; `null` leaves a gap in the line. */
+export interface MetricPoint {
+  freq: number;
+  value: number | null;
+  /** The value the file's header declares for this metric, drawn as a hollow marker. */
+  declared?: number;
+}
+
+export interface MetricSeries {
+  label: string;
+  color: string;
+  points: MetricPoint[];
+  /** The original (untilted) line under a tilt simulation: faint, no legend entry. */
+  ghost?: boolean;
+  symbol?: string;
+}
+
+/** The narrowest y range shown per unit, so a single frequency does not auto-scale to a few hundredths. */
+const MIN_SPAN_BY_UNIT: Record<string, number> = { '°': 5, dB: 3, '%': 5 };
+const DEFAULT_MIN_SPAN = 1;
+
+export const minSpanForUnit = (unit: string): number => MIN_SPAN_BY_UNIT[unit] ?? DEFAULT_MIN_SPAN;
+
+/** "F/B 180° (dB)": the y-axis title for a metric. */
+export const metricAxisTitle = (label: string, unit: string): string => `${label} (${unit})`;
+
+/** What the exported chart says about itself. */
+export function metricCaption(label: string, unit: string, simulated: boolean): ExportCaption {
+  return {
+    title: `${metricAxisTitle(label, unit)} against frequency, one line per group`,
+    file: `${label} in ${unit}: one line per group · hollow markers: values declared in the file`,
+    items: simulated ? ['Faint lines: original patterns before the simulated tilt'] : [],
+  };
+}
+
+/** One y axis: `label (unit)` against frequency, a line per group, gaps where a file has no value. */
+export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, label: string, unit: string): Figure {
+  // Plotly has `meta` (the export reads it as the full legend name); @types/plotly.js does not declare it.
+  const data: (Partial<PlotData> & { meta?: string })[] = [];
+  for (const s of series) {
+    const x = s.points.map((p) => p.freq);
+    const y = s.points.map((p) => p.value);
+    if (s.ghost) {
+      data.push({ type: 'scatter', mode: 'lines', name: `${s.label} (original)`, showlegend: false, opacity: 0.35, x, y, line: { color: s.color } });
+      continue;
+    }
+    data.push({
+      type: 'scatter', mode: 'lines+markers', name: middleEllipsis(s.label, LEGEND_NAME_MAX), legendgroup: s.label, meta: s.label,
+      x, y, line: { color: s.color }, marker: { symbol: s.symbol ?? 'circle' } as Partial<PlotData['marker']>,
+    });
+    const declared = s.points.filter((p) => p.declared !== undefined);
+    if (declared.length) {
+      data.push({
+        type: 'scatter', mode: 'markers', name: `${s.label} declared`, legendgroup: s.label, showlegend: false,
+        x: declared.map((p) => p.freq), y: declared.map((p) => p.declared as number),
+        marker: { color: s.color, symbol: 'circle-open' as const, size: 9 },
+      });
+    }
+  }
+  const range = minSpanRange(series.flatMap((s) => s.points.flatMap((p) => [p.value, p.declared])), minSpanForUnit(unit));
+  return {
+    data: data as Data[],
+    layout: {
+      paper_bgcolor: theme.bg,
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: theme.fg },
+      margin: { l: 60, r: 20, t: 20, b: 50 },
+      legend: LEGEND,
+      xaxis: { automargin: true, title: { text: 'Frequency (MHz)', standoff: 8 }, gridcolor: theme.grid },
+      yaxis: { title: { text: metricAxisTitle(label, unit) }, gridcolor: theme.grid, ...(range ? { range } : {}) },
+    },
+  };
+}

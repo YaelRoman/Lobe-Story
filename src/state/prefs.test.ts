@@ -53,6 +53,7 @@ const changed = () => {
       tableGroups: { ...d.view.tableGroups, declared: true },
       method3d: 'weighted' as const,
       layout3d: 'overlay' as const,
+      freqMetric: 'fb180' as const,
       subBands: [{ name: 'Mid', minMHz: 1700, maxMHz: 2000 }],
     },
   };
@@ -64,7 +65,7 @@ describe('applyPrefs', () => {
     const out = applyPrefs(serializePrefs(c), defaults())!;
     expect(out.settings).toEqual(c.settings);
     expect(out.view).toMatchObject({
-      theme: c.view.theme, gainUnit: 'dBi', mode: 'rect', cut: 'H', floorDb: 55, method3d: 'weighted', layout3d: 'overlay',
+      theme: c.view.theme, gainUnit: 'dBi', mode: 'rect', cut: 'H', floorDb: 55, freqMetric: 'fb180', method3d: 'weighted', layout3d: 'overlay',
       markers: c.view.markers, tableGroups: c.view.tableGroups, subBands: c.view.subBands,
     });
   });
@@ -82,7 +83,7 @@ describe('applyPrefs', () => {
     expect(JSON.parse(text).view).not.toHaveProperty('simulation');
     expect(Object.keys(JSON.parse(text)).sort()).toEqual(['settings', 'version', 'view']);
     expect(Object.keys(prefsOf(s).view).sort()).toEqual(
-      ['collapsed', 'cut', 'floorDb', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'subBands', 'tableGroups', 'theme'],
+      ['collapsed', 'cut', 'floorDb', 'freqMetric', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'subBands', 'tableGroups', 'theme'],
     );
   });
 
@@ -105,7 +106,7 @@ describe('applyPrefs', () => {
         settings: { levelDb: 'ten', fbWindowDeg: 9999, uslsRangeDeg: 30, siteSectors: 2.5, lobeLimitFactor: null },
         view: {
           theme: 'purple', gainUnit: 7, mode: 'rect', cut: 'X', floorDb: 1e9, markers: { hpbw: 'yes', fb: true }, tableGroups: 5,
-          method3d: 'magic', layout3d: 'overlay', subBands: 'nope',
+          method3d: 'magic', layout3d: 'overlay', subBands: 'nope', freqMetric: 'nonsense',
         },
       }),
       d,
@@ -121,6 +122,7 @@ describe('applyPrefs', () => {
     expect(out.view.method3d).toBe(d.view.method3d);
     expect(out.view.layout3d).toBe('overlay');
     expect(out.view.subBands).toEqual([]);
+    expect(out.view.freqMetric).toBe('hHpbw');
   });
 
   it('restores the folded controls field by field', () => {

@@ -1019,11 +1019,22 @@ describe('changesSession', () => {
     expect(changesSession(s, { highlighted: 'x', selected: null, loadMessage: 'm', dialog: null, saved: null })).toBe(false);
     expect(changesSession(s, { view: { ...s.view, theme: s.view.theme === 'dark' ? 'light' : 'dark' } })).toBe(false);
     expect(changesSession(s, { view: { ...s.view, collapsed: { simBar: !s.view.collapsed.simBar, markers: s.view.collapsed.markers } } })).toBe(false);
+    expect(changesSession(s, { view: { ...s.view, freqMetric: 'fb180' } })).toBe(false);
     for (const k of ['files', 'pendingFiles', 'customGroups'] as const) expect(changesSession(s, { [k]: [] })).toBe(true);
     for (const k of ['tagOverrides', 'visible', 'copies', 'names', 'membership'] as const) expect(changesSession(s, { [k]: {} })).toBe(true);
     expect(changesSession(s, { settings: { ...s.settings } })).toBe(true);
     expect(changesSession(s, { view: { ...s.view, mode: 'rect' } })).toBe(true);
     expect(changesSession(s, { view: { ...s.view, simulation: { ...s.view.simulation } } })).toBe(true);
+  });
+});
+
+describe('the frequency-chart metric', () => {
+  it('is a display preference: not saved in a project, not unsaved work, kept across undo', () => {
+    useStore.getState().addFiles([input('a.MSI', msi(1800))]);
+    useStore.getState().markSaved();
+    useStore.getState().updateView({ freqMetric: 'fb180' });
+    expect(isDirty(useStore.getState())).toBe(false);
+    expect(JSON.parse(serializeProject(useStore.getState(), false)).state.view).not.toHaveProperty('freqMetric');
   });
 });
 

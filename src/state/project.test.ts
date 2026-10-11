@@ -54,7 +54,7 @@ export const snapshot = (s: StoreData) => {
 const restore = (json: string, theme: 'light' | 'dark' = 'light', collapsed = initialState().view.collapsed): StoreData => {
   const parsed = parseProject(json);
   if (!parsed.ok) throw new Error(parsed.error);
-  return { ...initialState(), ...projectToState(parsed.project, initialState(), { theme, collapsed }, loadText) };
+  return { ...initialState(), ...projectToState(parsed.project, initialState(), { theme, collapsed, freqMetric: 'hHpbw' }, loadText) };
 };
 
 describe('source text', () => {
@@ -523,7 +523,7 @@ describe('layout-only projects with numbered same-name files (B1)', () => {
     const direct = projectToState(
       { format: PROJECT_FORMAT, version: 1, savedAt: '', files: [{ path: 'q.msi', fp: 7 as never }], state: {} },
       initialState(),
-      { theme: 'light', collapsed: initialState().view.collapsed },
+      { theme: 'light', collapsed: initialState().view.collapsed, freqMetric: 'hHpbw' },
       loadText,
     );
     expect(direct.pendingFiles).toEqual([{ path: 'q.msi' }]);
@@ -542,7 +542,7 @@ describe('group names on load', () => {
     const out = projectToState(
       { format: PROJECT_FORMAT, version: 1, savedAt: '', files: [], state },
       initialState(),
-      { theme: 'light', collapsed: initialState().view.collapsed },
+      { theme: 'light', collapsed: initialState().view.collapsed, freqMetric: 'hHpbw' },
       loadText,
     );
     expect(out.customGroups!.map((g) => g.name)).toEqual(['North', 'north (2)', 'North (3)']);

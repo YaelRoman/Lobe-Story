@@ -154,7 +154,7 @@ export interface MetricsRow {
 
 export { convertGain };
 
-function cellsOf(m: PatternMetrics): Record<MetricColumn, MetricResult> {
+export function cellsOf(m: PatternMetrics): Record<MetricColumn, MetricResult> {
   return {
     hHpbw: m.h.hpbw,
     vHpbw: m.v.hpbw,

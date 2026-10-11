@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { GLOSSARY, METRICS_DOC_URL, PANEL_HELP, README_URL, REPO_URL } from './glossary';
+import { FEATURE_HELP, GLOSSARY, METRICS_DOC_URL, PANEL_HELP, README_URL, REPO_URL } from './glossary';
 import { canOfferExample, loadExample } from './loadExample';
 import { initialState, useStore } from '../state/store';
 import { EXAMPLE_NOTE } from '../core/exampleSet';
@@ -50,4 +50,8 @@ describe('canOfferExample', () => {
     useStore.getState().dismissPending();
     expect(canOfferExample(useStore.getState())).toBe(true);
   });
+});
+
+it('the help has a line for each feature', () => {
+  expect(FEATURE_HELP.some((l) => l.includes('Metric menu'))).toBe(true);
 });

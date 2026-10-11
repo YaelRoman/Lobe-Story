@@ -10,6 +10,7 @@ import { projectToState, type ProjectFile } from './project';
 import { isCleanLoad, loadSummary, planLoad, type PendingFile } from './duplicates';
 import { changesSession, markOf, takeSnapshot, type SavedMark, type UndoEntry } from './undo';
 import { uniqueGroupName } from './groupNames';
+import type { MetricColumn } from '../ui/table';
 import { clampSim, SIM_LIMITS, type OffsetState, type SimulationKey } from './simLimits';
 
 export { clampSim, SIM_LIMITS };
@@ -76,6 +77,8 @@ export interface ViewState {
   layout3d: Layout3d;
   /** Secondary controls folded to one line. */
   collapsed: CollapsedBars;
+  /** The metric the frequency chart plots (a display preference, like the theme: not saved in projects). */
+  freqMetric: MetricColumn;
   simulation: SimulationState;
 }
 
@@ -221,6 +224,7 @@ export function initialState(): StoreData {
       method3d: 'summation',
       layout3d: 'grid',
       collapsed: { simBar: narrowScreen(), markers: narrowScreen() },
+      freqMetric: 'hHpbw',
       simulation: {
         electricalDeg: 0,
         mechanicalDeg: 0,
@@ -433,7 +437,7 @@ export const useStore = create<State>()((rawSet, get) => {
       sessionSwaps++;
       const { snapshot } = s.undo;
       // The theme and the fold state are display preferences, not part of the session being restored.
-      return { ...snapshot, view: { ...snapshot.view, theme: s.view.theme, collapsed: s.view.collapsed }, undo: null, loadMessage: null, loadFailed: 0 };
+      return { ...snapshot, view: { ...snapshot.view, theme: s.view.theme, collapsed: s.view.collapsed, freqMetric: s.view.freqMetric }, undo: null, loadMessage: null, loadFailed: 0 };
     }),
 
   dismissUndo: () => set({ undo: null }),
@@ -443,7 +447,7 @@ export const useStore = create<State>()((rawSet, get) => {
   loadProject: (project) =>
     set((s) => {
       sessionSwaps++;
-      const next = projectToState(project, initialState(), { theme: s.view.theme, collapsed: s.view.collapsed }, loadText);
+      const next = projectToState(project, initialState(), { theme: s.view.theme, collapsed: s.view.collapsed, freqMetric: s.view.freqMetric }, loadText);
       const hadSession = s.files.length > 0 || s.pendingFiles.length > 0;
       return {
         ...next,

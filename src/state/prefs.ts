@@ -1,6 +1,6 @@
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import { clampFloor } from '../core/analysis/settingLimits';
-import { oneOf, sanitizeDisplayView, sanitizeSettings } from './project';
+import { oneOf, sanitizeDisplayView, sanitizeMetric, sanitizeSettings } from './project';
 import { initialState, sessionSwapCount, useStore, type StoreData, type ViewState } from './store';
 
 /**
@@ -12,7 +12,7 @@ export const PREFS_KEY = 'lobe-story:prefs:v1';
 export const PREFS_VERSION = 1;
 
 /** The view fields that are preferences (not the dimension, which starts as 2D, nor the simulation). */
-const VIEW_KEYS = ['theme', 'gainUnit', 'cut', 'mode', 'floorDb', 'markers', 'tableGroups', 'subBands', 'method3d', 'layout3d', 'collapsed'] as const;
+const VIEW_KEYS = ['theme', 'gainUnit', 'cut', 'mode', 'floorDb', 'markers', 'tableGroups', 'subBands', 'method3d', 'layout3d', 'collapsed', 'freqMetric'] as const;
 type PrefViewKey = (typeof VIEW_KEYS)[number];
 
 export interface Prefs {
@@ -81,6 +81,7 @@ export function applyPrefs(text: string | null, base: Pick<StoreData, 'settings'
       layout3d: display.layout3d,
       collapsed: display.collapsed,
       theme: oneOf(rawView.theme, ['light', 'dark'] as const, base.view.theme),
+      freqMetric: sanitizeMetric(rawView.freqMetric, base.view.freqMetric),
     },
   };
 }

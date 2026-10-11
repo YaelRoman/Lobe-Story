@@ -1,5 +1,5 @@
 import type { StoreData } from './store';
-import { sessionFiles, sessionState } from './project';
+import { CHROME_KEYS, sessionFiles, sessionState } from './project';
 
 /** The parts of the store a destructive action can change; an undo puts exactly these back. */
 const SNAPSHOT_KEYS = [
@@ -63,8 +63,7 @@ export function changesSession(prev: StoreData, patch: Partial<StoreData>): bool
   const view = patch.view;
   if (view === undefined || view === prev.view) return false;
   const keys = new Set([...Object.keys(view), ...Object.keys(prev.view)]) as Set<keyof StoreData['view']>;
-  keys.delete('theme');
-  keys.delete('collapsed');
+  for (const k of CHROME_KEYS) keys.delete(k);
   return [...keys].some((k) => !Object.is(view[k], prev.view[k]));
 }
 
