@@ -35,9 +35,11 @@ describe('BAND_PARAMS', () => {
   it('has 20 unique keys with the documented flags', () => {
     expect(new Set(BAND_PARAMS.map((p) => p.key)).size).toBe(20);
     expect(BAND_PARAMS.filter((p) => p.type === 'double' || p.type === 'mean').every((p) => p.mean)).toBe(true);
+    // Null fill is a pure 84th percentile (D33): the only single-sided dB row without the excursion rule.
     expect(BAND_PARAMS.filter((p) => p.excursion).map((p) => p.key)).toEqual(
-      BAND_PARAMS.filter((p) => (p.type === 'max' || p.type === 'min') && p.unit === 'dB').map((p) => p.key),
+      BAND_PARAMS.filter((p) => (p.type === 'max' || p.type === 'min') && p.unit === 'dB' && p.key !== 'nullFill').map((p) => p.key),
     );
+    expect(param('tiltDeviation').description).toContain('beam peak');
     expect(BAND_PARAMS.filter((p) => p.substitute).map((p) => p.key)).toEqual(['usls', 'uslsHorizon', 'uslsMax']);
   });
 });
@@ -258,14 +260,41 @@ describe('other rules', () => {
     const c = cellWith(m, 'fbWindow');
     expect((c.stat as { value: number; adjusted: boolean }).value).toBeCloseTo(13, 6);
     expect((c.stat as { adjusted: boolean }).adjusted).toBe(true);
-    expect(c.text).toBe('> 13.0 dB');
+    expect(c.adjusted).toBe(true);
+    expect(c.text).toBe('> 13.0 dB*');
     expect(c.title).toMatch(/3 dB excursion rule/);
+    expect(c.title.split('\n').filter((l) => l.startsWith('* '))).toEqual([
+      '* Lowered to the lowest value + 3 dB (3 dB excursion rule, BASTA 12.2)',
+    ]);
+    expect(cellWith(metrics, 'fbWindow').adjusted).toBe(false);
+    expect(cellWith(metrics, 'fbWindow').text).not.toContain('*');
+    const hi = withMetrics((mm) => {
+      for (let k = 0; k < 12; k++) mm.get(`f${k}`)!.firstUsls = { value: k === 0 ? 40 : 20 };
+    });
+    expect(cellWith(hi, 'firstUsls').adjusted).toBe(false);
     const t = withMetrics((mm) => {
-      for (let k = 0; k < 12; k++) mm.get(`f${k}`)!.tiltError = { value: k === 0 ? 9 : 0 };
+      for (let k = 0; k < 12; k++) mm.get(`f${k}`)!.vPeak = { value: k === 0 ? 11 : mm.get(`f${k}`)!.nominalTiltDeg! };
     });
     const td = cellWith(t, 'tiltDeviation');
     expect((td.stat as { value: number; adjusted: boolean }).value).toBeCloseTo(0, 9);
     expect((td.stat as { adjusted: boolean }).adjusted).toBe(false);
+    expect(td.adjusted).toBe(false);
+  });
+
+  it('keeps null fill a pure 84th percentile and marks only excursion-adjusted cells', () => {
+    const m = withMetrics((mm) => {
+      for (let k = 0; k < 12; k++) mm.get(`f${k}`)!.nullFill = { value: k === 0 ? 40 : 20 };
+    });
+    const c = cellWith(m, 'nullFill');
+    expect((c.stat as { value: number }).value).toBeCloseTo(20, 9);
+    expect(c.adjusted).toBe(false);
+    expect(c.text).toBe('< 20.0 dB');
+    expect(c.title).not.toContain('excursion');
+    // The excursion rule would have raised it to 40 - 3 = 37 dB.
+    const raised = withMetrics((mm) => {
+      for (let k = 0; k < 12; k++) mm.get(`f${k}`)!.firstUsls = { value: k === 0 ? 5 : 20 };
+    });
+    expect(cellWith(raised, 'firstUsls').text).toBe('> 8.0 dB*');
   });
 
   it('guards tracking', () => {
@@ -283,12 +312,85 @@ describe('other rules', () => {
     expect(e.missing).toBe(12);
   });
 
-  it('uses the absolute tilt error', () => {
+  it('samples the absolute distance of the beam peak from the nominal tilt', () => {
     const m = withMetrics((mm) => {
-      mm.get('f0')!.tiltError = { value: -2 };
+      mm.get('f0')!.vPeak = { value: 0.5 }; // nominal 2 -> 1.5
+      mm.get('f1')!.vPeak = { value: 5 }; // nominal 2 -> 3, above the nominal
+      mm.get('f2')!.tiltError = { value: 9 }; // the half-power tilt error is not used any more
     });
     const s = collectSamples('tiltDeviation', items, m, 'dBi');
-    expect(s.values).toContain(2);
-    expect(s.values).not.toContain(-2);
+    expect(s.values).toHaveLength(12);
+    expect(s.values.slice(0, 3)).toEqual([1.5, 3, 0]);
+  });
+
+  it('measures against the simulated nominal tilt', () => {
+    // electrical + mechanical offset 1.5: nominal 3.5 (tilt 2), 7.5 (tilt 6); the peaks sit at 2, 6, and 7 (f10, f11).
+    const m = analyzeAll(items, DEFAULT_SETTINGS, { nominalOffsetDeg: 1.5 });
+    const s = collectSamples('tiltDeviation', items, m, 'dBi');
+    expect(s.values.filter((v) => Math.abs((v as number) - 1.5) < 1e-9)).toHaveLength(10);
+    expect(s.values.filter((v) => Math.abs((v as number) - 0.5) < 1e-9)).toHaveLength(2);
+  });
+
+  it('leaves files without a nominal tilt or beam peak out', () => {
+    const noTilt = items.map((i, k) => (k === 0 ? { ...i, tags: { ...i.tags, tiltDeg: undefined } } : i));
+    const m = analyzeAll(noTilt, DEFAULT_SETTINGS);
+    expect(collectSamples('tiltDeviation', noTilt, m, 'dBi')).toMatchObject({ missing: 1 });
+    const noPeak = withMetrics((mm) => {
+      mm.get('f3')!.vPeak = { value: null, reason: 'x' };
+    });
+    expect(collectSamples('tiltDeviation', items, noPeak, 'dBi')).toMatchObject({ missing: 1 });
+  });
+});
+
+describe('few samples keep the notes of a full cell (G3)', () => {
+  const low = [{ name: 'low', minMHz: 1800, maxMHz: 1850 }];
+  it('names files without a value and substituted values', () => {
+    const m = withMetrics((mm) => {
+      mm.get('f0')!.h = { ...mm.get('f0')!.h, hpbw: { value: null, reason: 'x' } };
+      for (const id of ['f1', 'f2']) mm.get(id)!.usls = NA as never;
+    });
+    const [c] = bandTable(items, m, low, ctx);
+    expect(c.cells.hHpbw.state).toBe('few');
+    expect(c.cells.hHpbw.n).toBe(7);
+    expect(c.cells.hHpbw.title).toContain('1 file without a value');
+    expect(c.cells.usls.state).toBe('few');
+    expect(c.cells.usls.substituted).toBe(2);
+    expect(c.cells.usls.title).toContain('2 of 8 values were "not available" and count as 22 dB (BASTA 12.5.3)');
+    expect(c.cells.usls.title).not.toContain('without a value');
+    expect(c.cells.firstUsls.title).not.toContain('count as 22 dB');
+  });
+});
+
+describe('tracking pairs (G4)', () => {
+  it('counts a pair only when both files are in the list and name each other', () => {
+    const gone = items.filter((i) => i.pattern.id !== 'f1');
+    const outside = cellWith(metrics, 'tracking', gone);
+    expect(outside.n).toBe(10);
+    expect(outside.missing).toBe(1); // f0: its partner f1 is not in this dataset
+    const crossed = withMetrics((mm) => {
+      mm.get('f0')!.trackingEdges = { partnerId: 'f3', values: [9, 9] };
+    });
+    const c = cellWith(crossed, 'tracking');
+    expect(c.n).toBe(10);
+    expect(c.missing).toBe(2); // f0 -> f3 is not mutual, so f1 (-> f0) is left over too
+    expect(c.values).not.toContain(9);
+  });
+
+  it('counts a duplicate file once and a copy as missing', () => {
+    const twice = cellWith(metrics, 'tracking', [...items, items[0]]);
+    expect(twice.n).toBe(12);
+    expect(twice.missing).toBe(0);
+    const copy: TaggedPattern = {
+      ...items[0],
+      pattern: { ...items[0].pattern, id: 'f0c' },
+      copyOf: 'f0',
+    };
+    const m = withMetrics((mm) => {
+      mm.set('f0c', { ...mm.get('f0')!, trackingEdges: { partnerId: 'f1', values: [9, 9] } });
+    });
+    const c = cellWith(m, 'tracking', [...items, copy]);
+    expect(c.n).toBe(12);
+    expect(c.missing).toBe(1);
+    expect(c.values).not.toContain(9);
   });
 });

@@ -30,7 +30,7 @@ export interface BandParam {
   unit: '°' | 'dB' | 'gain';
   type: ValidationType;
   mean?: MeanKind;
-  /** The 3 dB excursion rule applies. */
+  /** The 3 dB excursion rule applies (not to null fill: a pure 84th percentile). */
   excursion?: true;
   /** "Not available" values take part in the 22 dB rule. */
   substitute?: true;
@@ -47,13 +47,13 @@ export const BAND_PARAMS: BandParam[] = [
   { key: 'hHpbw', label: 'Azimuth beamwidth', unit: '°', type: 'double', mean: 'arithmetic', basta: '7.2.5.1', description: 'Azimuth beamwidth of the co-polar cut' },
   { key: 'vHpbw', label: 'Elevation beamwidth', unit: '°', type: 'double', mean: 'arithmetic', basta: '7.2.8.1', description: 'Elevation beamwidth of the co-polar cut' },
   { key: 'squint', label: 'Azimuth beam squint', unit: '°', type: 'double', mean: 'arithmetic', basta: '7.8.1.5', description: 'Beamwidth bisector relative to boresight, signed' },
-  { key: 'tiltDeviation', label: 'Downtilt deviation', unit: '°', type: 'max', basta: '7.2.8.2, 12.7', description: 'Absolute difference between the measured tilt (half-power beam axis) and the nominal tilt' },
+  { key: 'tiltDeviation', label: 'Downtilt deviation', unit: '°', type: 'max', basta: '7.2.8.2, 12.7', description: 'Absolute difference between the beam peak direction and the nominal tilt' },
   { key: 'fbWindow', label: 'F/B ±30°', unit: 'dB', type: 'min', excursion: true, basta: '7.2.9.1', description: 'Co-polar front-to-back ratio in the rear window' },
   { key: 'firstUsls', label: 'First USLS', unit: 'dB', type: 'min', excursion: true, basta: '7.8.4.2', description: 'First upper sidelobe suppression' },
   { key: 'usls', label: 'USLS peak to 20°', unit: 'dB', type: 'min', excursion: true, substitute: true, basta: '7.8.4.3', description: 'Upper sidelobe suppression, beam peak to R° above it' },
   { key: 'uslsHorizon', label: 'USLS horizon to 20°', unit: 'dB', type: 'min', excursion: true, substitute: true, basta: '7.8.4.5', description: 'Upper sidelobe suppression, horizon to R° above it' },
   { key: 'uslsMax', label: 'USLS max', unit: 'dB', type: 'min', excursion: true, substitute: true, basta: '7.8.4.4', description: 'Maximum upper sidelobe suppression, beam peak to zenith' },
-  { key: 'nullFill', label: 'Null fill', unit: 'dB', type: 'max', excursion: true, basta: '7.8.3', description: 'Depth of the first null below the main beam' },
+  { key: 'nullFill', label: 'Null fill', unit: 'dB', type: 'max', basta: '7.8.3', description: 'Depth of the first null below the main beam' },
   { key: 'firstLsls', label: 'First LSLS', unit: 'dB', type: 'min', excursion: true, basta: '7.2.11', description: 'First lower sidelobe suppression' },
   { key: 'hSls', label: 'H-SLS', unit: 'dB', type: 'min', excursion: true, basta: '7.8.4.1', description: 'Maximum horizontal sidelobe suppression inside the sector' },
   { key: 'tracking', label: 'P2P tracking (sector edges)', unit: 'dB', type: 'max', excursion: true, basta: '7.8.5, 12.4.5', description: 'Level difference between the +45 and −45 ports at the two sector edges, one pair of values per port pair' },
@@ -164,6 +164,7 @@ export function collectSamples(
   }
 
   const seenPairs = new Set<string>();
+  const itemIds = new Set(items.map((i) => i.pattern.id));
   for (const item of items) {
     const id = item.pattern.id;
     const m = metrics.get(id);
@@ -178,13 +179,21 @@ export function collectSamples(
       continue;
     }
     if (key === 'tiltDeviation') {
-      if (m.tiltError.value === null) missing++;
-      else values.push(Math.abs(m.tiltError.value));
+      // Beam peak (BASTA 7.2.8.2, 12.7) against the same nominal tilt the per-file tilt error uses.
+      if (m.vPeak.value === null || m.nominalTiltDeg === undefined) missing++;
+      else values.push(Math.abs(m.vPeak.value - m.nominalTiltDeg));
     } else if (key === 'rollOff') {
       if (m.rollOff.value === null) missing++;
       else values.push(...m.rollOffEdges);
     } else if (key === 'tracking') {
-      if (m.beamTracking.value === null || !m.trackingEdges) {
+      const partnerId = m.trackingEdges?.partnerId;
+      // Both files must be in this dataset and name each other; anything else has no pair to count.
+      const mutual =
+        partnerId !== undefined &&
+        partnerId !== id &&
+        itemIds.has(partnerId) &&
+        metrics.get(partnerId)?.trackingEdges?.partnerId === id;
+      if (m.beamTracking.value === null || !m.trackingEdges || !mutual) {
         missing++;
         continue;
       }
@@ -212,6 +221,8 @@ export interface BandCell {
   missing: number;
   /** Samples counted as 22 dB. */
   substituted: number;
+  /** The 3 dB excursion rule changed the value; the text carries a trailing `*`. */
+  adjusted: boolean;
   /** Null unless the state is 'ok' (always null for tiltRange). */
   stat: BandStat | null;
   /** The numbers behind the cell, after substitution; empty when the cell is empty or not applicable. */
@@ -223,6 +234,7 @@ export interface BandCell {
 }
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+const substitutedNote = (k: number, n: number): string => `${k} of ${n} values were "not available" and count as 22 dB (BASTA 12.5.3)`;
 const tiltText = (t: number): string => String(Math.round(t * 10) / 10);
 
 export function bandCell(
@@ -234,7 +246,7 @@ export function bandCell(
   const s = collectSamples(p.key, items, metrics, ctx.gainUnit);
   const unit = p.unit === 'gain' ? ctx.gainUnit : p.unit;
   const toleranceUnit = p.unit === 'gain' ? 'dB' : unit;
-  const base = { key: p.key, missing: s.missing, substituted: 0, stat: null, unit, tiltDeg: s.tiltDeg };
+  const base = { key: p.key, missing: s.missing, substituted: 0, adjusted: false, stat: null, unit, tiltDeg: s.tiltDeg };
 
   if (s.values.length === 0) {
     return {
@@ -282,7 +294,11 @@ export function bandCell(
       ...common,
       state: 'few',
       text: fix1(min) === fix1(max) ? withUnit(min, unit) : `${fix1(min)} … ${withUnit(max, unit)}`,
-      title: `Only ${plural(n, 'value')}: fewer than ${MIN_SAMPLES}, so the BASTA statistic is not computed; the range is shown`,
+      title: [
+        `Only ${plural(n, 'value')}: fewer than ${MIN_SAMPLES}, so the BASTA statistic is not computed; the range is shown`,
+        ...(s.missing ? [`${plural(s.missing, 'file')} without a value`] : []),
+        ...(sub.substituted > 0 ? [substitutedNote(sub.substituted, n)] : []),
+      ].join('\n'),
     };
   }
 
@@ -292,7 +308,8 @@ export function bandCell(
       : p.type === 'mean'
         ? meanOnly(v, p.mean!)!
         : singleSided(v, p.type as 'max' | 'min', p.excursion ? EXCURSION_DB : undefined)!;
-  let text = formatStat(stat, unit, toleranceUnit);
+  const adjusted = (stat.kind === 'min' || stat.kind === 'max') && stat.adjusted;
+  let text = formatStat(stat, unit, toleranceUnit) + (adjusted ? '*' : '');
   if (stat.kind === 'mean') text += ` @ ${tiltText(s.tiltDeg!)}°`;
 
   const f2 = (x: number) => x.toFixed(2);
@@ -319,12 +336,12 @@ export function bandCell(
   else if (stat.kind === 'min') counts += ` · P16 ${f2(stat.percentile)}`;
   lines.push(counts);
   if (p.mean === 'power' && stat.kind === 'double') lines.push('The mean is taken over the linear values and converted back to dB');
-  if (stat.kind === 'min' && stat.adjusted) lines.push('Lowered to the lowest value + 3 dB (3 dB excursion rule, BASTA 12.2)');
-  if (stat.kind === 'max' && stat.adjusted) lines.push('Raised to the highest value − 3 dB (3 dB excursion rule, BASTA 12.2)');
-  if (sub.substituted > 0) lines.push(`${sub.substituted} of ${n} values were "not available" and count as 22 dB (BASTA 12.5.3)`);
+  if (stat.kind === 'min' && stat.adjusted) lines.push('* Lowered to the lowest value + 3 dB (3 dB excursion rule, BASTA 12.2)');
+  if (stat.kind === 'max' && stat.adjusted) lines.push('* Raised to the highest value − 3 dB (3 dB excursion rule, BASTA 12.2)');
+  if (sub.substituted > 0) lines.push(substitutedNote(sub.substituted, n));
   if (p.key === 'gainAll') lines.push(`Declared gain from the file headers; repeatability margin ${GAIN_REPEATABILITY_DB} dB (BASTA 12.6)`);
 
-  return { ...common, state: 'ok', stat, text, title: lines.join('\n') };
+  return { ...common, state: 'ok', adjusted, stat, text, title: lines.join('\n') };
 }
 
 export interface BandColumn {

@@ -3,7 +3,7 @@ import { BAND_PARAMS, bandTable, type BandCell } from '../core/analysis/bandPara
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import type { SubBand } from '../core/analysis/subBands';
 import { bandItems } from '../test/bandFixture';
-import { bandCsv, cellDisplay, editSubBand, hintText, largestDataset } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, editSubBand, hintText, largestDataset } from './bandView';
 
 const items = bandItems();
 const metrics = analyzeAll(items, DEFAULT_SETTINGS);
@@ -28,6 +28,27 @@ describe('cellDisplay', () => {
     expect(d.title).toContain('\ntilted: T');
     expect(cellDisplay(a, { ...b, state: 'empty' }).muted).toBe(true);
     expect(cellDisplay({ ...a, state: 'empty' }, b).muted).toBe(false);
+  });
+});
+
+describe('excursion-adjusted cells', () => {
+  const adjustedMetrics = new Map([...metrics].map(([id, m]) => [id, id === 'f0' ? { ...m, fbWindow: { value: 10 } } : { ...m, fbWindow: { value: 18 } }]));
+  const adj = bandTable(items, adjustedMetrics, [{ name: '1800–1900 MHz', minMHz: 1800, maxMHz: 1900 }], ctx);
+  it('marks the text, keeps the number clean in the CSV and adds an Adjusted column', () => {
+    expect(adj[0].cells.fbWindow.text).toBe('> 13.0 dB*');
+    expect(cellDisplay(adj[0].cells.fbWindow).text).toBe('> 13.0 dB*');
+    const line = bandCsv([{ label: 'Array Y1', columns: adj }], DEFAULT_SETTINGS).split('\r\n').find((l) => l.includes('F/B'));
+    expect(line).toBe('Array Y1,1800–1900 MHz,1800,1900,F/B ±30°,dB,single-sided min,12,> 13.0 dB*,13.00,,,,18.00,10.00,18.00,,0,yes');
+    const rest = bandCsv([{ label: 'Array Y1', columns: adj }], DEFAULT_SETTINGS).split('\r\n').filter((l) => l.endsWith(',yes'));
+    expect(rest).toHaveLength(1);
+  });
+  it('shows the legend only when a visible cell is adjusted', () => {
+    expect(ADJUSTED_LEGEND).toBe('* adjusted by the 3 dB excursion rule (BASTA 12.2)');
+    expect(anyAdjusted(columns)).toBe(false);
+    expect(anyAdjusted(adj)).toBe(true);
+    expect(anyAdjusted(columns, adj)).toBe(true);
+    expect(anyAdjusted(adj, columns)).toBe(true);
+    expect(anyAdjusted([])).toBe(false);
   });
 });
 
@@ -59,7 +80,7 @@ describe('editSubBand', () => {
 
 describe('bandCsv', () => {
   const header =
-    'Antenna,Sub-band,Min (MHz),Max (MHz),Parameter,Unit,Type,N,Statistic,Value,Tolerance,Lower,Upper,Percentile,Min,Max,Mean,Counted as 22 dB';
+    'Antenna,Sub-band,Min (MHz),Max (MHz),Parameter,Unit,Type,N,Statistic,Value,Tolerance,Lower,Upper,Percentile,Min,Max,Mean,Counted as 22 dB,Adjusted';
   const csv = bandCsv([{ label: 'Array Y1', columns }], DEFAULT_SETTINGS);
   const lines = csv.split('\r\n');
   const find = (s: string) => lines.find((l) => l.includes(s));
@@ -72,16 +93,16 @@ describe('bandCsv', () => {
   });
   it('writes each validation type', () => {
     expect(find('Azimuth beamwidth')).toBe(
-      'Array Y1,1800–1900 MHz,1800,1900,Azimuth beamwidth,°,double-sided,12,71.0° ± 9.5°,71.00,9.53,61.47,80.53,,60.00,82.00,71.00,0',
+      'Array Y1,1800–1900 MHz,1800,1900,Azimuth beamwidth,°,double-sided,12,71.0° ± 9.5°,71.00,9.53,61.47,80.53,,60.00,82.00,71.00,0,',
     );
     expect(find('P2P tracking')).toBe(
-      'Array Y1,1800–1900 MHz,1800,1900,P2P tracking (sector edges),dB,single-sided max,12,< 0.6 dB,0.65,,,,0.65,0.00,1.00,,0',
+      'Array Y1,1800–1900 MHz,1800,1900,P2P tracking (sector edges),dB,single-sided max,12,< 0.6 dB,0.65,,,,0.65,0.00,1.00,,0,',
     );
     expect(find('Gain, highest tilt')).toBe(
-      'Array Y1,1800–1900 MHz,1800,1900,"Gain, highest tilt (6°)",dBi,mean,6,17.7 dBi @ 6°,17.66,,,,,17.20,18.10,17.66,0',
+      'Array Y1,1800–1900 MHz,1800,1900,"Gain, highest tilt (6°)",dBi,mean,6,17.7 dBi @ 6°,17.66,,,,,17.20,18.10,17.66,0,',
     );
-    expect(find('H-SLS')).toBe('Array Y1,1800–1900 MHz,1800,1900,H-SLS,dB,single-sided min,0,—,,,,,,,,,0');
-    expect(find('Electrical tilt range')).toContain('Electrical tilt range,°,absolute,2,2° – 6°,,,,,,2.00,6.00,,0');
+    expect(find('H-SLS')).toBe('Array Y1,1800–1900 MHz,1800,1900,H-SLS,dB,single-sided min,0,—,,,,,,,,,0,');
+    expect(find('Electrical tilt range')).toContain('Electrical tilt range,°,absolute,2,2° – 6°,,,,,,2.00,6.00,,0,');
   });
   it('doubles every line with a State column when a tilted run is given', () => {
     const t = bandCsv([{ label: 'Array Y1', columns, tilted: columns }], DEFAULT_SETTINGS).split('\r\n');

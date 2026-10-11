@@ -184,4 +184,15 @@ describe('beamTracking', () => {
     expect(r.value).toBeCloseTo(2.5, 9);
     expect(r.angle).toBe(40);
   });
+  it('samples the grids like the edge statistic, so a fractional edge cannot exceed the maximum', () => {
+    const a = gridFrom(() => 0);
+    const b = gridFrom((x) => (x === -60 ? 10 : 0));
+    const edges = edgeTracking(a, b, 59.5);
+    expect(edges[0]).toBeCloseTo(5, 9);
+    expect(edges[1]).toBeCloseTo(0, 9);
+    const worst = beamTracking(a, b, 59.5);
+    expect(worst.value).toBeGreaterThanOrEqual(Math.max(...edges));
+    expect(worst.value).toBeCloseTo(5, 9);
+    expect(worst.angle).toBe(-59.5);
+  });
 });

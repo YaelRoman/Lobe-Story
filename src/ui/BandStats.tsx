@@ -4,7 +4,7 @@ import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
-import { bandCsv, cellDisplay, hintText, largestDataset, type BandSheet } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, hintText, largestDataset, type BandSheet } from './bandView';
 import { downloadText } from './download';
 import { SubBandEditor } from './SubBandEditor';
 import type { SimulationResult } from './useSimulation';
@@ -141,6 +141,11 @@ export const BandStats = memo(function BandStats({
           </tbody>
         </table>
       </div>
+      {anyAdjusted(columns, tiltedColumns) && (
+        <p className="count" data-testid="band-adjusted-legend">
+          {ADJUSTED_LEGEND}
+        </p>
+      )}
     </section>
   );
 });

@@ -16,6 +16,13 @@ export function cellDisplay(original: BandCell, tilted?: BandCell): { text: stri
   };
 }
 
+/** Shown under the table while some visible cell ends in `*`. */
+export const ADJUSTED_LEGEND = '* adjusted by the 3 dB excursion rule (BASTA 12.2)';
+
+export function anyAdjusted(columns: readonly BandColumn[], tilted?: readonly BandColumn[] | null): boolean {
+  return [...columns, ...(tilted ?? [])].some((c) => Object.values(c.cells).some((cell) => cell.adjusted));
+}
+
 export function largestDataset(datasets: readonly BandDataset[]): number {
   return datasets.reduce((m, d) => Math.max(m, d.items.length), 0);
 }
@@ -45,7 +52,7 @@ export interface BandSheet {
 
 const HEADER = [
   'Antenna', 'Sub-band', 'Min (MHz)', 'Max (MHz)', 'Parameter', 'Unit', 'Type', 'N', 'Statistic', 'Value',
-  'Tolerance', 'Lower', 'Upper', 'Percentile', 'Min', 'Max', 'Mean', 'Counted as 22 dB',
+  'Tolerance', 'Lower', 'Upper', 'Percentile', 'Min', 'Max', 'Mean', 'Counted as 22 dB', 'Adjusted',
 ];
 
 const TYPE_LABEL = {
@@ -84,6 +91,7 @@ function csvLine(label: string, state: string | null, column: BandColumn, p: (ty
     hasValues ? f2(Math.max(...cell.values)) : '',
     f2(stat?.kind === 'double' || stat?.kind === 'mean' ? stat.mean : undefined),
     String(cell.substituted),
+    cell.adjusted ? 'yes' : '',
   ];
 }
 

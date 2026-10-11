@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { planetText } from '../src/test/planetText';
+import { planetText, points } from '../src/test/planetText';
 
 const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
 const msi = (freq: number) =>
@@ -119,6 +119,8 @@ test('computes band statistics over a sub-band', async ({ page }) => {
   await expect(row(/^P2P tracking/)).toContainText('n=10');
   await expect(row(/^Downtilt deviation/)).toContainText('< 0.0°');
   await expect(row(/^Electrical tilt range/)).toContainText('8°');
+  await expect(band.getByTestId('band-adjusted-legend')).toHaveCount(0);
+  await expect(band).not.toContainText('*');
 
   await band.getByRole('button', { name: 'Sub-bands' }).click();
   await band.getByRole('button', { name: 'Start from automatic' }).click();
@@ -141,6 +143,24 @@ test('computes band statistics over a sub-band', async ({ page }) => {
   await band.getByRole('button', { name: 'Export band CSV' }).click();
   expect((await download).suggestedFilename()).toBe('band-statistics.csv');
   await expect(band.getByText(/error/i)).toHaveCount(0);
+});
+
+test('marks band values changed by the 3 dB excursion rule', async ({ page }) => {
+  await page.goto('/');
+  const files = [1800, 1820, 1840, 1860, 1880].flatMap((f, i) =>
+    ['P45', 'M45'].map((pol, j) => {
+      // One file with a weak back lobe (25 dB instead of 40 dB) pulls the F/B minimum down.
+      const weak = i === 0 && j === 0;
+      const h = points((a) => Math.min(weak ? 25 : 40, 3 * (a / 32.5) ** 2));
+      return file(`_${f}_X_CO_${pol}_08T_Y2.MSI`, planetText({ headers: ['NAME A', `FREQUENCY ${f}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'], h }));
+    }),
+  );
+  await page.getByTestId('file-input').setInputFiles(files);
+  const band = page.getByTestId('band-stats');
+  const row = (name: RegExp) => band.getByRole('row', { name });
+  await expect(row(/^F\/B/)).toContainText('> 28.0 dB*');
+  await expect(row(/^Null fill/)).not.toContainText('*');
+  await expect(band.getByTestId('band-adjusted-legend')).toHaveText('* adjusted by the 3 dB excursion rule (BASTA 12.2)');
 });
 
 test('builds a three-sector site from one pattern', async ({ page }) => {

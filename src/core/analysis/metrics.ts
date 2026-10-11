@@ -48,6 +48,8 @@ export interface PatternMetrics {
   squint: MetricResult;
   tilt: MetricResult;
   tiltError: MetricResult;
+  /** The tilt tag plus the simulated offset that `tiltError` is measured against; undefined without a tilt tag. */
+  nominalTiltDeg?: number;
   /** BASTA 6.1.6 with X = 10: beamwidth 10 dB below the cut's own peak. */
   hBw10: MetricResult;
   vBw10: MetricResult;
@@ -130,6 +132,7 @@ export function analyzePattern(
     squint: h.direction,
     tilt,
     tiltError,
+    nominalTiltDeg: nominal,
     hBw10: beamwidth(grids.h, 10).hpbw,
     vBw10: beamwidth(grids.v, 10).hpbw,
     hPeak: { value: h.peakAngle },
