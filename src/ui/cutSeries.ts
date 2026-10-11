@@ -31,6 +31,7 @@ export function buildCutSeries(
           metrics: m,
           dash: original,
           rotationDeg: rotation(orig.id),
+          ...(cut === 'H' && !original && sim.effective(orig.id).mechanicalDeg !== 0 ? { coneCut: true } : {}),
         },
       ];
     });

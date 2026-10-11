@@ -70,6 +70,14 @@ describe('buildCutSeries', () => {
     expect(s[0].cut).toBe(items[0].pattern.horizontal);
   });
 
+  it('flags the simulated H series of a mechanically tilted file as a cone cut, and nothing else', () => {
+    const mech = simFor({ electricalDeg: 0, mechanicalDeg: 4 });
+    expect(buildCutSeries(items, mech, original, colors, 'H').map((x) => !!x.coneCut)).toEqual([true, true, false, false]);
+    expect(buildCutSeries(items, mech, original, colors, 'V').some((x) => x.coneCut)).toBe(false);
+    const elec = simFor({ electricalDeg: 2, mechanicalDeg: 0 });
+    expect(buildCutSeries(items, elec, original, colors, 'H').some((x) => x.coneCut)).toBe(false);
+  });
+
   it('takes the tilted series\' cuts and metrics from the simulation', () => {
     const sim = simFor({ electricalDeg: 0, mechanicalDeg: 4 });
     const s = buildCutSeries(items, sim, original, colors, 'H');

@@ -16,6 +16,8 @@ export interface PlotSeries {
   dash?: boolean;
   /** Per-series rotation in degrees; overrides the figure's rotationDeg. */
   rotationDeg?: number;
+  /** A simulated horizontal cut of a mechanically tilted file (the cut through the tilted beam peak). */
+  coneCut?: boolean;
 }
 
 export interface CutFigureOptions {
@@ -289,7 +291,8 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
   const target = o.series.find((s) => s.id === o.markerTarget);
   const spec = target ? markerSpec(target, o) : { sectors: [], rings: [], points: [], rays: [], arcs: [] };
   const hpbw = target ? (o.cut === 'H' ? target.metrics.h : target.metrics.v).hpbw.value : null;
-  const title = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — HPBW ${hpbw.toFixed(1)}°` : ''}`;
+  const cone = o.cut === 'H' && o.series.some((s) => s.coneCut) ? ' · cut through the tilted beam peak' : '';
+  const title = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — HPBW ${hpbw.toFixed(1)}°` : ''}${cone}`;
 
   const base: Partial<Layout> = {
     title: { text: title, font: { size: 14 } },

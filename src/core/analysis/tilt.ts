@@ -105,10 +105,16 @@ function lookup(hN: number[], vN: number[], phi: number, theta: number, method: 
 /**
  * Elevation (positive = below the horizon) at which the 3D reconstruction of a normalised V grid
  * has its 0 dB: the centre of a flat top, else the strongest sample. This is the cone the file's
- * H cut lies on. A peak refined between two unequal samples is not used, because the linearly
+ * H cut lies on. Always a front-hemisphere elevation: when the strongest sample lies in the back
+ * half (|elevation| > 90°), the strongest sample within −90…90° is used instead. A peak refined between two unequal samples is not used, because the linearly
  * interpolated V grid is above 0 dB attenuation there and the cut would no longer reach the peak.
  */
 export function beamPeakElevation(vN: number[]): number {
+  if (Math.abs(signed(peakIndex(vN))) > 90) {
+    let best = 0;
+    for (let e = -90; e <= 90; e++) if (vN[mod360(e)] < vN[mod360(best)]) best = e;
+    return best;
+  }
   const centre = peakCentre(vN);
   return interp(vN, centre) <= 1e-9 ? centre : signed(peakIndex(vN));
 }

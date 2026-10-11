@@ -37,6 +37,15 @@ const opts = (over: Partial<CutFigureOptions>): CutFigureOptions => ({
 const traces = (f: { data: unknown[] }) => f.data as Partial<PlotData>[];
 
 describe('buildCutFigure', () => {
+  it('names the cone cut in the horizontal title only when a series is a mechanically tilted simulation', () => {
+    const [h, v] = series('a');
+    const title = (f: { layout: { title?: unknown } }) => (f.layout.title as { text: string }).text;
+    const suffix = ' · cut through the tilted beam peak';
+    expect(title(buildCutFigure(opts({ series: [h] })))).not.toContain(suffix);
+    expect(title(buildCutFigure(opts({ series: [{ ...h, coneCut: true }] })))).toContain(suffix);
+    expect(title(buildCutFigure(opts({ cut: 'V', series: [{ ...v, coneCut: true }] })))).not.toContain(suffix);
+  });
+
   it('draws one closed polar trace per series, clamped to the floor', () => {
     const f = buildCutFigure(opts({ floorDb: 20 }));
     const [t] = traces(f);

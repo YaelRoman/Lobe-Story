@@ -132,5 +132,11 @@ Not a BASTA parameter (tool-defined).
   The elevation cut is shifted. The simulated horizontal cut is the cut through the tilted beam
   peak (the cone at the peak's elevation), reconstructed from the two cuts with the selected 3D
   method, and is never above the file's peak level. Electrical tilt leaves it unchanged;
-  mechanical tilt distorts it, and by how much depends on the 3D method. Coverage at the horizon
-  is visible in the 3D view.
+  mechanical tilt distorts it, and by how much depends on the 3D method. On that cone the sides
+  are about m (the mechanical tilt) away from the antenna's own peak cone and the back about 2·m,
+  so under mechanical tilt the "Summation" method narrows the cut slightly and raises F/B, while
+  "Weighted" widens it slightly and leaves F/B almost unchanged. The widening usually associated
+  with mechanical tilt is seen on the horizon cut, which this plot does not show (the 3D view
+  does). The back hemisphere is rebuilt from the front half of the vertical cut (the back half of
+  the vertical cut is not used), so the simulated F/B is a rough estimate. Coverage at the
+  horizon is visible in the 3D view.

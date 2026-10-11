@@ -136,6 +136,17 @@ describe('tiltPattern', () => {
     }
   });
 
+  it('matches a hand-derived value at the back of the summation cut', () => {
+    // m = 4 and the beam peak at 6°: the cone is at 10° on the ground, and at azimuth 180° it
+    // sits at 14° (= peak + 2m) in the antenna frame. H(180°) = 40 (capped), V(14°) = 12 (pwl point at 8° from the peak).
+    const m = 4;
+    const hOffset = 0;
+    const hBack = 40;
+    const vAtPeakPlus2m = 12;
+    const t = tiltPattern(p, { electricalDeg: 0, mechanicalDeg: m }, 'summation');
+    expect(t.horizontal.atten[180]).toBeCloseTo(hOffset + hBack + vAtPeakPlus2m, 9);
+  });
+
   it('keeps boresight at the file level under any tilt (the cone passes through the beam peak)', () => {
     const raw = rawGrid(p.horizontal);
     for (const method of METHODS) {
@@ -239,6 +250,12 @@ describe('beamPeakElevation', () => {
     expect(beamPeakElevation(gridFrom(quadBeam(8, -3)))).toBe(-3);
     // Peak half-way between two samples: both are 0 dB after normalisation.
     expect(beamPeakElevation(gridFrom(quadBeam(8, 5.5)))).toBe(5.5);
+  });
+
+  it('stays in the front hemisphere when the strongest sample is in the back half', () => {
+    const front = quadBeam(8, -20);
+    const vN = gridFrom((a) => Math.min(quadBeam(8, 150)(a), 5 + front(a)));
+    expect(beamPeakElevation(vN)).toBe(-20);
   });
 
   it('stays on a sample where the reconstruction is 0 dB when the true peak is between samples', () => {
