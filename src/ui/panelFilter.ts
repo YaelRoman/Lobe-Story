@@ -40,3 +40,18 @@ export function filterGroups(groups: GroupView[], query: string): FilteredPanel 
     .filter((g) => g.items.length > 0 || g.customId !== undefined);
   return { groups: shown, matchIds: shown.flatMap((g) => g.items.map((i) => i.pattern.id)), allIds };
 }
+
+/** Whether a filter is active and leaves out the highlighted file (a file of the panel): the panel then says so. */
+export function highlightHiddenByFilter(groups: GroupView[], query: string, highlightedId: string | null): boolean {
+  if (highlightedId === null || filterTerms(query).length === 0) return false;
+  const { matchIds, allIds } = filterGroups(groups, query);
+  return allIds.includes(highlightedId) && !matchIds.includes(highlightedId);
+}
+
+/** The accessible name of a group's checkbox: it acts on the matching files only while a filter is active. */
+export function groupToggleLabel(groupLabel: string, listed: number, filtering: boolean): string {
+  return filtering ? `Show the ${listed} matching file${listed === 1 ? '' : 's'} in ${groupLabel}` : `Show all in ${groupLabel}`;
+}
+
+/** The typed filter text is ahead of the one the list shows (the list follows a moment later): matches are not final yet. */
+export const filterPending = (typed: string, applied: string): boolean => typed !== applied;

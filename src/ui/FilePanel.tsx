@@ -2,20 +2,22 @@ import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import { useStore } from '../state/store';
 import type { ErrorEntry, GroupView } from '../state/selectors';
 import { neighbourOrder } from './undoKeys';
-import { moveFocus, tabStopKey } from './rovingKeys';
-import { filterGroups, filterTerms } from './panelFilter';
+import { moveFocus, tabStopAfterFold, tabStopKey } from './rovingKeys';
+import { filterGroups, filterPending, filterTerms, highlightHiddenByFilter } from './panelFilter';
 import { GroupSection } from './GroupSection';
+import type { FileStyle } from './colors';
 
 interface Props {
   groups: GroupView[];
   errors: ErrorEntry[];
   warnings: Map<string, string[]>;
-  colors: Map<string, string>;
+  /** Colour and line pattern of each shown file (the swatches). */
+  styles: Map<string, FileStyle>;
   /** Phone layout only: the panel is a drawer above the plots and shown when this is true. */
   drawerOpen?: boolean;
 }
 
-export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, warnings, colors, drawerOpen }: Props) {
+export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, warnings, styles, drawerOpen }: Props) {
   const visible = useStore((s) => s.visible);
   const highlighted = useStore((s) => s.highlighted);
   const selected = useStore((s) => s.selected);
@@ -39,17 +41,26 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
   const deferredQuery = useDeferredValue(query);
   const activeQuery = filterShown ? deferredQuery : '';
   const filtering = filterTerms(activeQuery).length > 0;
+  // "Only matches" / "Add matches" act on the matches: not while the typed text is ahead of the list.
+  const pending = filterShown && filterPending(query, deferredQuery);
+  const highlightHidden = highlightHiddenByFilter(allGroups, activeQuery, highlighted);
   const { groups, matchIds, allIds } = useMemo(() => filterGroups(allGroups, activeQuery), [allGroups, activeQuery]);
   const tickedCount = allIds.reduce((n, id) => n + (visible[id] ? 1 : 0), 0);
-  const toggleFold = useCallback(
-    (key: string) =>
-      setFolded((f) => {
-        const next = new Set(f);
-        if (!next.delete(key)) next.add(key);
-        return next;
-      }),
-    [],
-  );
+  // The panel's groups for callbacks that must stay stable (a fold must know which rows the group holds).
+  const groupsRef = useRef(allGroups);
+  useEffect(() => {
+    groupsRef.current = allGroups;
+  }, [allGroups]);
+  const toggleFold = useCallback((key: string) => {
+    setFolded((f) => {
+      const next = new Set(f);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+    // Folding the group that holds the tab stop must not send it back to the top of the list: it goes to the group's header.
+    const fileKeys = (groupsRef.current.find((g) => g.key === key)?.items ?? []).map((i) => `file:${i.pattern.id}`);
+    setActiveKey((cur) => tabStopAfterFold(cur, key, fileKeys));
+  }, []);
   const navKeys = groups.flatMap((g) => [`group:${g.key}`, ...(folded.has(g.key) ? [] : g.items.map((i) => `file:${i.pattern.id}`))]);
   const stop = tabStopKey(navKeys, activeKey);
   // Set just before a control is replaced by an editor: where the focus returns once the editor closes.
@@ -89,19 +100,48 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
     (next ?? panel).focus();
   });
 
-  // A highlight set from the table or a plot brings the file's item into view in the panel.
+  // A highlight set from the table or a plot brings the file's item into view in the panel. Only a change of the
+  // highlight does (not a later fold or filter): `reveal` holds the file until its row is on the page, which is one
+  // render later when its group had to be unfolded first.
+  const reveal = useRef<string | null>(null);
   useEffect(() => {
+    reveal.current = highlighted;
     if (highlighted === null) return;
     const home = allGroups.find((g) => g.items.some((i) => i.pattern.id === highlighted));
     // A folded group would hide the highlighted file: open it.
-    if (home && folded.has(home.key)) {
-      setFolded((f) => new Set([...f].filter((k) => k !== home.key)));
-      return;
-    }
-    panelRef.current?.querySelector<HTMLElement>('li.hl')?.scrollIntoView?.({ block: 'nearest' });
-    // Only a change of the highlight brings the file into view, not a fold or a filter.
+    if (home && folded.has(home.key)) setFolded((f) => new Set([...f].filter((k) => k !== home.key)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlighted]);
+  useEffect(() => {
+    if (reveal.current === null) return;
+    const row = panelRef.current?.querySelector<HTMLElement>('li.hl');
+    if (row) {
+      reveal.current = null;
+      row.scrollIntoView?.({ block: 'nearest' });
+      return;
+    }
+    // No row yet: wait for the unfolding render; hidden by the filter (or not a panel file): nothing to scroll to.
+    const home = allGroups.find((g) => g.items.some((i) => i.pattern.id === reveal.current));
+    if (!(home && folded.has(home.key))) reveal.current = null;
+  });
+
+  // The sticky tools block covers the top of the scrolling panel: its height is the scroll padding, so a row that is
+  // scrolled or focused into view never ends up underneath it (it changes when the buttons wrap).
+  const toolsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const panel = panelRef.current;
+    const tools = toolsRef.current;
+    if (!panel) return;
+    if (!tools) {
+      panel.style.removeProperty('--panel-tools-h');
+      return;
+    }
+    const measure = () => panel.style.setProperty('--panel-tools-h', `${tools.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(tools);
+    return () => observer.disconnect();
+  }, [filterShown]);
 
   // Menus close on an outside click or Esc; opening one menu closes the others. `<details>`
   // menus already stop clicks inside them from reaching `document`, so any click that gets
@@ -206,7 +246,7 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
         </section>
       )}
       {filterShown && (
-        <div className="panel-tools" role="search">
+        <div className="panel-tools" role="search" ref={toolsRef}>
           <input
             type="search"
             className="panel-filter"
@@ -242,14 +282,14 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
               <>
                 <button
                   type="button"
-                  disabled={matchIds.length === 0}
+                  disabled={pending || matchIds.length === 0}
                   onClick={() => setVisibleOnly(matchIds, `Showed only the ${matchIds.length} matching file${matchIds.length === 1 ? '' : 's'}`)}
                 >
                   Only matches
                 </button>
                 <button
                   type="button"
-                  disabled={matchIds.length === 0}
+                  disabled={pending || matchIds.length === 0}
                   onClick={() =>
                     setVisibleOnly(
                       [...new Set([...allIds.filter((id) => visible[id]), ...matchIds])],
@@ -262,6 +302,14 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
               </>
             )}
           </div>
+          {highlightHidden && (
+            <p className="count" data-testid="highlight-hidden">
+              The highlighted file is hidden by the filter.{' '}
+              <button type="button" onClick={() => setQuery('')}>
+                Clear filter
+              </button>
+            </p>
+          )}
           {filtering && matchIds.length === 0 && (
             <p className="count">
               No file matches "{query.trim()}".{' '}
@@ -284,7 +332,7 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
           copies={copies}
           offsets={offsets}
           groupOffset={g.customId !== undefined ? groupOffsets[g.customId] : undefined}
-          colors={colors}
+          styles={styles}
           warnings={warnings}
           stop={stop}
           editing={editing}

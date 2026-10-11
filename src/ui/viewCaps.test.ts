@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { capItems, capNotice, MAX_2D_FILES, MAX_3D_OVERLAY, maxSurfaces } from './viewCaps';
+import { capItems, capNotice, surfaceExportCaption, MAX_3D_OVERLAY, maxSurfaces } from './viewCaps';
 import { MAX_3D } from './surfaceFigure';
 
 const items = (n: number) => Array.from({ length: n }, (_, i) => ({ pattern: { id: `f${i}` } }));
 
 describe('view caps', () => {
-  it('are fixed numbers: the grid keeps its 6, the overlay is 12, the 2D plots 100', () => {
+  it('are fixed numbers: the grid keeps its 6, the overlay is 12', () => {
     expect(MAX_3D).toBe(6);
     expect(MAX_3D_OVERLAY).toBe(12);
-    expect(MAX_2D_FILES).toBe(100);
     expect(maxSurfaces('grid')).toBe(6);
     expect(maxSurfaces('overlay')).toBe(12);
   });
@@ -42,5 +41,14 @@ describe('capNotice', () => {
     expect(t).toContain('12 of the 40');
     expect(t).toContain('highlighted file first');
     expect(t).toContain('Only matches');
+  });
+});
+
+describe('surfaceExportCaption', () => {
+  it('says how many of the ticked files a capped 3D view shows, and nothing extra when all are drawn', () => {
+    expect(surfaceExportCaption('overlay', 12, 40)).toEqual({ title: '3D radiation pattern, overlay', file: 'Showing 12 of 40 ticked files', items: [] });
+    expect(surfaceExportCaption('grid', 6, 15).title).toBe('3D radiation pattern, side by side');
+    expect(surfaceExportCaption('grid', 6, 15).file).toBe('Showing 6 of 15 ticked files');
+    expect(surfaceExportCaption('overlay', 5, 5).file).toBeUndefined();
   });
 });

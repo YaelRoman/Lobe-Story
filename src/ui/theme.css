@@ -207,6 +207,8 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 .empty-group { margin: 0 0 8px; font-size: 12px; }
 
 /* File panel at scale: filter box, bulk actions and foldable groups. */
+/* The sticky tools block must not hide a row that is scrolled or focused into view: its height (set from a ResizeObserver) is the scroll padding. */
+.panel { scroll-padding-top: var(--panel-tools-h, 0px); }
 .panel-tools { position: sticky; top: -8px; z-index: 5; display: flex; flex-direction: column; gap: 4px; margin: -8px -8px 6px; padding: 8px; background: var(--panel); border-bottom: 1px solid var(--border); }
 .panel-filter { width: 100%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
 .panel-tools p { margin: 0; font-size: 12px; }

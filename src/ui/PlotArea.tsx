@@ -10,15 +10,17 @@ import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend } from './legend';
 import { PlotlyChart } from './PlotlyChart';
 import { Pattern3D } from './Pattern3D';
-import { capItems, capNotice, MAX_2D_FILES } from './viewCaps';
 import { SimulationBar } from './SimulationBar';
 import { Seg } from './Seg';
+import type { FileStyle } from './colors';
 import type { SimulationResult } from './useSimulation';
 
 interface Props {
   groups: GroupView[];
   metrics: Map<string, PatternMetrics>;
   colors: Map<string, string>;
+  /** Colour and line pattern of each shown file. */
+  styles: Map<string, FileStyle>;
   sim: SimulationResult;
 }
 
@@ -77,7 +79,7 @@ function CutPlot({ id, figure, readout, target, traces, emphasised }: CutPlotPro
   );
 }
 
-export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }: Props) {
+export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles, sim }: Props) {
   // Only the fields used here: subscribing to the whole view would re-render on every slider tick.
   const view = useStore(
     useShallow((s) => ({
@@ -100,10 +102,11 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
   const markerTarget =
     highlighted && visible[highlighted] ? highlighted : items.length === 1 ? items[0].pattern.id : null;
   const is3d = view.dimension === '3d';
-  // The 2D plots draw at most MAX_2D_FILES files (the highlighted one first); the table and the beamwidth chart list all.
-  const capped = useMemo(() => capItems(items, MAX_2D_FILES, highlighted), [items, highlighted]);
-  const plotItems = useDeferredValue(capped.shown);
-  const notice2d = capNotice('The cut plots draw', capped.shown.length, capped.total, MAX_2D_FILES);
+  // Everything that decides which traces are drawn and how they look moves to the figure together, a moment after
+  // a click: a checkbox is answered first, and the plots never show old traces with new colours or emphasis.
+  const inputs = useMemo(() => ({ items, colors, styles, markerTarget, metrics, sim }), [items, colors, styles, markerTarget, metrics, sim]);
+  const drawn = useDeferredValue(inputs);
+  const updating = drawn !== inputs;
   const labels = markerLabels(settings.levelDb);
 
   const figures = useMemo(() => {
@@ -112,7 +115,6 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
       mode: view.mode,
       floorDb: view.floorDb,
       markers: view.markers,
-      markerTarget,
       theme: FIGURE_THEMES[view.theme],
       levelDb: settings.levelDb,
       fbWindowDeg: settings.fbWindowDeg,
@@ -120,11 +122,16 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
       uslsRangeDeg: settings.uslsRangeDeg,
     };
     const make = (cut: 'H' | 'V') => {
-      const options = { ...common, cut, series: buildCutSeries(plotItems, sim, metrics, colors, cut) };
-      return { figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === markerTarget)?.label ?? '', traces: options.series.length, emphasised: options.series.some((x) => x.id === markerTarget) ? markerTarget : null };
+      const options = {
+        ...common,
+        markerTarget: drawn.markerTarget,
+        cut,
+        series: buildCutSeries(drawn.items, drawn.sim, drawn.metrics, drawn.colors, cut, drawn.styles),
+      };
+      return { figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === drawn.markerTarget)?.label ?? '', traces: options.series.length, emphasised: options.series.some((x) => x.id === drawn.markerTarget) ? drawn.markerTarget : null };
     };
     return { h: make('H'), v: make('V') };
-  }, [is3d, plotItems, metrics, colors, view.mode, view.floorDb, view.markers, view.theme, markerTarget, settings, sim]);
+  }, [is3d, drawn, view.mode, view.floorDb, view.markers, view.theme, settings]);
 
   return (
     <section>
@@ -207,9 +214,9 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
                 : 'Click a file in the panel or the table to show its analysis markers (Esc clears the highlight).'}
             </p>
           )}
-          {notice2d && (
-            <p className="count cap-notice" data-testid="cap-notice-2d">
-              {notice2d}
+          {updating && (
+            <p className="count" data-testid="updating-2d">
+              Updating the plots…
             </p>
           )}
           <div className="plots">

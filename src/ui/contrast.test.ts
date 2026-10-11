@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { groupColour, ladder, LADDER_LEVELS, PALETTE } from './colors';
+import { FIGURE_THEMES } from './figureTheme';
 
 const css = readFileSync(new URL('./theme.css', import.meta.url), 'utf8');
 
@@ -28,4 +30,17 @@ describe.each([
   it.each(['bg', 'panel', 'hl'])('warning text on %s', (bg) => expect(ratio(t.warn, t[bg])).toBeGreaterThanOrEqual(4.5));
   it.each(['bg', 'panel', 'hl'])('danger text on %s', (bg) => expect(ratio(t.danger, t[bg])).toBeGreaterThanOrEqual(4.5));
   it('white text on filled accent controls', () => expect(ratio('#ffffff', t['accent-fill'])).toBeGreaterThanOrEqual(4.5));
+});
+
+describe.each(['light', 'dark'] as const)('plot line colours on the %s theme background (graphical objects, 3:1)', (name) => {
+  const bg = FIGURE_THEMES[name].bg;
+  it('the figure background is the page background of the theme', () => {
+    expect(bg).toBe(tokens(name === 'light' ? ':root {' : ":root[data-theme='dark']").bg);
+  });
+  // The palette is used as is up to ten files; above ten, colours go by group and the extreme shades of a group
+  // (lightest and darkest of the ladder, a lone file's group colour) must still be seen against the plot background.
+  it.each(PALETTE.map((_, k) => k))('the extreme shades of group colour %i', (k) => {
+    const shades = [...ladder(groupColour(k), LADDER_LEVELS), ...ladder(groupColour(k), 2), groupColour(k)];
+    for (const c of shades) expect(ratio(c, bg)).toBeGreaterThanOrEqual(3);
+  });
 });

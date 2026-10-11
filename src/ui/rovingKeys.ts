@@ -59,3 +59,8 @@ export function moveFocus(e: KeyboardEvent, items: HTMLElement[], from: HTMLElem
   items[to].scrollIntoView?.({ block: 'nearest' });
   return true;
 }
+
+/** The tab stop after the group `groupKey` is folded: its header when the stop was on one of its rows (they are gone), else unchanged. */
+export function tabStopAfterFold(active: string | null, groupKey: string, groupFileKeys: string[]): string | null {
+  return active !== null && groupFileKeys.includes(active) ? `group:${groupKey}` : active;
+}

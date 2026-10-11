@@ -99,6 +99,8 @@ export function buildSurfaceFigure(o: SurfaceFigureOptions): Figure {
     return {
       type: 'surface',
       name: s.label,
+      // The full file label: the labelled export turns it into the legend entry.
+      meta: s.label,
       x: c.x,
       y: c.y,
       z: c.z,

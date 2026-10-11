@@ -38,6 +38,12 @@ const opts = (over: Partial<CutFigureOptions>): CutFigureOptions => ({
 const traces = (f: { data: unknown[] }) => f.data as Partial<PlotData>[];
 
 describe('buildCutFigure', () => {
+  it('draws a series with a line pattern in that pattern, and an original dashed', () => {
+    const [a] = series('a');
+    const f = buildCutFigure(opts({ series: [{ ...a, lineDash: 'dot' }, { ...a, id: 'b', lineDash: 'longdash' }, { ...a, id: 'c', dash: true }] }));
+    expect(traces(f).slice(0, 3).map((t) => t.line?.dash)).toEqual(['dot', 'longdash', 'dash']);
+  });
+
   it('names the cone cut in the horizontal title only when a series is a mechanically tilted simulation', () => {
     const [h, v] = series('a');
     const title = (f: { layout: { title?: unknown } }) => (f.layout.title as { text: string }).text;

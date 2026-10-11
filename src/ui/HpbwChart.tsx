@@ -4,7 +4,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
 import { FIGURE_THEMES } from './figureTheme';
-import { PALETTE } from './colors';
+import { groupLook, PER_FILE_COLOURS } from './colors';
 import { bwName } from './bwLabel';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
@@ -26,10 +26,12 @@ export const HpbwChart = memo(function HpbwChart({
 
   const figure = useMemo(() => {
     const series: HpbwSeries[] = [];
+    // Above ten visible files the files are coloured by group: the group's line takes the group colour (see colors.ts).
+    const byGroup = groups.reduce((n, g) => n + g.items.filter((i) => visible[i.pattern.id]).length, 0) > PER_FILE_COLOURS;
     groups
       .filter((g) => g.items.some((i) => visible[i.pattern.id]))
       .forEach((g, k) => {
-        const color = PALETTE[k % PALETTE.length];
+        const { color, symbol } = groupLook(k, byGroup);
         const points = (ms: Map<string, PatternMetrics>) =>
           g.items.map(({ pattern }) => {
             const m = ms.get(pattern.id);
@@ -43,7 +45,7 @@ export const HpbwChart = memo(function HpbwChart({
           });
         if (g.items.some((i) => sim.isTiltedId(i.pattern.id)))
           series.push({ label: g.label, color, ghost: true, points: points(metrics) });
-        series.push({ label: g.label, color, points: points(sim.metrics) });
+        series.push({ label: g.label, color, symbol, points: points(sim.metrics) });
       });
     return series.length ? buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb) : null;
   }, [groups, metrics, visible, theme, sim, levelDb]);

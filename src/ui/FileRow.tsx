@@ -7,6 +7,7 @@ import { sameTags } from './tagEdit';
 import { offsetLabel } from './table';
 import { onSpace } from './rovingKeys';
 import { FileMenu, NameEditor } from './FilePanelMenus';
+import { swatchBackground, type LineDash } from './colors';
 import { hoverStore, setHoverId } from './hoverPreview';
 
 export const DRAG_TYPE = 'text/x-pattern-id';
@@ -21,6 +22,8 @@ interface Props {
   pattern: Pattern;
   tags: Tags;
   color: string | undefined;
+  /** Line pattern of the file's traces (not solid only when a hue repeats among many groups). */
+  dash: LineDash | undefined;
   /** Ticked: drawn in the plots. */
   shown: boolean;
   highlighted: boolean;
@@ -44,6 +47,7 @@ export const FileRow = memo(function FileRow({
   pattern,
   tags,
   color,
+  dash,
   shown,
   highlighted,
   isCopy,
@@ -95,7 +99,7 @@ export const FileRow = memo(function FileRow({
       />
       {renaming ? (
         <>
-          <span className="swatch" style={{ background: color ?? 'transparent' }} />
+          <span className="swatch" style={{ background: color ? swatchBackground(color, dash ?? 'solid') : 'transparent' }} />
           <span>{pattern.frequencyMHz} MHz</span>
           <NameEditor
             initial={name}
@@ -121,7 +125,7 @@ export const FileRow = memo(function FileRow({
           title="Enter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row"
           {...onSpace(() => toggleVisible(id))}
         >
-          <span className="swatch" style={{ background: color ?? 'transparent' }} />
+          <span className="swatch" style={{ background: color ? swatchBackground(color, dash ?? 'solid') : 'transparent' }} />
           <span>{pattern.frequencyMHz} MHz</span>
           <span className="fname" title={pattern.fileName}>
             {name}

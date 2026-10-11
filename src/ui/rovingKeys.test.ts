@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyboardEvent } from 'react';
-import { isSpace, onSpace, rovingTarget, tabStopKey } from './rovingKeys';
+import { isSpace, onSpace, rovingTarget, tabStopAfterFold, tabStopKey } from './rovingKeys';
 
 describe('rovingTarget', () => {
   it('moves one step and stops at the ends', () => {
@@ -52,5 +52,17 @@ describe('onSpace', () => {
     expect(action).not.toHaveBeenCalled();
     expect(e.preventDefault).not.toHaveBeenCalled();
     expect(isSpace('Enter')).toBe(false);
+  });
+});
+
+describe('tabStopAfterFold', () => {
+  const files = ['file:a', 'file:b'];
+  it('moves the tab stop from a row of the folded group to the group header', () => {
+    expect(tabStopAfterFold('file:b', 'g', files)).toBe('group:g');
+  });
+  it('leaves any other tab stop where it is', () => {
+    expect(tabStopAfterFold('file:z', 'g', files)).toBe('file:z');
+    expect(tabStopAfterFold('group:g', 'g', files)).toBe('group:g');
+    expect(tabStopAfterFold(null, 'g', files)).toBeNull();
   });
 });

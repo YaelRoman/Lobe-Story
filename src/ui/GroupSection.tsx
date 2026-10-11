@@ -6,6 +6,8 @@ import { offsetLabel } from './table';
 import { onSpace } from './rovingKeys';
 import { GroupMenu, NameEditor } from './FilePanelMenus';
 import { DRAG_TYPE, FileRow } from './FileRow';
+import { groupToggleLabel } from './panelFilter';
+import type { FileStyle } from './colors';
 
 interface Props {
   group: GroupView;
@@ -18,7 +20,7 @@ interface Props {
   copies: Record<string, { sourceId: string }>;
   offsets: Record<string, OffsetState>;
   groupOffset: OffsetState | undefined;
-  colors: Map<string, string>;
+  styles: Map<string, FileStyle>;
   warnings: Map<string, string[]>;
   /** Key of the row or header that is the panel's tab stop. */
   stop: string | null;
@@ -43,7 +45,7 @@ export const GroupSection = memo(function GroupSection({
   copies,
   offsets,
   groupOffset,
-  colors,
+  styles,
   warnings,
   stop,
   editing,
@@ -114,7 +116,7 @@ export const GroupSection = memo(function GroupSection({
         </button>
         <input
           type="checkbox"
-          aria-label={`Show all in ${g.label}`}
+          aria-label={groupToggleLabel(g.label, ids.length, filtering)}
           data-focus-target={custom ? undefined : true}
           // A group made from tags has no name button: its checkbox is the header's list entry.
           data-nav={custom ? undefined : true}
@@ -186,7 +188,8 @@ export const GroupSection = memo(function GroupSection({
               key={id}
               pattern={pattern}
               tags={tags}
-              color={colors.get(id)}
+              color={styles.get(id)?.color}
+              dash={styles.get(id)?.dash}
               shown={!!visible[id]}
               highlighted={highlighted === id}
               isCopy={!!copies[id]}

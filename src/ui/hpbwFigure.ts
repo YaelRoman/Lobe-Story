@@ -17,6 +17,8 @@ export interface HpbwSeries {
   color: string;
   points: HpbwPoint[];
   ghost?: boolean;
+  /** Marker of the group's lines (default circle): tells groups that share a hue apart. */
+  symbol?: string;
 }
 
 /** What the exported chart says about itself: its title, which line is which, and what the other marks mean (the legend lists the groups). */
@@ -54,8 +56,8 @@ export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelD
       data.push({ type: 'scatter', mode: 'lines', name, showlegend: false, opacity: 0.35, x, y: s.points.map((p) => p.v), yaxis: 'y2', line: { color: s.color, dash: 'dash' } });
       continue;
     }
-    data.push({ type: 'scatter', mode: 'lines+markers', name: middleEllipsis(s.label, LEGEND_NAME_MAX), legendgroup: s.label, meta: s.label, x, y: s.points.map((p) => p.h), yaxis: 'y', line: { color: s.color } });
-    data.push({ type: 'scatter', mode: 'lines+markers', name: s.label, legendgroup: s.label, showlegend: false, x, y: s.points.map((p) => p.v), yaxis: 'y2', line: { color: s.color, dash: 'dash' } });
+    data.push({ type: 'scatter', mode: 'lines+markers', name: middleEllipsis(s.label, LEGEND_NAME_MAX), legendgroup: s.label, meta: s.label, x, y: s.points.map((p) => p.h), yaxis: 'y', line: { color: s.color }, marker: { symbol: s.symbol ?? 'circle' } as Partial<PlotData['marker']> });
+    data.push({ type: 'scatter', mode: 'lines+markers', name: s.label, legendgroup: s.label, showlegend: false, x, y: s.points.map((p) => p.v), yaxis: 'y2', line: { color: s.color, dash: 'dash' }, marker: { symbol: s.symbol ?? 'circle' } as Partial<PlotData['marker']> });
     const declared = s.points.filter((p) => p.declH !== undefined || p.declV !== undefined);
     if (declared.length) {
       const marker = { color: s.color, symbol: 'circle-open' as const, size: 9 };

@@ -109,4 +109,16 @@ describe('buildCutSeries', () => {
     const s = buildCutSeries(named, simFor(NO_TILT), original, colors, 'H');
     expect(s[0].label).toBe('1800 MHz · North');
   });
+
+  it('gives a live trace the line pattern of its style when the style is not solid, and leaves originals dashed', () => {
+    const styles = new Map([
+      ['a', { color: '#111111', dash: 'dot' as const, symbol: 'square' }],
+      ['b', { color: '#222222', dash: 'solid' as const, symbol: 'circle' }],
+    ]);
+    const tilted = simFor({ electricalDeg: 3, mechanicalDeg: 0, azimuthDeg: 0 } as TiltSettings);
+    const s = buildCutSeries(items, tilted, original, colors, 'H', styles);
+    expect(s.filter((x) => !x.dash).map((x) => x.lineDash)).toEqual(['dot', undefined]);
+    expect(s.some((x) => x.dash)).toBe(true);
+    expect(s.filter((x) => x.dash).every((x) => x.lineDash === undefined)).toBe(true);
+  });
 });

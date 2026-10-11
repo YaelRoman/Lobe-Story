@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from './state/store';
 import { buildPanelGroups, selectErrors, selectInstances, selectWarnings } from './state/selectors';
 import { analyzeAll } from './core/analysis/metrics';
-import { colorMapByGroup } from './ui/colors';
+import { styleMapByGroup } from './ui/colors';
 import { Toolbar } from './ui/Toolbar';
 import { FilePanel } from './ui/FilePanel';
 import { useWindowDrop } from './ui/useWindowDrop';
@@ -41,10 +41,11 @@ export default function App() {
   // Colour only the currently-visible files, in panel order (groups, then items), so every
   // checked file gets its own colour and colours don't shift as unrelated files are added/removed.
   // With more than ten visible files the colour is the group's and the files differ by lightness.
-  const colors = useMemo(
-    () => colorMapByGroup(groups.map((g) => ({ ids: g.items.map((i) => i.pattern.id) })), visible),
+  const styles = useMemo(
+    () => styleMapByGroup(groups.map((g) => ({ ids: g.items.map((i) => i.pattern.id) })), visible),
     [groups, visible],
   );
+  const colors = useMemo(() => new Map([...styles].map(([id, s]) => [id, s.color])), [styles]);
   const dragging = useWindowDrop();
   useUnsavedGuard();
   useEscapeClear();
@@ -81,7 +82,7 @@ export default function App() {
               </span>
               <span aria-hidden="true">{filesOpen ? '▾' : '▸'}</span>
             </button>
-            <FilePanel groups={groups} errors={errors} warnings={warnings} colors={colors} drawerOpen={filesOpen} />
+            <FilePanel groups={groups} errors={errors} warnings={warnings} styles={styles} drawerOpen={filesOpen} />
           </>
         )}
         <main>
@@ -89,7 +90,7 @@ export default function App() {
             <EmptyState onHelp={openHelp} />
           ) : (
             <>
-              <PlotArea groups={groups} metrics={metrics} colors={colors} sim={sim} />
+              <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} />
               <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
               <MetricsTable groups={groups} metrics={metrics} colors={colors} sim={sim} onHelp={openHelp} />
               <BandStats tagged={tagged} metrics={metrics} sim={sim} onHelp={openHelp} />

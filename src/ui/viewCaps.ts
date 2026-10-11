@@ -1,7 +1,7 @@
-export { MAX_3D, MAX_3D_OVERLAY, maxSurfaces } from './surfaceFigure';
+import type { ExportCaption } from './exportFigure';
+import type { Layout3d } from '../state/store';
 
-/** Most files the 2D cut plots draw at once (about 0.7 s to redraw at 100 files, 1.3 s at 250). */
-export const MAX_2D_FILES = 100;
+export { MAX_3D, MAX_3D_OVERLAY, maxSurfaces } from './surfaceFigure';
 
 export interface Capped<T> {
   shown: T[];
@@ -23,4 +23,13 @@ export function capItems<T extends { pattern: { id: string } }>(items: T[], cap:
 export function capNotice(what: string, shown: number, total: number, cap: number): string | null {
   if (total <= shown) return null;
   return `${what} at most ${cap} files: showing ${shown} of the ${total} ticked (the highlighted file first, then the others in panel order). To choose which, untick files or use "Only matches" in the file panel. The table and the beamwidth chart still list all ${total}.`;
+}
+
+/** The caption of a 3D view's exported image: its title and, when a cap left files out, how many of the ticked files it shows. */
+export function surfaceExportCaption(layout: Layout3d, shown: number, total: number): ExportCaption {
+  return {
+    title: `3D radiation pattern, ${layout === 'grid' ? 'side by side' : 'overlay'}`,
+    file: total > shown ? `Showing ${shown} of ${total} ticked files` : undefined,
+    items: [],
+  };
 }

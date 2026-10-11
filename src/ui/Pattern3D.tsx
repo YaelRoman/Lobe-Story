@@ -6,7 +6,7 @@ import { gridsFor, type TaggedPattern } from '../core/analysis/metrics';
 import { reconstructTilted3d } from '../core/analysis/tilt';
 import { nameOf } from '../core/names';
 import { buildSurfaceFigure, linkedCameraUpdate, maxSurfaces, type SurfaceSeries } from './surfaceFigure';
-import { capItems, capNotice } from './viewCaps';
+import { capItems, capNotice, surfaceExportCaption } from './viewCaps';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
@@ -55,6 +55,7 @@ export function Pattern3D({
   );
 
   const notice = capNotice(layout === 'grid' ? 'The side-by-side 3D view draws' : 'The 3D overlay draws', capped.shown.length, capped.total, cap);
+  const exportCaption = useMemo(() => surfaceExportCaption(layout, drawn.length, capped.total), [layout, drawn.length, capped.total]);
   const sceneCount = layout === 'grid' ? series.length : 1;
   // Our own relayout fires plotly_relayout again; skipping a camera we just applied prevents a loop.
   const lastCamera = useRef('');
@@ -82,7 +83,7 @@ export function Pattern3D({
           {notice}
         </p>
       )}
-      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" ariaLabel="3D radiation pattern" />
+      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: exportCaption, filename: 'antenna-pattern-3d' }} />
     </>
   );
 }

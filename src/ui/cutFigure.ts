@@ -15,7 +15,10 @@ export interface PlotSeries {
   color: string;
   cut: Cut;
   metrics: PatternMetrics;
+  /** The dashed original of a tilted file. */
   dash?: boolean;
+  /** Line pattern of a live trace when several groups share a hue (see `groupStyle`); an original is always dashed. */
+  lineDash?: 'dot' | 'dashdot' | 'longdash';
   /** Per-series rotation in degrees; overrides the figure's rotationDeg. */
   rotationDeg?: number;
   /** A simulated horizontal cut of a mechanically tilted file (the cut through the tilted beam peak). */
@@ -331,7 +334,7 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
     const line = {
       color: s.color,
       width: style.width,
-      ...(s.dash ? { dash: 'dash' as const } : {}),
+      ...(s.dash ? { dash: 'dash' as const } : s.lineDash ? { dash: s.lineDash } : {}),
     };
     if (o.mode === 'polar') {
       data.push({

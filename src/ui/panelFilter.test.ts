@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GroupView } from '../state/selectors';
 import type { Pattern } from '../core/types';
-import { filterGroups, filterTerms, matchesTerms } from './panelFilter';
+import { filterGroups, filterPending, filterTerms, groupToggleLabel, highlightHiddenByFilter, matchesTerms } from './panelFilter';
 
 const item = (id: string, frequencyMHz: number, displayName?: string) =>
   ({ pattern: { id, fileName: `${id}.msi`, frequencyMHz, ...(displayName ? { displayName } : {}) } as Pattern, tags: {} });
@@ -50,5 +50,37 @@ describe('filterGroups', () => {
   });
   it('finds nothing for an unknown word', () => {
     expect(filterGroups(groups, 'zzz').matchIds).toEqual([]);
+  });
+});
+
+describe('highlightHiddenByFilter', () => {
+  it('is true only while a filter is active, a file is highlighted and the filter leaves it out', () => {
+    expect(highlightHiddenByFilter(groups, 'a_1795', 'a_1710')).toBe(true);
+    expect(highlightHiddenByFilter(groups, 'a_1795', 'a_1795')).toBe(false);
+    expect(highlightHiddenByFilter(groups, '', 'a_1710')).toBe(false);
+    expect(highlightHiddenByFilter(groups, '   ', 'a_1710')).toBe(false);
+    expect(highlightHiddenByFilter(groups, 'a_1795', null)).toBe(false);
+  });
+  it('is false for a highlight that is no file of the panel at all', () => {
+    expect(highlightHiddenByFilter(groups, 'a_1795', 'gone')).toBe(false);
+  });
+  it('is true when nothing matches at all', () => {
+    expect(highlightHiddenByFilter(groups, 'zzz', 'a_1710')).toBe(true);
+  });
+});
+
+describe('groupToggleLabel', () => {
+  it('names the group, and says it acts on the matching files while a filter is active', () => {
+    expect(groupToggleLabel('+45 / 2°', 3, false)).toBe('Show all in +45 / 2°');
+    expect(groupToggleLabel('+45 / 2°', 3, true)).toBe('Show the 3 matching files in +45 / 2°');
+    expect(groupToggleLabel('+45 / 2°', 1, true)).toBe('Show the 1 matching file in +45 / 2°');
+  });
+});
+
+describe('filterPending', () => {
+  it('is true while the typed text is ahead of the filter that is applied', () => {
+    expect(filterPending('171', '17')).toBe(true);
+    expect(filterPending('17', '17')).toBe(false);
+    expect(filterPending('', '')).toBe(false);
   });
 });

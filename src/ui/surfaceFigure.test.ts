@@ -10,6 +10,8 @@ import {
   type SurfaceSeries,
 } from './surfaceFigure';
 import { FIGURE_THEMES } from './figureTheme';
+import { exportFigure } from './exportFigure';
+import { surfaceExportCaption } from './viewCaps';
 import { reconstruct3d } from '../core/analysis/pattern3d';
 import { gridFrom, quadBeam } from '../test/synthetic';
 
@@ -46,6 +48,23 @@ describe('toCartesian', () => {
 
 describe('buildSurfaceFigure', () => {
   const theme = FIGURE_THEMES.light;
+
+  it('gives every surface its file label as `meta`, which the labelled export lists as the legend', () => {
+    for (const layout of ['grid', 'overlay'] as const) {
+      const f = buildSurfaceFigure({ series: series(3), layout, floorDb: 40, theme });
+      expect(traces(f).map((t) => t.meta)).toEqual(['file 0', 'file 1', 'file 2']);
+    }
+  });
+
+  it('exports with a legend of the drawn files and the cap caption under the title', () => {
+    const f = buildSurfaceFigure({ series: series(3), layout: 'overlay', floorDb: 40, theme });
+    const out = exportFigure(f, surfaceExportCaption('overlay', 3, 40));
+    expect(out.layout.showlegend).toBe(true);
+    expect((out.data as unknown as { name: string }[]).map((t) => t.name)).toEqual(['file 0', 'file 1', 'file 2']);
+    const title = (out.layout.title as { text: string }).text;
+    expect(title).toContain('3D radiation pattern');
+    expect(title).toContain('Showing 3 of 40 ticked files');
+  });
 
   it('lays out one scene per file side by side', () => {
     const f = buildSurfaceFigure({ series: series(3), layout: 'grid', floorDb: 40, theme });
