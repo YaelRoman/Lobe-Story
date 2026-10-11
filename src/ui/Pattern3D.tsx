@@ -10,6 +10,8 @@ import { capItems, capNotice, surfaceExportCaption } from './viewCaps';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
+import { withSimulated } from './exportFigure';
+import { exportName, simulatedCaption, simulationActive } from './simSummary';
 
 export function Pattern3D({
   items,
@@ -83,7 +85,7 @@ export function Pattern3D({
           {notice}
         </p>
       )}
-      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: exportCaption, filename: 'antenna-pattern-3d' }} />
+      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: withSimulated(exportCaption, simulatedCaption(sim, method)), filename: exportName('antenna-pattern-3d', simulationActive(sim)) }} />
     </>
   );
 }

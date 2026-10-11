@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Data } from 'plotly.js';
-import { exportCaptionLines, exportFigure, EXPORT_WIDTH } from './exportFigure';
+import { exportCaptionLines, exportFigure, withSimulated, EXPORT_WIDTH } from './exportFigure';
 import type { Figure } from './figureTheme';
-import { LEGEND } from './figureTheme';
+import { FIGURE_THEMES, LEGEND } from './figureTheme';
 
 type T = Record<string, unknown>;
 const fileTrace = (i: number): T => ({ type: 'scatter', name: `f${i}`, meta: `full name ${i}`, x: [0], y: [0] });
@@ -116,5 +116,62 @@ describe('exportCaptionLines', () => {
   });
   it('is just the file name when there are no values', () => {
     expect(exportCaptionLines({ file: 'f', items: [] })).toEqual(['f']);
+  });
+});
+
+describe('exports are light on white whatever the screen theme (D43)', () => {
+  const dark = FIGURE_THEMES.dark;
+  const light = FIGURE_THEMES.light;
+  const themed: Figure = {
+    data: [
+      { type: 'scatter', name: 'f', meta: 'full', x: [0], y: [0], line: { color: '#123456' } },
+      { type: 'scatter', name: 'ring', x: [0], y: [0], line: { color: dark.accent, dash: 'dash' }, marker: { color: dark.fg, line: { color: dark.bg } } },
+    ] as unknown as Data[],
+    layout: { paper_bgcolor: dark.bg, font: { color: dark.fg }, xaxis: { gridcolor: dark.grid }, title: { text: 'T' } },
+  };
+
+  it('replaces every colour of the dark theme by the light one and keeps the files’ own colours', () => {
+    const out = exportFigure(themed, undefined, 'dark');
+    const text = JSON.stringify(out).toLowerCase();
+    for (const c of Object.values(dark)) expect(text).not.toContain(c.toLowerCase());
+    expect(out.layout.paper_bgcolor).toBe('#ffffff');
+    expect((out.layout.font as { color: string }).color).toBe(light.fg);
+    expect((out.layout.xaxis as { gridcolor: string }).gridcolor).toBe(light.grid);
+    expect(((out.data[0] as unknown as T).line as T).color).toBe('#123456');
+    expect(((out.data[1] as unknown as T).line as T).color).toBe(light.accent);
+  });
+
+  it('leaves the on-screen figure untouched', () => {
+    const before = JSON.stringify(themed);
+    exportFigure(themed, undefined, 'dark');
+    expect(JSON.stringify(themed)).toBe(before);
+    expect(themed.layout.paper_bgcolor).toBe(dark.bg);
+  });
+
+  it('is white for a light screen as well, and when the figure sets no background', () => {
+    expect(exportFigure({ data: [], layout: {} }, undefined, 'dark').layout.paper_bgcolor).toBe('#ffffff');
+    expect(exportFigure({ data: [], layout: {} }).layout.paper_bgcolor).toBe('#ffffff');
+  });
+});
+
+describe('export captions: markers and simulation lines', () => {
+  it('prints the marker line and the simulation line after the values, each wrapped', () => {
+    const lines = exportCaptionLines({ file: 'A', items: ['HPBW 65°'], markers: 'Markers: dashed ring', simulated: 'Simulated: electrical Δ 4°, mechanical 0°, azimuth 0°, summation method' });
+    expect(lines).toEqual(['A', 'HPBW 65°', 'Markers: dashed ring', 'Simulated: electrical Δ 4°, mechanical 0°, azimuth 0°, summation method']);
+  });
+
+  it('a chart without a caption still gets the simulation line', () => {
+    expect(withSimulated(undefined, 'Simulated: x')).toEqual({ items: [], simulated: 'Simulated: x' });
+    expect(withSimulated({ items: ['a'] }, undefined)).toEqual({ items: ['a'] });
+    const out = exportFigure({ data: [], layout: { title: { text: 'T' } } }, withSimulated(undefined, 'Simulated: x'));
+    expect((out.layout.title as { text: string }).text).toContain('Simulated: x');
+  });
+
+  it('wraps a long marker line at spaces', () => {
+    const long = `Markers: ${'word '.repeat(60)}end`;
+    const lines = exportCaptionLines({ items: [], markers: long });
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.every((l) => l.length <= 110)).toBe(true);
+    expect(lines.join(' ')).toBe(long);
   });
 });

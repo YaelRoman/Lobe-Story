@@ -48,8 +48,11 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   the name), and a single value (click a cell, then the Copy value button that appears in it; or
   Right arrow into the cells and Enter / Ctrl+C). A small toast in the corner of the status area says what was copied (it takes no room and is replaced by the next status line); a row copied
   in the Δ view is marked "(differences vs <reference>)" or "(reference)" there, not in the data.
-- CSV export of the metrics table and PNG export of any plot (the cut plots export with a legend
-  of every file and the highlighted file's values).
+- CSV export of the metrics table and PNG export of any plot. Images are always drawn in the light colours on
+  white, whatever the screen theme, with a legend of every file, the highlighted file's values, a line saying
+  what the markers that are on mean and, while a simulation is active, a line "Simulated: electrical Δ …,
+  mechanical …, azimuth …". File names say what they are: `horizontal-cut.png`, `vertical-cut.png`,
+  `pattern-metrics.csv` and so on, with `-simulated` added while a simulation is active.
 - Undo: Remove, Delete group, Clear, Show all / none and opening a project over a session can be taken back
   with the Undo button for a few seconds and then with Ctrl/Cmd+Z until the next change you make (one step; a
   later edit withdraws it). Ctrl/Cmd+Z with nothing to undo says so.

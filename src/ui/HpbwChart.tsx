@@ -11,6 +11,8 @@ import { groupLook, PER_FILE_COLOURS } from './colors';
 import { bwName } from './bwLabel';
 import { nameOf } from '../core/names';
 import { hasUsableFrequency } from '../core/gain';
+import { withSimulated } from './exportFigure';
+import { exportName, simulatedCaption, simulationActive } from './simSummary';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 
@@ -100,9 +102,15 @@ export const HpbwChart = memo(function HpbwChart({
     return single.length ? buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref) : null;
   }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, column.unit, reference]);
 
+  const method3d = useStore((s) => s.view.method3d);
+  const simulatedLine = simulatedCaption(sim, method3d);
   const exportCaption = useMemo(
-    () => (both ? hpbwCaption(levelDb, simulated, refDrawn) : metricCaption(label, column.unit, simulated, refDrawn, Boolean(DECLARED[metric]))),
-    [both, levelDb, simulated, label, column.unit, refDrawn, metric],
+    () =>
+      withSimulated(
+        both ? hpbwCaption(levelDb, simulated, refDrawn) : metricCaption(label, column.unit, simulated, refDrawn, Boolean(DECLARED[metric])),
+        simulatedLine,
+      ),
+    [both, levelDb, simulated, label, column.unit, refDrawn, metric, simulatedLine],
   );
 
   const note = leftOut > 0 ? <p className="count" data-testid="freq-left-out">{leftOutText(leftOut)}</p> : null;
@@ -142,7 +150,7 @@ export const HpbwChart = memo(function HpbwChart({
             ? `${levelDb === 3 ? 'Half-power beamwidth' : `Beamwidth at ${levelDb} dB`} against frequency, one line per group`
             : `${label} (${column.unit}) against frequency, one line per group`
         }
-        labelledExport={{ caption: exportCaption, filename: both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency` }}
+        labelledExport={{ caption: exportCaption, filename: exportName(both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency`, simulationActive(sim)) }}
       />
     </section>
   );

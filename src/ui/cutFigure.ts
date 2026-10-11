@@ -425,3 +425,23 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
     },
   };
 }
+
+/**
+ * One caption line saying what the markers that are on mean in an exported cut image, or undefined when none is
+ * drawn for this cut. Only the markers of this cut are listed (the F/B window, sector edges and D/U arcs are horizontal
+ * only; the null fill and lower sidelobe are vertical only).
+ */
+export function markerCaption(
+  cut: 'H' | 'V',
+  markers: Record<MarkerKey, boolean>,
+  o: { levelDb: number; fbWindowDeg: number; sectorEdgeDeg: number; uslsRangeDeg: number },
+): string | undefined {
+  const parts: string[] = [];
+  if (markers.hpbw) parts.push(`dashed ring: the −${o.levelDb} dB level; shaded wedge: the ${bwName(o.levelDb)}`);
+  if (markers.fb && cut === 'H') parts.push(`light wedge: the F/B window (180° ± ${o.fbWindowDeg}°); ×: the F/B level`);
+  if (markers.usls) parts.push(cut === 'H' ? '×: the highest horizontal sidelobe (H-SLS)' : `×: the first upper sidelobe and the USLS peaks within ${o.uslsRangeDeg}°`);
+  if (markers.null && cut === 'V') parts.push('×: the null fill and the first lower sidelobe');
+  if (markers.peak) parts.push(`dotted ray: the beam direction (${cut === 'H' ? 'squint' : 'tilt'})`);
+  if (markers.sector && cut === 'H') parts.push(`dash-dot rays: the sector edges (±${o.sectorEdgeDeg}°); thick arcs: the D/U apertures (16, 64, 256 QAM)`);
+  return parts.length > 0 ? `Markers of the highlighted file: ${parts.join('; ')}` : undefined;
+}

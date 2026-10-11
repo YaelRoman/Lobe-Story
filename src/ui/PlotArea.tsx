@@ -3,7 +3,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useStore, type CutView, type Dimension, type Layout3d, type MarkerKey, type PlotMode } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
-import { buildCutFigure, markerReadout } from './cutFigure';
+import { buildCutFigure, markerCaption, markerReadout } from './cutFigure';
+import { exportName, simulatedCaption, simulationActive } from './simSummary';
+import { withSimulated } from './exportFigure';
 import { bwMarkerLabel } from './bwLabel';
 import { buildCutSeries, withReference } from './cutSeries';
 import { FIGURE_THEMES, type Figure } from './figureTheme';
@@ -53,10 +55,16 @@ interface CutPlotProps {
   /** Label of the pinned reference file when it is drawn (it has no legend entry without a legend). */
   referenceLabel: string | null;
   mode: PlotMode;
+  /** What the markers that are on mean, for the exported image's caption. */
+  markerLine: string | undefined;
+  /** The simulation line of the exported image's caption (undefined without a simulation). */
+  simulatedLine: string | undefined;
+  /** Name of the exported image, without extension. */
+  exportBase: string;
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup, referenceLabel, mode }: CutPlotProps) {
+function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportBase }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -66,7 +74,10 @@ function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup, ref
         testId={`plot-${id}`}
         toolbar={mode === 'polar' ? 'polar' : 'rect'}
         ariaLabel={`${id === 'h' ? 'Horizontal' : 'Vertical'} cut of the highlighted and visible patterns`}
-        labelledExport={{ caption: target ? { file: target, items: readout } : undefined }}
+        labelledExport={{
+          caption: withSimulated(target ? { file: target, items: readout, ...(markerLine ? { markers: markerLine } : {}) } : undefined, simulatedLine),
+          filename: exportBase,
+        }}
         previewBase={emphasised}
       />
       <div className="readout" data-testid={`readout-${id}`}>
@@ -118,6 +129,9 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
   const drawn = useDeferredValue(inputs);
   const updating = drawn !== inputs;
   const labels = markerLabels(settings.levelDb);
+  const method3d = useStore((s) => s.view.method3d);
+  const simulatedLine = simulatedCaption(sim, method3d);
+  const simulated = simulationActive(sim);
 
   const figures = useMemo(() => {
     if (is3d) return null;
@@ -139,7 +153,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
         series: buildCutSeries(drawn.items, drawn.sim, drawn.metrics, drawn.colors, cut, drawn.styles, drawn.reference),
       };
       const referenceLabel = options.series.find((x) => x.reference)?.label ?? null;
-      return { referenceLabel, mode: view.mode, figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === drawn.markerTarget)?.label ?? '', traces: options.series.length, emphasised: options.series.some((x) => x.id === drawn.markerTarget) ? drawn.markerTarget : null };
+      return { referenceLabel, markerLine: markerCaption(cut, view.markers, settings), mode: view.mode, figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === drawn.markerTarget)?.label ?? '', traces: options.series.length, emphasised: options.series.some((x) => x.id === drawn.markerTarget) ? drawn.markerTarget : null };
     };
     return { h: make('H'), v: make('V') };
   }, [is3d, drawn, view.mode, view.floorDb, view.markers, view.theme, settings]);
@@ -233,8 +247,8 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
             </p>
           )}
           <div className="plots">
-            {view.cut !== 'V' && figures && <CutPlot id="h" {...figures.h} byGroup={byGroup} />}
-            {view.cut !== 'H' && figures && <CutPlot id="v" {...figures.v} byGroup={byGroup} />}
+            {view.cut !== 'V' && figures && <CutPlot id="h" {...figures.h} byGroup={byGroup} simulatedLine={simulatedLine} exportBase={exportName('horizontal-cut', simulated)} />}
+            {view.cut !== 'H' && figures && <CutPlot id="v" {...figures.v} byGroup={byGroup} simulatedLine={simulatedLine} exportBase={exportName('vertical-cut', simulated)} />}
           </div>
         </>
       )}

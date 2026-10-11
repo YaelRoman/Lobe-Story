@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Legend, PlotData, Shape } from 'plotly.js';
 import { buildHpbwFigure, hpbwCaption } from './hpbwFigure';
 import { exportFigure } from './exportFigure';
-import { buildCutFigure, markerReadout, type CutFigureOptions, type PlotSeries } from './cutFigure';
+import { buildCutFigure, markerCaption, markerReadout, type CutFigureOptions, type PlotSeries } from './cutFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
 import { tiltPattern } from '../core/analysis/tilt';
@@ -599,5 +599,46 @@ describe('the reference point in the frequency charts', () => {
     expect(f.layout.yaxis?.range).toBeUndefined();
     expect(hpbwCaption(3, false, true).items).toContain('Diamond: the reference file');
     expect(hpbwCaption(3, false).items).toEqual([]);
+  });
+});
+
+describe('markerCaption and the export of a real cut figure', () => {
+  const o = { levelDb: 3, fbWindowDeg: 30, sectorEdgeDeg: 60, uslsRangeDeg: 20 };
+  const all = { hpbw: true, fb: true, usls: true, null: true, peak: true, sector: true };
+
+  it('is empty when no marker is on, and lists only the markers that are on', () => {
+    expect(markerCaption('H', NO_MARKERS, o)).toBeUndefined();
+    expect(markerCaption('V', { ...NO_MARKERS, fb: true, sector: true }, o)).toBeUndefined();
+    const line = markerCaption('H', { ...NO_MARKERS, hpbw: true, sector: true }, o)!;
+    expect(line).toContain('dashed ring: the −3 dB level');
+    expect(line).toContain('shaded wedge: the HPBW');
+    expect(line).toContain('dash-dot rays: the sector edges (±60°)');
+    expect(line).toContain('thick arcs: the D/U apertures');
+    expect(line).not.toContain('F/B window');
+    expect(line).not.toContain('dotted ray');
+  });
+
+  it('names the markers of the cut it is for', () => {
+    const h = markerCaption('H', all, o)!;
+    const v = markerCaption('V', all, o)!;
+    expect(h).toContain('F/B window (180° ± 30°)');
+    expect(h).toContain('H-SLS');
+    expect(h).toContain('(squint)');
+    expect(v).not.toContain('F/B window');
+    expect(v).not.toContain('sector edges');
+    expect(v).toContain('null fill');
+    expect(v).toContain('(tilt)');
+    expect(v).toContain('USLS peaks within 20°');
+  });
+
+  it('a dark-theme cut figure exports without any dark colour, light and on white', () => {
+    const dark = buildCutFigure(opts({ theme: FIGURE_THEMES.dark, markers: all, markerTarget: 'a', series: [series('a')[0]] }));
+    const text = JSON.stringify(dark).toLowerCase();
+    expect(text).toContain(FIGURE_THEMES.dark.bg);
+    const out = exportFigure(dark, { items: [] }, 'dark');
+    const exported = JSON.stringify(out).toLowerCase();
+    for (const c of Object.values(FIGURE_THEMES.dark)) expect(exported).not.toContain(c.toLowerCase());
+    expect(out.layout.paper_bgcolor).toBe('#ffffff');
+    expect(JSON.stringify(dark).toLowerCase()).toBe(text);
   });
 });

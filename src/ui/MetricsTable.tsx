@@ -12,6 +12,7 @@ import { useTablePreview } from './useTablePreview';
 import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { neighbourOrder } from './undoKeys';
 import { downloadText } from './download';
+import { exportName, simulationActive } from './simSummary';
 import { copiedRow, copiedRows, copiedValue, copyAndAnnounce } from './clipboard';
 import { copyShortcut } from './copyKeys';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
@@ -223,7 +224,7 @@ export const MetricsTable = memo(function MetricsTable({
         <button
           onClick={() =>
             downloadText(
-              'pattern-metrics.csv',
+              exportName('pattern-metrics', simulationActive(sim), '.csv'),
               '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted),
               'text/csv;charset=utf-8',
             )

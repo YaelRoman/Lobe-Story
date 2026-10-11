@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useStore } from '../state/store';
 import Plotly from 'plotly.js-dist-min';
 import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
@@ -112,7 +113,8 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
       icon: Plotly.Icons.camera,
       click: () => {
         const cur = exporting.current;
-        const out = exportFigure(cur.figure, cur.labelledExport?.caption);
+        // Always light colours on white, whatever the screen theme: the image is rebuilt from a copy, the drawn figure is not touched.
+        const out = exportFigure(cur.figure, cur.labelledExport?.caption, useStore.getState().view.theme);
         void Plotly.downloadImage(
           { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
           { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },

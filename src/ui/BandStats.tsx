@@ -8,6 +8,8 @@ import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandTsv, cellDisplay, defaultDat
 import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
 import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
+import { withSimulated } from './exportFigure';
+import { exportName, simulatedCaption, simulationActive } from './simSummary';
 import { copyAndAnnounce } from './clipboard';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
@@ -51,6 +53,8 @@ export const BandStats = memo(function BandStats({
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);
   const theme = useStore((s) => s.view.theme);
+  const method3d = useStore((s) => s.view.method3d);
+  const simulated = simulationActive(sim);
 
   const datasets = useMemo(() => buildDatasets(tagged, customGroups), [tagged, customGroups]);
   const largest = largestDataset(datasets);
@@ -138,7 +142,7 @@ export const BandStats = memo(function BandStats({
         ...(sim.tiltActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx) } : {}),
       };
     });
-    downloadText('band-statistics.csv', '﻿' + bandCsv(sheets, settings), 'text/csv;charset=utf-8');
+    downloadText(exportName('band-statistics', simulated, '.csv'), '﻿' + bandCsv(sheets, settings), 'text/csv;charset=utf-8');
   };
 
   return (
@@ -244,7 +248,7 @@ export const BandStats = memo(function BandStats({
           testId="plot-band"
           toolbar="xy"
           ariaLabel="Band statistics plot"
-          labelledExport={{ caption: exportCaption ?? undefined, filename: 'band-statistics-histogram' }}
+          labelledExport={{ caption: withSimulated(exportCaption ?? undefined, simulatedCaption(sim, method3d)), filename: exportName('band-statistics-histogram', simulated) }}
         />
       )}
       {anyAdjusted(columns, tiltedColumns) && (

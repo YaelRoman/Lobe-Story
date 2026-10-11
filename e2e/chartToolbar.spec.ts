@@ -95,3 +95,54 @@ test('the chart toolbars are five tab stops between the marker checkboxes and "E
   // One download per cut plot; zoom, reset and download on the frequency chart.
   expect(stops.filter((s) => s.startsWith('toolbar: '))).toEqual([`toolbar: ${DOWNLOAD}`, `toolbar: ${DOWNLOAD}`, 'toolbar: Zoom', 'toolbar: Reset axes', `toolbar: ${DOWNLOAD}`]);
 });
+
+test('exported images are white whatever the screen theme, named by cut, and say when they are simulated', async ({ page }) => {
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Dark mode' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const screenBackground = () => page.getByTestId('plot-h').locator('.main-svg').first().evaluate((el) => getComputedStyle(el).backgroundColor);
+  const before = await screenBackground();
+
+  const download = async (testId: string) => {
+    const pending = page.waitForEvent('download');
+    await page.getByTestId(testId).getByRole('button', { name: DOWNLOAD }).click();
+    const d = await pending;
+    return { name: d.suggestedFilename(), path: (await d.path())! };
+  };
+  const pixel = async (path: string, x: number, y: number) => {
+    const base64 = (await import('node:fs')).readFileSync(path).toString('base64');
+    return page.evaluate(
+      async ([data, px, py]) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${data}`;
+        await img.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        return Array.from(ctx.getImageData(px as number, py as number, 1, 1).data);
+      },
+      [base64, x, y] as const,
+    );
+  };
+
+  const h = await download('plot-h');
+  expect(h.name).toBe('horizontal-cut.png');
+  expect(await pixel(h.path, 4, 4)).toEqual([255, 255, 255, 255]);
+  // The screen figure is untouched by the export: still the dark background.
+  expect(await screenBackground()).toBe(before);
+  expect(before).not.toBe('rgb(255, 255, 255)');
+
+  await page.getByRole('button', { name: 'Vertical', exact: true }).click();
+  const v = await download('plot-v');
+  expect(v.name).toBe('vertical-cut.png');
+
+  // While a simulation is active the names say so.
+  await page.getByLabel('Electrical tilt Δ (°) value').fill('3');
+  await page.getByLabel('Electrical tilt Δ (°) value').press('Enter');
+  const simulated = await download('plot-v');
+  expect(simulated.name).toBe('vertical-cut-simulated.png');
+  const freq = await download('plot-hpbw');
+  expect(freq.name).toBe('beamwidth-vs-frequency-simulated.png');
+});

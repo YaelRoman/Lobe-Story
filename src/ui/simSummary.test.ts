@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { simSummary } from './simSummary';
+import { exportName, simSummary, simulatedCaption, simulationActive } from './simSummary';
 
 describe('simSummary', () => {
   it('shows the global values', () => {
@@ -15,5 +15,29 @@ describe('simSummary', () => {
       'Tilt Δ 3° · Mech 2° · Az 0° · 3D method: Weighted',
     );
     expect(simSummary({ electricalDeg: 3, mechanicalDeg: 2, azimuthDeg: 0 }, 0, 0, 'summation')).toContain('3D method: Summation');
+  });
+});
+
+describe('simulatedCaption and exportName', () => {
+  const none = { tiltActive: false, tilt: { electricalDeg: 0, mechanicalDeg: 0 }, azimuthDeg: 0, offsetCount: 0, groupOffsetCount: 0 };
+  it('is empty without a simulation', () => {
+    expect(simulationActive(none)).toBe(false);
+    expect(simulatedCaption(none, 'summation')).toBeUndefined();
+  });
+  it('lists the electrical, mechanical and azimuth values and the method when a tilt is active', () => {
+    const s = { ...none, tiltActive: true, tilt: { electricalDeg: 4, mechanicalDeg: -2 }, azimuthDeg: 10 };
+    expect(simulatedCaption(s, 'weighted')).toBe('Simulated: electrical Δ 4°, mechanical -2°, azimuth 10°, weighted method');
+  });
+  it('leaves the method out for an azimuth-only simulation and counts the offsets', () => {
+    expect(simulatedCaption({ ...none, azimuthDeg: 15 }, 'summation')).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 15°');
+    expect(simulatedCaption({ ...none, offsetCount: 2, groupOffsetCount: 1, tiltActive: true }, 'summation')).toBe(
+      'Simulated: electrical Δ 0°, mechanical 0°, azimuth 0°, summation method; offsets on 2 files and 1 group',
+    );
+  });
+  it('adds -simulated to an export name only while a simulation is active', () => {
+    expect(exportName('horizontal-cut', false)).toBe('horizontal-cut');
+    expect(exportName('horizontal-cut', true)).toBe('horizontal-cut-simulated');
+    expect(exportName('pattern-metrics', true, '.csv')).toBe('pattern-metrics-simulated.csv');
+    expect(exportName('pattern-metrics', false, '.csv')).toBe('pattern-metrics.csv');
   });
 });
