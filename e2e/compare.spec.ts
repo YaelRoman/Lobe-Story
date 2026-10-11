@@ -144,6 +144,17 @@ test.describe('copy to the clipboard', () => {
 test.describe('reference file', () => {
   const menuOf = (page: Page, n: number) => page.locator('.panel li').nth(n);
 
+  test('a pinned reference is drawn alone when no file is ticked, and the empty hint is gone', async ({ page }) => {
+    await loadExample(page);
+    await menuOf(page, 2).getByLabel(/^Actions for /).click();
+    await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+    await page.getByRole('button', { name: 'Show none', exact: true }).click();
+    await expect(page.locator('.panel li input[type="checkbox"]:checked')).toHaveCount(0);
+    await expect(page.getByText('Tick files in the left panel to plot them.')).toHaveCount(0);
+    await expect(page.getByTestId('plot-h')).toContainText('(reference)');
+    await expect(page.getByTestId('plot-h').locator('path.js-line[style*="stroke-width: 3.5"]').first()).toBeVisible();
+  });
+
   test('pin a reference, show the differences, see it in the plots, save and reopen the project', async ({ page }, testInfo) => {
     await loadExample(page);
     // Pin the third file of the panel from its ⋯ menu.

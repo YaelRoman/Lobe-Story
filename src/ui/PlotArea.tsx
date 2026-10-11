@@ -5,7 +5,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildCutFigure, markerReadout } from './cutFigure';
 import { bwMarkerLabel } from './bwLabel';
-import { buildCutSeries } from './cutSeries';
+import { buildCutSeries, withReference } from './cutSeries';
 import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend } from './legend';
 import { PlotlyChart } from './PlotlyChart';
@@ -107,12 +107,8 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
   const settings = useStore((s) => s.settings);
 
   const items = useMemo(() => groups.flatMap((g) => g.items).filter((i) => visible[i.pattern.id]), [groups, visible]);
-  // The reference file is drawn whenever one is pinned, ticked or not.
-  const drawnItems = useMemo(() => {
-    if (reference === null || items.some((i) => i.pattern.id === reference)) return items;
-    const ref = groups.flatMap((g) => g.items).find((i) => i.pattern.id === reference);
-    return ref && items.length > 0 ? [...items, ref] : items;
-  }, [items, groups, reference]);
+  // The reference file is drawn whenever one is pinned, ticked or not, also when nothing else is ticked.
+  const drawnItems = useMemo(() => withReference(items, groups.flatMap((g) => g.items), reference), [items, groups, reference]);
   const markerTarget =
     highlighted && visible[highlighted] ? highlighted : items.length === 1 ? items[0].pattern.id : null;
   const is3d = view.dimension === '3d';
@@ -218,7 +214,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
           </>
         )}
       </div>
-      {items.length === 0 ? (
+      {(is3d ? items.length === 0 : drawnItems.length === 0) ? (
         <p className="empty">Tick files in the left panel to plot them.</p>
       ) : is3d ? (
         <Pattern3D items={items} colors={colors} sim={sim} />

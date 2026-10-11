@@ -46,3 +46,13 @@ export function buildCutSeries(
     });
   return [...series(false), ...(sim.showOriginal ? series(true) : [])];
 }
+
+/**
+ * The items a 2D cut draws: the ticked ones, plus the pinned reference when it is not among them (also when nothing
+ * else is ticked, so the reference is then drawn alone).
+ */
+export function withReference<T extends { pattern: { id: string } }>(ticked: T[], all: T[], referenceId: string | null): T[] {
+  if (referenceId === null || ticked.some((i) => i.pattern.id === referenceId)) return ticked;
+  const ref = all.find((i) => i.pattern.id === referenceId);
+  return ref ? [...ticked, ref] : ticked;
+}

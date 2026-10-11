@@ -10,7 +10,7 @@ import {
   type TiltSettings,
 } from '../core/analysis/tilt';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
-import { buildCutSeries } from './cutSeries';
+import { buildCutSeries, withReference } from './cutSeries';
 import type { SimulationResult } from './useSimulation';
 
 const items = [
@@ -135,5 +135,17 @@ describe('buildCutSeries with a reference file', () => {
   it('draws nothing special without a reference or for an id that is not among the items', () => {
     expect(buildCutSeries(items, simFor(NO_TILT), original, colors, 'H').some((x) => x.reference)).toBe(false);
     expect(buildCutSeries(items, simFor(NO_TILT), original, colors, 'H', undefined, 'zzz').some((x) => x.reference)).toBe(false);
+  });
+});
+
+describe('withReference', () => {
+  it('adds an unticked reference, also when nothing else is ticked', () => {
+    expect(withReference([items[0]], items, 'b').map((i) => i.pattern.id)).toEqual(['a', 'b']);
+    expect(withReference([], items, 'b').map((i) => i.pattern.id)).toEqual(['b']);
+  });
+  it('leaves the ticked items alone without a reference, with a ticked one, or with one that is gone', () => {
+    expect(withReference([items[0]], items, null)).toEqual([items[0]]);
+    expect(withReference([items[0]], items, 'a')).toEqual([items[0]]);
+    expect(withReference([], items, 'zz')).toEqual([]);
   });
 });

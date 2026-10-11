@@ -29,8 +29,8 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   repeated hues apart.
 - Compare against a reference: the ⋯ menu of a file has **Use as reference**. The reference is
   marked with a pin, drawn in the 2D cut plots as a thick dashed line that is never dimmed (also
-  when unticked) and marked in the frequency chart. **Δ vs reference** above the metrics table
-  shows every metric and the gain as a signed difference from it; the reference row stays first with
+  when unticked, and alone when no other file is ticked) and marked in the frequency chart.
+  **Δ vs reference** above the metrics table shows every metric and the gain as a signed difference from it; the reference row stays first with
   its own values. **Copy table** and the CSV follow what is shown, with a Row column (`reference` /
   `difference`) and "Δ vs <reference>" headers. The reference is saved with the project.
 - Automatic grouping by polarization, tilt, port and array (editable; drag files between groups).

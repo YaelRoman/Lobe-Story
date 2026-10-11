@@ -16,7 +16,7 @@ export const PANEL_HELP =
 /** One line per feature for the Help dialog (the lines for the table, the chart and the reference file). */
 export const FEATURE_HELP: readonly string[] = [
   'Copying: Copy table (above the metrics table and the band statistics) puts the table as shown on the clipboard for a spreadsheet; Copy row (the mark beside a file name, or Ctrl/Cmd+C on it) copies one row; click a cell and then the Copy value button that appears in it, or Right arrow into the cells and then Enter or Ctrl/Cmd+C, copies one value.',
-  'Reference file: the ⋯ menu of a file has Use as reference (and Clear reference). The reference shows a pin, is drawn in the cut plots as a thick dashed line in the text colour (also when it is not ticked) and is marked by a diamond in the frequency chart; the Δ vs reference box above the metrics table shows every metric and the gain as the difference from it (the reference row stays first and keeps its own values; the CSV and copy add a Row column saying which is which). It is saved with the project.',
+  'Reference file: the ⋯ menu of a file has Use as reference (and Clear reference). The reference shows a pin, is drawn in the cut plots as a thick dashed line in the text colour (also when it is not ticked, and alone when no other file is ticked) and is marked by a diamond in the frequency chart; the Δ vs reference box above the metrics table shows every metric and the gain as the difference from it (the reference row stays first and keeps its own values; the CSV and copy add a Row column saying which is which). It is saved with the project.',
   'Frequency chart: the Metric menu above it plots any table column against frequency, one line per group; the choice is remembered in this browser, not in projects.',
 ];
 
