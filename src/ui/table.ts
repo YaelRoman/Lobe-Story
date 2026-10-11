@@ -147,6 +147,8 @@ export interface MetricsRow {
   file: string;
   source: string;
   group: string;
+  /** The group label is the app's own (see `GroupView.generatedLabel`): exports do not guard it as user text. */
+  generatedGroup?: true;
   freq: number;
   gain: number | null;
   cells: Record<MetricColumn, MetricResult>;
@@ -221,6 +223,7 @@ export function buildRows(
         file: nameOf(pattern),
         source: pattern.fileName,
         group: g.label,
+        ...(g.generatedLabel ? { generatedGroup: true as const } : {}),
         freq: pattern.frequencyMHz,
         gain: convertGain(pattern.gain, gainUnit),
         cells: cellsOf(m),
@@ -397,6 +400,12 @@ export function formulaSafe(raw: string): string {
   return /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
 }
 
+/** The Group cell of a CSV row: the app's own generated label as is (a polarization sign is not a formula), anything else as user text. */
+const groupCsv = (r: MetricsRow): string => (r.generatedGroup ? csvCell(r.group) : csvText(r.group));
+
+/** The Group cell of a tab-separated row, the same rule. */
+const groupTsv = (r: MetricsRow): string => (r.generatedGroup ? tabSafe(r.group) : tsvText(r.group));
+
 /** A tab or line break becomes a space, so text cannot split a tab-separated cell or line (for computed text, which needs no formula guard). */
 export const tabSafe = (raw: string): string => raw.replace(/[\t\r\n]+/g, ' ');
 
@@ -477,7 +486,7 @@ export function toCsv(
   const lines = rows.map((r) => [
     csvText(r.file),
     ...(withSource ? [csvText(r.source)] : []),
-    csvText(r.group),
+    groupCsv(r),
     ...[
       ...(deltaVs !== undefined ? [rowRole(r)] : []),
       String(r.freq),
@@ -526,7 +535,7 @@ type CopyColumn = { key: MetricColumn; label: string; unit: string };
 
 /** The values of one row as shown (file, group, MHz, gain, then the columns), tab-separated, no header. */
 export function rowToTsv(r: MetricsRow, columns: readonly CopyColumn[], withRole = false): string {
-  return [tsvText(r.file), tsvText(r.group), ...(withRole ? [rowRole(r)] : []), String(r.freq), gainText(r), ...columns.map((c) => cellText(r, c.key))].join('\t');
+  return [tsvText(r.file), groupTsv(r), ...(withRole ? [rowRole(r)] : []), String(r.freq), gainText(r), ...columns.map((c) => cellText(r, c.key))].join('\t');
 }
 
 /**

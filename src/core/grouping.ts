@@ -74,6 +74,23 @@ export function groupKey(t: Tags): string {
   return [t.polarization ?? '?', t.tiltDeg ?? '?', t.port ?? '', t.array ?? ''].join('|');
 }
 
+/** The polarizations the app itself reads from names and headers. */
+const KNOWN_POLARIZATIONS = new Set(['+45', '-45']);
+
+/**
+ * Whether every tag value in the automatic label of this group comes from the fixed vocabulary: a known polarization
+ * (or none), a numeric tilt (or none), a port number like "2" or "P2" (or none) and a short alphanumeric array code
+ * (or none). A label built from anything else carries free text a user typed, which an export must guard.
+ */
+export function isGeneratedLabel(t: Tags): boolean {
+  return (
+    (t.polarization === undefined || KNOWN_POLARIZATIONS.has(t.polarization)) &&
+    (t.tiltDeg === undefined || Number.isFinite(t.tiltDeg)) &&
+    (t.port === undefined || /^P?\d+$/.test(t.port)) &&
+    (t.array === undefined || /^[A-Za-z0-9]{1,8}$/.test(t.array))
+  );
+}
+
 export function groupLabel(t: Tags): string {
   if (groupKey(t) === UNGROUPED) return 'Ungrouped';
   const parts = [t.polarization ?? '? pol', t.tiltDeg !== undefined ? `${t.tiltDeg}°T` : '? tilt'];

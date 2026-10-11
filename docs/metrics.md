@@ -2,7 +2,7 @@
 
 Every column of the metrics table, as the code computes it, with the NGMN BASTA V13 section it
 corresponds to (section number only) or "tool-defined" when BASTA has no such parameter. Names are
-the table labels. Column groups can be hidden above the table; the CSV always has every column. In both CSV files the text columns taken from user data (metrics CSV: File, Source file, Group; band CSV: Antenna, Sub-band) get a leading `'` when they start with `=`, `+`, `-`, `@`, a tab or a carriage return, so spreadsheets do not run them as a formula; numbers, headers and the other columns are written as they are.
+the table labels. Column groups can be hidden above the table; the CSV always has every column. In both CSV files the text columns taken from user data (metrics CSV: File, Source file, Group; band CSV: Antenna, Sub-band) get a leading `'` when they start with `=`, `+`, `-`, `@`, a tab or a carriage return, so spreadsheets do not run them as a formula. The one exception is the app's own automatic group label such as `+45 · 2°T`, built only from a known polarization, a numeric tilt and a port or array code: it is written as it is. A renamed group, or a label with free text in a tag, is guarded; numbers, headers and the other columns are written as they are.
 
 ## Data and conventions
 

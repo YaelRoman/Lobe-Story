@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
-  simulationLabel, toCsv, markReference, cellText, offsetLabel, csvCell, csvText, clearOfSticky, METRIC_KEYS,
+  simulationLabel, toCsv, toTsv, rowToTsv, markReference, cellText, offsetLabel, csvCell, csvText, clearOfSticky, METRIC_KEYS,
   nextSort, revealScrollTop, sortIfShown, shouldReveal, sortRows, sortValue, ariaSort, type MetricsRow, type SortState,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import { analyzeTilted, tiltTagged, effectiveFor, isTilted, tiltEach, type SimSettings } from '../core/analysis/tilt';
-import { groupPatterns } from '../state/selectors';
+import { buildPanelGroups, groupPatterns } from '../state/selectors';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
 
 describe('convertGain', () => {
@@ -46,7 +46,7 @@ describe('buildRows and toCsv', () => {
         'File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),H-BW 10 dB (°),V-BW 10 dB (°),Squint (°),Peak az (°),Tilt (°),Peak tilt (°),Tilt error (°),F/B 180° (dB),F/B ±30° (dB)',
       ),
     ).toBe(true);
-    expect(line.startsWith('"""odd, name"".MSI",\'+45 · 6°T,1800,17.15,60.00,8.00,109.54,14.22,')).toBe(true);
+    expect(line.startsWith('"""odd, name"".MSI",+45 · 6°T,1800,17.15,60.00,8.00,109.54,14.22,')).toBe(true);
     expect(line.split(',').length).toBeGreaterThan(10);
     expect(line).toContain(',,'); // null tracking / deltas are empty
   });
@@ -429,7 +429,7 @@ describe('csvCell and csvText', () => {
     expect(lines[1].startsWith("'=cmd.msi,")).toBe(true);
     expect(lines[0].startsWith('File,')).toBe(true);
     expect(toCsv([{ ...rows[0], source: '@src.msi' }, { ...rows[0], group: '-g' }], 'dBi', 30)).toMatch(/'@src\.msi/);
-    expect(toCsv([{ ...rows[0], group: '-g' }], 'dBi', 30).split('\r\n')[1]).toContain(",'-g,");
+    expect(toCsv([{ ...rows[0], group: '-g', generatedGroup: undefined }], 'dBi', 30).split('\r\n')[1]).toContain(",'-g,");
   });
   it('leaves a negative metric value unquoted', () => {
     const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'x', fileName: 'a.msi', gain: { value: -5, unit: 'dBi' } });
@@ -652,5 +652,52 @@ describe('the reference row in the difference view under a simulation', () => {
     expect(ref.cells.tilt.value).toBe(built[0].tilted!.tilt?.value);
     expect(cellText(ref, 'tilt')).not.toContain('→');
     expect(cellText(other, 'tilt')).not.toContain('→');
+  });
+});
+
+describe('the formula guard and the own group labels of the app', () => {
+  const mk = (id: string, name: string) => patternFrom(quadBeam(60), vBeamWithLobes, { id, fileName: `${name}.msi`, gain: { value: 15, unit: 'dBd' } });
+  const tagged = [
+    { pattern: mk('a', 'a'), tags: { polarization: '+45', tiltDeg: 2 } },
+    { pattern: mk('b', 'b'), tags: { polarization: '-45', tiltDeg: 2, port: '2' } },
+    { pattern: mk('c', 'c'), tags: { polarization: '=cmd|x', tiltDeg: 2 } },
+    { pattern: mk('d', 'd'), tags: { polarization: '+45', tiltDeg: 6, array: '=A1' } },
+  ];
+  const groups = groupPatterns(tagged);
+  const metrics = analyzeAll(tagged);
+  const rows = buildRows(groups, metrics, 'dBi');
+  const byFile = (f: string) => rows.find((r) => r.file === `${f}.msi`)!;
+
+  it('flags only labels built from the fixed vocabulary', () => {
+    expect(byFile('a').generatedGroup).toBe(true);
+    expect(byFile('b').generatedGroup).toBe(true);
+    expect(byFile('c').generatedGroup).toBeUndefined();
+    expect(byFile('d').generatedGroup).toBeUndefined();
+  });
+
+  it('writes an automatic "+45 · 2°T" without an apostrophe in the CSV, the TSV and a copied row', () => {
+    const csv = toCsv(rows, 'dBi', 30).split('\r\n');
+    expect(csv.find((l) => l.startsWith('a.msi,'))).toContain(',+45 · 2°T,');
+    expect(csv.find((l) => l.startsWith('b.msi,'))).toContain(',-45 · 2°T · Port 2,');
+    const tsv = toTsv(rows, METRIC_COLUMNS, 'dBi', 30).split('\r\n');
+    expect(tsv.find((l) => l.startsWith('a.msi\t'))!.split('\t')[1]).toBe('+45 · 2°T');
+    expect(rowToTsv(byFile('b'), METRIC_COLUMNS).split('\t')[1]).toBe('-45 · 2°T · Port 2');
+  });
+
+  it('still guards a group whose tag is free text, and a renamed (custom) group', () => {
+    const csv = toCsv(rows, 'dBi', 30).split('\r\n');
+    // A polarization typed as "=cmd|x" makes a label that starts with "=": guarded.
+    expect(csv.find((l) => l.startsWith('c.msi,'))).toContain(",'=cmd|x · 2°T,");
+    expect(rowToTsv(byFile('c'), METRIC_COLUMNS).split('\t')[1]).toBe("'=cmd|x · 2°T");
+    const custom = buildPanelGroups(tagged.map((t) => ({ ...t, scope: 'g1' })), [{ id: 'g1', name: '+cmd|x' }]);
+    expect(custom[0].generatedLabel).toBeUndefined();
+    const customRows = buildRows(custom, metrics, 'dBi');
+    expect(toCsv(customRows, 'dBi', 30).split('\r\n')[1]).toContain(",'+cmd|x,");
+    expect(toTsv(customRows, METRIC_COLUMNS, 'dBi', 30).split('\r\n')[1].split('\t')[1]).toBe("'+cmd|x");
+    expect(rowToTsv(customRows[0], METRIC_COLUMNS).split('\t')[1]).toBe("'+cmd|x");
+  });
+
+  it('keeps the band CSV guard for the antenna label, which carries a group name', () => {
+    expect(csvText('+cmd|x')).toBe("'+cmd|x");
   });
 });

@@ -1,6 +1,6 @@
 import type { Pattern, Tags } from '../core/types';
 import type { TaggedPattern } from '../core/analysis/metrics';
-import { groupKey, groupLabel, inferTags, UNGROUPED } from '../core/grouping';
+import { groupKey, groupLabel, inferTags, isGeneratedLabel, UNGROUPED } from '../core/grouping';
 import type { CustomGroup, LoadedFile } from './store';
 
 export function effectiveTags(pattern: Pattern, override?: Partial<Tags>): Tags {
@@ -96,6 +96,8 @@ export interface GroupView {
   tags: Tags;
   items: TaggedPattern[];
   customId?: string;
+  /** The label was built by `core/grouping.ts` from fixed-vocabulary tag values, and the group has no user-given name (see `isGeneratedLabel`). Exports skip the formula guard for it. */
+  generatedLabel?: true;
 }
 
 export function groupPatterns(tagged: TaggedPattern[]): GroupView[] {
@@ -104,7 +106,7 @@ export function groupPatterns(tagged: TaggedPattern[]): GroupView[] {
     const key = groupKey(item.tags);
     let g = groups.get(key);
     if (!g) {
-      g = { key, label: groupLabel(item.tags), tags: fullTags(item.tags), items: [] };
+      g = { key, label: groupLabel(item.tags), tags: fullTags(item.tags), items: [], ...(isGeneratedLabel(item.tags) ? { generatedLabel: true as const } : {}) };
       groups.set(key, g);
     }
     g.items.push(item);
