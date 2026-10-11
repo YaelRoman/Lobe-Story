@@ -1,5 +1,5 @@
 import type { MetricResult } from '../types';
-import { mod360, type Grid } from './grid';
+import { attAt, mod360, type Grid } from './grid';
 
 export const DU_LEVELS = [
   { key: 'qam16', label: '16QAM', db: 15 },
@@ -8,14 +8,6 @@ export const DU_LEVELS = [
 ] as const;
 
 const power = (att: number): number => 10 ** (-att / 10);
-
-/** Attenuation at a fractional angle, linearly interpolated between the neighbouring integer degrees. */
-function attAt(g: Grid, angle: number): number {
-  const a = mod360(angle);
-  const i = Math.floor(a);
-  const f = a - i;
-  return f === 0 ? g[i % 360] : g[i % 360] * (1 - f) + g[(i + 1) % 360] * f;
-}
 
 /** Sector power ratio (percent) and azimuth interference ratio (dB) for a sector of ±edgeDeg. */
 export function sectorPower(h: Grid, edgeDeg = 60): { spr: MetricResult; air: MetricResult } {

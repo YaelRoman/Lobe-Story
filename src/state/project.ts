@@ -127,7 +127,6 @@ const SETTING_MAX: Record<keyof AnalysisSettings, number> = {
   levelDb: 100,
   fbWindowDeg: 360,
   uslsRangeDeg: 360,
-  nullSearchDeg: 360,
   sectorEdgeDeg: 179,
   siteSectors: 12,
 };

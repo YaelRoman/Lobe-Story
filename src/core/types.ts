@@ -51,6 +51,7 @@ export interface Tags {
 
 export interface MetricResult {
   value: number | null;
+  /** Why the value is null, or a note on how a non-null value was obtained. */
   reason?: string;
   /** Signed angle (degrees) where the value was found, when meaningful. */
   angle?: number;

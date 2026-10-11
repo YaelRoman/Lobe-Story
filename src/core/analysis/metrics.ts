@@ -2,7 +2,7 @@ import type { MetricResult, Pattern, Tags } from '../types';
 import { beamwidth, type BeamResult } from './beamwidth';
 import { frontToBack } from './frontToBack';
 import { toGrid, type Grid } from './grid';
-import { firstNullFill, usls } from './sidelobes';
+import { elevationSidelobes, horizontalSls, type LobeResult, type WindowResult } from './sidelobes';
 import { DU_LEVELS, duAperture, rollOff, sectorPower } from './sector';
 import { beamTracking } from './tracking';
 
@@ -10,7 +10,6 @@ export interface AnalysisSettings {
   levelDb: number;
   fbWindowDeg: number;
   uslsRangeDeg: number;
-  nullSearchDeg: number;
   sectorEdgeDeg: number;
   siteSectors: number;
 }
@@ -19,7 +18,6 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   levelDb: 3,
   fbWindowDeg: 30,
   uslsRangeDeg: 20,
-  nullSearchDeg: 90,
   sectorEdgeDeg: 60,
   siteSectors: 3,
 };
@@ -54,8 +52,20 @@ export interface PatternMetrics {
   vPeak: MetricResult;
   fb180: MetricResult;
   fbWindow: MetricResult;
-  usls: MetricResult;
-  nullFill: MetricResult;
+  /** BASTA 7.8.4.3: highest upper sidelobe from the peak to `uslsRangeDeg` above it. */
+  usls: WindowResult;
+  /** BASTA 7.8.3: level of the first null below the main beam (12.5.2). */
+  nullFill: LobeResult;
+  /** BASTA 7.8.4.2: first upper sidelobe. */
+  firstUsls: LobeResult;
+  /** BASTA 7.8.4.5 on the elevation cut: highest upper sidelobe from the horizon to `uslsRangeDeg` above it. */
+  uslsHorizon: WindowResult;
+  /** BASTA 7.8.4.4: highest upper sidelobe from the peak to the zenith. */
+  uslsMax: WindowResult;
+  /** First lower sidelobe suppression (elevation-cut form of 7.2.11). */
+  firstLsls: LobeResult;
+  /** BASTA 7.8.4.1 on the azimuth cut: highest sidelobe inside the sector. */
+  hSls: MetricResult;
   beamTracking: MetricResult;
   spr: MetricResult;
   air: MetricResult;
@@ -118,8 +128,8 @@ export function analyzePattern(
     vPeak: { value: v.peakAngle },
     fb180: fb.fb180,
     fbWindow: fb.fbWindow,
-    usls: usls(grids.v, v, s.uslsRangeDeg),
-    nullFill: firstNullFill(grids.v, v, s.nullSearchDeg),
+    ...elevationSidelobes(grids.v, s.uslsRangeDeg),
+    hSls: horizontalSls(grids.h, s.sectorEdgeDeg),
     beamTracking: missing('Not computed'),
     spr: power.spr,
     air: power.air,

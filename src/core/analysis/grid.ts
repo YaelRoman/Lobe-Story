@@ -41,6 +41,14 @@ export function toGrid(cut: Cut): Grid {
 
 export const at = (g: Grid, angle: number): number => g[mod360(Math.round(angle))];
 
+/** Attenuation at a fractional angle, linearly interpolated between the neighbouring integer degrees. */
+export function attAt(g: Grid, angle: number): number {
+  const a = mod360(angle);
+  const i = Math.floor(a);
+  const f = a - i;
+  return f === 0 ? g[i % 360] : g[i % 360] * (1 - f) + g[(i + 1) % 360] * f;
+}
+
 export function peakIndex(g: Grid): number {
   let p = 0;
   for (let i = 1; i < 360; i++) if (g[i] < g[p]) p = i;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeAll, analyzePattern, DEFAULT_SETTINGS, findTrackingPartner, type TaggedPattern } from './metrics';
-import { patternFrom, pwl, quadBeam, vBeamWithLobes } from '../../test/synthetic';
+import { hBeamWithLobes, patternFrom, pwl, quadBeam, vBeamWithLobes } from '../../test/synthetic';
 import type { Pattern, Tags } from '../types';
 
 const item = (over: Partial<Pattern> = {}, tags: Tags = {}): TaggedPattern => ({
@@ -19,6 +19,11 @@ describe('analyzePattern', () => {
     expect(m.fb180.value).toBe(40);
     expect(m.usls.value).toBe(18);
     expect(m.nullFill.value).toBe(22);
+    expect(m.firstUsls.value).toBe(18);
+    expect(m.uslsHorizon.value).toBe(18);
+    expect(m.uslsMax.value).toBe(18);
+    expect(m.firstLsls.value).toBe(15);
+    expect(m.hSls.value).toBeNull();
     expect(m.beamTracking).toEqual({ value: null, reason: 'Not computed' });
   });
 
@@ -40,6 +45,30 @@ describe('analyzePattern', () => {
     const m = analyzePattern({ pattern: shifted, tags: {} });
     expect(m.v.hpbw.value).toBeCloseTo(8, 5);
     expect(m.usls.value).toBe(18);
+  });
+});
+
+describe('sidelobe settings', () => {
+  const withH = patternFrom(hBeamWithLobes, vBeamWithLobes);
+
+  it('reports the horizontal sidelobe inside the sector', () => {
+    const m = analyzePattern({ pattern: withH, tags: {} });
+    expect(m.hSls.value).toBeCloseTo(12, 6);
+    expect(m.hSls.angle).toBeCloseTo(35, 6);
+    const edge = analyzePattern({ pattern: withH, tags: {} }, { ...DEFAULT_SETTINGS, sectorEdgeDeg: 33 });
+    expect(edge.hSls.value).toBeCloseTo(14.6, 6);
+  });
+
+  it('uslsRangeDeg sizes the peak window; levelDb does not matter', () => {
+    const narrow = analyzePattern({ pattern: withH, tags: {} }, { ...DEFAULT_SETTINGS, uslsRangeDeg: 8 });
+    expect(narrow.usls.notAvailable).toBe(true);
+    const level = analyzePattern({ pattern: withH, tags: {} }, { ...DEFAULT_SETTINGS, levelDb: 10 });
+    expect(level.firstUsls.value).toBeCloseTo(18, 6);
+    expect(level.firstUsls.angle).toBeCloseTo(-8, 6);
+  });
+
+  it('no longer has a null search range', () => {
+    expect('nullSearchDeg' in DEFAULT_SETTINGS).toBe(false);
   });
 });
 

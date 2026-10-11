@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { at, mod360, peakIndex, refinedPeak, signed, toGrid } from './grid';
+import { at, attAt, mod360, peakIndex, refinedPeak, signed, toGrid } from './grid';
 import { gridFrom } from '../../test/synthetic';
 
 const deg = Array.from({ length: 360 }, (_, i) => i);
@@ -54,5 +54,20 @@ describe('peak helpers', () => {
   it('refines the peak with a parabola', () => {
     expect(refinedPeak(gridFrom((a) => (a - 0.3) ** 2))).toBeCloseTo(0.3, 5);
     expect(refinedPeak(gridFrom((a) => Math.abs(a - 20)))).toBe(20);
+  });
+});
+
+describe('attAt', () => {
+  const g = new Array<number>(360).fill(0);
+  g[10] = 4;
+  g[11] = 6;
+
+  it('interpolates linearly between neighbouring degrees and wraps', () => {
+    expect(attAt(g, 10.25)).toBeCloseTo(4.5, 9);
+    expect(attAt(g, -350)).toBe(4);
+    const w = new Array<number>(360).fill(0);
+    w[359] = 8;
+    w[0] = 2;
+    expect(attAt(w, 359.5)).toBeCloseTo(5, 9);
   });
 });

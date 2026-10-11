@@ -175,12 +175,18 @@ describe('damaged values', () => {
   });
 
   it('falls back to defaults for settings above their bounds', () => {
-    const big = { levelDb: 1e9, fbWindowDeg: 1e9, uslsRangeDeg: 1e9, nullSearchDeg: 1e9, sectorEdgeDeg: 1e9 };
+    const big = { levelDb: 1e9, fbWindowDeg: 1e9, uslsRangeDeg: 1e9, sectorEdgeDeg: 1e9 };
     expect(restore(withState({ settings: big })).settings).toEqual(initialState().settings);
     expect(restore(withState({ settings: { levelDb: 100, fbWindowDeg: 360 } })).settings).toMatchObject({
       levelDb: 100,
       fbWindowDeg: 360,
     });
+  });
+
+  it('ignores the removed null search setting', () => {
+    const s = restore(withState({ settings: { nullSearchDeg: 45, uslsRangeDeg: 15 } })).settings;
+    expect(s.uslsRangeDeg).toBe(15);
+    expect('nullSearchDeg' in s).toBe(false);
   });
 
   it('sanitises the sector settings and migrates the legacy tracking window', () => {

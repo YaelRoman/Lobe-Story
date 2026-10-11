@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { beamwidth } from './beamwidth';
 import { frontToBack } from './frontToBack';
-import { firstNullFill, usls } from './sidelobes';
+import {
+  elevationSidelobes,
+  FIRST_LOBE_RANGE,
+  firstLobe,
+  horizontalSls,
+  MERGED_LOBE_AT,
+  SLS_NOT_AVAILABLE_DB,
+} from './sidelobes';
 import { beamTracking } from './tracking';
-import { gridFrom, quadBeam, vBeamWithLobes } from '../../test/synthetic';
+import { gridFrom, hBeamWithLobes, quadBeam, rippleTop, vBeamWithLobes, vFarLobes, vHighFarLobe } from '../../test/synthetic';
 
 describe('frontToBack', () => {
   const h = gridFrom((a) => (a === 170 ? 25 : Math.abs(a) <= 90 ? quadBeam(60)(a) : 35));
@@ -19,40 +26,195 @@ describe('frontToBack', () => {
   });
 });
 
-describe('usls and first null fill', () => {
+describe('BASTA 12.5 elevation sidelobes', () => {
   const v = gridFrom(vBeamWithLobes);
-  const beam = beamwidth(v);
+
+  it('exports the rule constants', () => {
+    expect(FIRST_LOBE_RANGE).toBe(1.78);
+    expect(MERGED_LOBE_AT).toBe(1.55);
+    expect(SLS_NOT_AVAILABLE_DB).toBe(22);
+  });
 
   it('sanity: the synthetic beam has HPBW 8° at +6°', () => {
+    const beam = beamwidth(v);
     expect(beam.hpbw.value).toBeCloseTo(8, 5);
     expect(beam.direction.value).toBeCloseTo(6, 5);
   });
 
-  it('finds the highest upper sidelobe between the first upper null and peak − 20°', () => {
-    expect(usls(v, beam)).toEqual({ value: 18, angle: -8 });
+  it('finds the first distinct lobe on each side', () => {
+    const up = firstLobe(v, 'upper');
+    expect(up.lobe.value).toBeCloseTo(18, 6);
+    expect(up.lobe.angle).toBeCloseTo(-8, 6);
+    expect(up.lobe.kind).toBe('peak');
+    expect(up.fill.value).toBeCloseTo(30, 6);
+    expect(up.fill.angle).toBeCloseTo(-3, 6);
+    expect(up.startDeg).toBe(9);
+    const down = firstLobe(v, 'lower');
+    expect(down.lobe.value).toBeCloseTo(15, 6);
+    expect(down.lobe.angle).toBeCloseTo(19, 6);
+    expect(down.fill.value).toBeCloseTo(22, 6);
+    expect(down.fill.angle).toBeCloseTo(16, 6);
+    expect(down.startDeg).toBe(10);
   });
 
-  it('returns null when the first upper null is outside the range', () => {
-    const r = usls(v, beam, 8);
-    expect(r.value).toBeNull();
-    expect(r.reason).toMatch(/more than 8°/);
+  it('computes the six elevation metrics for a beam with distinct lobes', () => {
+    const r = elevationSidelobes(v);
+    for (const [res, val, ang] of [
+      [r.firstUsls, 18, -8],
+      [r.usls, 18, -8],
+      [r.uslsHorizon, 18, -8],
+      [r.uslsMax, 18, -8],
+      [r.nullFill, 22, 16],
+      [r.firstLsls, 15, 19],
+    ] as const) {
+      expect(res.value).toBeCloseTo(val, 6);
+      expect(res.angle).toBeCloseTo(ang, 6);
+      expect('notAvailable' in res).toBe(false);
+    }
+    expect(r.firstUsls.reason).toBeUndefined();
   });
 
-  it('measures the first null below the beam', () => {
-    expect(firstNullFill(v, beam)).toEqual({ value: 22, angle: 16 });
+  it('reports a portion of a sidelobe when the window cuts it (12.5.3 b)', () => {
+    const r = elevationSidelobes(v, 10).usls;
+    expect(r.value).toBeCloseTo(27.6, 6);
+    expect(r.angle).toBeCloseTo(-4, 6);
   });
 
-  it('returns null when there is no null', () => {
-    const smooth = gridFrom(quadBeam(8, 6));
-    const smoothBeam = beamwidth(smooth);
-    expect(usls(smooth, smoothBeam).value).toBeNull();
-    expect(usls(smooth, smoothBeam).reason).toMatch(/No null found above/);
-    expect(firstNullFill(smooth, smoothBeam).value).toBeNull();
+  it('reports "not available" when only the main beam is in the window (12.5.3 c)', () => {
+    const r = elevationSidelobes(v, 8);
+    expect(r.usls.value).toBeNull();
+    expect(r.usls.notAvailable).toBe(true);
+    expect(r.usls.reason).toMatch(/only the main beam/);
+    expect(r.uslsHorizon.value).toBeCloseTo(18, 6);
+    expect(r.uslsHorizon.angle).toBeCloseTo(-8, 6);
   });
 
-  it('returns null when HPBW is undefined', () => {
-    const flat = gridFrom(() => 0);
-    expect(usls(flat, beamwidth(flat)).reason).toBe('HPBW undefined');
+  it('treats a smooth beam as a merged lobe at 1.55 × V-HPBW (12.5.3 a)', () => {
+    const r = elevationSidelobes(gridFrom(quadBeam(8, 6)));
+    expect(r.firstUsls.value).toBeCloseTo(28.875, 6);
+    expect(r.firstUsls.angle).toBeCloseTo(-6.4, 6);
+    expect(r.firstUsls.kind).toBe('merged');
+    expect(r.firstUsls.reason).toMatch(/above the peak/);
+    expect(r.nullFill.value).toBeCloseTo(28.875, 6);
+    expect(r.nullFill.angle).toBeCloseTo(18.4, 6);
+    expect(r.nullFill.kind).toBe('merged');
+    expect(r.nullFill.reason).toMatch(/below the peak/);
+    expect(r.firstLsls.value).toBeCloseTo(r.nullFill.value as number, 6);
+    expect(r.firstLsls.angle).toBeCloseTo(18.4, 6);
+    for (const w of [r.usls, r.uslsHorizon, r.uslsMax]) {
+      expect(w.value).toBeCloseTo(28.875, 6);
+      expect(w.angle).toBeCloseTo(-6.4, 6);
+    }
+  });
+
+  it('handles broad beams whose merged position leaves a window', () => {
+    const r = elevationSidelobes(gridFrom(quadBeam(16, 6)));
+    expect(r.firstUsls.value).toBeCloseTo(28.8375, 6);
+    expect(r.firstUsls.angle).toBeCloseTo(-18.8, 6);
+    expect(r.usls.value).toBeNull();
+    expect(r.usls.notAvailable).toBe(true);
+    expect(r.uslsHorizon.value).toBeCloseTo(28.8375, 6);
+    expect(r.uslsHorizon.angle).toBeCloseTo(-18.8, 6);
+    expect(r.uslsMax.value).toBeCloseTo(28.8375, 6);
+    expect(r.uslsMax.angle).toBeCloseTo(-18.8, 6);
+    const flat0 = elevationSidelobes(gridFrom(quadBeam(16, 0)));
+    expect(flat0.usls.notAvailable).toBe(true);
+    expect(flat0.uslsHorizon.notAvailable).toBe(true);
+    expect(flat0.uslsMax.value).toBeCloseTo(28.8375, 6);
+    expect(flat0.uslsMax.angle).toBeCloseTo(-24.8, 6);
+  });
+
+  it('gives up when 1.78 × V-HPBW exceeds 90°', () => {
+    const r = elevationSidelobes(gridFrom(quadBeam(60, 6)));
+    for (const x of [r.firstUsls, r.usls, r.uslsHorizon, r.uslsMax, r.nullFill, r.firstLsls]) {
+      expect(x.value).toBeNull();
+      expect(x.reason).toMatch(/too wide/);
+    }
+    expect(r.usls.notAvailable).toBeUndefined();
+  });
+
+  it('is null with "HPBW undefined" for a flat cut', () => {
+    const r = elevationSidelobes(gridFrom(() => 0));
+    for (const x of [r.firstUsls, r.usls, r.uslsHorizon, r.uslsMax, r.nullFill, r.firstLsls]) {
+      expect(x.value).toBeNull();
+      expect(x.reason).toBe('HPBW undefined');
+    }
+  });
+
+  it('applies the merged rule to a lobe beyond 1.78 × V-HPBW but still counts it in the window', () => {
+    const r = elevationSidelobes(gridFrom(vFarLobes));
+    expect(r.firstUsls.value).toBeCloseTo(23.2, 6);
+    expect(r.firstUsls.angle).toBeCloseTo(-6.4, 6);
+    expect(r.firstUsls.kind).toBe('merged');
+    expect(r.usls.value).toBeCloseTo(18, 6);
+    expect(r.usls.angle).toBeCloseTo(-9, 6);
+    expect(r.nullFill.value).toBeCloseTo(18.64, 6);
+    expect(r.nullFill.angle).toBeCloseTo(18.4, 6);
+    expect(r.nullFill.kind).toBe('merged');
+  });
+
+  it('keeps a far lobe out of the peak-to-20° window but in the maximum', () => {
+    const r = elevationSidelobes(gridFrom(vHighFarLobe));
+    expect(r.usls.value).toBeCloseTo(18, 6);
+    expect(r.usls.angle).toBeCloseTo(-8, 6);
+    expect(r.uslsHorizon.value).toBeCloseTo(18, 6);
+    expect(r.uslsHorizon.angle).toBeCloseTo(-8, 6);
+    expect(r.uslsMax.value).toBeCloseTo(10, 6);
+    expect(r.uslsMax.angle).toBeCloseTo(-24, 6);
+  });
+
+  it('does not report a dip on the beam top as a sidelobe', () => {
+    const r = elevationSidelobes(gridFrom(rippleTop));
+    expect(r.firstUsls.value).toBeCloseTo(25.95, 6);
+    expect(r.firstUsls.angle).toBeCloseTo(-27, 6);
+    expect(r.firstUsls.kind).toBe('merged');
+    expect(r.firstLsls.value).toBeCloseTo(30, 6);
+    expect(r.firstLsls.angle).toBeCloseTo(35, 6);
+  });
+});
+
+describe('horizontalSls', () => {
+  const h = gridFrom(hBeamWithLobes);
+
+  it('takes the highest level beyond the first null on either side', () => {
+    for (const edge of [60, 38]) {
+      const r = horizontalSls(h, edge);
+      expect(r.value).toBeCloseTo(12, 6);
+      expect(r.angle).toBeCloseTo(35, 6);
+    }
+  });
+
+  it('reports a portion of a lobe at the sector edge', () => {
+    const r = horizontalSls(h, 33);
+    expect(r.value).toBeCloseTo(14.6, 6);
+    expect(r.angle).toBeCloseTo(33, 6);
+  });
+
+  it('accepts just the null sample', () => {
+    const r = horizontalSls(h, 25);
+    expect(r.value).toBeCloseTo(25, 6);
+    expect(r.angle).toBeCloseTo(25, 6);
+  });
+
+  it('is null when the sector ends before the first null', () => {
+    expect(horizontalSls(h, 24)).toEqual({ value: null, reason: 'No sidelobe inside the ±24° sector' });
+  });
+
+  it('follows a steered beam', () => {
+    const steered = gridFrom((a) => hBeamWithLobes(a - 10));
+    const r60 = horizontalSls(steered, 60);
+    expect(r60.value).toBeCloseTo(12, 6);
+    expect(r60.angle).toBeCloseTo(45, 6);
+    const r30 = horizontalSls(steered, 30);
+    expect(r30.value).toBeCloseTo(14, 6);
+    expect(r30.angle).toBeCloseTo(-30, 6);
+  });
+
+  it('is null for smooth, rippled and flat beams', () => {
+    const none = { value: null, reason: 'No sidelobe inside the ±60° sector' };
+    expect(horizontalSls(gridFrom(quadBeam(60)))).toEqual(none);
+    expect(horizontalSls(gridFrom(rippleTop))).toEqual(none);
+    expect(horizontalSls(gridFrom(() => 0))).toEqual({ value: null, reason: 'HPBW undefined' });
   });
 });
 

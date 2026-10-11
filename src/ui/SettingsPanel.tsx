@@ -8,7 +8,6 @@ const FIELDS: { key: keyof AnalysisSettings; label: string }[] = [
   { key: 'levelDb', label: 'Beamwidth level (dB)' },
   { key: 'fbWindowDeg', label: 'F/B window ± (°)' },
   { key: 'uslsRangeDeg', label: 'USLS range above peak (°)' },
-  { key: 'nullSearchDeg', label: 'Null search range (°)' },
   { key: 'sectorEdgeDeg', label: 'Sector edge (±°)' },
 ];
 
