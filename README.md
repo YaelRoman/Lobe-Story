@@ -22,6 +22,8 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   gain statistics over every loaded file of an antenna in a frequency sub-band (automatic or
   user-defined sub-bands, saved with the project), with CSV export and a histogram of any cell.
 - CSV export of the metrics table and PNG export of any plot.
+- **Load example** on the empty page loads a small synthetic dual-polarised panel generated in code (24 files,
+  not a real antenna) so every feature can be tried; **Help** explains the main terms.
 
 Metrics follow the NGMN BASTA V13 definitions where the two co-polar cuts allow; see
 [Metric definitions](docs/metrics.md) for each definition and the known differences.

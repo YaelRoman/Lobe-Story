@@ -124,6 +124,8 @@ export interface AddFilesOptions {
   keepUndo?: boolean;
   /** Something else the status line should say about this selection (e.g. project files left unopened). */
   note?: string;
+  /** The note is a plain information, not a problem: the line keeps the calm tone and fades out by itself. */
+  noteIsInfo?: boolean;
 }
 
 export interface StoreActions {
@@ -366,7 +368,7 @@ export const useStore = create<State>()((rawSet, get) => {
       const counts = { ...plan.counts, unreadable };
       const report: Partial<StoreData> = {
         loadFailed: counts.failed,
-        loadTone: isCleanLoad(counts) && note.length === 0 ? 'info' : 'warn',
+        loadTone: isCleanLoad(counts) && (note.length === 0 || options.noteIsInfo) ? 'info' : 'warn',
         loadMessage: [loadSummary(counts), ...note].join(' · '),
       };
       if (plan.add.length === 0) return report;

@@ -14,6 +14,8 @@ import { Dialog } from './ui/Dialog';
 import { useSimulation } from './ui/useSimulation';
 import { StatusArea } from './ui/StatusArea';
 import { useUnsavedGuard } from './ui/useUnsavedGuard';
+import { EmptyState } from './ui/EmptyState';
+import { HelpDialog } from './ui/HelpDialog';
 
 export default function App() {
   const files = useStore((s) => s.files);
@@ -50,6 +52,7 @@ export default function App() {
   useUnsavedGuard();
   // Phone layout: the file panel is a drawer, closed until asked for (on wider screens it is always shown).
   const [filesOpen, setFilesOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -57,7 +60,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Toolbar />
+      <Toolbar onHelp={() => setHelpOpen(true)} />
       <StatusArea hasErrors={errors.length > 0} beforeShowErrors={() => setFilesOpen(true)} />
       <div className="body">
         {files.length > 0 && (
@@ -78,10 +81,7 @@ export default function App() {
         )}
         <main>
           {tagged.length === 0 ? (
-            <p className="empty">
-              Open or drop Planet pattern files (.msi, .pln, .txt) or whole folders. Files are read in your
-              browser and never uploaded.
-            </p>
+            <EmptyState onHelp={() => setHelpOpen(true)} />
           ) : (
             <>
               <PlotArea groups={groups} metrics={metrics} colors={colors} sim={sim} />
@@ -94,6 +94,7 @@ export default function App() {
       </div>
       {dragging && <div className="drop-overlay">Drop pattern files or folders</div>}
       <Dialog />
+      {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

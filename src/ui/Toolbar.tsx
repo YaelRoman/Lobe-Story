@@ -8,7 +8,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { confirmDialog, saveProjectDialog } from './dialogs';
 import { downloadText } from './download';
 
-export function Toolbar() {
+export function Toolbar({ onHelp }: { onHelp: () => void }) {
   const clear = useStore((s) => s.clear);
   const gainUnit = useStore((s) => s.view.gainUnit);
   const theme = useStore((s) => s.view.theme);
@@ -124,6 +124,9 @@ export function Toolbar() {
       </button>
       <button ref={settingsButton} aria-expanded={showSettings} aria-haspopup="dialog" onClick={() => setShowSettings((v) => !v)}>
         Settings
+      </button>
+      <button onClick={onHelp} aria-haspopup="dialog">
+        Help
       </button>
       {hasSessionState && <button onClick={() => void onClear()}>Clear</button>}
       {showSettings && <SettingsPanel onClose={closeSettings} opener={settingsButton} />}

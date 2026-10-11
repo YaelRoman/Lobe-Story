@@ -1,0 +1,75 @@
+import { useEffect, useRef } from 'react';
+import { GLOSSARY, METRICS_DOC_URL, README_URL } from './glossary';
+
+/**
+ * Help and glossary as a native modal dialog: Esc closes it, Tab stays inside, and the focus goes
+ * back to the control that opened it (restored here too, in case the browser does not).
+ */
+export function HelpDialog({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    // Listen for the user closing it (Esc); closing it from the cleanup (also run by React's development
+    // double-mount) must not report back.
+    const onNativeClose = () => {
+      // A "close" event queued by an earlier programmatic close arrives late, when the dialog is already open again.
+      if (!dialog.open) onCloseRef.current();
+    };
+    dialog.addEventListener('close', onNativeClose);
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!dialog.open) dialog.showModal();
+    // The dialog itself, so it opens at its top (the title is read first) and Tab then reaches the links.
+    dialog.focus({ preventScroll: true });
+    dialog.scrollTop = 0;
+    return () => {
+      dialog.removeEventListener('close', onNativeClose);
+      if (dialog.open) dialog.close();
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+
+  return (
+    <dialog
+      ref={ref}
+      className="help"
+      tabIndex={-1}
+      aria-labelledby="help-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <h2 id="help-title">Help and glossary</h2>
+      <p>
+        Lobe-Story shows antenna radiation patterns (Planet files) and works out the usual beam, front/back, sidelobe and
+        sector figures. These are the main terms in one line each.
+      </p>
+      <dl className="glossary">
+        {GLOSSARY.map((g) => (
+          <div key={g.term}>
+            <dt>{g.term}</dt>
+            <dd>{g.text}</dd>
+          </div>
+        ))}
+      </dl>
+      <p>
+        Exact definitions of every column:{' '}
+        <a href={METRICS_DOC_URL} target="_blank" rel="noopener noreferrer">
+          metric definitions
+        </a>
+        . More about the tool:{' '}
+        <a href={README_URL} target="_blank" rel="noopener noreferrer">
+          README
+        </a>
+        .
+      </p>
+      <div className="dialog-actions">
+        <button onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </dialog>
+  );
+}
