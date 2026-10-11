@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { sessionSwapCount, useStore } from '../state/store';
+import { fileSetSwapCount, useStore } from '../state/store';
 
 /**
- * Calls `onSwap` when a whole session was put on screen: a project opened, an undo applied, the session cleared.
+ * Calls `onSwap` when the set of loaded files was replaced: a project opened, the session cleared, an undo that brings other files back
+ * (not one that only restores names, tags or visibility).
  * Display-only state of a list (a filter text, folded groups) belongs to the old session and is reset there.
  */
 export function useSessionSwap(onSwap: () => void): void {
@@ -11,10 +12,10 @@ export function useSessionSwap(onSwap: () => void): void {
     latest.current = onSwap;
   });
   useEffect(() => {
-    let seen = sessionSwapCount();
+    let seen = fileSetSwapCount();
     return useStore.subscribe(() => {
-      if (sessionSwapCount() === seen) return;
-      seen = sessionSwapCount();
+      if (fileSetSwapCount() === seen) return;
+      seen = fileSetSwapCount();
       latest.current();
     });
   }, []);

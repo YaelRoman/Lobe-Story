@@ -379,6 +379,19 @@ let sessionSwaps = 0;
  * settings and view; a subscriber that sees this number change knows the change was not the user's own.
  */
 export const sessionSwapCount = (): number => sessionSwaps;
+
+let fileSetSwaps = 0;
+/**
+ * How many times the set of loaded files was replaced as a whole (project opened, session cleared, an undo that brings
+ * other files back). Display-only state of the file list (filter text, folded groups) is reset on these, not on an undo
+ * that only restores names, tags or visibility.
+ */
+export const fileSetSwapCount = (): number => fileSetSwaps;
+const sameFileSet = (a: StoreData, b: Pick<StoreData, 'files' | 'pendingFiles' | 'copies'>): boolean => {
+  const key = (x: Pick<StoreData, 'files' | 'pendingFiles' | 'copies'>) =>
+    JSON.stringify([x.files.map((f) => f.id), x.pendingFiles.map((p) => p.path), Object.keys(x.copies)]);
+  return key(a) === key(b);
+};
 type Update = State | Partial<State>;
 
 export const useStore = create<State>()((rawSet, get) => {
@@ -459,6 +472,7 @@ export const useStore = create<State>()((rawSet, get) => {
       if (!s.undo) return s;
       sessionSwaps++;
       const { snapshot } = s.undo;
+      if (!sameFileSet(s, snapshot)) fileSetSwaps++;
       // The theme and the fold state are display preferences, not part of the session being restored.
       return { ...snapshot, view: { ...snapshot.view, theme: s.view.theme, collapsed: s.view.collapsed, freqMetric: s.view.freqMetric }, undo: null, loadMessage: null, loadFailed: 0 };
     }),
@@ -470,6 +484,7 @@ export const useStore = create<State>()((rawSet, get) => {
   loadProject: (project) =>
     set((s) => {
       sessionSwaps++;
+      fileSetSwaps++;
       const next = projectToState(project, initialState(), { theme: s.view.theme, collapsed: s.view.collapsed, freqMetric: s.view.freqMetric }, loadText);
       const hadSession = s.files.length > 0 || s.pendingFiles.length > 0;
       return {
@@ -541,6 +556,7 @@ export const useStore = create<State>()((rawSet, get) => {
   clear: () =>
     set((s) => {
       sessionSwaps++;
+      fileSetSwaps++;
       return {
         ...(s.files.length > 0 || s.pendingFiles.length > 0
           ? undoEntry(s, s.files.length === 0 ? 'Cleared the session' : `Cleared ${s.files.length} file${s.files.length === 1 ? '' : 's'}`)
