@@ -13,6 +13,8 @@ interface Caught {
 interface PlotBoundaryProps {
   /** Class of the box shown instead of the plot (the plot's own, so the page keeps its layout). */
   className?: string;
+  /** Called when an error was caught (the plot will not report that it was drawn). */
+  onError?: () => void;
   children?: ReactNode;
 }
 
@@ -29,6 +31,7 @@ export class PlotBoundary extends Component<PlotBoundaryProps, Caught> {
 
   componentDidCatch(error: unknown, info: ErrorInfo): void {
     console.error('A plot could not be drawn', error, info.componentStack);
+    this.props.onError?.();
   }
 
   render(): ReactNode {

@@ -1,0 +1,33 @@
+import { describe, expect, it } from 'vitest';
+import { ASSUMED_MS_PER_TRACE, expectedUpdateMs, HINT_AFTER_MS, showsUpdateHint } from './updateHint';
+
+describe('the "Updating the plots…" hint', () => {
+  it('expects a redraw to take as long per trace as the last one did', () => {
+    expect(expectedUpdateMs({ ms: 600, traces: 200 }, 100)).toBe(300);
+    expect(expectedUpdateMs({ ms: 600, traces: 200 }, 400)).toBe(1200);
+    expect(expectedUpdateMs({ ms: 40, traces: 24 }, 0)).toBe(0);
+  });
+
+  it('does not take the fixed cost of a small redraw for a cost per trace', () => {
+    // One trace drawn in 40 ms is not 40 ms a trace: ticking 48 more must not announce a 2 s wait.
+    expect(expectedUpdateMs({ ms: 40, traces: 1 }, 48)).toBeCloseTo(38.4);
+    expect(showsUpdateHint({ ms: 40, traces: 1 }, 48)).toBe(false);
+  });
+
+  it('assumes a cost per trace until a redraw has been timed (or when the timed one drew nothing)', () => {
+    expect(expectedUpdateMs(null, 100)).toBe(100 * ASSUMED_MS_PER_TRACE);
+    expect(expectedUpdateMs({ ms: 5, traces: 0 }, 50)).toBe(50 * ASSUMED_MS_PER_TRACE);
+  });
+
+  it('is shown only for work expected to take more than 300 ms', () => {
+    expect(HINT_AFTER_MS).toBe(300);
+    // A small session never flashes the hint, a large one announces its redraws.
+    expect(showsUpdateHint(null, 24)).toBe(false);
+    expect(showsUpdateHint(null, 192)).toBe(true);
+    // The machine's own speed decides once it is known: a fast one draws 192 traces without a hint, a slow one hints at 48.
+    expect(showsUpdateHint({ ms: 150, traces: 192 }, 192)).toBe(false);
+    expect(showsUpdateHint({ ms: 300, traces: 192 }, 192)).toBe(false);
+    expect(showsUpdateHint({ ms: 301, traces: 192 }, 192)).toBe(true);
+    expect(showsUpdateHint({ ms: 400, traces: 60 }, 60)).toBe(true);
+  });
+});

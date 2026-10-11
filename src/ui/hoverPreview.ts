@@ -101,10 +101,20 @@ export function createRedrawGate() {
  * The traces as they are handed to Plotly. Plotly keeps the objects it is given and `Plotly.restyle` changes their
  * `line.width` and `opacity` in place, so the figure builder's own traces must not be the ones drawn: the export
  * is built from them and must never carry a hover or focus preview. A copy of each trace and of its `line` is enough.
+ * With a `look` (see `previewRestyle`) the copies are handed over already in it: a figure drawn while a file is
+ * highlighted starts with that file emphasised, as if the restyle had been sent.
  */
-export function ownTraces<T extends object>(data: readonly T[]): T[] {
-  return data.map((t) => {
+export function ownTraces<T extends object>(data: readonly T[], look: PreviewRestyle | null = null): T[] {
+  const out = data.map((t) => {
     const line = (t as { line?: object }).line;
     return line ? { ...t, line: { ...line } } : { ...t };
   });
+  look?.indices.forEach((index, k) => {
+    const t = out[index] as { line?: { width?: number }; opacity?: number };
+    t.line = { ...t.line, width: look.update['line.width'][k] };
+    const opacity = look.update.opacity[k];
+    if (opacity === null) delete t.opacity;
+    else t.opacity = opacity;
+  });
+  return out;
 }

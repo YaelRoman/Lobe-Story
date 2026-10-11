@@ -52,3 +52,101 @@ test('a redraw updates the charts in place: ticking and highlighting never plot 
   await expect.poll(() => traceCount(page, 'plot-h')).toBeGreaterThan(shown);
   expect(await plotIds(page, charts)).toEqual(rect);
 });
+
+/** What the horizontal cut plot holds now: per file trace [uid, line width, opacity], the count of the other traces, the title, the shapes. */
+const cutState = (page: Page, testId = 'plot-h') =>
+  page.evaluate((id) => {
+    const gd = document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as {
+      data: { uid?: string; line?: { width?: number }; opacity?: number; name?: string }[];
+      layout: { title?: { text?: string }; shapes?: unknown[] };
+    };
+    const files = gd.data.filter((t) => typeof t.uid === 'string');
+    return {
+      files: files.map((t) => [t.uid!, t.line?.width, t.opacity ?? 1] as const),
+      markers: gd.data.filter((t) => typeof t.uid !== 'string').map((t) => t.name ?? ''),
+      title: gd.layout.title?.text ?? '',
+      shapes: gd.layout.shapes?.length ?? 0,
+    };
+  }, testId);
+/** Remembers the arrays of every drawn file trace of both cut plots, to see later whether they were built again. */
+const rememberArrays = (page: Page) =>
+  page.evaluate(() => {
+    (window as unknown as { __arrays: unknown[][] }).__arrays = ['plot-h', 'plot-v'].map((id) =>
+      (document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as { data: { uid?: string; r?: unknown; y?: unknown }[] }).data.filter((t) => typeof t.uid === 'string').map((t) => t.r ?? t.y),
+    );
+  });
+const sameArrays = (page: Page) =>
+  page.evaluate(() =>
+    ['plot-h', 'plot-v'].every((id, k) => {
+      const now = (document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as { data: { uid?: string; r?: unknown; y?: unknown }[] }).data.filter((t) => typeof t.uid === 'string').map((t) => t.r ?? t.y);
+      const before = (window as unknown as { __arrays: unknown[][] }).__arrays[k];
+      return now.length === before.length && now.every((a, i) => a === before[i]);
+    }),
+  );
+
+test('a highlight restyles the traces that are drawn: no trace is built again, and emphasis, markers, title and read-out follow', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error') problems.push(m.text());
+  });
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await expect.poll(async () => (await cutState(page)).files.length).toBe(24);
+  // Pin a reference: it is never dimmed.
+  await page.locator('.panel li').nth(2).getByLabel(/^Actions for /).click();
+  await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+  await page.locator('body').press('Escape');
+  await expect(page.locator('tr.hl[data-row-id]')).toHaveCount(0);
+  await expect.poll(async () => (await cutState(page)).title).toBe('Horizontal cut');
+  const plain = await cutState(page);
+  expect(plain.markers).toEqual([]);
+  expect(plain.files.filter((t) => t[1] === 3.5)).toHaveLength(1);
+  expect(plain.files.filter((t) => t[1] === 1.5 && t[2] === 1)).toHaveLength(23);
+  await rememberArrays(page);
+  const ids = await plotIds(page, ['plot-h', 'plot-v']);
+
+  for (const n of [7, 12]) {
+    const row = page.locator('tr[data-row-id]').nth(n);
+    await row.click();
+    await expect(row).toHaveClass(/hl/);
+    // The pointer still rests on the row: move it away, so what is seen is the highlight's own emphasis, not a preview.
+    await page.mouse.move(2, 2);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect.poll(async () => (await cutState(page)).markers.length).toBeGreaterThan(0);
+    const lit = await cutState(page);
+    // One file thick, the reference as it was, every other file dimmed.
+    expect(lit.files.filter((t) => t[1] === 2.5 && t[2] === 1)).toHaveLength(1);
+    expect(lit.files.filter((t) => t[1] === 3.5 && t[2] === 1)).toHaveLength(1);
+    expect(lit.files.filter((t) => t[1] === 1.5 && t[2] === 0.35)).toHaveLength(22);
+    // Its markers are drawn after the file traces, the title names its beamwidth, the read-out its name.
+    expect(lit.markers.some((name) => /^HPBW \d/.test(name))).toBe(true);
+    expect(lit.title).toMatch(/^Horizontal cut — HPBW \d+\.\d°$/);
+    await expect(page.getByTestId('readout-h')).toContainText('HPBW');
+    // The vertical cut follows as well.
+    await expect.poll(async () => (await cutState(page, 'plot-v')).title).toMatch(/^Vertical cut — HPBW/);
+    expect((await cutState(page, 'plot-v')).files.filter((t) => t[1] === 2.5)).toHaveLength(1);
+    // Nothing was built again: the same arrays, the same charts.
+    expect(await sameArrays(page)).toBe(true);
+    expect(await plotIds(page, ['plot-h', 'plot-v'])).toEqual(ids);
+  }
+
+  // Esc: every trace plain again, the markers and the beamwidth in the title gone, still the same arrays.
+  await page.locator('body').press('Escape');
+  await expect.poll(async () => JSON.stringify(await cutState(page))).toBe(JSON.stringify(plain));
+  expect(await sameArrays(page)).toBe(true);
+
+  // Rectangular: the markers are partly shapes; they come and go with the highlight too.
+  await page.getByRole('group', { name: 'Plot type' }).getByRole('button', { name: 'Rectangular' }).click();
+  await expect(page.locator('[data-testid="plot-h"] .xtitle')).toHaveCount(1);
+  expect((await cutState(page)).shapes).toBe(0);
+  await rememberArrays(page);
+  await page.locator('tr[data-row-id]').nth(9).click();
+  await page.mouse.move(2, 2);
+  await expect.poll(async () => (await cutState(page)).shapes).toBeGreaterThan(0);
+  expect((await cutState(page)).files.filter((t) => t[1] === 2.5)).toHaveLength(1);
+  expect(await sameArrays(page)).toBe(true);
+  await page.locator('body').press('Escape');
+  await expect.poll(async () => (await cutState(page)).shapes).toBe(0);
+  expect(problems).toEqual([]);
+});

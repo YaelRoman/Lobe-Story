@@ -53,6 +53,8 @@ main { flex: 1; min-width: 0; overflow: auto; padding: 12px; display: flex; flex
 .reason { width: 100%; color: var(--danger); font-size: 12px; }
 .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .controls label, .sim-bar label { display: inline-flex; gap: 4px; align-items: center; }
+.plots-area { position: relative; }
+.updating { position: absolute; top: -11px; left: 10px; z-index: 2; margin: 0; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); font-size: 12px; pointer-events: none; }
 .plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; }
 .plot-col { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .readout { font-size: 12px; min-height: 4.2em; }

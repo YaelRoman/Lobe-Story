@@ -26,14 +26,31 @@ interface Props {
   onRelayout?: RelayoutHandler;
   /** Which toolbar (modebar) buttons the chart gets: see `ChartToolbar`. */
   toolbar: ChartToolbar;
-  /** Replaces the modebar's image download by one of a labelled version of the figure (legend on, highlighted file's values). */
-  labelledExport?: { caption?: ExportCaption; /** Name of the saved file, without extension. */ filename?: string };
   /**
-   * Makes the plot preview the file hovered or focused in the panel or the table (thick line, others dimmed) with
-   * `Plotly.restyle`, no rebuild. The value is the file the figure itself emphasises (the highlighted one), which
-   * returns when the preview ends. Leave undefined for plots that are not per-file.
+   * Replaces the modebar's image download by one of a labelled version of the figure (legend on, highlighted file's
+   * values). `figure` builds the figure to export when it is not the drawn one (the cut plots: the complete figure,
+   * with the highlighted file on top).
+   */
+  labelledExport?: { caption?: ExportCaption; /** Name of the saved file, without extension. */ filename?: string; figure?: () => Figure };
+  /**
+   * Traces drawn after the figure's own and layout keys laid over its layout (the highlighted file's markers and
+   * title in a cut plot). A new overlay alone is drawn without new traces for the figure: the ones already drawn are
+   * handed to the library again, a moment later so that a restyle sent with it is on screen first.
+   */
+  overlay?: FigureOverlay;
+  /**
+   * Makes the plot emphasise a file (thick line, others dimmed) with `Plotly.restyle`, no rebuild: the file hovered
+   * or focused in the panel or the table, otherwise this one (the highlighted file; null: none), which returns
+   * when the preview ends. Leave undefined for plots that are not per-file.
    */
   previewBase?: string | null;
+  /** Called when the library has finished drawing `figure` with `overlay` (also when it failed to); not for a restyle. */
+  onDrawn?: (figure: Figure, overlay: FigureOverlay | undefined) => void;
+}
+
+export interface FigureOverlay {
+  data: Figure['data'];
+  layout: Figure['layout'];
 }
 
 /**
@@ -42,13 +59,13 @@ interface Props {
  */
 export function PlotlyChart(props: Props) {
   return (
-    <PlotBoundary className={props.className}>
+    <PlotBoundary className={props.className} onError={() => props.onDrawn?.(props.figure, props.overlay)}>
       <Chart {...props} />
     </PlotBoundary>
   );
 }
 
-function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labelledExport, previewBase }: Props) {
+function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labelledExport, overlay, previewBase, onDrawn }: Props) {
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
   const [error, setError] = useState<string | null>(null);
@@ -57,9 +74,13 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
   const exporting = useRef({ figure, labelledExport });
   const previewing = previewBase !== undefined;
   const preview = useRef({ figure, base: previewBase ?? null });
+  const drawnHandler = useRef(onDrawn);
+  // The traces the library holds for the figure, and what the last draw was of.
+  const owned = useRef<{ figure: Figure; traces: object[] } | null>(null);
+  const lastDraw = useRef<{ figure: Figure; config: object } | null>(null);
   // What the drawn traces show now (null: unknown). Only the traces that differ from it are restyled.
   const applied = useRef<PreviewRestyle | null>(null);
-  // A redraw (Plotly.react) is pending; a restyle sent meanwhile lands on the new traces, so the redraw's own look is no longer what is shown.
+  // A redraw (Plotly.react) is pending; a restyle sent meanwhile may land on either side of it, so what is shown is not known for sure.
   const redrawing = useRef(false);
   const restyledDuringRedraw = useRef(false);
   // Only the latest redraw's completion clears the two flags above (an older one resolving late must not).
@@ -69,7 +90,8 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
     handler.current = onRelayout;
     exporting.current = { figure, labelledExport };
     preview.current = { figure, base: previewBase ?? null };
-  }, [onRelayout, figure, labelledExport, previewBase]);
+    drawnHandler.current = onDrawn;
+  }, [onRelayout, figure, labelledExport, previewBase, onDrawn]);
 
   // The same config object for every redraw of this chart. `Plotly.react` compares the config it is given with the
   // one it has, functions by identity: a download handler made anew for each redraw counts as a changed config, and
@@ -83,7 +105,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
       click: () => {
         const cur = exporting.current;
         // Always light colours on white, whatever the screen theme: the image is rebuilt from a copy, the drawn figure is not touched.
-        const out = exportFigure(cur.figure, cur.labelledExport?.caption, useStore.getState().view.theme);
+        const out = exportFigure(cur.labelledExport?.figure?.() ?? cur.figure, cur.labelledExport?.caption, useStore.getState().view.theme);
         void Plotly.downloadImage(
           { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
           { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },
@@ -131,37 +153,68 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    setError(null);
-    const generation = redrawGate.current.start();
-    redrawing.current = true;
-    restyledDuringRedraw.current = false;
-    void Plotly.react(
-      el,
-      ownTraces(figure.data) as unknown as PlotlyNativeData[],
-      { ...figure.layout, autosize: true } as Partial<PlotlyNativeLayout>,
-      config,
-    )
-      .then(() => {
-        if (!redrawGate.current.isLatest(generation)) return;
-        // A redraw starts from the figure's own look (the highlight's emphasis); show a preview that is active again.
-        // If the preview changed while the redraw was pending, what is drawn is unknown: the next restyle sends everything,
-        // even when the preview has ended since (otherwise the old target would stay drawn thick).
-        const own = previewing ? previewRestyle(preview.current.figure.data as unknown as { uid?: unknown }[], null, preview.current.base) : null;
-        applied.current = appliedAfterRedraw(own, restyledDuringRedraw.current);
-        const stale = restyledDuringRedraw.current;
-        redrawing.current = false;
-        restyledDuringRedraw.current = false;
-        if (previewing && (stale || hoverStore.getState().id !== null)) void restylePreview(el);
-        el.removeAllListeners?.('plotly_relayout');
-        el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
-      })
-      .catch(() => {
-        if (!redrawGate.current.isLatest(generation)) return;
-        redrawing.current = false;
-        restyledDuringRedraw.current = false;
-        setError('This plot could not be drawn (WebGL unavailable?)');
-      });
-  }, [figure, config, previewing]);
+    const draw = () => {
+      setError(null);
+      const generation = redrawGate.current.start();
+      redrawing.current = true;
+      restyledDuringRedraw.current = false;
+      if (owned.current?.figure !== figure) {
+        // New traces start in the look that is due now (the highlighted file's emphasis, or a preview): no second pass.
+        const look = previewing ? previewRestyle(figure.data as unknown as { uid?: unknown }[], hoverStore.getState().id, preview.current.base) : null;
+        owned.current = { figure, traces: ownTraces(figure.data, look) };
+        applied.current = look;
+      }
+      lastDraw.current = { figure, config };
+      void Plotly.react(
+        el,
+        [...owned.current.traces, ...(overlay?.data ?? [])] as unknown as PlotlyNativeData[],
+        { ...figure.layout, ...overlay?.layout, autosize: true } as Partial<PlotlyNativeLayout>,
+        config,
+      )
+        .then(() => {
+          if (!redrawGate.current.isLatest(generation)) return;
+          // The drawn traces show what was last applied to them, unless a restyle was sent while the redraw was
+          // pending: then what is drawn is unknown, and the next restyle sends everything (otherwise an old target
+          // could stay drawn thick).
+          applied.current = appliedAfterRedraw(applied.current, restyledDuringRedraw.current);
+          redrawing.current = false;
+          restyledDuringRedraw.current = false;
+          if (previewing) void restylePreview(el);
+          el.removeAllListeners?.('plotly_relayout');
+          el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
+          drawnHandler.current?.(figure, overlay);
+        })
+        .catch(() => {
+          if (!redrawGate.current.isLatest(generation)) return;
+          redrawing.current = false;
+          restyledDuringRedraw.current = false;
+          setError('This plot could not be drawn (WebGL unavailable?)');
+          drawnHandler.current?.(figure, overlay);
+        });
+    };
+    if (lastDraw.current?.figure !== figure || lastDraw.current.config !== config) {
+      draw();
+      return;
+    }
+    // Only the overlay is new (another highlighted file's markers and title). The library still redraws the whole
+    // chart for it, so it waits until the emphasis restyle sent with the highlight is painted; a newer overlay
+    // replaces one that is still waiting.
+    let timer = 0;
+    const frame = requestAnimationFrame(() => {
+      timer = window.setTimeout(draw, 0);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [figure, overlay, config, previewing]);
+
+  // The emphasised file changed (a highlight): restyle the drawn traces, as the hover preview does. After the draw
+  // effect, which has already put a new figure's traces in this look.
+  useEffect(() => {
+    const el = ref.current;
+    if (el && previewing) void restylePreview(el);
+  }, [previewBase, previewing]);
 
   useEffect(() => {
     const el = ref.current;

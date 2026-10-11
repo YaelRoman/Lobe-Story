@@ -294,7 +294,7 @@ export function markerReadout(o: CutFigureOptions): string[] {
  * horizontal cut's beam points up, so the axis runs down the rear, turned with the azimuth; the
  * vertical cut's beam lies along the horizon, so up/down is free.
  */
-function radialAxisAngle(o: CutFigureOptions): number {
+function radialAxisAngle(o: CutBaseOptions): number {
   if (o.cut === 'V') return 270;
   const rot = o.rotationDeg ?? o.series[0]?.rotationDeg ?? 0;
   return (((270 - rot) % 360) + 360) % 360;
@@ -321,12 +321,27 @@ export function traceStyle(seriesId: string, emphasised: string | null, referenc
   return { width: seriesId === emphasised ? EMPHASISED_WIDTH : BASE_WIDTH, opacity: dimmed ? DIMMED_OPACITY : null };
 }
 
-export function buildCutFigure(o: CutFigureOptions): Figure {
+/** What a cut figure needs apart from the highlighted file: the files' traces, the axes and the colours. */
+export type CutBaseOptions = Omit<CutFigureOptions, 'markers' | 'markerTarget'>;
+
+/**
+ * The part of a cut figure that belongs to the highlighted file (`markerTarget`): its marker traces, which follow the
+ * file traces in the figure's data, and the layout keys it sets (the title with the file's beamwidth; in the
+ * rectangular plot also the marker shapes).
+ */
+export interface CutOverlay {
+  data: Data[];
+  layout: Partial<Layout>;
+}
+
+const NO_MARKERS: MarkerSpec = { sectors: [], rings: [], points: [], rays: [], arcs: [] };
+
+/** The file traces, drawn in series order with the emphasised file last but for the reference, and the top of the level axis. */
+function fileTraces(o: CutBaseOptions, emphasised: string | null): { data: FileTrace[]; top: number } {
   const data: FileTrace[] = [];
   let largest = 0;
   // With a highlighted file, the other files are dimmed and the highlighted trace is drawn last
   // (on top); its own dashed original stays bright so the comparison is readable.
-  const emphasised = o.series.some((s) => s.id === o.markerTarget) ? o.markerTarget : null;
   const order = o.series.map((s, i) => ({ s, i }));
   if (emphasised !== null) order.sort((p, q) => Number(p.s.id === emphasised) - Number(q.s.id === emphasised) || p.i - q.i);
   // The reference file is drawn last of all (on top).
@@ -337,7 +352,7 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
     for (const v of r) if (v > largest) largest = v;
     const legendName = middleEllipsis(s.label, LEGEND_NAME_MAX);
     const style = traceStyle(s.id, emphasised, !!s.reference);
-    // `uid` carries the series id (as a safe CSS identifier), so the hover preview can restyle a file's traces without a rebuild.
+    // `uid` carries the series id (as a safe CSS identifier), so a highlight or a hover preview can restyle a file's traces without a rebuild.
     const extra = { uid: traceUid(s.id, !!s.reference), legendrank: s.reference ? -1 : i, ...(style.opacity !== null ? { opacity: style.opacity } : {}) };
     const line = {
       color: s.reference ? o.theme.fg : s.color,
@@ -360,19 +375,30 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
       data.push({ type: 'scatter', mode: 'lines', name: legendName, meta: s.label, x, y: r, line, ...extra, hovertemplate: '%{x:.0f}°  %{y:.2f} dB<extra>%{meta}</extra>' });
     }
   }
-
   // Normally 0. A trace above its nominal peak (e.g. a file with a negative offset) widens the
   // range to the next 5 dB so it is never clipped.
-  const top = Math.ceil(largest / 5) * 5;
+  return { data, top: Math.ceil(largest / 5) * 5 };
+}
 
+/**
+ * The highlighted file's part of the figure `buildCutFigure(o)`: see `CutOverlay`. Without a target among the series
+ * it holds no marker, and the title names no beamwidth.
+ */
+export function buildCutOverlay(o: CutFigureOptions): CutOverlay {
   const target = o.series.find((s) => s.id === o.markerTarget);
-  const spec = target ? markerSpec(target, o) : { sectors: [], rings: [], points: [], rays: [], arcs: [] };
+  const spec = target ? markerSpec(target, o) : NO_MARKERS;
   const hpbw = target ? (o.cut === 'H' ? target.metrics.h : target.metrics.v).hpbw.value : null;
   const cone = o.cut === 'H' && o.series.some((s) => s.coneCut) ? ' · cut through the tilted beam peak' : '';
-  const title = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — ${bwName(o.levelDb)} ${hpbw.toFixed(1)}°` : ''}${cone}`;
+  const text = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — ${bwName(o.levelDb)} ${hpbw.toFixed(1)}°` : ''}${cone}`;
+  const title = { text, font: { size: 14 } };
+  if (o.mode === 'polar') return { data: polarMarkers(spec, o) as Data[], layout: { title } };
+  const rect = rectMarkers(spec, o);
+  return { data: rect.traces as Data[], layout: { title, shapes: rect.shapes } };
+}
 
+/** The figure's layout apart from the highlighted file's part (`CutOverlay.layout`). */
+function baseLayout(o: CutBaseOptions, top: number): Partial<Layout> {
   const base: Partial<Layout> = {
-    title: { text: title, font: { size: 14 } },
     paper_bgcolor: o.theme.bg,
     plot_bgcolor: 'rgba(0,0,0,0)',
     font: { color: o.theme.fg },
@@ -380,50 +406,61 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
     showlegend: showFileLegend(o.series.length),
     legend: LEGEND,
   };
-
   if (o.mode === 'polar') {
-    data.push(...polarMarkers(spec, o));
     return {
-      data: data as Data[],
-      layout: {
-        ...base,
-        polar: {
-          bgcolor: 'rgba(0,0,0,0)',
-          angularaxis: {
-            rotation: o.cut === 'H' ? 90 : 0,
-            direction: 'clockwise',
-            dtick: 30,
-            gridcolor: o.theme.grid,
-            linecolor: o.theme.grid,
-          },
-          radialaxis: {
-            range: [-o.floorDb, top],
-            dtick: o.floorDb + top > 60 ? 20 : 10,
-            // Tick labels run along the empty rear side of the pattern instead of over the beam.
-            angle: radialAxisAngle(o),
-            tickangle: 0,
-            tickfont: { size: 10 },
-            ticksuffix: ' dB',
-            gridcolor: o.theme.grid,
-            linecolor: o.theme.grid,
-          },
+      ...base,
+      polar: {
+        bgcolor: 'rgba(0,0,0,0)',
+        angularaxis: {
+          rotation: o.cut === 'H' ? 90 : 0,
+          direction: 'clockwise',
+          dtick: 30,
+          gridcolor: o.theme.grid,
+          linecolor: o.theme.grid,
+        },
+        radialaxis: {
+          range: [-o.floorDb, top],
+          dtick: o.floorDb + top > 60 ? 20 : 10,
+          // Tick labels run along the empty rear side of the pattern instead of over the beam.
+          angle: radialAxisAngle(o),
+          tickangle: 0,
+          tickfont: { size: 10 },
+          ticksuffix: ' dB',
+          gridcolor: o.theme.grid,
+          linecolor: o.theme.grid,
         },
       },
     };
   }
-
-  const rect = rectMarkers(spec, o);
-  data.push(...rect.traces);
   return {
-    data: data as Data[],
-    layout: {
-      ...base,
-      hovermode: 'x unified',
-      shapes: rect.shapes,
-      xaxis: { range: [-180, 180], dtick: 30, automargin: true, title: { text: 'Angle (°)', standoff: 8 }, gridcolor: o.theme.grid, zeroline: false },
-      yaxis: { range: [-o.floorDb, top], dtick: 10, title: { text: 'Relative level (dB)' }, gridcolor: o.theme.grid },
-    },
+    ...base,
+    hovermode: 'x unified',
+    xaxis: { range: [-180, 180], dtick: 30, automargin: true, title: { text: 'Angle (°)', standoff: 8 }, gridcolor: o.theme.grid, zeroline: false },
+    yaxis: { range: [-o.floorDb, top], dtick: 10, title: { text: 'Relative level (dB)' }, gridcolor: o.theme.grid },
   };
+}
+
+/**
+ * The complete cut figure: the file traces with the highlighted file (`markerTarget`) thick, on top, and the others
+ * dimmed, then its marker traces. This is what an exported image is made from.
+ */
+export function buildCutFigure(o: CutFigureOptions): Figure {
+  const emphasised = o.series.some((s) => s.id === o.markerTarget) ? o.markerTarget : null;
+  const files = fileTraces(o, emphasised);
+  const overlay = buildCutOverlay(o);
+  return { data: [...(files.data as Data[]), ...overlay.data], layout: { ...baseLayout(o, files.top), ...overlay.layout } };
+}
+
+/**
+ * The cut figure without a highlighted file: every file trace in its plain look and in series order, no marker. It
+ * does not depend on the highlight, so highlighting a file builds no trace again: the plot restyles the traces it has
+ * (see `previewRestyle`) and takes the file's markers and title from `buildCutOverlay`. On the screen the
+ * highlighted trace therefore keeps its place in the drawing order; in `buildCutFigure` it is on top.
+ */
+export function buildCutBase(o: CutBaseOptions): Figure {
+  const files = fileTraces(o, null);
+  const overlay = buildCutOverlay({ ...o, markers: { hpbw: false, fb: false, usls: false, null: false, peak: false, sector: false }, markerTarget: null });
+  return { data: files.data as Data[], layout: { ...baseLayout(o, files.top), ...overlay.layout } };
 }
 
 /**

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { appliedAfterRedraw, createRedrawGate, focusPreviews, hoverPreviews, ownTraces, previewRestyle, restyleDiff } from './hoverPreview';
 import { exportFigure } from './exportFigure';
 import type { Figure } from './figureTheme';
-import { buildCutFigure, DIMMED_OPACITY, type PlotSeries } from './cutFigure';
+import { buildCutBase, buildCutFigure, DIMMED_OPACITY, type PlotSeries } from './cutFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { traceUid } from './traceUid';
 import { analyzePattern } from '../core/analysis/metrics';
@@ -111,6 +111,41 @@ describe('ownTraces (what the export is built from)', () => {
     drawn[1].opacity = DIMMED_OPACITY;
     expect(JSON.stringify(figure)).toBe(JSON.stringify({ data: [{ uid: 'a', meta: 'A', line: { width: 1.5 } }, { uid: 'b', meta: 'B', line: { width: 1.5 } }, { x: [1] }], layout: {} }));
     expect(JSON.stringify(exportFigure(figure))).toBe(pristine);
+  });
+});
+
+describe('ownTraces with a look (how a highlight reaches a newly drawn figure)', () => {
+  it('hands the traces over already in that look, so a new figure is not drawn plain first and restyled after', () => {
+    const data = [{ uid: traceUid('a'), line: { width: 1.5, color: '#111' } }, { uid: traceUid('b'), line: { width: 1.5 } }, { x: [1] }];
+    const drawn = ownTraces(data as { uid?: string; x?: number[]; line?: { width: number; color?: string }; opacity?: number }[], previewRestyle(data, null, 'b'));
+    expect(drawn.map((t) => [t.line?.width, t.opacity])).toEqual([[1.5, DIMMED_OPACITY], [2.5, undefined], [undefined, undefined]]);
+    expect(drawn[0].line?.color).toBe('#111');
+    // The builder's own traces stay as built.
+    expect(data.map((t) => [t.line?.width, 'opacity' in t])).toEqual([[1.5, false], [1.5, false], [undefined, false]]);
+  });
+
+  it('an opacity of null in the look is the default: no opacity key is left on the trace', () => {
+    const data = [{ uid: traceUid('a'), opacity: 0.35, line: { width: 2.5 } }];
+    const [t] = ownTraces(data, previewRestyle(data, null, null));
+    expect('opacity' in t).toBe(false);
+    expect(t.line.width).toBe(1.5);
+  });
+
+  it('the figure without a highlight plus the highlight restyle looks as the complete figure does, trace by trace', () => {
+    const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a' });
+    const metrics = analyzePattern({ pattern, tags: {} });
+    const one = (id: string, extra: Partial<PlotSeries> = {}): PlotSeries => ({ id, label: id, color: '#123456', cut: pattern.horizontal, metrics, ...extra });
+    const series = [one('a'), one('b'), one('c'), one('r', { reference: true }), one('b#original', { dash: true })];
+    const options = { series, cut: 'H' as const, floorDb: 40, theme: FIGURE_THEMES.light, levelDb: 3, fbWindowDeg: 30, sectorEdgeDeg: 60, uslsRangeDeg: 20 };
+    const markers = { hpbw: true, fb: true, usls: true, null: true, peak: true, sector: true };
+    const byUid = (ts: unknown[]) => [...(ts as { uid?: string }[])].filter((t) => typeof t.uid === 'string').sort((p, q) => (p.uid! < q.uid! ? -1 : 1));
+    for (const mode of ['polar', 'rect'] as const) {
+      for (const target of ['b', 'r', null]) {
+        const base = buildCutBase({ ...options, mode });
+        const complete = buildCutFigure({ ...options, mode, markers, markerTarget: target });
+        expect(byUid(ownTraces(base.data, previewRestyle(base.data as { uid?: unknown }[], null, target)))).toEqual(byUid(complete.data));
+      }
+    }
   });
 });
 

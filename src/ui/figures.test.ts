@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Legend, PlotData, Shape } from 'plotly.js';
 import { buildHpbwFigure, hpbwCaption } from './hpbwFigure';
 import { exportFigure } from './exportFigure';
-import { buildCutFigure, markerCaption, markerReadout, type CutFigureOptions, type PlotSeries } from './cutFigure';
+import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout, type CutFigureOptions, type PlotSeries } from './cutFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
 import { tiltPattern } from '../core/analysis/tilt';
@@ -529,6 +529,52 @@ describe('beamwidth chart export', () => {
     expect(c.title).toContain('H-BW@10 dB');
     expect(c.items.join(' ')).toContain('original');
   });
+});
+
+describe('the cut figure in two parts: what a highlight leaves alone, and what it changes', () => {
+  const ALL = { hpbw: true, fb: true, usls: true, null: true, peak: true, sector: true };
+  const three = (cut: 0 | 1): PlotSeries[] => ['a', 'b', 'c'].map((id) => ({ ...series('a')[cut], id, label: id }));
+  const fileTraces = (f: { data: unknown[] }) => (f.data as { uid?: string }[]).filter((t) => typeof t.uid === 'string');
+
+  for (const mode of ['polar', 'rect'] as const) {
+    for (const cut of ['H', 'V'] as const) {
+      it(`the base has every file trace plain and in series order, whoever is highlighted (${mode}, ${cut})`, () => {
+        const o = opts({ mode, cut, series: three(cut === 'H' ? 0 : 1), markers: ALL, markerTarget: 'a' });
+        const base = buildCutBase(o);
+        expect(base.data).toHaveLength(3);
+        expect(traces(base).map((t) => t.name)).toEqual(['a', 'b', 'c']);
+        expect(traces(base).every((t) => t.opacity === undefined && t.line?.width === 1.5)).toBe(true);
+        // Nothing of it depends on the highlighted file or on the markers.
+        expect(buildCutBase({ ...o, markerTarget: 'c', markers: NO_MARKERS } as CutFigureOptions)).toEqual(base);
+        expect(base).toEqual(buildCutFigure({ ...o, markers: NO_MARKERS, markerTarget: null }));
+      });
+
+      it(`base and overlay together are the complete figure: same markers after the file traces, same layout (${mode}, ${cut})`, () => {
+        for (const markerTarget of ['b', null, 'zzz']) {
+          const o = opts({ mode, cut, series: three(cut === 'H' ? 0 : 1), markers: ALL, markerTarget });
+          const base = buildCutBase(o);
+          const overlay = buildCutOverlay(o);
+          const complete = buildCutFigure(o);
+          expect(complete.data.slice(fileTraces(complete).length)).toEqual(overlay.data);
+          expect(fileTraces(complete)).toHaveLength(base.data.length);
+          expect({ ...base.layout, ...overlay.layout }).toEqual(complete.layout);
+          expect(overlay.data.length > 0).toBe(markerTarget === 'b');
+        }
+      });
+    }
+
+    it(`the overlay's title names the highlighted file's beamwidth; without one it clears markers and shapes (${mode})`, () => {
+      const title = (o: { layout: { title?: unknown } }) => (o.layout.title as { text: string }).text;
+      const on = buildCutOverlay(opts({ mode, series: three(0), markers: ALL, markerTarget: 'b' }));
+      const off = buildCutOverlay(opts({ mode, series: three(0), markers: ALL, markerTarget: null }));
+      expect(title(on)).toMatch(/^Horizontal cut — HPBW \d+\.\d°$/);
+      expect(title(off)).toBe('Horizontal cut');
+      expect(off.data).toEqual([]);
+      // A layout merge only replaces the keys it is given: the rectangular overlay always carries `shapes`, also empty.
+      expect(off.layout.shapes).toEqual(mode === 'rect' ? [] : undefined);
+      expect((on.layout.shapes ?? []).length > 0).toBe(mode === 'rect');
+    });
+  }
 });
 
 describe('the reference file in the cut plots', () => {
