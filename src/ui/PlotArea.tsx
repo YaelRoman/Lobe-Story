@@ -22,8 +22,8 @@ interface Props {
 const MARKER_LABELS: Record<MarkerKey, string> = {
   hpbw: '−3 dB / HPBW',
   fb: 'F/B window',
-  usls: 'USLS',
-  null: 'First null',
+  usls: 'Sidelobes',
+  null: 'Null fill',
   peak: 'Beam direction',
   sector: 'Sector',
 };
@@ -62,6 +62,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, sim }:
       levelDb: settings.levelDb,
       fbWindowDeg: settings.fbWindowDeg,
       sectorEdgeDeg: settings.sectorEdgeDeg,
+      uslsRangeDeg: settings.uslsRangeDeg,
     };
     return {
       h: buildCutFigure({

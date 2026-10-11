@@ -7,7 +7,7 @@ const DEFAULT_FLOOR_DB = 40;
 const FIELDS: { key: keyof AnalysisSettings; label: string }[] = [
   { key: 'levelDb', label: 'Beamwidth level (dB)' },
   { key: 'fbWindowDeg', label: 'F/B window ± (°)' },
-  { key: 'uslsRangeDeg', label: 'USLS range above peak (°)' },
+  { key: 'uslsRangeDeg', label: 'USLS window (°)' },
   { key: 'sectorEdgeDeg', label: 'Sector edge (±°)' },
 ];
 

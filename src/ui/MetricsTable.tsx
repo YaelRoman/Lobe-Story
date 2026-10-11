@@ -20,6 +20,7 @@ export const MetricsTable = memo(function MetricsTable({
   const fbWindowDeg = useStore((s) => s.settings.fbWindowDeg);
   const sectorEdgeDeg = useStore((s) => s.settings.sectorEdgeDeg);
   const siteSectors = useStore((s) => s.settings.siteSectors);
+  const uslsRangeDeg = useStore((s) => s.settings.uslsRangeDeg);
   const tableGroups = useStore((s) => s.view.tableGroups);
   const updateView = useStore((s) => s.updateView);
   const columns = visibleColumns(tableGroups);
@@ -40,7 +41,7 @@ export const MetricsTable = memo(function MetricsTable({
           onClick={() =>
             downloadText(
               'pattern-metrics.csv',
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined),
+              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg),
               'text/csv;charset=utf-8',
             )
           }
@@ -70,8 +71,8 @@ export const MetricsTable = memo(function MetricsTable({
               <th>MHz</th>
               <th>Gain ({gainUnit})</th>
               {columns.map((c) => (
-                <th key={c.key} title={columnTitle(c.key, { sectorEdgeDeg, siteSectors })}>
-                  {columnLabel(c, fbWindowDeg)} ({c.unit})
+                <th key={c.key} title={columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg })}>
+                  {columnLabel(c, fbWindowDeg, uslsRangeDeg)} ({c.unit})
                 </th>
               ))}
             </tr>

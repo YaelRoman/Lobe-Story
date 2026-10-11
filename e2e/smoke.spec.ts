@@ -22,6 +22,8 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await expect(page.getByRole('columnheader', { name: /^H-BW 10 dB/ })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^Peak tilt/ })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /^D\/U 256QAM/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^First USLS/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /^USLS peak to 20°/ })).toBeVisible();
   const declared = page.getByRole('checkbox', { name: 'Show Declared Δ columns' });
   await expect(declared).not.toBeChecked();
   await expect(page.getByRole('columnheader', { name: /^ΔH-HPBW/ })).toHaveCount(0);
@@ -41,6 +43,19 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await page.getByRole('checkbox', { name: 'Sector', exact: true }).check();
   await expect(page.getByTestId('plot-h').locator('.main-svg').first()).toBeVisible();
   await expect(page.getByTestId('plot-h').getByText(/error/i)).toHaveCount(0);
+
+  await page.getByRole('checkbox', { name: 'Sidelobes', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Null fill', exact: true }).check();
+  for (const id of ['plot-v', 'plot-h']) {
+    await expect(page.getByTestId(id).locator('.main-svg').first()).toBeVisible();
+    await expect(page.getByTestId(id).getByText(/error/i)).toHaveCount(0);
+  }
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: 'Analysis settings' });
+  await expect(settings.getByText('USLS window (°)')).toBeVisible();
+  await expect(settings.getByText('Null search range (°)')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
 
   await page.getByRole('button', { name: 'Rectangular' }).click();
   await expect(page.getByText('Angle (°)').first()).toBeVisible();

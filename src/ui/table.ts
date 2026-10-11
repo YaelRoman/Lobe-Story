@@ -7,7 +7,7 @@ import type { ColumnGroupKey } from '../state/store';
 
 export type MetricColumn =
   | 'hHpbw' | 'vHpbw' | 'hBw10' | 'vBw10' | 'squint' | 'hPeak' | 'tilt' | 'vPeak' | 'tiltError'
-  | 'fb180' | 'fbWindow' | 'usls' | 'nullFill'
+  | 'fb180' | 'fbWindow' | 'firstUsls' | 'usls' | 'uslsHorizon' | 'uslsMax' | 'nullFill' | 'firstLsls' | 'hSls'
   | 'tracking' | 'spr' | 'air' | 'rollOff' | 'du16' | 'du64' | 'du256'
   | 'dH' | 'dV' | 'dFb';
 
@@ -31,8 +31,13 @@ export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string; g
   { key: 'tiltError', label: 'Tilt error', unit: '°', group: 'beam' },
   { key: 'fb180', label: 'F/B 180°', unit: 'dB', group: 'fb' },
   { key: 'fbWindow', label: 'F/B window', unit: 'dB', group: 'fb' },
-  { key: 'usls', label: 'USLS', unit: 'dB', group: 'sidelobes' },
+  { key: 'firstUsls', label: 'First USLS', unit: 'dB', group: 'sidelobes' },
+  { key: 'usls', label: 'USLS peak to 20°', unit: 'dB', group: 'sidelobes' },
+  { key: 'uslsHorizon', label: 'USLS horizon to 20°', unit: 'dB', group: 'sidelobes' },
+  { key: 'uslsMax', label: 'USLS max', unit: 'dB', group: 'sidelobes' },
   { key: 'nullFill', label: 'Null fill', unit: 'dB', group: 'sidelobes' },
+  { key: 'firstLsls', label: 'First LSLS', unit: 'dB', group: 'sidelobes' },
+  { key: 'hSls', label: 'H-SLS', unit: 'dB', group: 'sidelobes' },
   { key: 'tracking', label: 'P2P tracking', unit: 'dB', group: 'sector' },
   { key: 'spr', label: 'SPR', unit: '%', group: 'sector' },
   { key: 'air', label: 'AIR', unit: 'dB', group: 'sector' },
@@ -49,9 +54,12 @@ export function visibleColumns(groups: Record<ColumnGroupKey, boolean>): typeof 
   return METRIC_COLUMNS.filter((c) => groups[c.group]);
 }
 
-/** Header text for a column; the F/B window label depends on the current setting. */
-export function columnLabel(c: { key: MetricColumn; label: string }, fbWindowDeg: number): string {
-  return c.key === 'fbWindow' ? `F/B ±${fbWindowDeg}°` : c.label;
+/** Header text for a column; the F/B window and USLS window labels depend on the current settings. */
+export function columnLabel(c: { key: MetricColumn; label: string }, fbWindowDeg: number, uslsRangeDeg = 20): string {
+  if (c.key === 'fbWindow') return `F/B ±${fbWindowDeg}°`;
+  if (c.key === 'usls') return `USLS peak to ${uslsRangeDeg}°`;
+  if (c.key === 'uslsHorizon') return `USLS horizon to ${uslsRangeDeg}°`;
+  return c.label;
 }
 
 const DU_DB: Partial<Record<MetricColumn, number>> = { du16: 15, du64: 20, du256: 25 };
@@ -62,7 +70,22 @@ export function columnTitle(
   settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number },
 ): string | undefined {
   const e = settings.sectorEdgeDeg;
+  const r = settings.uslsRangeDeg ?? 20;
   switch (key) {
+    case 'firstUsls':
+      return 'First upper sidelobe suppression (BASTA 7.8.4.2): first sidelobe peak within 1.78 × V-HPBW above the beam peak, else the level at 1.55 × V-HPBW above it (merged sidelobe)';
+    case 'usls':
+      return `Upper sidelobe suppression, beam peak to ${r}° above it (BASTA 7.8.4.3): highest level beyond the main beam in that window; — when only the main beam is in the window`;
+    case 'uslsHorizon':
+      return `Upper sidelobe suppression, horizon to ${r}° above it (BASTA 7.8.4.5, elevation cut only); — when only the main beam is in the window`;
+    case 'uslsMax':
+      return 'Maximum upper sidelobe suppression, beam peak to zenith (BASTA 7.8.4.4)';
+    case 'nullFill':
+      return 'Null fill (BASTA 7.8.3): depth below the peak of the first null below the main beam, or of the merged first lower sidelobe at 1.55 × V-HPBW';
+    case 'firstLsls':
+      return 'First lower sidelobe suppression: as First USLS, below the beam peak';
+    case 'hSls':
+      return `Maximum horizontal sidelobe suppression within ±${e}° (BASTA 7.8.4.1): highest level beyond the first nulls of the azimuth main beam`;
     case 'hBw10':
       return 'Azimuth beamwidth 10 dB below the peak of the cut (BASTA 6.1.6)';
     case 'vBw10':
@@ -125,8 +148,13 @@ function cellsOf(m: PatternMetrics): Record<MetricColumn, MetricResult> {
     tiltError: m.tiltError,
     fb180: m.fb180,
     fbWindow: m.fbWindow,
+    firstUsls: m.firstUsls,
     usls: m.usls,
+    uslsHorizon: m.uslsHorizon,
+    uslsMax: m.uslsMax,
     nullFill: m.nullFill,
+    firstLsls: m.firstLsls,
+    hSls: m.hSls,
     tracking: m.beamTracking,
     spr: m.spr,
     air: m.air,
@@ -222,12 +250,13 @@ export function toCsv(
   gainUnit: GainUnit,
   fbWindowDeg: number,
   sim?: SimSettings | ((id: string) => SimSettings),
+  uslsRangeDeg = 20,
 ): string {
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
   const tilted = typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim);
   const withSource = rows.some((r) => r.source !== r.file);
   const metricHeader = METRIC_COLUMNS.flatMap((c) => {
-    const label = columnLabel(c, fbWindowDeg);
+    const label = columnLabel(c, fbWindowDeg, uslsRangeDeg);
     return tilted ? [`${label} original (${c.unit})`, `${label} tilted (${c.unit})`] : [`${label} (${c.unit})`];
   });
   const header = [

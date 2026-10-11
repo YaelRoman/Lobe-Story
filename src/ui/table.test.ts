@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildRows, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
+  buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
   simulationLabel, toCsv, offsetLabel,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
@@ -267,7 +267,7 @@ describe('column groups', () => {
 
   it('shows all but the declared columns by default', () => {
     const keys = visibleColumns(DEFAULT_TABLE_GROUPS).map((c) => c.key);
-    expect(keys).toHaveLength(20);
+    expect(keys).toHaveLength(25);
     for (const k of ['dH', 'dV', 'dFb']) expect(keys).not.toContain(k);
   });
 
@@ -302,5 +302,79 @@ describe('column groups', () => {
     const none = Object.fromEntries(order.map((k) => [k, false])) as Record<ColumnGroupKey, boolean>;
     expect(visibleColumns(none)).toEqual([]);
     expect(visibleColumns({ ...none, fb: true }).map((c) => c.key)).toEqual(['fb180', 'fbWindow']);
+  });
+});
+
+describe('sidelobe columns', () => {
+  const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'p', fileName: 'p.MSI' });
+  const tagged = [{ pattern, tags: {} }];
+  const rows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBd');
+
+  it('orders the sidelobes group', () => {
+    expect(METRIC_COLUMNS.filter((c) => c.group === 'sidelobes').map((c) => [c.key, c.label, c.unit])).toEqual([
+      ['firstUsls', 'First USLS', 'dB'],
+      ['usls', 'USLS peak to 20°', 'dB'],
+      ['uslsHorizon', 'USLS horizon to 20°', 'dB'],
+      ['uslsMax', 'USLS max', 'dB'],
+      ['nullFill', 'Null fill', 'dB'],
+      ['firstLsls', 'First LSLS', 'dB'],
+      ['hSls', 'H-SLS', 'dB'],
+    ]);
+    expect(visibleColumns(DEFAULT_TABLE_GROUPS)).toHaveLength(25);
+    expect(METRIC_COLUMNS).toHaveLength(28);
+  });
+
+  it('maps the cells to the metrics fields', () => {
+    const m = analyzeAll(tagged).get('p')!;
+    for (const k of ['firstUsls', 'usls', 'uslsHorizon', 'uslsMax', 'nullFill', 'firstLsls', 'hSls'] as const) {
+      expect(rows[0].cells[k]).toEqual(m[k]);
+    }
+  });
+
+  it('labels the USLS columns with the window and exports them', () => {
+    expect(columnLabel({ key: 'usls', label: 'x' }, 30, 12)).toBe('USLS peak to 12°');
+    expect(columnLabel({ key: 'uslsHorizon', label: 'x' }, 30, 12)).toBe('USLS horizon to 12°');
+    expect(columnLabel({ key: 'fbWindow', label: 'x' }, 30)).toBe('F/B ±30°');
+    const [header, line] = toCsv(rows, 'dBd', 30).trimEnd().split('\r\n');
+    expect(header).toContain(
+      'First USLS (dB),USLS peak to 20° (dB),USLS horizon to 20° (dB),USLS max (dB),Null fill (dB),First LSLS (dB),H-SLS (dB)',
+    );
+    expect(line.split(',')).toHaveLength(header.split(',').length);
+    const [h15] = toCsv(rows, 'dBd', 30, undefined, 15).trimEnd().split('\r\n');
+    expect(h15).toContain('USLS peak to 15° (dB),USLS horizon to 15° (dB)');
+  });
+
+  it('builds the sidelobe tooltips', () => {
+    const s = { sectorEdgeDeg: 45, siteSectors: 3, uslsRangeDeg: 15 };
+    expect(columnTitle('firstUsls', s)).toBe(
+      'First upper sidelobe suppression (BASTA 7.8.4.2): first sidelobe peak within 1.78 × V-HPBW above the beam peak, else the level at 1.55 × V-HPBW above it (merged sidelobe)',
+    );
+    expect(columnTitle('usls', s)).toBe(
+      'Upper sidelobe suppression, beam peak to 15° above it (BASTA 7.8.4.3): highest level beyond the main beam in that window; — when only the main beam is in the window',
+    );
+    expect(columnTitle('uslsHorizon', s)).toBe(
+      'Upper sidelobe suppression, horizon to 15° above it (BASTA 7.8.4.5, elevation cut only); — when only the main beam is in the window',
+    );
+    expect(columnTitle('uslsMax', s)).toBe('Maximum upper sidelobe suppression, beam peak to zenith (BASTA 7.8.4.4)');
+    expect(columnTitle('nullFill', s)).toBe(
+      'Null fill (BASTA 7.8.3): depth below the peak of the first null below the main beam, or of the merged first lower sidelobe at 1.55 × V-HPBW',
+    );
+    expect(columnTitle('firstLsls', s)).toBe('First lower sidelobe suppression: as First USLS, below the beam peak');
+    expect(columnTitle('hSls', s)).toBe(
+      'Maximum horizontal sidelobe suppression within ±45° (BASTA 7.8.4.1): highest level beyond the first nulls of the azimuth main beam',
+    );
+    expect(columnTitle('usls', { sectorEdgeDeg: 60, siteSectors: 3 })).toContain('beam peak to 20° above it');
+  });
+
+  it('shows merged and not-available notes in the cell tooltip', () => {
+    const q = patternFrom(quadBeam(60), quadBeam(8, 6), { id: 'q', fileName: 'q.MSI' });
+    const t = [{ pattern: q, tags: {} }];
+    const r = buildRows(groupPatterns(t), analyzeAll(t), 'dBd')[0];
+    const merged = formatCell(r.cells.nullFill);
+    expect(merged.text).toBe('28.9');
+    expect(merged.title).toMatch(/Merged with the main beam/);
+    const na = formatCell({ value: null, reason: 'Not available: only the main beam lies in this window' });
+    expect(na.text).toBe('—');
+    expect(na.title).toMatch(/only the main beam/);
   });
 });

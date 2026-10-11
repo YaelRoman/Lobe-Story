@@ -29,6 +29,8 @@ export interface CutFigureOptions {
   fbWindowDeg: number;
   /** Sector half-width in degrees, for the "sector" marker. */
   sectorEdgeDeg: number;
+  /** Size of the USLS windows in degrees, for the sidelobe marker labels. */
+  uslsRangeDeg: number;
   rotationDeg?: number;
 }
 
@@ -76,8 +78,31 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
     spec.sectors.push({ from: 180 - o.fbWindowDeg + rot, to: 180 + o.fbWindowDeg + rot, label: `F/B window ±${o.fbWindowDeg}°`, opacity: 0.08 });
     point(m.fbWindow, (v) => `F/B ±${o.fbWindowDeg}° ${v.toFixed(1)} dB`);
   }
-  if (o.markers.usls && o.cut === 'V') point(m.usls, (v) => `USLS ${v.toFixed(1)} dB`);
-  if (o.markers.null && o.cut === 'V') point(m.nullFill, (v) => `First null ${v.toFixed(1)} dB`);
+  const lobeMarkers = (items: { label: string; r: { value: number | null; angle?: number; kind?: string } }[]) => {
+    const groups: { angle: number; value: number; labels: string[] }[] = [];
+    for (const { label, r } of items) {
+      if (r.value === null || r.angle === undefined) continue;
+      const text = r.kind === 'merged' ? `${label} (merged)` : label;
+      const same = groups.find((g) => Math.abs(g.angle - r.angle!) < 1e-6 && Math.abs(g.value - r.value!) < 1e-6);
+      if (same) same.labels.push(text);
+      else groups.push({ angle: r.angle, value: r.value, labels: [text] });
+    }
+    for (const g of groups) point({ value: g.value, angle: g.angle }, (v) => `${g.labels.join(' · ')} ${v.toFixed(1)} dB`);
+  };
+  if (o.markers.usls && o.cut === 'V') {
+    lobeMarkers([
+      { label: 'First USLS', r: m.firstUsls },
+      { label: `USLS peak to ${o.uslsRangeDeg}°`, r: m.usls },
+      { label: `USLS horizon to ${o.uslsRangeDeg}°`, r: m.uslsHorizon },
+    ]);
+  }
+  if (o.markers.usls && o.cut === 'H') lobeMarkers([{ label: 'H-SLS', r: m.hSls }]);
+  if (o.markers.null && o.cut === 'V') {
+    lobeMarkers([
+      { label: 'Null fill', r: m.nullFill },
+      { label: 'First LSLS', r: m.firstLsls },
+    ]);
+  }
   if (o.markers.peak && beam.direction.value !== null) {
     const name = o.cut === 'H' ? 'Squint' : 'Tilt';
     spec.rays.push({ angle: signed(beam.direction.value + rot), label: `${name} ${beam.direction.value.toFixed(1)}°` });

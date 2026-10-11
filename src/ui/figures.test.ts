@@ -5,7 +5,7 @@ import { buildHpbwFigure } from './hpbwFigure';
 import { colorMap, PALETTE } from './colors';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
-import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
+import { hBeamWithLobes, patternFrom, quadBeam, vBeamWithLobes, vFarLobes } from '../test/synthetic';
 
 const NO_MARKERS = { hpbw: false, fb: false, usls: false, null: false, peak: false, sector: false };
 
@@ -29,6 +29,7 @@ const opts = (over: Partial<CutFigureOptions>): CutFigureOptions => ({
   levelDb: 3,
   fbWindowDeg: 30,
   sectorEdgeDeg: 60,
+  uslsRangeDeg: 20,
   ...over,
 });
 
@@ -89,13 +90,58 @@ describe('buildCutFigure', () => {
     expect(new Set(ring.r as number[])).toEqual(new Set([-5]));
   });
 
-  it('marks USLS and the first null on the V cut', () => {
-    const f = buildCutFigure(
-      opts({ cut: 'V', series: [series('a')[1]], markers: { ...NO_MARKERS, usls: true, null: true }, markerTarget: 'a' }),
-    );
-    const names = traces(f).map((t) => t.name);
-    expect(names).toContain('USLS 18.0 dB');
-    expect(names).toContain('First null 22.0 dB');
+  describe('sidelobe markers', () => {
+    const on = { ...NO_MARKERS, usls: true, null: true };
+    const names = (cut: 'H' | 'V', h: (a: number) => number, v: (a: number) => number, over: Partial<CutFigureOptions> = {}) => {
+      const pattern = patternFrom(h, v, { id: 'a' });
+      const metrics = analyzePattern({ pattern, tags: {} });
+      const cutData = cut === 'H' ? pattern.horizontal : pattern.vertical;
+      const f = buildCutFigure(
+        opts({ cut, series: [{ id: 'a', label: 'a', color: '#123456', cut: cutData, metrics }], markers: on, markerTarget: 'a', ...over }),
+      );
+      return traces(f).slice(1);
+    };
+    const nm = (t: Partial<PlotData>[]) => t.map((x) => x.name);
+
+    it('marks the elevation sidelobes, merging coinciding ones', () => {
+      const n = nm(names('V', quadBeam(60), vBeamWithLobes));
+      expect(n).toContain('First USLS · USLS peak to 20° · USLS horizon to 20° 18.0 dB');
+      expect(n).toContain('Null fill 22.0 dB');
+      expect(n).toContain('First LSLS 15.0 dB');
+      expect(n.filter((x) => x?.startsWith('USLS'))).toEqual([]);
+    });
+
+    it('marks merged lobes', () => {
+      const n = nm(names('V', quadBeam(60), quadBeam(8, 6)));
+      expect(n).toContain('First USLS (merged) · USLS peak to 20° · USLS horizon to 20° 28.9 dB');
+      expect(n).toContain('Null fill (merged) · First LSLS (merged) 28.9 dB');
+    });
+
+    it('keeps differing values as separate markers', () => {
+      const n = nm(names('V', quadBeam(60), vFarLobes));
+      expect(n).toContain('First USLS (merged) 23.2 dB');
+      expect(n).toContain('USLS peak to 20° · USLS horizon to 20° 18.0 dB');
+    });
+
+    it('draws nothing for a null result', () => {
+      const t = names('V', quadBeam(60), quadBeam(16, 0), { markers: { ...NO_MARKERS, usls: true } });
+      expect(nm(t)).toEqual(['First USLS (merged) 28.8 dB']);
+    });
+
+    it('marks H-SLS on the H cut and applies the rotation', () => {
+      const t = names('H', hBeamWithLobes, quadBeam(8), { markers: { ...NO_MARKERS, usls: true } });
+      expect(nm(t)).toEqual(['H-SLS 12.0 dB']);
+      expect((t[0] as { theta: number[] }).theta).toEqual([35]);
+      const r = names('H', hBeamWithLobes, quadBeam(8), { markers: { ...NO_MARKERS, usls: true }, rotationDeg: 30 });
+      expect((r[0] as { theta: number[] }).theta).toEqual([65]);
+      expect(nm(names('H', quadBeam(60), quadBeam(8), { markers: { ...NO_MARKERS, usls: true } }))).toEqual([]);
+    });
+
+    it('draws the same names in rectangular mode', () => {
+      const t = names('V', quadBeam(60), vBeamWithLobes, { mode: 'rect' });
+      expect(t.every((x) => x.type === 'scatter')).toBe(true);
+      expect(nm(t)).toContain('Null fill 22.0 dB');
+    });
   });
 
   it('splits the F/B window into two rectangles in rectangular mode', () => {
