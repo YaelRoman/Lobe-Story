@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { GLOSSARY, METRICS_DOC_URL, README_URL } from './glossary';
+import { GLOSSARY, METRICS_DOC_URL, PANEL_HELP, README_URL } from './glossary';
 
 /** What a Help button hands over when clicked: its click event (the dialog gives the focus back to `currentTarget`). */
 export type OpenHelp = (event: { currentTarget: EventTarget | null }) => void;
@@ -59,6 +59,7 @@ export function HelpDialog({ onClose, opener }: { onClose: () => void; opener: H
           </div>
         ))}
       </dl>
+      <p>{PANEL_HELP}</p>
       <p>
         Exact definitions of every column:{' '}
         <a href={METRICS_DOC_URL} target="_blank" rel="noopener noreferrer">

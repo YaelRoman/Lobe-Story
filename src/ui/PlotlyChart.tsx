@@ -3,7 +3,7 @@ import Plotly from 'plotly.js-dist-min';
 import type { Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
-import { hoverStore, previewRestyle } from './hoverPreview';
+import { hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
 const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
 
@@ -40,12 +40,23 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
   const exporting = useRef({ figure, labelledExport });
   const previewing = previewBase !== undefined;
   const preview = useRef({ figure, base: previewBase ?? null });
+  // What the drawn traces show now (null: unknown). Only the traces that differ from it are restyled.
+  const applied = useRef<PreviewRestyle | null>(null);
 
   useEffect(() => {
     handler.current = onRelayout;
     exporting.current = { figure, labelledExport };
     preview.current = { figure, base: previewBase ?? null };
   }, [onRelayout, figure, labelledExport, previewBase]);
+
+  /** Brings the drawn traces to the current preview, restyling only those whose look changes. */
+  const restylePreview = (el: HTMLElement) => {
+    const { figure: fig, base } = preview.current;
+    const next = previewRestyle(fig.data as unknown as { uid?: unknown }[], hoverStore.getState().id, base);
+    const diff = restyleDiff(applied.current, next);
+    applied.current = next;
+    return diff ? Plotly.restyle(el, diff.update as unknown as Record<string, unknown>, diff.indices) : undefined;
+  };
 
   // Hover/focus preview: restyle the drawn traces in place. Changes within one frame (leave one row, enter the
   // next) are merged into one restyle.
@@ -55,9 +66,7 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
     let frame = 0;
     const apply = () => {
       frame = 0;
-      const { figure: fig, base } = preview.current;
-      const r = previewRestyle(fig.data as unknown as { uid?: unknown }[], hoverStore.getState().id, base);
-      if (r) void Plotly.restyle(el, r.update as unknown as Record<string, unknown>, r.indices);
+      void restylePreview(el);
     };
     const unsubscribe = hoverStore.subscribe(() => {
       if (frame === 0) frame = requestAnimationFrame(apply);
@@ -74,7 +83,7 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
     setError(null);
     void Plotly.react(
       el,
-      figure.data as unknown as PlotlyNativeData[],
+      ownTraces(figure.data) as unknown as PlotlyNativeData[],
       { ...figure.layout, autosize: true } as Partial<PlotlyNativeLayout>,
       {
         responsive: true,
@@ -103,12 +112,9 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
       },
     )
       .then(() => {
-        // A redraw while a row is hovered starts from the figure's own look: show the preview again.
-        const hovered = hoverStore.getState().id;
-        if (previewing && hovered !== null) {
-          const r = previewRestyle(preview.current.figure.data as unknown as { uid?: unknown }[], hovered, preview.current.base);
-          if (r) void Plotly.restyle(el, r.update as unknown as Record<string, unknown>, r.indices);
-        }
+        // A redraw starts from the figure's own look (the highlight's emphasis); show a preview that is active again.
+        applied.current = previewing ? previewRestyle(preview.current.figure.data as unknown as { uid?: unknown }[], null, preview.current.base) : null;
+        if (previewing && hoverStore.getState().id !== null) void restylePreview(el);
         el.removeAllListeners?.('plotly_relayout');
         el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
       })

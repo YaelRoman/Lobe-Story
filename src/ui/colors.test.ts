@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  colorMap,
-  colorMapByGroup,
-  contrastRatio,
   groupColour,
   groupLook,
   groupStyle,
@@ -18,6 +15,10 @@ import {
 } from './colors';
 import { FIGURE_THEMES } from './figureTheme';
 
+const contrastRatio = (a: string, b: string): number => {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+};
 const ids = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
 const all = (groups: { ids: string[] }[]) => Object.fromEntries(groups.flatMap((g) => g.ids).map((id) => [id, true]));
 
@@ -68,15 +69,19 @@ describe('ladder', () => {
   });
 });
 
-describe('colorMapByGroup', () => {
-  it('colours each file on its own, as colorMap, up to ten visible files', () => {
+const colorsOf = (groups: { ids: string[] }[], visible: Record<string, boolean>) =>
+  new Map([...styleMapByGroup(groups, visible)].map(([id, s]) => [id, s.color]));
+
+describe('colours by group', () => {
+  it('colours each file on its own palette colour, in panel order, up to ten visible files', () => {
     const groups = [{ ids: ids('a', 6) }, { ids: ids('b', 4) }];
-    expect(colorMapByGroup(groups, all(groups))).toEqual(colorMap([...groups[0].ids, ...groups[1].ids]));
+    const m = colorsOf(groups, all(groups));
+    expect([...groups[0].ids, ...groups[1].ids].map((id) => m.get(id))).toEqual(PALETTE);
   });
 
   it('colours by group above ten: the files of a group are shades of its hue, in the ladder order', () => {
     const groups = [{ ids: ids('a', 7) }, { ids: ids('b', 7) }, { ids: ['c0'] }];
-    const m = colorMapByGroup(groups, all(groups));
+    const m = colorsOf(groups, all(groups));
     expect(m.size).toBe(15);
     expect(m.get('c0')).toBe(groupColour(2));
     expect(ids('a', 7).map((id) => m.get(id))).toEqual(ladder(groupColour(0), 7));
@@ -84,16 +89,26 @@ describe('colorMapByGroup', () => {
     expect(m.get('a0')).not.toBe(m.get('b0'));
   });
 
+  it('a file keeps its shade when a neighbour in its group is unticked (the shade follows its place in the whole group)', () => {
+    const groups = [{ ids: ids('a', 7) }, { ids: ids('b', 7) }];
+    const full = colorsOf(groups, all(groups));
+    const visible = all(groups);
+    visible.a2 = false;
+    const less = colorsOf(groups, visible);
+    expect(less.has('a2')).toBe(false);
+    for (const id of [...ids('a', 7), ...ids('b', 7)].filter((x) => x !== 'a2')) expect(less.get(id)).toBe(full.get(id));
+  });
+
   it('counts only groups that have a visible file, like the beamwidth chart', () => {
     const groups = [{ ids: ids('a', 12) }, { ids: ids('b', 3) }];
     const visible = all(groups);
     for (const id of groups[0].ids) visible[id] = false;
     // 3 visible files: per-file colours again
-    expect(colorMapByGroup(groups, visible).get('b0')).toBe(PALETTE[0]);
+    expect(colorsOf(groups, visible).get('b0')).toBe(PALETTE[0]);
     expect(PER_FILE_COLOURS).toBe(10);
     // Past ten visible files the first visible group is group 0 and each group's files differ.
     const wide = [{ ids: ['g0'] }, ...Array.from({ length: 11 }, (_, k) => ({ ids: [`h${k}`, `h${k}b`] }))];
-    const m = colorMapByGroup(wide, all(wide));
+    const m = colorsOf(wide, all(wide));
     expect(m.get('g0')).toBe(groupColour(0));
     expect(new Set([m.get('h0'), m.get('h0b')]).size).toBe(2);
   });

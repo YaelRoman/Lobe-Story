@@ -12,7 +12,7 @@ import { PlotlyChart } from './PlotlyChart';
 import { Pattern3D } from './Pattern3D';
 import { SimulationBar } from './SimulationBar';
 import { Seg } from './Seg';
-import type { FileStyle } from './colors';
+import { PER_FILE_COLOURS, type FileStyle } from './colors';
 import type { SimulationResult } from './useSimulation';
 
 interface Props {
@@ -48,10 +48,12 @@ interface CutPlotProps {
   traces: number;
   /** The file the figure emphasises (see `PlotlyChart` `previewBase`). */
   emphasised: string | null;
+  /** More than ten files are shown: colours go by group, a shade per file. */
+  byGroup: boolean;
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, readout, target, traces, emphasised }: CutPlotProps) {
+function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -71,7 +73,7 @@ function CutPlot({ id, figure, readout, target, traces, emphasised }: CutPlotPro
         )}
         {noLegend && (
           <p className="count">
-            {traces} traces: colours as in the file panel (dashed = original); hover a trace for its name.
+            {traces} traces: colours as in the file panel (dashed = original){byGroup ? '; more than 10 files: one colour per group, a shade per file' : ''}; hover a trace for its name.
           </p>
         )}
       </div>
@@ -132,6 +134,8 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
     };
     return { h: make('H'), v: make('V') };
   }, [is3d, drawn, view.mode, view.floorDb, view.markers, view.theme, settings]);
+
+  const byGroup = styles.size > PER_FILE_COLOURS;
 
   return (
     <section>
@@ -220,8 +224,8 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
             </p>
           )}
           <div className="plots">
-            {view.cut !== 'V' && figures && <CutPlot id="h" {...figures.h} />}
-            {view.cut !== 'H' && figures && <CutPlot id="v" {...figures.v} />}
+            {view.cut !== 'V' && figures && <CutPlot id="h" {...figures.h} byGroup={byGroup} />}
+            {view.cut !== 'H' && figures && <CutPlot id="v" {...figures.v} byGroup={byGroup} />}
           </div>
         </>
       )}

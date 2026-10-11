@@ -62,6 +62,18 @@ test('Show all / none / only matches are one undoable step each', async ({ page 
   await expect(ticked(page)).toHaveCount(2);
 });
 
+test('an undo puts another session on screen: the filter text and the folded groups start afresh', async ({ page }) => {
+  await load(page);
+  const panel = page.locator('.panel');
+  await page.getByLabel('Filter files').fill('f171');
+  await page.getByRole('button', { name: 'Only matches' }).click();
+  await panel.locator('section.group:not(.custom)').first().getByRole('button', { name: /^Collapse / }).click();
+  await expect(panel.locator('li')).toHaveCount(0);
+  await page.getByTestId('undo-toast').getByRole('button', { name: /^Undo/ }).click();
+  await expect(page.getByLabel('Filter files')).toHaveValue('');
+  await expect(panel.locator('li')).toHaveCount(10);
+});
+
 test('groups fold, show ticked / total, skip folded rows by arrow keys and still accept drops', async ({ page }) => {
   await load(page);
   const panel = page.locator('.panel');

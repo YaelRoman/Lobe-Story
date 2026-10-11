@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { previewRestyle } from './hoverPreview';
+import { focusPreviews, hoverPreviews, ownTraces, previewRestyle, restyleDiff } from './hoverPreview';
+import { exportFigure } from './exportFigure';
+import type { Figure } from './figureTheme';
 import { buildCutFigure, DIMMED_OPACITY, type PlotSeries } from './cutFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
@@ -56,5 +58,67 @@ describe('previewRestyle', () => {
     const drawn = fig.data.filter((t) => typeof (t as { uid?: unknown }).uid === 'string') as unknown as { line: { width: number }; opacity?: number }[];
     expect(r.update['line.width']).toEqual(drawn.map((t) => t.line.width));
     expect(r.update.opacity).toEqual(drawn.map((t) => t.opacity ?? null));
+  });
+});
+
+describe('restyleDiff', () => {
+  const at = (hovered: string | null, base: string | null = null) => previewRestyle(traces('a', 'b', 'c', 'd'), hovered, base);
+
+  it('sends everything when nothing was applied yet', () => {
+    expect(restyleDiff(null, at('b'))).toEqual(at('b'));
+  });
+
+  it('moving from one row to the next changes two traces only', () => {
+    const r = restyleDiff(at('b'), at('c'))!;
+    expect(r.indices).toEqual([1, 2]);
+    expect(r.update['line.width']).toEqual([1.5, 2.5]);
+    expect(r.update.opacity).toEqual([DIMMED_OPACITY, null]);
+  });
+
+  it('entering a row from no preview dims all the others (every trace changes), leaving it changes them back', () => {
+    expect(restyleDiff(at(null), at('b'))!.indices).toEqual([0, 1, 2, 3]);
+    expect(restyleDiff(at('b'), at(null))!.indices).toEqual([0, 1, 2, 3]);
+  });
+
+  it('leaving a row restores the highlight emphasis by changing only the traces that differ', () => {
+    const r = restyleDiff(at('c', 'a'), at(null, 'a'))!;
+    expect(r.indices).toEqual([0, 2]);
+  });
+
+  it('is null when nothing changes (same row again, or a hovered file that is not drawn)', () => {
+    expect(restyleDiff(at('b'), at('b'))).toBeNull();
+    expect(restyleDiff(at(null, 'a'), at('zzz', 'a'))).toBeNull();
+  });
+
+  it('resends everything when the traces changed under it (different indices)', () => {
+    const other = previewRestyle(traces('a', 'b', 'c'), 'b', null);
+    expect(restyleDiff(at('b'), other)).toEqual(other);
+  });
+});
+
+describe('ownTraces (what the export is built from)', () => {
+  it('a restyle of the drawn traces leaves the figure builder output, and so the export, untouched', () => {
+    const figure = { data: [{ uid: 'a', meta: 'A', line: { width: 1.5 } }, { uid: 'b', meta: 'B', line: { width: 1.5 } }, { x: [1] }], layout: {} } as unknown as Figure;
+    const pristine = JSON.stringify(exportFigure(figure));
+    const drawn = ownTraces(figure.data as unknown as { uid?: string; line?: { width: number }; opacity?: number }[]);
+    // What Plotly.restyle does to the objects it was handed: it sets them in place.
+    drawn[0].line!.width = 2.5;
+    drawn[1].opacity = DIMMED_OPACITY;
+    expect(JSON.stringify(figure)).toBe(JSON.stringify({ data: [{ uid: 'a', meta: 'A', line: { width: 1.5 } }, { uid: 'b', meta: 'B', line: { width: 1.5 } }, { x: [1] }], layout: {} }));
+    expect(JSON.stringify(exportFigure(figure))).toBe(pristine);
+  });
+});
+
+describe('which input previews', () => {
+  it('only a mouse pointer previews on hover, not touch or pen', () => {
+    expect(hoverPreviews({ pointerType: 'mouse' })).toBe(true);
+    expect(hoverPreviews({ pointerType: 'touch' })).toBe(false);
+    expect(hoverPreviews({ pointerType: 'pen' })).toBe(false);
+  });
+
+  it('only a focus the browser marks as keyboard focus previews', () => {
+    expect(focusPreviews({ matches: (q: string) => q === ':focus-visible' } as unknown as Element)).toBe(true);
+    expect(focusPreviews({ matches: () => false } as unknown as Element)).toBe(false);
+    expect(focusPreviews({ matches: () => { throw new SyntaxError('unsupported'); } } as unknown as Element)).toBe(true);
   });
 });

@@ -5,6 +5,7 @@ import { neighbourOrder } from './undoKeys';
 import { moveFocus, tabStopAfterFold, tabStopKey } from './rovingKeys';
 import { filterGroups, filterPending, filterTerms, highlightHiddenByFilter } from './panelFilter';
 import { GroupSection } from './GroupSection';
+import { useSessionSwap } from './useSessionSwap';
 import type { FileStyle } from './colors';
 
 interface Props {
@@ -29,12 +30,17 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
   // The filter text and the folded groups are display-only: nothing here is saved in a project or counted as unsaved work.
   const [query, setQuery] = useState('');
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
+  // They belong to the session on screen: a project opened, an undo applied or Clear starts them afresh.
+  useSessionSwap(() => {
+    setQuery('');
+    setFolded(new Set());
+  });
   const [editing, setEditing] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
   // The one row (or group header) that is a tab stop; the arrow keys move it (roving tabindex).
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  // Filtering a single file is noise: the box appears from two files on, and a stale text does not outlive the files.
+  // Filtering a single file is noise: the box appears from two files on, and while it is hidden its text filters nothing.
   const fileCount = allGroups.reduce((n, g) => n + g.items.length, 0);
   const filterShown = fileCount >= 2;
   // The list follows the text a moment later, so typing stays instant even with hundreds of rows.
@@ -268,7 +274,7 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
               }
             }}
           />
-          <p className="count" data-testid="filter-count" aria-live="polite">
+          <p className="count" data-testid="filter-count">
             {filtering ? `${matchIds.length} of ${allIds.length} files` : `${allIds.length} files · ${tickedCount} shown`}
           </p>
           <div className="bulk" role="group" aria-label="Show or hide files">
@@ -303,7 +309,7 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
             )}
           </div>
           {highlightHidden && (
-            <p className="count" data-testid="highlight-hidden">
+            <p className="count" data-testid="highlight-hidden" role="status" aria-live="polite">
               The highlighted file is hidden by the filter.{' '}
               <button type="button" onClick={() => setQuery('')}>
                 Clear filter
@@ -311,7 +317,7 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
             </p>
           )}
           {filtering && matchIds.length === 0 && (
-            <p className="count">
+            <p className="count" role="status" aria-live="polite">
               No file matches "{query.trim()}".{' '}
               <button type="button" onClick={() => setQuery('')}>
                 Clear filter

@@ -8,7 +8,7 @@ import { offsetLabel } from './table';
 import { onSpace } from './rovingKeys';
 import { FileMenu, NameEditor } from './FilePanelMenus';
 import { swatchBackground, type LineDash } from './colors';
-import { hoverStore, setHoverId } from './hoverPreview';
+import { focusPreviews, hoverPreviews, hoverStore, setHoverId } from './hoverPreview';
 
 export const DRAG_TYPE = 'text/x-pattern-id';
 
@@ -84,9 +84,10 @@ export const FileRow = memo(function FileRow({
       onDragStart={(e) => startDrag(e, id)}
       onClick={() => pickFile(id)}
       // Previews the file's trace in the cut plots (a separate tiny store: nothing re-renders).
-      onPointerEnter={() => setHoverId(id)}
+      // Only a mouse pointer and keyboard focus preview: a tap or click would leave the preview stuck.
+      onPointerEnter={(e) => hoverPreviews(e) && setHoverId(id)}
       onPointerLeave={() => setHoverId(null)}
-      onFocus={() => setHoverId(id)}
+      onFocus={(e) => focusPreviews(e.target) && setHoverId(id)}
       onBlur={() => setHoverId(null)}
     >
       <input

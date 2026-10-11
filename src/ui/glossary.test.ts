@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { GLOSSARY, METRICS_DOC_URL, README_URL, REPO_URL } from './glossary';
+import { GLOSSARY, METRICS_DOC_URL, PANEL_HELP, README_URL, REPO_URL } from './glossary';
 import { canOfferExample, loadExample } from './loadExample';
 import { initialState, useStore } from '../state/store';
 import { EXAMPLE_NOTE } from '../core/exampleSet';
@@ -15,6 +15,10 @@ describe('glossary', () => {
     expect(README_URL.startsWith(REPO_URL)).toBe(true);
     expect(REPO_URL).toBe('https://github.com/YaelRoman/Lobe-Story');
   });
+});
+
+it('the help says what the file panel filter, fold and preview do', () => {
+  for (const word of ['filter', 'folds', 'previews']) expect(PANEL_HELP).toContain(word);
 });
 
 describe('loadExample', () => {

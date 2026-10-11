@@ -348,7 +348,7 @@ type State = StoreData & StoreActions;
 
 let sessionSwaps = 0;
 /**
- * How many times a whole session was put on screen (project opened, undo applied). Those bring their own
+ * How many times a whole session was put on screen (project opened, undo applied, session cleared). Those bring their own
  * settings and view; a subscriber that sees this number change knows the change was not the user's own.
  */
 export const sessionSwapCount = (): number => sessionSwaps;
@@ -485,25 +485,28 @@ export const useStore = create<State>()((rawSet, get) => {
     }),
 
   clear: () =>
-    set((s) => ({
-      ...(s.files.length > 0 || s.pendingFiles.length > 0
-        ? undoEntry(s, s.files.length === 0 ? 'Cleared the session' : `Cleared ${s.files.length} file${s.files.length === 1 ? '' : 's'}`)
-        : { undo: null }),
-      loadFailed: 0,
-      saved: null,
-      files: [],
-      visible: {},
-      tagOverrides: {},
-      highlighted: null,
-      loadMessage: null,
-      copies: {},
-      names: {},
-      customGroups: [],
-      membership: {},
-      selected: null,
-      pendingFiles: [],
-      view: { ...s.view, simulation: { ...s.view.simulation, offsets: {}, groupOffsets: {} } },
-    })),
+    set((s) => {
+      sessionSwaps++;
+      return {
+        ...(s.files.length > 0 || s.pendingFiles.length > 0
+          ? undoEntry(s, s.files.length === 0 ? 'Cleared the session' : `Cleared ${s.files.length} file${s.files.length === 1 ? '' : 's'}`)
+          : { undo: null }),
+        loadFailed: 0,
+        saved: null,
+        files: [],
+        visible: {},
+        tagOverrides: {},
+        highlighted: null,
+        loadMessage: null,
+        copies: {},
+        names: {},
+        customGroups: [],
+        membership: {},
+        selected: null,
+        pendingFiles: [],
+        view: { ...s.view, simulation: { ...s.view.simulation, offsets: {}, groupOffsets: {} } },
+      };
+    }),
 
   setTags: (id, tags) =>
     set((state) => {

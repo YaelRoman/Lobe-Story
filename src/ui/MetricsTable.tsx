@@ -7,7 +7,8 @@ import {
   shouldReveal, sortIfShown, sortRows, toCsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
-import { setHoverId } from './hoverPreview';
+import { focusPreviews, hoverPreviews } from './hoverPreview';
+import { useTablePreview } from './useTablePreview';
 import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { downloadText } from './download';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
@@ -82,6 +83,8 @@ export const MetricsTable = memo(function MetricsTable({
     if (top !== wrap.scrollTop) wrap.scrollTop = top;
   }, [highlighted, rows, sort]);
 
+  const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  const setHoverId = useTablePreview(rowIds);
   const stop = tabStopKey(rows.map((r) => r.id), activeRow);
   const onBodyKeys = (e: KeyboardEvent<HTMLElement>) => {
     const target = e.target as HTMLElement;
@@ -179,9 +182,9 @@ export const MetricsTable = memo(function MetricsTable({
                 data-row-id={r.id}
                 className={r.id === highlighted ? 'hl' : undefined}
                 onClick={() => pickFile(r.id)}
-                onPointerEnter={() => setHoverId(r.id)}
+                onPointerEnter={(e) => hoverPreviews(e) && setHoverId(r.id)}
                 onPointerLeave={() => setHoverId(null)}
-                onFocus={() => setHoverId(r.id)}
+                onFocus={(e) => focusPreviews(e.target) && setHoverId(r.id)}
                 onBlur={() => setHoverId(null)}
               >
                 <td>

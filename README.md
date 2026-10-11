@@ -13,15 +13,26 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - Sector metrics: SPR/AIR over the sector edges, roll-off, port-to-port tracking over the sector
   (gain-aware), and the D/U aperture for 16/64/256QAM, with a Sector marker on the horizontal cut.
 - −3 dB markers on the plots and an HPBW vs. frequency chart per group.
-- 3D patterns reconstructed from the two cuts (summation or Gil et al. weighted), for up to six
-  files side by side with linked cameras, or overlaid in one scene.
+- 3D patterns reconstructed from the two cuts (summation or Gil et al. weighted): the side-by-side
+  grid with linked cameras draws at most 6 files and the overlay in one scene at most 12. When more
+  are ticked, a note under the plot says which are drawn (the highlighted file first, then the
+  others in panel order); untick files or use "Only matches" to choose.
+- File panel for hundreds of files: a filter box (name, group or MHz; every word must match) with
+  Show all / Show none / Only matches / Add matches (each can be undone), collapsible groups that
+  show "ticked / total", and a count of the files shown. Click a file to highlight it, click again
+  or press Esc to clear. Hovering a file, or moving the keyboard focus to it, previews its trace in
+  the cut plots (thick line, the others dimmed) without changing anything.
+- Colours follow the file panel: one colour per file up to 10 visible files; above that one colour
+  per group with a shade per file (a shade keeps its place when other files are unticked), and above
+  10 groups a line pattern tells repeated hues apart.
 - Automatic grouping by polarization, tilt, port and array (editable; drag files between groups).
 - Column groups can be shown or hidden above the metrics table (saved with the project); the CSV
   always contains every column.
 - Band statistics per NGMN BASTA V13 Annex C: mean ± tolerance, 84th / 16th percentile limits and
   gain statistics over every loaded file of an antenna in a frequency sub-band (automatic or
   user-defined sub-bands, saved with the project), with CSV export and a histogram of any cell.
-- CSV export of the metrics table and PNG export of any plot.
+- CSV export of the metrics table and PNG export of any plot (the cut plots export with a legend
+  of every file and the highlighted file's values).
 - **Load example** on the empty page loads a small synthetic dual-polarised panel generated in code (24 files,
   not a real antenna) so every feature can be tried; **Help** explains the main terms.
 

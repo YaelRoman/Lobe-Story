@@ -11,10 +11,6 @@ export const PALETTE = [
   '#bab0ac',
 ];
 
-export function colorMap(ids: string[]): Map<string, string> {
-  return new Map(ids.map((id, i) => [id, PALETTE[i % PALETTE.length]]));
-}
-
 /** Up to this many visible files each get their own palette colour; beyond it colours go by group (see `styleMapByGroup`). */
 export const PER_FILE_COLOURS = PALETTE.length;
 
@@ -32,12 +28,6 @@ export function luminance(hex: string): number {
     .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/** WCAG contrast ratio of two `#rrggbb` colours (1 to 21). */
-export function contrastRatio(a: string, b: string): number {
-  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
-  return (x + 0.05) / (y + 0.05);
 }
 
 // The plot backgrounds are white (light theme) and #0d1117 (dark). A line needs 3:1 against both (graphical objects,
@@ -130,25 +120,23 @@ export interface FileStyle {
 }
 
 /**
- * Colours and line patterns of the visible files. Up to ten, each file has its own palette colour (as `colorMap`).
+ * Colours and line patterns of the visible files. Up to ten, each file has its own palette colour, in panel order.
  * With more, every group that has a visible file takes one palette colour (the same one the beamwidth chart gives
- * the group: groups are counted in order) and its files are the shades of `ladder`; with more than ten such groups
+ * the group: groups are counted in order) and its files are the shades of `ladder` (one per member of the group, ticked or not); with more than ten such groups
  * the hue repeats and the line pattern tells the cycles apart. `groups` lists each group's file ids in panel
  * order; `visible` says which are shown.
  */
 export function styleMapByGroup(groups: { ids: string[] }[], visible: Record<string, boolean>): Map<string, FileStyle> {
-  const shown = groups.map((g) => g.ids.filter((id) => visible[id])).filter((ids) => ids.length > 0);
-  const flat = shown.flat();
+  const shown = groups.filter((g) => g.ids.some((id) => visible[id]));
+  const flat = shown.flatMap((g) => g.ids.filter((id) => visible[id]));
   if (flat.length <= PER_FILE_COLOURS) return new Map(flat.map((id, i) => [id, { color: PALETTE[i % PALETTE.length], dash: 'solid', symbol: 'circle' }]));
   const out = new Map<string, FileStyle>();
-  shown.forEach((ids, k) => {
+  shown.forEach(({ ids }, k) => {
     const { dash, symbol } = groupStyle(k);
-    ladder(groupColour(k), ids.length).forEach((color, i) => out.set(ids[i], { color, dash, symbol }));
+    // The shade follows the file's place among all the group's members, so unticking a neighbour recolours nothing.
+    ladder(groupColour(k), ids.length).forEach((color, i) => {
+      if (visible[ids[i]]) out.set(ids[i], { color, dash, symbol });
+    });
   });
   return out;
-}
-
-/** The colours of `styleMapByGroup`. */
-export function colorMapByGroup(groups: { ids: string[] }[], visible: Record<string, boolean>): Map<string, string> {
-  return new Map([...styleMapByGroup(groups, visible)].map(([id, s]) => [id, s.color]));
 }

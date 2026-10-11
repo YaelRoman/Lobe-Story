@@ -54,6 +54,15 @@ test('hovering or focusing a table or panel row thickens its trace and dims the 
   await expect.poll(async () => (await traces(page)).every((t) => t[1] === 1.5)).toBe(true);
 });
 
+test('Esc ends a keyboard-focus preview', async ({ page }) => {
+  await loadAllShown(page);
+  await page.locator('.panel li [data-nav]').first().focus();
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(async () => (await traces(page)).filter((t) => t[1] === 2.5).length).toBe(1);
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await traces(page)).every((t) => t[1] === 1.5 && t[2] === 1)).toBe(true);
+});
+
 test('a hover composes with the highlighted file: hover wins, and the highlight emphasis returns exactly', async ({ page }) => {
   await loadAllShown(page);
   await page.locator('tr[data-row-id]', { hasText: 'f1700.msi' }).click();
@@ -69,4 +78,29 @@ test('a hover composes with the highlighted file: hover wins, and the highlight 
 
   await page.mouse.move(2, 2);
   await expect.poll(async () => JSON.stringify(await traces(page))).toBe(JSON.stringify(highlighted));
+});
+
+test.describe('touch device', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test.skip(({ browserName }) => browserName === 'firefox', 'Firefox has no touch emulation');
+
+  test('tapping files in the drawer previews nothing: only the highlighted file is emphasised', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Load example' }).click();
+    await page.getByRole('button', { name: /^Files/ }).tap();
+    await expect(page.locator('.panel')).toBeVisible();
+    await expect(page.locator('tr.hl[data-row-id]')).toHaveCount(1);
+    const highlighted = await page.locator('tr.hl[data-row-id]').getAttribute('data-row-id');
+
+    const boxes = page.locator('.panel li input[type="checkbox"]:not(:checked)');
+    for (let i = 0; i < 3; i++) await boxes.nth(i).tap();
+    await expect(page.locator('.panel li input[type="checkbox"]:checked')).toHaveCount(4);
+    // Let any (wrong) preview reach the plot before looking at it.
+    await page.waitForTimeout(400);
+    const now = await traces(page);
+    expect(now).toHaveLength(4);
+    // The highlight's own emphasis: its trace thick, the others dimmed; never a preview of a tapped file.
+    expect(now.filter((t) => t[1] === 2.5).map((t) => t[0])).toEqual([highlighted]);
+    expect(now.filter((t) => t[2] === 0.35)).toHaveLength(3);
+  });
 });

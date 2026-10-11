@@ -9,6 +9,10 @@ export interface GlossaryEntry {
   text: string;
 }
 
+/** One sentence for the Help dialog about the file panel's filter, fold and preview. */
+export const PANEL_HELP =
+  'File panel: the filter box narrows the list (every word must match the name, group or MHz) and Show all, Show none, Only matches and Add matches change which files are drawn; a group’s arrow button folds it; hovering a file, or moving the keyboard focus to it, previews its trace in the cut plots, and Esc clears the highlight and the preview.';
+
 export const GLOSSARY: readonly GlossaryEntry[] = [
   { term: 'HPBW', text: 'Half-power beamwidth: the angle between the two points where the pattern is 3 dB below its peak (the level can be changed in Settings; the labels then read BW@x dB instead of HPBW).' },
   { term: 'Squint', text: 'How far the middle of the horizontal beam points away from 0° (the antenna’s boresight).' },

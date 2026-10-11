@@ -3,7 +3,6 @@ import type { Legend, PlotData, Shape } from 'plotly.js';
 import { buildHpbwFigure, hpbwCaption } from './hpbwFigure';
 import { exportFigure } from './exportFigure';
 import { buildCutFigure, markerReadout, type CutFigureOptions, type PlotSeries } from './cutFigure';
-import { colorMap, PALETTE } from './colors';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
 import { tiltPattern } from '../core/analysis/tilt';
@@ -381,21 +380,6 @@ describe('simulation display options', () => {
     expect(peakX(tb)).toBe(90);
     const rays = (f.layout.shapes as Partial<Shape>[]).filter((s) => s.type === 'line' && s.yref === 'paper');
     expect(rays.map((s) => s.x0)).toEqual([90]);
-  });
-});
-
-describe('colorMap', () => {
-  it('assigns palette colours in order and wraps', () => {
-    const ids = Array.from({ length: PALETTE.length + 1 }, (_, i) => `f${i}`);
-    const m = colorMap(ids);
-    expect(m.get('f0')).toBe(PALETTE[0]);
-    expect(m.get(`f${PALETTE.length}`)).toBe(PALETTE[0]);
-  });
-
-  it('gives every id a distinct colour when there are no more ids than the palette', () => {
-    const ids = Array.from({ length: PALETTE.length }, (_, i) => `f${i}`);
-    const m = colorMap(ids);
-    expect(new Set(m.values()).size).toBe(PALETTE.length);
   });
 });
 
