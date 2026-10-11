@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SettingsPanel } from './SettingsPanel';
 import { initialState, useStore } from '../state/store';
-import { SETTING_LIMITS } from '../core/analysis/settingLimits';
+import { FLOOR_LIMITS, SETTING_LIMITS } from '../core/analysis/settingLimits';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -104,5 +104,25 @@ describe('SettingsPanel limits', () => {
     typeAndBlur(inputFor('Plot floor'), '12');
     expect(useStore.getState().view.floorDb).toBe(16);
     expect(messageOf('Plot floor')).toContain('Used 16');
+  });
+
+  it('raises the plot floor when the level is raised past it, and says so', () => {
+    typeAndBlur(inputFor('Plot floor'), '12');
+    typeAndBlur(inputFor('Beamwidth level'), '20');
+    expect(useStore.getState().view.floorDb).toBe(21);
+    expect(useStore.getState().copyNote).toContain('Plot floor raised to 21');
+    expect(inputFor('Plot floor').value).toBe('21');
+  });
+
+  it('shows the accepted range of each setting, from the limits table', () => {
+    for (const [label, l] of [
+      ['Beamwidth level', SETTING_LIMITS.levelDb],
+      ['F/B window', SETTING_LIMITS.fbWindowDeg],
+      ['Sectors per site', SETTING_LIMITS.siteSectors],
+      ['Plot floor', FLOOR_LIMITS],
+    ] as const) {
+      const text = [...host.querySelectorAll('span')].find((s) => s.textContent?.startsWith(label))?.textContent ?? '';
+      expect(text, label).toContain(`${l.min}–${l.max}`);
+    }
   });
 });

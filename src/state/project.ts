@@ -1,7 +1,7 @@
 import { uniqueGroupName } from './groupNames';
 import type { Tags } from '../core/types';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
-import { clampSetting, FLOOR_LIMITS } from '../core/analysis/settingLimits';
+import { clampFloor, clampSetting, FLOOR_LIMITS } from '../core/analysis/settingLimits';
 import { sanitizeSubBands } from '../core/analysis/subBands';
 import { METRIC_KEYS, type MetricColumn } from './metricKeys';
 import { clampSim, type OffsetState } from './simLimits';
@@ -325,6 +325,9 @@ export function projectToState(
   const isInstance = (id: string): boolean => sources.has(id) || (copies[id] !== undefined && sources.has(copies[id].sourceId));
   const reference = typeof st.reference === 'string' && isInstance(st.reference) ? st.reference : null;
   const display = sanitizeDisplayView(rawView, dv);
+  // The plot floor lies at least 1 dB beyond the beamwidth level, as in the settings panel.
+  const floorDb = clampFloor(display.floorDb, settings.levelDb) ?? display.floorDb;
+  const floorRaised = floorDb !== display.floorDb;
 
   const selected = st.selected && st.selected.kind === 'group' && !groupIds.has(st.selected.id) ? null : (st.selected ?? null);
 
@@ -341,8 +344,8 @@ export function projectToState(
     selected,
     reference,
     settings,
-    loadMessage: null,
-    view: { ...display, deltaVsReference: reference !== null && display.deltaVsReference, ...chrome, simulation },
+    loadMessage: floorRaised ? `Plot floor raised to ${floorDb} dB: it must lie at least 1 dB beyond the ${settings.levelDb} dB beamwidth level.` : null,
+    view: { ...display, floorDb, deltaVsReference: reference !== null && display.deltaVsReference, ...chrome, simulation },
   };
 }
 

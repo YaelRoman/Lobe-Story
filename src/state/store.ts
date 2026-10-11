@@ -4,6 +4,7 @@ import { parsePlanet } from '../core/parse/planet';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import type { Method3d } from '../core/analysis/pattern3d';
 import type { SubBand } from '../core/analysis/subBands';
+import { clampFloor } from '../core/analysis/settingLimits';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
 import { projectToState, type ProjectFile } from './project';
@@ -491,7 +492,8 @@ export const useStore = create<State>()((rawSet, get) => {
         ...next,
         saved: markOf({ ...s, ...next }),
         loadFailed: 0,
-        loadMessage: null,
+        loadMessage: next.loadMessage ?? null,
+        ...(next.loadMessage ? { loadTone: 'info' as const, loadSeq: s.loadSeq + 1 } : {}),
         ...(hadSession ? undoEntry(s, 'Replaced the session with the project') : { undo: null }),
       };
     }),
@@ -612,7 +614,13 @@ export const useStore = create<State>()((rawSet, get) => {
   setHighlighted: (id) => set({ highlighted: id, selected: id ? { kind: 'file', id } : null }),
 
   updateSettings: (partial) =>
-    set((state) => (sameValues(state.settings, partial) ? state : { settings: { ...state.settings, ...partial } })),
+    set((state) => {
+      if (sameValues(state.settings, partial)) return state;
+      const settings = { ...state.settings, ...partial };
+      // The plot floor stays beyond the level ring: a higher level lifts it.
+      const floorDb = clampFloor(state.view.floorDb, settings.levelDb);
+      return floorDb !== null && floorDb !== state.view.floorDb ? { settings, view: { ...state.view, floorDb } } : { settings };
+    }),
 
   updateView: (partial) => set((state) => (sameValues(state.view, partial) ? state : { view: { ...state.view, ...partial } })),
 

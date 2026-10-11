@@ -82,7 +82,10 @@ function NumberField({
   return (
     <>
       <label style={{ display: 'contents' }} title={title}>
-        <span>{label}</span>
+        <span>
+          {label}
+          <small className="range-hint" aria-hidden="true">{`${min}–${max}`}</small>
+        </span>
         <input
           id={id}
           type="number"
@@ -158,7 +161,12 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
           {...SETTING_LIMITS[f.key]}
           title={f.key === 'lobeLimitFactor' ? LOBE_LIMIT_TITLE : undefined}
           accept={(n) => clampSetting(f.key, n)}
-          onCommit={(n) => updateSettings({ [f.key]: n })}
+          onCommit={(n) => {
+            const floorBefore = useStore.getState().view.floorDb;
+            updateSettings({ [f.key]: n });
+            const floorNow = useStore.getState().view.floorDb;
+            if (floorNow !== floorBefore) useStore.getState().setCopyNote(`Plot floor raised to ${floorNow} dB: it must lie at least 1 dB beyond the ${n} dB level ring.`);
+          }}
         />
       ))}
       <NumberField

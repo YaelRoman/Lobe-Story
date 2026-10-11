@@ -217,6 +217,20 @@ describe('damaged values', () => {
     expect(floor(9)).toBe(40);
   });
 
+  it('raises a plot floor that lies less than 1 dB beyond the beamwidth level, and says so', () => {
+    const json = withState({ settings: { levelDb: 20 }, view: { floorDb: 15 } });
+    const r = restore(json);
+    expect(r.view.floorDb).toBe(21);
+    expect(r.loadMessage).toContain('Plot floor raised to 21 dB');
+    expect(restore(withState({ settings: { levelDb: 3 }, view: { floorDb: 15 } })).loadMessage).toBeNull();
+    useStore.setState(initialState());
+    const parsed = parseProject(json);
+    if (!parsed.ok) throw new Error(parsed.error);
+    useStore.getState().loadProject(parsed.project);
+    expect(useStore.getState().view.floorDb).toBe(21);
+    expect(useStore.getState().loadMessage).toContain('Plot floor raised');
+  });
+
   it('ignores the removed null search setting', () => {
     const s = restore(withState({ settings: { nullSearchDeg: 45, uslsRangeDeg: 15 } })).settings;
     expect(s.uslsRangeDeg).toBe(15);
