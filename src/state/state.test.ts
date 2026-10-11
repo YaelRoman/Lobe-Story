@@ -1075,6 +1075,7 @@ describe('changesSession', () => {
     expect(changesSession(s, { view: { ...s.view, theme: s.view.theme === 'dark' ? 'light' : 'dark' } })).toBe(false);
     expect(changesSession(s, { view: { ...s.view, collapsed: { simBar: !s.view.collapsed.simBar, markers: s.view.collapsed.markers } } })).toBe(false);
     expect(changesSession(s, { view: { ...s.view, freqMetric: 'fb180' } })).toBe(false);
+    expect(changesSession(s, { view: { ...s.view, tableTickedOnly: true } })).toBe(false);
     for (const k of ['files', 'pendingFiles', 'customGroups'] as const) expect(changesSession(s, { [k]: [] })).toBe(true);
     for (const k of ['tagOverrides', 'visible', 'copies', 'names', 'membership'] as const) expect(changesSession(s, { [k]: {} })).toBe(true);
     expect(changesSession(s, { settings: { ...s.settings } })).toBe(true);
@@ -1109,6 +1110,29 @@ describe('the frequency-chart metric', () => {
     useStore.getState().updateView({ freqMetric: 'fb180' });
     useStore.getState().loadProject(parsed.project);
     expect(useStore.getState().view.freqMetric).toBe('fb180');
+  });
+});
+
+describe('the ticked-files-only table', () => {
+  it('is a display preference: not saved in a project, not unsaved work, kept across undo and across opening a project', () => {
+    useStore.getState().addFiles([input('a.MSI', msi(1800))]);
+    useStore.getState().markSaved();
+    useStore.getState().updateView({ tableTickedOnly: true });
+    expect(isDirty(useStore.getState())).toBe(false);
+    expect(JSON.parse(serializeProject(useStore.getState(), false)).state.view).not.toHaveProperty('tableTickedOnly');
+    useStore.getState().removeFile('a.MSI');
+    useStore.getState().updateView({ tableTickedOnly: false });
+    expect(useStore.getState().undo).not.toBeNull();
+    useStore.getState().undoLast();
+    expect(useStore.getState().files).toHaveLength(1);
+    expect(useStore.getState().view.tableTickedOnly).toBe(false);
+
+    const written = JSON.parse(serializeProject(useStore.getState(), false));
+    written.state.view.tableTickedOnly = true;
+    const parsed = parseProject(JSON.stringify(written));
+    if (!parsed.ok) throw new Error(parsed.error);
+    useStore.getState().loadProject(parsed.project);
+    expect(useStore.getState().view.tableTickedOnly).toBe(false);
   });
 });
 

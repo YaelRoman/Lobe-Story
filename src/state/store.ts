@@ -7,7 +7,7 @@ import type { SubBand } from '../core/analysis/subBands';
 import { clampFloor } from '../core/analysis/settingLimits';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
-import { projectToState, type ProjectFile } from './project';
+import { chromeOf, projectToState, type ProjectFile } from './project';
 import { isCleanLoad, loadSummary, planLoad, type PendingFile } from './duplicates';
 import { changesSession, markOf, takeSnapshot, type SavedMark, type UndoEntry } from './undo';
 import { uniqueGroupName } from './groupNames';
@@ -82,6 +82,8 @@ export interface ViewState {
   deltaVsReference: boolean;
   /** The metric the frequency chart plots (a display preference, like the theme: not saved in projects). */
   freqMetric: MetricColumn;
+  /** The metrics table (and its Copy table and CSV) lists only the ticked files and the reference (a display preference: not saved in projects). */
+  tableTickedOnly: boolean;
   simulation: SimulationState;
 }
 
@@ -247,6 +249,7 @@ export function initialState(): StoreData {
       layout3d: 'grid',
       collapsed: { simBar: narrowScreen(), markers: narrowScreen() },
       freqMetric: 'hHpbw',
+      tableTickedOnly: false,
       deltaVsReference: false,
       simulation: {
         electricalDeg: 0,
@@ -478,7 +481,7 @@ export const useStore = create<State>()((rawSet, get) => {
       const { snapshot } = s.undo;
       if (!sameFileSet(s, snapshot)) fileSetSwaps++;
       // The theme and the fold state are display preferences, not part of the session being restored.
-      return { ...snapshot, view: { ...snapshot.view, theme: s.view.theme, collapsed: s.view.collapsed, freqMetric: s.view.freqMetric }, undo: null, loadMessage: null, loadFailed: 0 };
+      return { ...snapshot, view: { ...snapshot.view, ...chromeOf(s.view) }, undo: null, loadMessage: null, loadFailed: 0 };
     }),
 
   dismissUndo: () => set({ undo: null }),
@@ -491,7 +494,7 @@ export const useStore = create<State>()((rawSet, get) => {
     set((s) => {
       sessionSwaps++;
       fileSetSwaps++;
-      const next = projectToState(project, initialState(), { theme: s.view.theme, collapsed: s.view.collapsed, freqMetric: s.view.freqMetric }, loadText);
+      const next = projectToState(project, initialState(), chromeOf(s.view), loadText);
       const hadSession = s.files.length > 0 || s.pendingFiles.length > 0;
       return {
         ...next,

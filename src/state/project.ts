@@ -23,8 +23,16 @@ export interface ProjectFileEntry {
 }
 
 /** View fields that are display chrome: remembered per browser (prefs.ts), never saved in a project and never unsaved work. */
-export type ChromeKey = 'theme' | 'collapsed' | 'freqMetric';
-export const CHROME_KEYS: readonly ChromeKey[] = ['theme', 'collapsed', 'freqMetric'];
+export type ChromeKey = 'theme' | 'collapsed' | 'freqMetric' | 'tableTickedOnly';
+export const CHROME_KEYS: readonly ChromeKey[] = ['theme', 'collapsed', 'freqMetric', 'tableTickedOnly'];
+
+/** The display-chrome part of a view: what opening a project or applying an undo leaves as it is. */
+export const chromeOf = (v: Pick<ViewState, ChromeKey>): Pick<ViewState, ChromeKey> => ({
+  theme: v.theme,
+  collapsed: v.collapsed,
+  freqMetric: v.freqMetric,
+  tableTickedOnly: v.tableTickedOnly,
+});
 
 export interface ProjectState {
   tagOverrides: Record<string, Partial<Tags>>;
@@ -240,7 +248,7 @@ export const sanitizeMetric = (v: unknown, fallback: MetricColumn): MetricColumn
   (METRIC_KEYS as readonly unknown[]).includes(v) ? (v as MetricColumn) : fallback;
 
 /** The display part of the view (everything but the theme and the simulation) of a stored object; bad or missing values take `dv`'s. */
-export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewState): Omit<ViewState, 'theme' | 'simulation' | 'freqMetric'> {
+export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewState): Omit<ViewState, 'theme' | 'simulation' | 'freqMetric' | 'tableTickedOnly'> {
   const rawMarkers: Record<string, unknown> = isObj(rawView.markers) ? rawView.markers : {};
   const rawGroups: Record<string, unknown> = isObj(rawView.tableGroups) ? rawView.tableGroups : {};
   const markers = { ...dv.markers };

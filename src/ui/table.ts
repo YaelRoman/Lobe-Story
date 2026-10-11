@@ -234,6 +234,11 @@ export function buildRows(
   return rows;
 }
 
+/** The rows of the ticked files, plus the pinned reference (always kept, so the difference view and its row stay). */
+export function onlyTicked(rows: MetricsRow[], visible: Record<string, boolean>, referenceId: string | null): MetricsRow[] {
+  return rows.filter((r) => visible[r.id] || r.id === referenceId);
+}
+
 const shown = (r: MetricsRow, key: MetricColumn): MetricResult => r.tilted?.[key] ?? r.cells[key];
 
 /**

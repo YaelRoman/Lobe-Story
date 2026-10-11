@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
-  simulationLabel, toCsv, toTsv, rowToTsv, markReference, cellText, offsetLabel, csvCell, csvText, clearOfSticky, METRIC_KEYS,
+  simulationLabel, toCsv, toTsv, onlyTicked, rowToTsv, markReference, cellText, offsetLabel, csvCell, csvText, clearOfSticky, METRIC_KEYS,
   nextSort, revealScrollTop, sortIfShown, shouldReveal, sortRows, sortValue, ariaSort, type MetricsRow, type SortState,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
@@ -633,6 +633,24 @@ it('pins the order of the metric columns and of the CSV header', () => {
   const tagged = [{ pattern: p, tags: { polarization: '+45', tiltDeg: 6 } }];
   const fixtureRows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
   expect(toCsv(fixtureRows, 'dBi', 30).split('\r\n')[0]).toBe(PINNED_HEADER);
+});
+
+describe('onlyTicked', () => {
+  const tagged = ['a', 'b', 'c'].map((id) => ({ pattern: patternFrom(quadBeam(60), vBeamWithLobes, { id, fileName: `${id}.msi` }), tags: {} }));
+  const rows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
+
+  it('keeps the ticked rows and the pinned reference, in order', () => {
+    expect(onlyTicked(rows, { b: true }, null).map((r) => r.id)).toEqual(['b']);
+    expect(onlyTicked(rows, { a: true, c: true }, 'b').map((r) => r.id)).toEqual(['a', 'b', 'c']);
+    expect(onlyTicked(rows, {}, 'c').map((r) => r.id)).toEqual(['c']);
+    expect(onlyTicked(rows, {}, null)).toEqual([]);
+  });
+
+  it('feeds the CSV and the copied table only the listed rows', () => {
+    const listed = onlyTicked(rows, { a: true }, 'c');
+    expect(toCsv(listed, 'dBi', 30).trimEnd().split('\r\n')).toHaveLength(3);
+    expect(toTsv(listed, METRIC_COLUMNS, 'dBi', 30).trimEnd().split('\r\n')).toHaveLength(3);
+  });
 });
 
 describe('the reference row in the difference view under a simulation', () => {

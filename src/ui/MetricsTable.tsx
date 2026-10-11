@@ -3,13 +3,14 @@ import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
-  ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, nextSort, revealScrollTop, simulationLabel,
+  ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, nextSort, onlyTicked, revealScrollTop, simulationLabel,
   cellText, clearOfSticky, gainText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
 import { useTablePreview } from './useTablePreview';
 import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
+import { neighbourOrder } from './undoKeys';
 import { downloadText } from './download';
 import { copiedRow, copiedRows, copiedValue, copyAndAnnounce } from './clipboard';
 import { copyShortcut } from './copyKeys';
@@ -51,6 +52,8 @@ export const MetricsTable = memo(function MetricsTable({
   const reference = useStore((s) => s.reference);
   const setReference = useStore((s) => s.setReference);
   const deltaChosen = useStore((s) => s.view.deltaVsReference);
+  const tickedOnly = useStore((s) => s.view.tableTickedOnly);
+  const visible = useStore((s) => s.visible);
 
   // Sorting is a view of this table only (not saved in projects); the CSV export follows it.
   const [chosenSort, setSort] = useState<SortState | null>(null);
@@ -71,9 +74,10 @@ export const MetricsTable = memo(function MetricsTable({
   // The reference file's row (it may be missing: no metrics, or the file is not loaded yet).
   const referenceName = baseRows.find((r) => r.id === reference)?.file ?? null;
   const deltaOn = deltaChosen && referenceName !== null;
+  const listedRows = useMemo(() => (tickedOnly ? onlyTicked(baseRows, visible, reference) : baseRows), [baseRows, tickedOnly, visible, reference]);
   const rows = useMemo(
-    () => sortRows(markReference(baseRows, reference, deltaOn), sort),
-    [baseRows, reference, deltaOn, sort],
+    () => sortRows(markReference(listedRows, reference, deltaOn), sort),
+    [listedRows, reference, deltaOn, sort],
   );
   const deltaVs = deltaOn ? (referenceName ?? undefined) : undefined;
   // In the difference view under a tilt simulation the differences are of the tilted values: the exports say so.
@@ -182,7 +186,18 @@ export const MetricsTable = memo(function MetricsTable({
     if (dx) wrap.scrollLeft += dx;
     if (dy) wrap.scrollTop += dy;
   };
-  const toggleRow = (id: string) => setVisible([id], !useStore.getState().visible[id]);
+  const toggleRow = (id: string) => {
+    const wasTicked = useStore.getState().visible[id];
+    // In the ticked-files-only list, unticking removes the row under the focus: the focus goes to the nearest row that stays.
+    const next = tickedOnly && wasTicked && id !== reference ? neighbourOrder(rowIds, id).find((other) => visible[other] || other === reference) : undefined;
+    setVisible([id], !wasTicked);
+    if (next !== undefined) {
+      requestAnimationFrame(() => {
+        const nav = Array.from(wrapRef.current?.querySelectorAll<HTMLElement>('tr[data-row-id] [data-nav]') ?? []).find((el) => el.closest('tr')?.dataset.rowId === next);
+        nav?.focus();
+      });
+    }
+  };
 
   const sortLabel = (key: SortKey): string => {
     const fixed: Partial<Record<SortKey, string>> = { file: 'File', group: 'Group', freq: 'MHz', gain: `Gain (${gainUnit})` };
@@ -238,6 +253,15 @@ export const MetricsTable = memo(function MetricsTable({
           />
           Δ vs reference
         </label>
+        <label className="delta-toggle" title="List only the files ticked in the panel (and the reference file) in the table, Copy table and Export CSV. A display preference: kept in this browser, not saved in a project.">
+          <input type="checkbox" checked={tickedOnly} onChange={(e) => updateView({ tableTickedOnly: e.target.checked })} />
+          Ticked files only
+        </label>
+        {tickedOnly && (
+          <span className="count" data-testid="table-count">
+            {rows.length} of {baseRows.length} files
+          </span>
+        )}
         {referenceName !== null && (
           <span className="count ref-note" data-testid="reference-note">
             <PinMark /> Reference: {referenceName}

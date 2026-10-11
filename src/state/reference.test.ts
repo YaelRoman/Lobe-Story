@@ -88,7 +88,7 @@ describe('the reference file', () => {
 });
 
 describe('the reference in a project file', () => {
-  const restore = (project: ProjectFile) => ({ ...initialState(), ...projectToState(project, initialState(), { theme: 'light', collapsed: initialState().view.collapsed, freqMetric: 'hHpbw' }, loadText) });
+  const restore = (project: ProjectFile) => ({ ...initialState(), ...projectToState(project, initialState(), { theme: 'light', collapsed: initialState().view.collapsed, freqMetric: 'hHpbw', tableTickedOnly: false }, loadText) });
 
   it('is saved and comes back with the Delta view, and the version stays 1', () => {
     load();

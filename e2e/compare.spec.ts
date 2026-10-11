@@ -29,6 +29,49 @@ test('the frequency chart plots any metric, defaults to the beamwidths and remem
   await page.waitForFunction(() => (localStorage.getItem('lobe-story:prefs:v1') ?? '').includes('fb180'));
 });
 
+test('Ticked files only limits the table and the CSV to the ticked files and keeps the reference row', async ({ page }) => {
+  await loadExample(page);
+  const rows = page.locator('.metrics tbody tr');
+  const toggle = page.getByLabel('Ticked files only');
+  await expect(toggle).not.toBeChecked();
+  await expect(page.getByTestId('table-count')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show none', exact: true }).click();
+  const boxes = page.locator('.panel li input[type="checkbox"]');
+  await boxes.nth(0).check();
+  await boxes.nth(1).check();
+  await expect(rows).toHaveCount(24);
+  await toggle.check();
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByTestId('table-count')).toHaveText('2 of 24 files');
+  // The pinned reference stays although it is not ticked.
+  await page.locator('.panel li').nth(5).getByLabel(/^Actions for /).click();
+  await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+  await expect(rows).toHaveCount(3);
+  await expect(page.locator('.metrics tbody tr.ref')).toHaveCount(1);
+  await expect(page.getByTestId('table-count')).toHaveText('3 of 24 files');
+  // Export CSV follows the listed rows.
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV' }).click();
+  const text = (await (await download).createReadStream().then(async (stream) => {
+    const chunks: Buffer[] = [];
+    for await (const c of stream) chunks.push(Buffer.from(c));
+    return Buffer.concat(chunks).toString('utf8');
+  }));
+  expect(text.trim().split(/\r?\n/)).toHaveLength(4);
+  // Space on a row's file name unticks it: the row goes and the focus moves to the next row.
+  const first = rows.nth(0).locator('.file-cell');
+  const firstName = (await first.innerText()).trim();
+  await first.focus();
+  await page.keyboard.press('Space');
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator('.metrics tbody [data-nav]:focus')).toHaveCount(1);
+  await expect(page.locator('.metrics tbody tr', { hasText: firstName })).toHaveCount(0);
+  // The choice is a preference: remembered in the browser, never in a project.
+  await page.waitForFunction(() => (localStorage.getItem('lobe-story:prefs:v1') ?? '').includes('tableTickedOnly'));
+  await toggle.uncheck();
+  await expect(rows).toHaveCount(24);
+});
+
 test.describe('copy to the clipboard', () => {
   // The async Clipboard API needs a permission in the test browser; Firefox has no such permission, so this is Chromium only.
   test.skip(({ browserName }) => browserName !== 'chromium', 'clipboard permissions are Chromium only');

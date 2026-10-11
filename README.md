@@ -35,6 +35,9 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   `difference`) and "Δ vs <reference>" headers. The reference is saved with the project.
 - A file with a declared gain outside −10 to 40 dBi, or a missing or non-positive frequency, still loads and gets a warning mark; one without a usable frequency is left out of the frequency chart and the band statistics, with a note.
 - Automatic grouping by polarization, tilt, port and array (editable; drag files between groups).
+- **Ticked files only** beside Δ vs reference limits the metrics table, Copy table and the CSV to the ticked
+  files (the pinned reference row is always kept) and shows "n of m files"; like the theme it is remembered in
+  the browser, not saved in a project.
 - Column groups can be shown or hidden above the metrics table (saved with the project); the CSV
   always contains every column.
 - Band statistics per NGMN BASTA V13 Annex C: mean ± tolerance, 84th / 16th percentile limits and
