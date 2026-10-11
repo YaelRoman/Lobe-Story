@@ -8,6 +8,7 @@ import { offsetLabel } from './table';
 import { onSpace } from './rovingKeys';
 import { FileMenu, NameEditor } from './FilePanelMenus';
 import { swatchBackground, type LineDash } from './colors';
+import { PinMark } from './PinMark';
 import { focusPreviews, hoverPreviews, hoverStore, setHoverId } from './hoverPreview';
 
 export const DRAG_TYPE = 'text/x-pattern-id';
@@ -66,6 +67,8 @@ export const FileRow = memo(function FileRow({
   const pickFile = useStore((s) => s.pickFile);
   const setTags = useStore((s) => s.setTags);
   const rename = useStore((s) => s.rename);
+  // A boolean selector: pinning a file re-renders only the rows whose answer changes.
+  const isReference = useStore((s) => s.reference === pattern.id);
   const id = pattern.id;
   const name = nameOf(pattern);
   const subTab = tabStop ? undefined : -1;
@@ -128,6 +131,7 @@ export const FileRow = memo(function FileRow({
         >
           <span className="swatch" style={{ background: color ? swatchBackground(color, dash ?? 'solid') : 'transparent' }} />
           <span>{pattern.frequencyMHz} MHz</span>
+          {isReference && <PinMark />}
           <span className="fname" title={pattern.fileName}>
             {name}
           </span>

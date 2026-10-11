@@ -77,6 +77,8 @@ export function FileMenu({
   const setMembership = useStore((s) => s.setMembership);
   const createSite = useStore((s) => s.createSite);
   const removeFile = useStore((s) => s.removeFile);
+  const isReference = useStore((s) => s.reference === id);
+  const setReference = useStore((s) => s.setReference);
 
   return (
     <details className="menu" onClick={(e) => e.stopPropagation()}>
@@ -101,6 +103,15 @@ export function FileMenu({
           }}
         >
           Rename…
+        </button>
+        <button
+          role="menuitem"
+          onClick={(e) => {
+            setReference(isReference ? null : id);
+            closeMenu(e.currentTarget);
+          }}
+        >
+          {isReference ? 'Clear reference' : 'Use as reference'}
         </button>
         {customGroups.map((g) => (
           <button

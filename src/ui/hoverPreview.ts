@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import { traceStyle } from './cutFigure';
+import { seriesIdOf, traceStyle } from './cutFigure';
 
 /**
  * The file under the pointer or the keyboard focus in the panel or the table (null: none). A tiny store of its
@@ -39,13 +39,15 @@ export interface PreviewRestyle {
  * own emphasis (`base`, the highlighted file) in place, so leaving a row restores the highlight exactly.
  */
 export function previewRestyle(data: readonly { uid?: unknown }[], hovered: string | null, base: string | null): PreviewRestyle | null {
-  const ids = data.map((t) => (typeof t.uid === 'string' ? t.uid : null));
+  const uids = data.map((t) => (typeof t.uid === 'string' ? t.uid : null));
+  // The reference file's trace belongs to its file as any other: hovering its row previews it, and it is never dimmed.
+  const ids = uids.map((u) => (u === null ? null : seriesIdOf(u)));
   const drawn = (id: string | null) => id !== null && ids.some((u) => u === id);
   const target = drawn(hovered) ? hovered : drawn(base) ? base : null;
   const indices: number[] = [];
   const widths: number[] = [];
   const opacities: (number | null)[] = [];
-  ids.forEach((uid, i) => {
+  uids.forEach((uid, i) => {
     if (uid === null) return;
     const style = traceStyle(uid, target);
     indices.push(i);

@@ -529,3 +529,64 @@ describe('beamwidth chart export', () => {
     expect(c.items.join(' ')).toContain('original');
   });
 });
+
+describe('the reference file in the cut plots', () => {
+  const [a] = series('a');
+  const base = { ...a, id: 'a', label: 'a' };
+  const ref = { ...a, id: 'r', label: 'r (reference)', color: '#999999', reference: true };
+
+  it('draws the reference last, thick and dashed in the theme text colour, never dimmed', () => {
+    for (const theme of ['light', 'dark'] as const) {
+      const f = buildCutFigure(opts({ series: [ref, base, { ...base, id: 'b', label: 'b' }], markerTarget: 'a', theme: FIGURE_THEMES[theme] }));
+      const t = traces(f) as (Partial<PlotData> & { uid?: string })[];
+      expect(t.map((x) => x.uid)).toEqual(['b', 'a', 'r#reference']);
+      const r = t[2];
+      expect(r.line).toMatchObject({ color: FIGURE_THEMES[theme].fg, dash: 'dash', width: 3.5 });
+      expect(r.opacity).toBeUndefined();
+      // The other files are dimmed around the highlighted one, the reference is not.
+      expect(t[0].opacity).toBeLessThan(1);
+      expect(t[1].line!.width).toBe(2.5);
+    }
+  });
+
+  it('names it in the legend entry, the hover/export name and the read-out', () => {
+    const f = buildCutFigure(opts({ series: [base, ref], markerTarget: 'r', markers: { ...NO_MARKERS, peak: true } }));
+    const r = (traces(f) as (Partial<PlotData> & { meta?: string })[]).find((t) => t.name?.includes('(reference)'))!;
+    expect(r.meta).toBe('r (reference)');
+    const readout = markerReadout(opts({ series: [base, ref], markerTarget: 'r', markers: { ...NO_MARKERS, peak: true } }));
+    expect(readout.length).toBeGreaterThan(0);
+  });
+
+  it('keeps the reference thick and bright when it is itself the highlighted file, and dims the others', () => {
+    const f = buildCutFigure(opts({ series: [base, ref], markerTarget: 'r' }));
+    const t = traces(f) as (Partial<PlotData> & { uid?: string })[];
+    expect(t.find((x) => x.uid === 'r#reference')!.line!.width).toBe(3.5);
+    expect(t.find((x) => x.uid === 'a')!.opacity).toBeLessThan(1);
+  });
+
+  it('is drawn on top in rectangular mode too, and counted for the legend', () => {
+    const f = buildCutFigure(opts({ mode: 'rect', series: [ref, base] }));
+    expect((traces(f) as { uid?: string }[]).map((t) => t.uid)).toEqual(['a', 'r#reference']);
+    expect(f.data[1]).toMatchObject({ type: 'scatter' });
+  });
+});
+
+describe('the reference point in the frequency charts', () => {
+  it('adds a labelled diamond to the beamwidth chart, one per panel', () => {
+    const f = buildHpbwFigure(
+      [{ label: 'g1', color: '#111', points: [{ freq: 1700, h: 65, v: 8 }] }],
+      FIGURE_THEMES.dark,
+      3,
+      { label: 'ref.msi', point: { freq: 1800, h: 70, v: null } },
+    );
+    const t = traces(f);
+    const diamonds = t.filter((x) => (x.marker as { symbol?: string } | undefined)?.symbol === 'diamond');
+    expect(diamonds).toHaveLength(2);
+    expect(diamonds[0]).toMatchObject({ name: 'ref.msi (reference)', x: [1800], y: [70], yaxis: 'y' });
+    expect(diamonds[1]).toMatchObject({ yaxis: 'y2', showlegend: false, y: [null] });
+    expect((diamonds[0].marker as { color?: string }).color).toBe(FIGURE_THEMES.dark.fg);
+    expect(f.layout.yaxis?.range).toBeUndefined();
+    expect(hpbwCaption(3, false, true).items).toContain('Diamond: the reference file');
+    expect(hpbwCaption(3, false).items).toEqual([]);
+  });
+});

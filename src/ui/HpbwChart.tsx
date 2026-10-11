@@ -9,6 +9,7 @@ import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
 import { groupLook, PER_FILE_COLOURS } from './colors';
 import { bwName } from './bwLabel';
+import { nameOf } from '../core/names';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 
@@ -33,6 +34,7 @@ export const HpbwChart = memo(function HpbwChart({
   const fbWindowDeg = useStore((s) => s.settings.fbWindowDeg);
   const uslsRangeDeg = useStore((s) => s.settings.uslsRangeDeg);
   const metric = useStore((s) => s.view.freqMetric);
+  const reference = useStore((s) => s.reference);
   const updateView = useStore((s) => s.updateView);
   const simulated = sim.tiltActive;
   const labelOf = (c: (typeof METRIC_COLUMNS)[number]) => columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
@@ -77,13 +79,22 @@ export const HpbwChart = memo(function HpbwChart({
           single.push({ label: g.label, color, symbol, points: valuePoints(sim.metrics) });
         }
       });
-    if (both) return series.length ? buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb) : null;
-    return single.length ? buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit) : null;
-  }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, column.unit]);
+    // The reference file's point (its value as plotted: the tilted one under a simulation), whether or not its group is shown.
+    const refItem = reference === null ? undefined : groups.flatMap((g) => g.items).find((i) => i.pattern.id === reference);
+    const refMetrics = refItem ? sim.metrics.get(refItem.pattern.id) : undefined;
+    const refLabel = refItem ? nameOf(refItem.pattern) : '';
+    const freq = refItem?.pattern.frequencyMHz ?? 0;
+    if (both) {
+      const ref = refMetrics ? { label: refLabel, point: { freq, h: refMetrics.h.hpbw.value, v: refMetrics.v.hpbw.value } } : undefined;
+      return series.length ? buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb, ref) : null;
+    }
+    const ref = refMetrics ? { label: refLabel, point: { freq, value: cellsOf(refMetrics)[metric].value } } : undefined;
+    return single.length ? buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref) : null;
+  }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, column.unit, reference]);
 
   const exportCaption = useMemo(
-    () => (both ? hpbwCaption(levelDb, simulated) : metricCaption(label, column.unit, simulated)),
-    [both, levelDb, simulated, label, column.unit],
+    () => (both ? hpbwCaption(levelDb, simulated, reference !== null) : metricCaption(label, column.unit, simulated, reference !== null)),
+    [both, levelDb, simulated, label, column.unit, reference],
   );
 
   if (!figure) return null;
@@ -94,6 +105,7 @@ export const HpbwChart = memo(function HpbwChart({
         <h2>
           {heading} vs frequency (groups with a visible file{both || DECLARED[metric] ? '; hollow markers = declared' : ''})
           {sim.tiltActive ? ' — faint lines = original' : ''}
+          {reference !== null ? ' — diamond = reference' : ''}
         </h2>
         <div className="freq-metric">
           <label htmlFor="freq-metric">Metric</label>

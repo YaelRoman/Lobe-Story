@@ -122,3 +122,18 @@ describe('buildCutSeries', () => {
     expect(s.filter((x) => x.dash).every((x) => x.lineDash === undefined)).toBe(true);
   });
 });
+
+describe('buildCutSeries with a reference file', () => {
+  it('flags and names the reference, and gives it no dashed original', () => {
+    const tilted = simFor({ electricalDeg: 2, mechanicalDeg: 0 });
+    const s = buildCutSeries(items, tilted, original, colors, 'V', undefined, 'a');
+    expect(s.map((x) => [x.id, !!x.reference])).toEqual([['a', true], ['b', false], ['b#original', false]]);
+    expect(s[0].label).toContain('(reference)');
+    expect(s[1].label).not.toContain('(reference)');
+  });
+
+  it('draws nothing special without a reference or for an id that is not among the items', () => {
+    expect(buildCutSeries(items, simFor(NO_TILT), original, colors, 'H').some((x) => x.reference)).toBe(false);
+    expect(buildCutSeries(items, simFor(NO_TILT), original, colors, 'H', undefined, 'zzz').some((x) => x.reference)).toBe(false);
+  });
+});

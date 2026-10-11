@@ -51,3 +51,21 @@ describe('buildMetricFigure', () => {
     expect(metricCaption('F/B 180°', 'dB', false).items).toHaveLength(0);
   });
 });
+
+describe('the reference point', () => {
+  it('adds one labelled diamond in the text colour and widens the minimum-span range around it', () => {
+    const f = buildMetricFigure(
+      [{ label: 'a', color: '#1', points: [{ freq: 1800, value: 20 }] }],
+      FIGURE_THEMES.light,
+      'F/B 180°',
+      'dB',
+      { label: 'ref.msi', point: { freq: 1900, value: 30 } },
+    );
+    const t = traces(f);
+    expect(t.map((x) => x.name)).toEqual(['a', 'ref.msi (reference)']);
+    expect(t[1]).toMatchObject({ mode: 'markers', x: [1900], y: [30], marker: { symbol: 'diamond', color: FIGURE_THEMES.light.fg } });
+    // 20 and 30 span more than the minimum: automatic range.
+    expect(f.layout.yaxis?.range).toBeUndefined();
+    expect(metricCaption('F/B 180°', 'dB', false, true).items).toEqual(['Diamond: the reference file']);
+  });
+});

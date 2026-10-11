@@ -50,10 +50,12 @@ interface CutPlotProps {
   emphasised: string | null;
   /** More than ten files are shown: colours go by group, a shade per file. */
   byGroup: boolean;
+  /** Label of the pinned reference file when it is drawn (it has no legend entry without a legend). */
+  referenceLabel: string | null;
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup }: CutPlotProps) {
+function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup, referenceLabel }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -74,6 +76,7 @@ function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup }: C
         {noLegend && (
           <p className="count">
             {traces} traces: colours as in the file panel (dashed = original){byGroup ? '; more than 10 files: one colour per group, a shade per file' : ''}; hover a trace for its name.
+            {referenceLabel !== null && ` The thick dashed line in the text colour is the reference: ${referenceLabel}.`}
           </p>
         )}
       </div>
@@ -98,15 +101,22 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
   const updateView = useStore((s) => s.updateView);
   const visible = useStore((s) => s.visible);
   const highlighted = useStore((s) => s.highlighted);
+  const reference = useStore((s) => s.reference);
   const settings = useStore((s) => s.settings);
 
   const items = useMemo(() => groups.flatMap((g) => g.items).filter((i) => visible[i.pattern.id]), [groups, visible]);
+  // The reference file is drawn whenever one is pinned, ticked or not.
+  const drawnItems = useMemo(() => {
+    if (reference === null || items.some((i) => i.pattern.id === reference)) return items;
+    const ref = groups.flatMap((g) => g.items).find((i) => i.pattern.id === reference);
+    return ref && items.length > 0 ? [...items, ref] : items;
+  }, [items, groups, reference]);
   const markerTarget =
     highlighted && visible[highlighted] ? highlighted : items.length === 1 ? items[0].pattern.id : null;
   const is3d = view.dimension === '3d';
   // Everything that decides which traces are drawn and how they look moves to the figure together, a moment after
   // a click: a checkbox is answered first, and the plots never show old traces with new colours or emphasis.
-  const inputs = useMemo(() => ({ items, colors, styles, markerTarget, metrics, sim }), [items, colors, styles, markerTarget, metrics, sim]);
+  const inputs = useMemo(() => ({ items: drawnItems, colors, styles, markerTarget, metrics, sim, reference }), [drawnItems, colors, styles, markerTarget, metrics, sim, reference]);
   const drawn = useDeferredValue(inputs);
   const updating = drawn !== inputs;
   const labels = markerLabels(settings.levelDb);
@@ -128,9 +138,10 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
         ...common,
         markerTarget: drawn.markerTarget,
         cut,
-        series: buildCutSeries(drawn.items, drawn.sim, drawn.metrics, drawn.colors, cut, drawn.styles),
+        series: buildCutSeries(drawn.items, drawn.sim, drawn.metrics, drawn.colors, cut, drawn.styles, drawn.reference),
       };
-      return { figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === drawn.markerTarget)?.label ?? '', traces: options.series.length, emphasised: options.series.some((x) => x.id === drawn.markerTarget) ? drawn.markerTarget : null };
+      const referenceLabel = options.series.find((x) => x.reference)?.label ?? null;
+      return { referenceLabel, figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === drawn.markerTarget)?.label ?? '', traces: options.series.length, emphasised: options.series.some((x) => x.id === drawn.markerTarget) ? drawn.markerTarget : null };
     };
     return { h: make('H'), v: make('V') };
   }, [is3d, drawn, view.mode, view.floorDb, view.markers, view.theme, settings]);

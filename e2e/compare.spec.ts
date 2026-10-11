@@ -117,3 +117,97 @@ test.describe('copy to the clipboard', () => {
     expect((await clip(page)).split('\r\n')[1].split('\t')[0]).toBe("'=SUM(1+1).msi");
   });
 });
+
+test.describe('reference file', () => {
+  const menuOf = (page: Page, n: number) => page.locator('.panel li').nth(n);
+
+  test('pin a reference, show the differences, see it in the plots, save and reopen the project', async ({ page }, testInfo) => {
+    await loadExample(page);
+    // Pin the third file of the panel from its ⋯ menu.
+    const row = menuOf(page, 2);
+    const name = (await page.locator('.metrics tbody tr').nth(2).locator('.file-cell').innerText()).trim();
+    await row.getByLabel(/^Actions for /).click();
+    await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+    await expect(row.getByRole('img', { name: 'Reference file' })).toBeVisible();
+    const refRow = page.locator('.metrics tbody tr.ref');
+    await expect(refRow).toHaveCount(1);
+    await expect(refRow.getByRole('img', { name: 'Reference file' })).toBeVisible();
+    await expect(page.getByTestId('reference-note')).toContainText(name);
+
+    // The reference trace is in both cut plots, labelled.
+    // (24 files: no legend, the note under the plot says which line it is, and the trace is drawn thick and dashed.)
+    for (const cut of ['h', 'v']) await expect(page.getByTestId(`readout-${cut}`)).toContainText('thick dashed line');
+    await expect(page.getByTestId('readout-h')).toContainText('(reference)');
+    await expect(page.getByTestId('plot-h').locator('path.js-line[style*="stroke-width: 3.5"]')).toHaveCount(1);
+
+    // Δ vs reference: a known cell. Another file's cell is a signed difference; the reference row keeps its absolute value.
+    const cell = (tr: ReturnType<typeof page.locator>, col: string) => tr.locator(`td[data-col="${col}"]`).innerText();
+    const absolute = await cell(page.locator('.metrics tbody tr').nth(0), 'fb180');
+    const refAbsolute = await cell(refRow, 'fb180');
+    await page.getByLabel('Δ vs reference').check();
+    const diff = await cell(page.locator('.metrics tbody tr').nth(0), 'fb180');
+    expect(diff).toMatch(/^[+-]?\d+\.\d$|^0\.0$/);
+    expect(Number(diff)).toBeCloseTo(Number(absolute) - Number(refAbsolute), 0);
+    expect(await cell(refRow, 'fb180')).toBe(refAbsolute);
+    await expect(page.getByRole('columnheader', { name: /^Δ F\/B 180°/ })).toBeVisible();
+    // Another file's difference carries a sign (the example files differ from each other in F/B).
+    const signs = await page.locator('.metrics tbody tr:not(.ref) td[data-col="fb180"]').allInnerTexts();
+    expect(signs.some((t) => /^[+-]\d/.test(t.trim()))).toBe(true);
+
+    // Copy follows what is displayed.
+    if (testInfo.project.name === 'chromium') {
+      await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+      await page.getByRole('button', { name: 'Copy table' }).first().click();
+      await expect(page.getByTestId('load-status')).toContainText('Copied 24 rows');
+      const text = await page.evaluate(() => navigator.clipboard.readText());
+      expect(text.split('\r\n')[0]).toContain(`F/B 180° Δ vs ${name} (dB)`);
+    }
+
+    // The frequency chart marks the reference.
+    await expect(page.getByTestId('plot-hpbw').locator('.legend').first()).toContainText('(reference)');
+    await expect(page.getByRole('heading', { name: /diamond = reference/ })).toBeVisible();
+
+    // Save the project, clear, open it again: the reference is still pinned, and the difference view too.
+    await page.getByRole('button', { name: 'Save project' }).click();
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
+    const file = await (await downloadPromise).path();
+    await page.getByRole('button', { name: 'Clear', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
+    await expect(page.getByText('Open or drop Planet pattern files')).toBeVisible();
+    await page.getByTestId('project-input').setInputFiles(file);
+    await expect(page.locator('.panel li')).toHaveCount(24);
+    await expect(page.locator('.metrics tbody tr.ref')).toHaveCount(1);
+    await expect(page.getByTestId('reference-note')).toContainText(name);
+    await expect(page.getByLabel('Δ vs reference')).toBeChecked();
+
+    // Clear the reference from the menu: the marks and the difference view go.
+    await menuOf(page, 2).getByLabel(/^Actions for /).click();
+    await page.getByRole('menuitem', { name: 'Clear reference' }).click();
+    await expect(page.locator('.metrics tbody tr.ref')).toHaveCount(0);
+    await expect(page.getByLabel('Δ vs reference')).toBeDisabled();
+    await expect(page.getByLabel('Δ vs reference')).not.toBeChecked();
+  });
+});
+
+test('an unticked reference is still drawn, with a legend entry saying so, and the file menu is keyboard operable', async ({ page }) => {
+  await page.goto('/');
+  const { planetText } = await import('../src/test/planetText');
+  const msi = (f: number) => planetText({ headers: ['NAME A', `FREQUENCY ${f}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] });
+  await page.getByTestId('file-input').setInputFiles([
+    { name: 'one.msi', mimeType: 'text/plain', buffer: Buffer.from(msi(1800)) },
+    { name: 'two.msi', mimeType: 'text/plain', buffer: Buffer.from(msi(1900)) },
+  ]);
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  // Keyboard: focus the menu trigger of the first file, open it with Enter and pick the first reference item.
+  await page.getByLabel('Actions for one.msi').focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('menuitem', { name: 'Use as reference' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.panel li').first().getByRole('img', { name: 'Reference file' })).toBeVisible();
+  // Untick the reference and tick the other: the reference is still in the plot and the legend.
+  await page.getByRole('checkbox', { name: 'Show one.msi' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Show two.msi' }).check();
+  await expect(page.getByTestId('plot-h').locator('.legend')).toContainText('one.msi (reference)');
+  await expect(page.getByTestId('plot-h').locator('.legend')).toContainText('two.msi');
+});

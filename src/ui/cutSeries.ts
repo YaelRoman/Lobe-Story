@@ -19,22 +19,25 @@ export function buildCutSeries(
   colors: Map<string, string>,
   cut: 'H' | 'V',
   styles?: Map<string, FileStyle>,
+  /** The pinned reference file: its live series is flagged and named, and it has no dashed original (the reference is what the table's differences are taken from). */
+  referenceId?: string | null,
 ): PlotSeries[] {
   const rotation = (id: string) => (cut === 'H' ? sim.effective(id).azimuthDeg : 0);
   const series = (original: boolean): PlotSeries[] =>
     items.flatMap(({ pattern: orig }) => {
-      if (original && !sim.isTiltedId(orig.id)) return [];
+      if (original && (!sim.isTiltedId(orig.id) || orig.id === referenceId)) return [];
       const m = (original ? originalMetrics : sim.metrics).get(orig.id);
       if (!m) return [];
       const p = original ? orig : (sim.patterns.get(orig.id) ?? orig);
       return [
         {
           id: original ? `${orig.id}#original` : orig.id,
-          label: `${orig.frequencyMHz} MHz · ${nameOf(orig)}${original ? ' (original)' : ''}`,
+          label: `${orig.frequencyMHz} MHz · ${nameOf(orig)}${original ? ' (original)' : orig.id === referenceId ? ' (reference)' : ''}`,
           color: colors.get(orig.id) ?? '#888888',
           cut: cut === 'H' ? p.horizontal : p.vertical,
           metrics: m,
           dash: original,
+          ...(!original && orig.id === referenceId ? { reference: true } : {}),
           ...(!original && lineDashOf(styles?.get(orig.id)) ? { lineDash: lineDashOf(styles?.get(orig.id)) } : {}),
           rotationDeg: rotation(orig.id),
           ...(cut === 'H' && !original && sim.effective(orig.id).mechanicalDeg !== 0 ? { coneCut: true } : {}),

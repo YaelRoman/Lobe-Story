@@ -122,3 +122,17 @@ describe('which input previews', () => {
     expect(focusPreviews({ matches: () => { throw new SyntaxError('unsupported'); } } as unknown as Element)).toBe(true);
   });
 });
+
+describe('the reference trace in a preview', () => {
+  it('keeps its width and brightness when another file is previewed, and previews as its own file', () => {
+    const data = traces('a', 'r#reference', 'b');
+    const other = previewRestyle(data, 'b', 'a')!;
+    expect(other.update['line.width']).toEqual([1.5, 3.5, 2.5]);
+    expect(other.update.opacity).toEqual([DIMMED_OPACITY, null, null]);
+    // The reference file highlighted (its trace is "r#reference"): the others dim around it, as the figure builder drew them.
+    const own = previewRestyle(data, null, 'r')!;
+    expect(own.update['line.width']).toEqual([1.5, 3.5, 1.5]);
+    expect(own.update.opacity).toEqual([DIMMED_OPACITY, null, DIMMED_OPACITY]);
+    expect(previewRestyle(data, 'r', 'a')!.update.opacity).toEqual([DIMMED_OPACITY, null, DIMMED_OPACITY]);
+  });
+});

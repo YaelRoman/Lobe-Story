@@ -14,6 +14,7 @@ const SNAPSHOT_KEYS = [
   'customGroups',
   'membership',
   'selected',
+  'reference',
   'pendingFiles',
   'saved',
 ] as const;
@@ -51,6 +52,7 @@ const SESSION_KEYS = [
   'names',
   'customGroups',
   'membership',
+  'reference',
 ] as const;
 
 /**

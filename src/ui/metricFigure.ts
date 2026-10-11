@@ -31,16 +31,22 @@ export const minSpanForUnit = (unit: string): number => MIN_SPAN_BY_UNIT[unit] ?
 export const metricAxisTitle = (label: string, unit: string): string => `${label} (${unit})`;
 
 /** What the exported chart says about itself. */
-export function metricCaption(label: string, unit: string, simulated: boolean): ExportCaption {
+export function metricCaption(label: string, unit: string, simulated: boolean, reference = false): ExportCaption {
   return {
     title: `${metricAxisTitle(label, unit)} against frequency, one line per group`,
     file: `${label} in ${unit}: one line per group · hollow markers: values declared in the file`,
-    items: simulated ? ['Faint lines: original patterns before the simulated tilt'] : [],
+    items: [...(simulated ? ['Faint lines: original patterns before the simulated tilt'] : []), ...(reference ? ['Diamond: the reference file'] : [])],
   };
 }
 
+/** The pinned reference file's point: a large diamond in the text colour, named in the legend. */
+export interface MetricReference {
+  label: string;
+  point: MetricPoint;
+}
+
 /** One y axis: `label (unit)` against frequency, a line per group, gaps where a file has no value. */
-export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, label: string, unit: string): Figure {
+export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, label: string, unit: string, reference?: MetricReference): Figure {
   // Plotly has `meta` (the export reads it as the full legend name); @types/plotly.js does not declare it.
   const data: (Partial<PlotData> & { meta?: string })[] = [];
   for (const s of series) {
@@ -63,7 +69,15 @@ export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, la
       });
     }
   }
-  const range = minSpanRange(series.flatMap((s) => s.points.flatMap((p) => [p.value, p.declared])), minSpanForUnit(unit));
+  if (reference) {
+    const name = `${reference.label} (reference)`;
+    data.push({
+      type: 'scatter', mode: 'markers', name: middleEllipsis(name, LEGEND_NAME_MAX), meta: name,
+      x: [reference.point.freq], y: [reference.point.value],
+      marker: { color: theme.fg, symbol: 'diamond' as const, size: 13, line: { color: theme.bg, width: 1.5 } } as Partial<PlotData['marker']>,
+    });
+  }
+  const range = minSpanRange([...series.flatMap((s) => s.points.flatMap((p) => [p.value, p.declared])), ...(reference ? [reference.point.value] : [])], minSpanForUnit(unit));
   return {
     data: data as Data[],
     layout: {

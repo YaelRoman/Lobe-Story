@@ -26,6 +26,11 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - Colours follow the file panel: one colour per file up to 10 visible files; above that one colour
   per group with a shade per file (a shade keeps its place when other files are unticked), and above
   10 groups a line pattern tells repeated hues apart.
+- Compare against a reference: the ⋯ menu of a file has **Use as reference**. The reference is
+  marked with a pin, drawn in the 2D cut plots as a thick dashed line that is never dimmed (also
+  when unticked) and marked in the frequency chart. **Δ vs reference** above the metrics table
+  shows every metric as a signed difference from it (CSV and copy follow); the reference is saved
+  with the project.
 - Automatic grouping by polarization, tilt, port and array (editable; drag files between groups).
 - Column groups can be shown or hidden above the metrics table (saved with the project); the CSV
   always contains every column.

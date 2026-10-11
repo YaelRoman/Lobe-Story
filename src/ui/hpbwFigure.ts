@@ -22,12 +22,12 @@ export interface HpbwSeries {
 }
 
 /** What the exported chart says about itself: its title, which line is which, and what the other marks mean (the legend lists the groups). */
-export function hpbwCaption(levelDb: number, simulated: boolean): ExportCaption {
+export function hpbwCaption(levelDb: number, simulated: boolean, reference = false): ExportCaption {
   const name = bwName(levelDb);
   return {
     title: `H-${name} and V-${name} against frequency, one line per group`,
     file: `Solid lines: horizontal (H-${name}) · dashed lines: vertical (V-${name}) · hollow markers: values declared in the file`,
-    items: simulated ? ['Faint lines: original patterns before the simulated tilt'] : [],
+    items: [...(simulated ? ['Faint lines: original patterns before the simulated tilt'] : []), ...(reference ? ['Diamond: the reference file'] : [])],
   };
 }
 
@@ -45,7 +45,13 @@ export function minSpanRange(values: (number | null | undefined)[], minSpan = MI
   return [mid - minSpan / 2, mid + minSpan / 2];
 }
 
-export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelDb = 3): Figure {
+/** The pinned reference file's point: drawn as a large diamond in the text colour on each panel. */
+export interface HpbwReference {
+  label: string;
+  point: HpbwPoint;
+}
+
+export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelDb = 3, reference?: HpbwReference): Figure {
   // Plotly has `meta` (the export reads it as the full legend name); @types/plotly.js does not declare it.
   const data: (Partial<PlotData> & { meta?: string })[] = [];
   for (const s of series) {
@@ -65,7 +71,14 @@ export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelD
       data.push({ type: 'scatter', mode: 'markers', name: `${s.label} declared`, legendgroup: s.label, showlegend: false, x: declared.map((p) => p.freq), y: declared.map((p) => p.declV ?? null), yaxis: 'y2', marker });
     }
   }
-  const values = (axis: 'h' | 'v') => series.flatMap((s) => s.points.flatMap((p) => [p[axis], axis === 'h' ? p.declH : p.declV]));
+  if (reference) {
+    const marker = { color: theme.fg, symbol: 'diamond' as const, size: 13, line: { color: theme.bg, width: 1.5 } };
+    const name = `${reference.label} (reference)`;
+    const x = [reference.point.freq];
+    data.push({ type: 'scatter', mode: 'markers', name: middleEllipsis(name, LEGEND_NAME_MAX), meta: name, x, y: [reference.point.h], yaxis: 'y', marker: marker as Partial<PlotData['marker']> });
+    data.push({ type: 'scatter', mode: 'markers', name, showlegend: false, x, y: [reference.point.v], yaxis: 'y2', marker: marker as Partial<PlotData['marker']> });
+  }
+  const values = (axis: 'h' | 'v') => [...series.flatMap((s) => s.points.flatMap((p) => [p[axis], axis === 'h' ? p.declH : p.declV])), ...(reference ? [reference.point[axis]] : [])];
   const hRange = minSpanRange(values('h'));
   const vRange = minSpanRange(values('v'));
   return {

@@ -77,6 +77,8 @@ export interface ViewState {
   layout3d: Layout3d;
   /** Secondary controls folded to one line. */
   collapsed: CollapsedBars;
+  /** The 2D difference view: the metrics table shows each value as the difference from the reference file (saved with the project; inactive while no reference is set). */
+  deltaVsReference: boolean;
   /** The metric the frequency chart plots (a display preference, like the theme: not saved in projects). */
   freqMetric: MetricColumn;
   simulation: SimulationState;
@@ -113,6 +115,8 @@ export interface StoreData {
   customGroups: CustomGroup[];
   /** Instance id → custom group id. */
   membership: Record<string, string>;
+  /** The instance id pinned as the reference file (session data, saved in projects); null = none. */
+  reference: string | null;
   /** What the offsets row edits: a file (also the highlighted file) or a custom group. */
   selected: Selection;
   /** Files a layout-only project still needs (see project.ts and duplicates.ts `planLoad`). */
@@ -173,6 +177,8 @@ export interface StoreActions {
   setMembership(id: string, groupId: string | null): void;
   setGroupOffset(groupId: string, partial: Partial<OffsetState>): void;
   clearGroupOffsets(groupId: string): void;
+  /** Pins file `id` as the reference (null clears it, and with it the difference view); an unknown id changes nothing. */
+  setReference(id: string | null): void;
   select(selection: Selection): void;
   /**
    * A click on a file in the panel or the table: ticks it and highlights it; clicking the highlighted,
@@ -209,6 +215,7 @@ export function initialState(): StoreData {
     customGroups: [],
     membership: {},
     selected: null,
+    reference: null,
     pendingFiles: [],
     dialog: null,
     view: {
@@ -225,6 +232,7 @@ export function initialState(): StoreData {
       layout3d: 'grid',
       collapsed: { simBar: narrowScreen(), markers: narrowScreen() },
       freqMetric: 'hHpbw',
+      deltaVsReference: false,
       simulation: {
         electricalDeg: 0,
         mechanicalDeg: 0,
@@ -481,6 +489,7 @@ export const useStore = create<State>()((rawSet, get) => {
         ...commit(s, d),
         files: isCopy ? s.files : s.files.filter((f) => f.id !== id),
         highlighted: s.highlighted !== null && ids.includes(s.highlighted) ? null : s.highlighted,
+        ...(s.reference !== null && ids.includes(s.reference) ? { reference: null, view: { ...commit(s, d).view!, deltaVsReference: false } } : {}),
         selected: s.selected?.kind === 'file' && ids.includes(s.selected.id) ? null : s.selected,
         // The status line may be about the file that just went: do not leave a stale count behind.
         ...(isCopy ? {} : { loadMessage: null, loadFailed: 0 }),
@@ -507,8 +516,9 @@ export const useStore = create<State>()((rawSet, get) => {
         customGroups: [],
         membership: {},
         selected: null,
+        reference: null,
         pendingFiles: [],
-        view: { ...s.view, simulation: { ...s.view.simulation, offsets: {}, groupOffsets: {} } },
+        view: { ...s.view, deltaVsReference: false, simulation: { ...s.view.simulation, offsets: {}, groupOffsets: {} } },
       };
     }),
 
@@ -694,6 +704,13 @@ export const useStore = create<State>()((rawSet, get) => {
         ? { view: { ...s.view, simulation: { ...s.view.simulation, groupOffsets: without(s.view.simulation.groupOffsets, groupId) } } }
         : s,
     ),
+
+  setReference: (id) =>
+    set((s) => {
+      if (id === s.reference) return s;
+      if (id !== null && !instanceExists(s, id)) return s;
+      return { reference: id, ...(id === null && s.view.deltaVsReference ? { view: { ...s.view, deltaVsReference: false } } : {}) };
+    }),
 
   select: (selection) =>
     set(selection?.kind === 'file' ? { selected: selection, highlighted: selection.id } : { selected: selection }),

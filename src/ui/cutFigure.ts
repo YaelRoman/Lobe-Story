@@ -21,6 +21,8 @@ export interface PlotSeries {
   lineDash?: 'dot' | 'dashdot' | 'longdash';
   /** Per-series rotation in degrees; overrides the figure's rotationDeg. */
   rotationDeg?: number;
+  /** The pinned reference file: drawn on top in the theme's text colour, thick and dashed, never dimmed, named "(reference)". */
+  reference?: boolean;
   /** A simulated horizontal cut of a mechanically tilted file (the cut through the tilted beam peak). */
   coneCut?: boolean;
 }
@@ -304,6 +306,13 @@ type FileTrace = Partial<PlotData> & { meta?: string; legendrank?: number };
 export const DIMMED_OPACITY = 0.35;
 const BASE_WIDTH = 1.5;
 const EMPHASISED_WIDTH = 2.5;
+const REFERENCE_WIDTH = 3.5;
+
+/** Suffix of the `uid` of the reference file's trace: it never takes part in dimming and keeps its width. */
+export const REFERENCE_UID_SUFFIX = '#reference';
+export const isReferenceUid = (uid: string): boolean => uid.endsWith(REFERENCE_UID_SUFFIX);
+/** The series id behind a trace `uid` (the reference suffix removed). */
+export const seriesIdOf = (uid: string): string => (isReferenceUid(uid) ? uid.slice(0, -REFERENCE_UID_SUFFIX.length) : uid);
 
 /**
  * How a file trace looks while `emphasised` is the emphasised file (null: none): the line width and the opacity
@@ -311,6 +320,7 @@ const EMPHASISED_WIDTH = 2.5;
  * restores exactly what the figure was built with. The dashed original of the emphasised file stays bright, thin.
  */
 export function traceStyle(seriesId: string, emphasised: string | null): { width: number; opacity: number | null } {
+  if (isReferenceUid(seriesId)) return { width: REFERENCE_WIDTH, opacity: null };
   const dimmed = emphasised !== null && seriesId !== emphasised && seriesId !== `${emphasised}#original`;
   return { width: seriesId === emphasised ? EMPHASISED_WIDTH : BASE_WIDTH, opacity: dimmed ? DIMMED_OPACITY : null };
 }
@@ -323,18 +333,21 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
   const emphasised = o.series.some((s) => s.id === o.markerTarget) ? o.markerTarget : null;
   const order = o.series.map((s, i) => ({ s, i }));
   if (emphasised !== null) order.sort((p, q) => Number(p.s.id === emphasised) - Number(q.s.id === emphasised) || p.i - q.i);
+  // The reference file is drawn last of all (on top).
+  order.sort((p, q) => Number(!!p.s.reference) - Number(!!q.s.reference));
   for (const { s, i } of order) {
     const { x, y } = sortedCut(s.cut, s.rotationDeg ?? o.rotationDeg ?? 0);
     const r = y.map((v) => level(v, o.floorDb));
     for (const v of r) if (v > largest) largest = v;
     const legendName = middleEllipsis(s.label, LEGEND_NAME_MAX);
-    const style = traceStyle(s.id, emphasised);
+    const uid = s.reference ? `${s.id}${REFERENCE_UID_SUFFIX}` : s.id;
+    const style = traceStyle(uid, emphasised);
     // `uid` carries the series id, so the hover preview can restyle a file's traces without a rebuild.
-    const extra = { uid: s.id, legendrank: i, ...(style.opacity !== null ? { opacity: style.opacity } : {}) };
+    const extra = { uid, legendrank: s.reference ? -1 : i, ...(style.opacity !== null ? { opacity: style.opacity } : {}) };
     const line = {
-      color: s.color,
+      color: s.reference ? o.theme.fg : s.color,
       width: style.width,
-      ...(s.dash ? { dash: 'dash' as const } : s.lineDash ? { dash: s.lineDash } : {}),
+      ...(s.dash || s.reference ? { dash: 'dash' as const } : s.lineDash ? { dash: s.lineDash } : {}),
     };
     if (o.mode === 'polar') {
       data.push({

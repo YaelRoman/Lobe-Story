@@ -238,3 +238,10 @@ tr:hover .copy-row, tr:focus-within .copy-row, tr.hl .copy-row, .copy-row:focus-
 @media (max-width: 760px) {
   .copy-row { min-width: 28px; min-height: 28px; }
 }
+
+/* Reference file: pin mark, marked table row and the difference toggle. */
+.pin-mark { display: inline-flex; vertical-align: -1px; margin-right: 3px; color: var(--accent); }
+.delta-toggle { display: inline-flex; gap: 4px; align-items: center; }
+.ref-note { display: inline-flex; gap: 6px; align-items: center; }
+.metrics tr.ref td { font-weight: 600; box-shadow: inset 0 -1px 0 var(--border), inset 0 1px 0 var(--accent); }
+.metrics tr.ref td:first-child { box-shadow: inset 0 -1px 0 var(--border), inset 0 1px 0 var(--accent), inset 3px 0 0 var(--accent), 1px 0 0 var(--border); }

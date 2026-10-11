@@ -35,6 +35,8 @@ export interface ProjectState {
   membership: Record<string, string>;
   highlighted: string | null;
   selected: Selection;
+  /** The pinned reference file (instance id). Optional: projects saved before it existed have none. */
+  reference: string | null;
   settings: AnalysisSettings;
   view: Omit<ViewState, ChromeKey>;
 }
@@ -54,7 +56,7 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
 
 type SessionSource = Pick<
   StoreData,
-  'files' | 'pendingFiles' | 'tagOverrides' | 'visible' | 'copies' | 'names' | 'customGroups' | 'membership' | 'settings' | 'view'
+  'files' | 'pendingFiles' | 'tagOverrides' | 'visible' | 'copies' | 'names' | 'customGroups' | 'membership' | 'reference' | 'settings' | 'view'
 >;
 
 /**
@@ -87,6 +89,7 @@ export function sessionState(s: SessionSource): Omit<ProjectState, 'highlighted'
     names: s.names,
     customGroups: s.customGroups,
     membership: s.membership,
+    reference: s.reference,
     settings: s.settings,
     view: view as Omit<ViewState, ChromeKey>,
   };
@@ -141,6 +144,7 @@ export function parseProject(text: string): ParsedProject {
       (g): g is CustomGroup => isObj(g) && typeof g.id === 'string' && typeof g.name === 'string',
     );
   }
+  if (typeof st.reference === 'string' || st.reference === null) state.reference = st.reference;
   if (typeof st.highlighted === 'string' || st.highlighted === null) state.highlighted = st.highlighted;
   const sel = st.selected;
   if (sel === null) state.selected = null;
@@ -262,6 +266,7 @@ export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewSt
     markers,
     tableGroups,
     subBands: sanitizeSubBands(rawView.subBands),
+    deltaVsReference: typeof rawView.deltaVsReference === 'boolean' ? rawView.deltaVsReference : dv.deltaVsReference,
     dimension: oneOf(rawView.dimension, ['2d', '3d'] as const, dv.dimension),
     method3d: oneOf(rawView.method3d, ['summation', 'weighted'] as const, dv.method3d),
     layout3d: oneOf(rawView.layout3d, ['grid', 'overlay'] as const, dv.layout3d),
@@ -314,6 +319,13 @@ export function projectToState(
 
   const settings = sanitizeSettings(st.settings);
 
+  // The reference must be a file or copy of this project (a pending file counts: it arrives later); anything else is dropped.
+  const sources = new Set([...files.map((f) => f.id), ...pendingFiles.map((p) => p.path)]);
+  const copies = cleanCopies(st.copies);
+  const isInstance = (id: string): boolean => sources.has(id) || (copies[id] !== undefined && sources.has(copies[id].sourceId));
+  const reference = typeof st.reference === 'string' && isInstance(st.reference) ? st.reference : null;
+  const display = sanitizeDisplayView(rawView, dv);
+
   const selected = st.selected && st.selected.kind === 'group' && !groupIds.has(st.selected.id) ? null : (st.selected ?? null);
 
   return {
@@ -321,15 +333,16 @@ export function projectToState(
     pendingFiles,
     tagOverrides: cleanTagOverrides(st.tagOverrides),
     visible: cleanMap(st.visible, (v): v is boolean => typeof v === 'boolean'),
-    copies: cleanCopies(st.copies),
+    copies,
     names: cleanMap(st.names, (v): v is string => typeof v === 'string' && v !== ''),
     customGroups,
     membership,
     highlighted: st.highlighted ?? null,
     selected,
+    reference,
     settings,
     loadMessage: null,
-    view: { ...sanitizeDisplayView(rawView, dv), ...chrome, simulation },
+    view: { ...display, deltaVsReference: reference !== null && display.deltaVsReference, ...chrome, simulation },
   };
 }
 

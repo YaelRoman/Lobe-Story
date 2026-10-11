@@ -3,8 +3,8 @@ import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
-  ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, formatCell, nextSort, revealScrollTop, simulationLabel,
-  cellText, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
+  ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, nextSort, revealScrollTop, simulationLabel,
+  cellText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
@@ -14,6 +14,7 @@ import { downloadText } from './download';
 import { copiedRows, copyAndAnnounce } from './clipboard';
 import { copyShortcut, onCopyMark } from './copyKeys';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
+import { PinMark } from './PinMark';
 import type { MetricColumn } from './table';
 import type { SimulationResult } from './useSimulation';
 
@@ -47,6 +48,9 @@ export const MetricsTable = memo(function MetricsTable({
   const pickFile = useStore((s) => s.pickFile);
   const setVisible = useStore((s) => s.setVisible);
   const setLoadMessage = useStore((s) => s.setLoadMessage);
+  const reference = useStore((s) => s.reference);
+  const setReference = useStore((s) => s.setReference);
+  const deltaChosen = useStore((s) => s.view.deltaVsReference);
 
   // Sorting is a view of this table only (not saved in projects); the CSV export follows it.
   const [chosenSort, setSort] = useState<SortState | null>(null);
@@ -60,14 +64,18 @@ export const MetricsTable = memo(function MetricsTable({
   const [activeRow, setActiveRow] = useState<string | null>(null);
   const revealed = useRef<{ id: string | null; sort: SortState | null } | null>(null);
 
-  const rows = useMemo(
-    () =>
-      sortRows(
-        buildRows(groups, metrics, gainUnit, sim.tiltActive ? sim.metrics : undefined, sim.isTiltedId),
-        sort,
-      ),
-    [groups, metrics, gainUnit, sim, sort],
+  const baseRows = useMemo(
+    () => buildRows(groups, metrics, gainUnit, sim.tiltActive ? sim.metrics : undefined, sim.isTiltedId),
+    [groups, metrics, gainUnit, sim],
   );
+  // The reference file's row (it may be missing: no metrics, or the file is not loaded yet).
+  const referenceName = baseRows.find((r) => r.id === reference)?.file ?? null;
+  const deltaOn = deltaChosen && referenceName !== null;
+  const rows = useMemo(
+    () => sortRows(markReference(baseRows, reference, deltaOn), sort),
+    [baseRows, reference, deltaOn, sort],
+  );
+  const deltaVs = deltaOn ? (referenceName ?? undefined) : undefined;
 
   // A highlight set from the panel or a plot brings its row into view inside the table (not the page).
   // Only when the highlighted file or the sort changes: rebuilt rows (slider ticks) must not move the scroll.
@@ -174,7 +182,7 @@ export const MetricsTable = memo(function MetricsTable({
           onClick={() =>
             downloadText(
               'pattern-metrics.csv',
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb),
+              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs),
               'text/csv;charset=utf-8',
             )
           }
@@ -183,10 +191,34 @@ export const MetricsTable = memo(function MetricsTable({
         </button>
         <button
           title="Copy the table as shown (visible columns, current order) to paste into a spreadsheet"
-          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb), copiedRows(rows.length))}
+          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs), copiedRows(rows.length))}
         >
           Copy table
         </button>
+        <label
+          className="delta-toggle"
+          title={
+            referenceName === null
+              ? 'Pin a reference file first: ⋯ menu of a file, Use as reference'
+              : `Show every metric as the difference from ${referenceName} (signed, same unit). Under a tilt simulation the tilted value is used where a cell has one. Sorting, CSV and copy follow what is shown.`
+          }
+        >
+          <input
+            type="checkbox"
+            checked={deltaOn}
+            disabled={referenceName === null}
+            onChange={(e) => updateView({ deltaVsReference: e.target.checked })}
+          />
+          Δ vs reference
+        </label>
+        {referenceName !== null && (
+          <span className="count ref-note" data-testid="reference-note">
+            <PinMark /> Reference: {referenceName}
+            <button type="button" onClick={() => setReference(null)}>
+              Clear reference
+            </button>
+          </span>
+        )}
         {sort && (
           <span className="count sort-hint" data-testid="sort-hint">
             Sorted by {sortLabel(sort.key)} {sort.dir === 'asc' ? '↑' : '↓'} (CSV and copy follow)
@@ -226,8 +258,9 @@ export const MetricsTable = memo(function MetricsTable({
               {columns.map((c) =>
                 header(
                   c.key,
-                  `${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)} (${c.unit})`,
-                  columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg }),
+                  `${deltaOn ? 'Δ ' : ''}${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)} (${c.unit})`,
+                  (deltaOn ? `Difference from ${referenceName} (the reference row shows its own values). ` : '') +
+                    (columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg }) ?? ''),
                 ),
               )}
             </tr>
@@ -247,7 +280,7 @@ export const MetricsTable = memo(function MetricsTable({
               <tr
                 key={r.id}
                 data-row-id={r.id}
-                className={r.id === highlighted ? 'hl' : undefined}
+                className={[r.id === highlighted ? 'hl' : '', r.isReference ? 'ref' : ''].filter(Boolean).join(' ') || undefined}
                 onClick={() => pickFile(r.id)}
                 onPointerEnter={(e) => hoverPreviews(e) && setHoverId(r.id)}
                 onPointerLeave={() => setHoverId(null)}
@@ -264,10 +297,11 @@ export const MetricsTable = memo(function MetricsTable({
                     aria-current={r.id === highlighted || undefined}
                     title={
                       (r.file.length > FILE_NAME_MAX ? `${r.file}\n${r.id}` : r.id) +
-                      '\nEnter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row'
+                      (r.isReference ? '\nReference file' : '') + '\nEnter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row'
                     }
                     {...onSpace(() => toggleRow(r.id))}
                   >
+                    {r.isReference && <PinMark />}
                     {middleEllipsis(r.file, FILE_NAME_MAX)}
                   </button>
                   <button
@@ -289,7 +323,7 @@ export const MetricsTable = memo(function MetricsTable({
                 <td>{r.freq}</td>
                 <td>{r.gain === null ? '—' : r.gain.toFixed(2)}</td>
                 {columns.map((c) => {
-                  const cell = formatCell(r.cells[c.key], r.tilted?.[c.key]);
+                  const cell = rowCell(r, c.key);
                   return (
                     <td key={c.key} data-col={c.key} tabIndex={-1} title={cell.title} className={cell.title ? 'has-reason' : undefined}>
                       {cell.text}

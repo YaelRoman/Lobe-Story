@@ -150,6 +150,10 @@ export interface MetricsRow {
   cells: Record<MetricColumn, MetricResult>;
   /** Only the cells that should show `original → tilted`; absent cells stay single values. */
   tilted?: Partial<Record<MetricColumn, MetricResult>>;
+  /** The pinned reference file's row: marked, and in the difference view it keeps its own values. */
+  isReference?: boolean;
+  /** The cells hold differences from the reference (signed, one decimal) instead of values. */
+  isDelta?: boolean;
 }
 
 export { convertGain };
@@ -223,6 +227,32 @@ export function buildRows(
     }
   }
   return rows;
+}
+
+const shown = (r: MetricsRow, key: MetricColumn): MetricResult => r.tilted?.[key] ?? r.cells[key];
+
+/**
+ * The rows with the reference file's row marked. With `delta`, every other row's cells become the difference from the
+ * reference (the value a cell shows, i.e. the tilted one under a simulation, minus the reference's); a cell is missing
+ * when either side is. The reference row keeps its own values. Null when the reference has no row.
+ */
+export function markReference(rows: MetricsRow[], referenceId: string | null, delta: boolean): MetricsRow[] {
+  const ref = referenceId === null ? undefined : rows.find((r) => r.id === referenceId);
+  if (!ref) return rows;
+  return rows.map((r) => {
+    if (r.id === ref.id) return { ...r, isReference: true };
+    if (!delta) return r;
+    const cells = {} as Record<MetricColumn, MetricResult>;
+    for (const { key } of METRIC_COLUMNS) {
+      const mine = shown(r, key);
+      const theirs = shown(ref, key);
+      cells[key] =
+        mine.value !== null && theirs.value !== null
+          ? { value: mine.value - theirs.value }
+          : { value: null, reason: mine.value === null ? (mine.reason ?? 'no value for this file') : 'the reference file has no value' };
+    }
+    return { ...r, cells, tilted: undefined, isDelta: true };
+  });
 }
 
 export type SortKey = 'file' | 'group' | 'freq' | 'gain' | MetricColumn;
@@ -333,6 +363,13 @@ export const tsvText = (raw: string): string => formulaSafe(raw).replace(/[\t\r\
 
 const oneDecimal = (r: MetricResult) => (r.value === null ? '—' : r.value.toFixed(1));
 
+/** A difference as shown: signed, one decimal ("+1.2", "−0.4" as "-0.4", "0.0" when it rounds to zero). */
+export function signedOneDecimal(v: number | null): string {
+  if (v === null) return '—';
+  const rounded = Number(v.toFixed(1));
+  return rounded === 0 ? '0.0' : rounded > 0 ? `+${rounded.toFixed(1)}` : rounded.toFixed(1);
+}
+
 export function formatCell(original: MetricResult, tilted?: MetricResult): { text: string; title?: string } {
   if (!tilted) return { text: oneDecimal(original), title: original.reason };
   const reasons = [
@@ -374,13 +411,15 @@ export function toCsv(
   sim?: SimSettings | ((id: string) => SimSettings),
   uslsRangeDeg = 20,
   levelDb = 3,
+  deltaVs?: string,
 ): string {
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
-  const tilted = typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim);
+  // The difference view has one column per metric (the difference of the shown values), whatever the simulation.
+  const tilted = deltaVs === undefined && (typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim));
   const withSource = rows.some((r) => r.source !== r.file);
   const metricHeader = METRIC_COLUMNS.flatMap((c) => {
     const label = columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
-    return tilted ? [`${label} original (${c.unit})`, `${label} tilted (${c.unit})`] : [`${label} (${c.unit})`];
+    return tilted ? [`${label} original (${c.unit})`, `${label} tilted (${c.unit})`] : [columnHeader(label, c.unit, deltaVs)];
   });
   const header = [
     'File',
@@ -401,7 +440,7 @@ export function toCsv(
       ...METRIC_COLUMNS.flatMap((c) =>
         tilted
           ? [fmt(r.cells[c.key].value), fmt((r.tilted?.[c.key] ?? r.cells[c.key]).value)]
-          : [fmt(r.cells[c.key].value)],
+          : [fmt(shown(r, c.key).value)],
       ),
       ...(tilted && simFor
         ? (() => {
@@ -415,7 +454,16 @@ export function toCsv(
 }
 
 /** The text a table cell shows for a row and column (`original → tilted` under a simulation). */
-export const cellText = (r: MetricsRow, key: MetricColumn): string => formatCell(r.cells[key], r.tilted?.[key]).text;
+export const cellText = (r: MetricsRow, key: MetricColumn): string => rowCell(r, key).text;
+
+/** What a row's cell shows (and its tooltip): the difference in the difference view, else the value (`original → tilted` under a simulation). */
+export function rowCell(r: MetricsRow, key: MetricColumn): { text: string; title?: string } {
+  if (r.isDelta) return { text: signedOneDecimal(r.cells[key].value), title: r.cells[key].reason };
+  return formatCell(r.cells[key], r.tilted?.[key]);
+}
+
+/** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */
+const columnHeader = (label: string, unit: string, deltaVs?: string): string => (deltaVs === undefined ? `${label} (${unit})` : `${label} Δ vs ${deltaVs} (${unit})`);
 
 type CopyColumn = { key: MetricColumn; label: string; unit: string };
 
@@ -435,7 +483,8 @@ export function toTsv(
   fbWindowDeg: number,
   uslsRangeDeg = 20,
   levelDb = 3,
+  deltaVs?: string,
 ): string {
-  const header = ['File', 'Group', 'MHz', `Gain (${gainUnit})`, ...columns.map((c) => `${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)} (${c.unit})`)];
+  const header = ['File', 'Group', 'MHz', `Gain (${gainUnit})`, ...columns.map((c) => columnHeader(columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), c.unit, deltaVs))];
   return [header.join('\t'), ...rows.map((r) => rowToTsv(r, columns))].join('\r\n') + '\r\n';
 }
