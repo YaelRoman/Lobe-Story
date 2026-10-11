@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
-  simulationLabel, toCsv, offsetLabel, csvCell, csvText, clearOfSticky, METRIC_KEYS,
+  simulationLabel, toCsv, markReference, cellText, offsetLabel, csvCell, csvText, clearOfSticky, METRIC_KEYS,
   nextSort, revealScrollTop, sortIfShown, shouldReveal, sortRows, sortValue, ariaSort, type MetricsRow, type SortState,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
@@ -633,4 +633,24 @@ it('pins the order of the metric columns and of the CSV header', () => {
   const tagged = [{ pattern: p, tags: { polarization: '+45', tiltDeg: 6 } }];
   const fixtureRows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
   expect(toCsv(fixtureRows, 'dBi', 30).split('\r\n')[0]).toBe(PINNED_HEADER);
+});
+
+describe('the reference row in the difference view under a simulation', () => {
+  const a = patternFrom(quadBeam(65), vBeamWithLobes, { id: 'a', fileName: 'a.MSI' });
+  const b = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'b', fileName: 'b.MSI' });
+  const tagged = [a, b].map((pattern) => ({ pattern, tags: { tiltDeg: 6 } }));
+  const base = analyzeAll(tagged);
+  const tilt = { electricalDeg: 4, mechanicalDeg: 0 };
+  const sim = analyzeTilted(tiltTagged(tagged, tilt, 'summation'), DEFAULT_SETTINGS, tilt);
+  const built = buildRows(groupPatterns(tagged), base, 'dBi', sim, () => true);
+
+  it('shows its tilted value only, not an original → tilted pair', () => {
+    expect(cellText(markReference(built, 'a', false)[0], 'tilt')).toContain('→');
+    const [ref, other] = markReference(built, 'a', true);
+    expect(ref.isReference).toBe(true);
+    expect(ref.tilted).toBeUndefined();
+    expect(ref.cells.tilt.value).toBe(built[0].tilted!.tilt?.value);
+    expect(cellText(ref, 'tilt')).not.toContain('→');
+    expect(cellText(other, 'tilt')).not.toContain('→');
+  });
 });

@@ -241,6 +241,7 @@ export const MetricsTable = memo(function MetricsTable({
         {referenceName !== null && (
           <span className="count ref-note" data-testid="reference-note">
             <PinMark /> Reference: {referenceName}
+            {deltaTilted && <span data-testid="delta-tilted-note"> · Δ of tilted values</span>}
             <button type="button" onClick={() => setReference(null)}>
               Clear reference
             </button>

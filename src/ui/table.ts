@@ -236,14 +236,20 @@ const shown = (r: MetricsRow, key: MetricColumn): MetricResult => r.tilted?.[key
 /**
  * The rows with the reference file's row marked. With `delta`, every other row's cells and gain become the difference
  * from the reference (the value a cell shows, i.e. the tilted one under a simulation, minus the reference's); a value
- * is missing when either side is. The reference row keeps its own values. The rows are returned as given (not marked)
+ * is missing when either side is. The reference row keeps its own values (the tilted ones, as a single number, in the
+ * difference view under a simulation). The rows are returned as given (not marked)
  * when the reference has no row.
  */
 export function markReference(rows: MetricsRow[], referenceId: string | null, delta: boolean): MetricsRow[] {
   const ref = referenceId === null ? undefined : rows.find((r) => r.id === referenceId);
   if (!ref) return rows;
   return rows.map((r) => {
-    if (r.id === ref.id) return { ...r, isReference: true };
+    // The reference keeps its own values; under a simulation in the difference view it shows its tilted value only (like every other row).
+    if (r.id === ref.id) {
+      if (!delta || !r.tilted) return { ...r, isReference: true };
+      const cells = { ...r.cells, ...r.tilted };
+      return { ...r, cells, tilted: undefined, isReference: true };
+    }
     if (!delta) return r;
     const cells = {} as Record<MetricColumn, MetricResult>;
     for (const { key } of METRIC_COLUMNS) {

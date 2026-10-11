@@ -155,6 +155,20 @@ test.describe('reference file', () => {
     await expect(page.getByTestId('plot-h').locator('path.js-line[style*="stroke-width: 3.5"]').first()).toBeVisible();
   });
 
+  test('under a simulation the difference view says it compares tilted values and the reference row has one number per cell', async ({ page }) => {
+    await loadExample(page);
+    await menuOf(page, 2).getByLabel(/^Actions for /).click();
+    await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+    await expect(page.getByTestId('delta-tilted-note')).toHaveCount(0);
+    await page.getByLabel('Δ vs reference').check();
+    await page.getByLabel('Electrical tilt Δ (°) value').fill('3');
+    await page.getByLabel('Electrical tilt Δ (°) value').press('Enter');
+    await expect(page.getByTestId('delta-tilted-note')).toHaveText(/Δ of tilted values/);
+    const cells = await page.locator('.metrics tbody tr.ref td[data-col]').allInnerTexts();
+    expect(cells.length).toBeGreaterThan(5);
+    for (const c of cells) expect(c).not.toContain('→');
+  });
+
   test('pin a reference, show the differences, see it in the plots, save and reopen the project', async ({ page }, testInfo) => {
     await loadExample(page);
     // Pin the third file of the panel from its ⋯ menu.
