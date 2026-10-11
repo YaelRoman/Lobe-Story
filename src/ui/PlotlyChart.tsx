@@ -6,6 +6,7 @@ import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
 import { PlotBoundary } from './ErrorBoundary';
 import { CHART_PRIVACY, toolbarButtons, type ChartToolbar } from './chartToolbar';
+import { canvasesOf, releaseGlContexts } from './glContexts';
 import { appliedAfterRedraw, createRedrawGate, hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
 const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
@@ -165,6 +166,8 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
         applied.current = look;
       }
       lastDraw.current = { figure, config };
+      // The 3D scenes this redraw drops (another 3D layout, fewer files) leave their WebGL contexts behind: release them.
+      const scenes = canvasesOf(el);
       void Plotly.react(
         el,
         [...owned.current.traces, ...(overlay?.data ?? [])] as unknown as PlotlyNativeData[],
@@ -172,6 +175,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
         config,
       )
         .then(() => {
+          releaseGlContexts(scenes);
           if (!redrawGate.current.isLatest(generation)) return;
           // The drawn traces show what was last applied to them, unless a restyle was sent while the redraw was
           // pending: then what is drawn is unknown, and the next restyle sends everything (otherwise an old target
@@ -185,6 +189,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
           drawnHandler.current?.(figure, overlay);
         })
         .catch(() => {
+          releaseGlContexts(scenes);
           if (!redrawGate.current.isLatest(generation)) return;
           redrawing.current = false;
           restyledDuringRedraw.current = false;
@@ -220,11 +225,14 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
     const el = ref.current;
     return () => {
       if (!el) return;
+      const scenes = canvasesOf(el);
       try {
         Plotly.purge(el);
       } catch {
         // A plot that failed to draw can fail to clear as well; the element is leaving the page anyway.
       }
+      // After the library has let go of its scenes: their contexts are not left to the garbage collector.
+      releaseGlContexts(scenes, 'all');
     };
   }, []);
 

@@ -150,3 +150,57 @@ test('a highlight restyles the traces that are drawn: no trace is built again, a
   await expect.poll(async () => (await cutState(page)).shapes).toBe(0);
   expect(problems).toEqual([]);
 });
+
+test('3D: scenes that a redraw drops release their WebGL contexts, so the browser never takes one away', async ({ page }) => {
+  test.slow();
+  const warnings: string[] = [];
+  page.on('console', (m) => {
+    if (/WebGL context/i.test(m.text())) warnings.push(m.text());
+  });
+  // Count the WebGL contexts made and the ones released.
+  await page.addInitScript(() => {
+    const counts = { made: 0, released: 0 };
+    (window as unknown as { __gl: typeof counts }).__gl = counts;
+    const getContext = HTMLCanvasElement.prototype.getContext as (this: HTMLCanvasElement, ...args: unknown[]) => unknown;
+    const seen = new WeakSet<HTMLCanvasElement>();
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, ...args: unknown[]) {
+      const context = getContext.apply(this, args);
+      if (context && /webgl/.test(String(args[0])) && !seen.has(this)) {
+        seen.add(this);
+        counts.made++;
+        this.addEventListener('webglcontextlost', () => counts.released++);
+      }
+      return context;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+  });
+  const live = () => page.evaluate(() => { const c = (window as unknown as { __gl: { made: number; released: number } }).__gl; return c.made - c.released; });
+  const scenes = page.locator('[data-testid="plot-3d"] canvas');
+  const layout = (name: string) => page.getByRole('group', { name: '3D layout' }).getByRole('button', { name }).click();
+
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await page.getByRole('group', { name: 'Dimension' }).getByRole('button', { name: '3D' }).click();
+  // Three rounds of overlay (1 scene) and side by side (6 scenes): 5 scenes dropped and 5 made each time.
+  for (let round = 0; round < 3; round++) {
+    await layout('Overlay');
+    await expect(scenes).toHaveCount(1);
+    await expect.poll(live).toBe(1);
+    await layout('Side by side');
+    await expect(scenes).toHaveCount(6);
+    await expect.poll(live).toBe(6);
+  }
+  // A tilt change redraws the six scenes in place: no new context.
+  const made = await page.evaluate(() => (window as unknown as { __gl: { made: number } }).__gl.made);
+  const mech = page.getByRole('group', { name: 'Mechanical tilt (°)' }).locator('input[type="number"]');
+  if (!(await mech.isVisible())) await page.getByRole('button', { name: /Simulation/ }).first().click();
+  await mech.fill('10');
+  await mech.press('Enter');
+  await expect(page.locator('.sim-bar').getByText('Simulated')).toBeVisible();
+  await page.waitForTimeout(1500);
+  await expect(scenes).toHaveCount(6);
+  expect(await page.evaluate(() => (window as unknown as { __gl: { made: number } }).__gl.made)).toBe(made);
+  // Leaving 3D releases all of them.
+  await page.getByRole('group', { name: 'Dimension' }).getByRole('button', { name: '2D' }).click();
+  await expect.poll(live).toBe(0);
+  expect(warnings).toEqual([]);
+});
