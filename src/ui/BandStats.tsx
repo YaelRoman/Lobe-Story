@@ -239,6 +239,7 @@ export const BandStats = memo(function BandStats({
           className="plot wide"
           figure={figure}
           testId="plot-band"
+          toolbar="xy"
           ariaLabel="Band statistics plot"
           labelledExport={{ caption: exportCaption ?? undefined, filename: 'band-statistics-histogram' }}
         />

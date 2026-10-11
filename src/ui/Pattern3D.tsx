@@ -83,7 +83,7 @@ export function Pattern3D({
           {notice}
         </p>
       )}
-      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: exportCaption, filename: 'antenna-pattern-3d' }} />
+      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: exportCaption, filename: 'antenna-pattern-3d' }} />
     </>
   );
 }

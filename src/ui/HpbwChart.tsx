@@ -128,6 +128,7 @@ export const HpbwChart = memo(function HpbwChart({
         className="plot wide"
         figure={figure}
         testId="plot-hpbw"
+        toolbar="xy"
         ariaLabel={
           both
             ? `${levelDb === 3 ? 'Half-power beamwidth' : `Beamwidth at ${levelDb} dB`} against frequency, one line per group`

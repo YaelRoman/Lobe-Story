@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Plotly from 'plotly.js-dist-min';
-import type { Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
+import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
 import { PlotBoundary } from './ErrorBoundary';
+import { CHART_PRIVACY, toolbarButtons, type ChartToolbar } from './chartToolbar';
 import { appliedAfterRedraw, createRedrawGate, hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
 const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
@@ -22,6 +23,8 @@ interface Props {
   /** The plot's accessible name (a group, not an image: Plotly's modebar buttons inside must stay reachable). */
   ariaLabel?: string;
   onRelayout?: RelayoutHandler;
+  /** Which toolbar (modebar) buttons the chart gets: see `ChartToolbar`. */
+  toolbar: ChartToolbar;
   /** Replaces the modebar's image download by one of a labelled version of the figure (legend on, highlighted file's values). */
   labelledExport?: { caption?: ExportCaption; /** Name of the saved file, without extension. */ filename?: string };
   /**
@@ -44,7 +47,7 @@ export function PlotlyChart(props: Props) {
   );
 }
 
-function Chart({ figure, className, testId, ariaLabel, onRelayout, labelledExport, previewBase }: Props) {
+function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labelledExport, previewBase }: Props) {
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
   const [error, setError] = useState<string | null>(null);
@@ -103,34 +106,29 @@ function Chart({ figure, className, testId, ariaLabel, onRelayout, labelledExpor
     const generation = redrawGate.current.start();
     redrawing.current = true;
     restyledDuringRedraw.current = false;
+    const labelledDownload = {
+      name: 'toImageLabelled',
+      title: 'Download plot as a png (with legend and values)',
+      icon: Plotly.Icons.camera,
+      click: () => {
+        const cur = exporting.current;
+        const out = exportFigure(cur.figure, cur.labelledExport?.caption);
+        void Plotly.downloadImage(
+          { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
+          { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },
+        );
+      },
+    };
     void Plotly.react(
       el,
       ownTraces(figure.data) as unknown as PlotlyNativeData[],
       { ...figure.layout, autosize: true } as Partial<PlotlyNativeLayout>,
       {
         responsive: true,
-        displaylogo: false,
+        ...CHART_PRIVACY,
         toImageButtonOptions: IMAGE_OPTIONS,
-        ...(labelled
-          ? {
-              modeBarButtonsToRemove: ['toImage' as const],
-              modeBarButtonsToAdd: [
-                {
-                  name: 'toImageLabelled',
-                  title: 'Download plot as a png (with legend and values)',
-                  icon: Plotly.Icons.camera,
-                  click: () => {
-                    const cur = exporting.current;
-                    const out = exportFigure(cur.figure, cur.labelledExport?.caption);
-                    void Plotly.downloadImage(
-                      { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
-                      { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },
-                    );
-                  },
-                },
-              ],
-            }
-          : {}),
+        // An explicit list: the library's default set has the charting library's cloud upload button and select tools in it.
+        modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined) as unknown as PlotlyConfig['modeBarButtons'],
       },
     )
       .then(() => {
@@ -153,7 +151,7 @@ function Chart({ figure, className, testId, ariaLabel, onRelayout, labelledExpor
         restyledDuringRedraw.current = false;
         setError('This plot could not be drawn (WebGL unavailable?)');
       });
-  }, [figure, labelled, previewing]);
+  }, [figure, labelled, previewing, toolbar]);
 
   useEffect(() => {
     const el = ref.current;

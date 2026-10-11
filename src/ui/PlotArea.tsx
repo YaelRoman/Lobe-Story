@@ -52,10 +52,11 @@ interface CutPlotProps {
   byGroup: boolean;
   /** Label of the pinned reference file when it is drawn (it has no legend entry without a legend). */
   referenceLabel: string | null;
+  mode: PlotMode;
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup, referenceLabel }: CutPlotProps) {
+function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup, referenceLabel, mode }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -63,6 +64,7 @@ function CutPlot({ id, figure, readout, target, traces, emphasised, byGroup, ref
         className="plot"
         figure={figure}
         testId={`plot-${id}`}
+        toolbar={mode === 'polar' ? 'polar' : 'rect'}
         ariaLabel={`${id === 'h' ? 'Horizontal' : 'Vertical'} cut of the highlighted and visible patterns`}
         labelledExport={{ caption: target ? { file: target, items: readout } : undefined }}
         previewBase={emphasised}
@@ -141,7 +143,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
         series: buildCutSeries(drawn.items, drawn.sim, drawn.metrics, drawn.colors, cut, drawn.styles, drawn.reference),
       };
       const referenceLabel = options.series.find((x) => x.reference)?.label ?? null;
-      return { referenceLabel, figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === drawn.markerTarget)?.label ?? '', traces: options.series.length, emphasised: options.series.some((x) => x.id === drawn.markerTarget) ? drawn.markerTarget : null };
+      return { referenceLabel, mode: view.mode, figure: buildCutFigure(options), readout: markerReadout(options), target: options.series.find((x) => x.id === drawn.markerTarget)?.label ?? '', traces: options.series.length, emphasised: options.series.some((x) => x.id === drawn.markerTarget) ? drawn.markerTarget : null };
     };
     return { h: make('H'), v: make('V') };
   }, [is3d, drawn, view.mode, view.floorDb, view.markers, view.theme, settings]);
