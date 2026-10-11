@@ -1,8 +1,20 @@
-import type { Annotations, Data, Shape } from 'plotly.js';
+import type { Annotations, Data, PlotData, Shape } from 'plotly.js';
 import type { BandStat } from '../core/analysis/bandStats';
 import { PALETTE } from './colors';
 import type { ExportCaption } from './exportFigure';
 import type { Figure, FigureTheme } from './figureTheme';
+
+/** The histogram trace. `@types/plotly.js` has no `nbinsx` on its trace type, though Plotly takes it: the one place that says so. */
+function histogramTrace(values: number[]): Data {
+  const trace: Partial<PlotData> & { nbinsx: number } = {
+    type: 'histogram',
+    x: values,
+    nbinsx: histBins(values.length),
+    marker: { color: PALETTE[0] },
+    hovertemplate: '%{x}: %{y}<extra></extra>',
+  };
+  return trace;
+}
 
 export interface BandHistInput {
   values: number[];
@@ -114,9 +126,7 @@ export function buildBandHistFigure({ values, stat, label, unit }: BandHistInput
     text: m.text,
   }));
   return {
-    data: [
-      { type: 'histogram', x: values, nbinsx: histBins(values.length), marker: { color: PALETTE[0] }, hovertemplate: '%{x}: %{y}<extra></extra>' },
-    ] as unknown as Data[],
+    data: [histogramTrace(values)],
     layout: {
       paper_bgcolor: theme.bg,
       plot_bgcolor: 'rgba(0,0,0,0)',
