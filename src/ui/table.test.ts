@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
   simulationLabel, toCsv, offsetLabel, csvCell, csvText,
+  nextSort, revealScrollTop, sortRows, sortValue, ariaSort, type MetricsRow, type SortState,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
@@ -430,5 +431,85 @@ describe('csvCell and csvText', () => {
     const line = toCsv(rows, 'dBi', 30).split('\r\n')[1];
     expect(line).toContain(',-5.00,');
     expect(line).not.toContain("'-5");
+  });
+});
+
+describe('sorting the table', () => {
+  const res = (value: number | null, reason?: string) => ({ value, ...(reason ? { reason } : {}) });
+  const row = (id: string, file: string, freq: number, hpbw: number | null, over: Partial<MetricsRow> = {}): MetricsRow => {
+    const base = buildRows(
+      groupPatterns([{ pattern: patternFrom(quadBeam(60), vBeamWithLobes, { id }), tags: {} }]),
+      analyzeAll([{ pattern: patternFrom(quadBeam(60), vBeamWithLobes, { id }), tags: {} }]),
+      'dBd',
+    )[0];
+    return { ...base, id, file, source: file, group: 'G', freq, gain: 10, cells: { ...base.cells, hHpbw: res(hpbw) }, ...over };
+  };
+  const rows = [row('a', 'A10', 1800, 65), row('b', 'A2', 900, null), row('c', 'a1', 2100, 60), row('d', 'B', 900, 70)];
+  const ids = (sort: SortState | null) => sortRows(rows, sort).map((r) => r.id);
+
+  it('cycles ascending, descending, none, and restarts on another column', () => {
+    const asc = nextSort(null, 'freq');
+    expect(asc).toEqual({ key: 'freq', dir: 'asc' });
+    const desc = nextSort(asc, 'freq');
+    expect(desc).toEqual({ key: 'freq', dir: 'desc' });
+    expect(nextSort(desc, 'freq')).toBeNull();
+    expect(nextSort(desc, 'file')).toEqual({ key: 'file', dir: 'asc' });
+  });
+
+  it('maps the sort state to aria-sort', () => {
+    const s: SortState = { key: 'hHpbw', dir: 'desc' };
+    expect(ariaSort(s, 'hHpbw')).toBe('descending');
+    expect(ariaSort({ ...s, dir: 'asc' }, 'hHpbw')).toBe('ascending');
+    expect(ariaSort(s, 'freq')).toBe('none');
+    expect(ariaSort(null, 'freq')).toBe('none');
+  });
+
+  it('leaves the order alone without a sort and does not mutate the input', () => {
+    expect(ids(null)).toEqual(['a', 'b', 'c', 'd']);
+    ids({ key: 'freq', dir: 'desc' });
+    expect(rows.map((r) => r.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('sorts numbers numerically and keeps ties in the original order', () => {
+    expect(ids({ key: 'freq', dir: 'asc' })).toEqual(['b', 'd', 'a', 'c']);
+    expect(ids({ key: 'freq', dir: 'desc' })).toEqual(['c', 'a', 'b', 'd']);
+  });
+
+  it('sorts text naturally and case-insensitively', () => {
+    expect(ids({ key: 'file', dir: 'asc' })).toEqual(['c', 'b', 'a', 'd']); // a1, A2, A10, B
+    expect(ids({ key: 'file', dir: 'desc' })).toEqual(['d', 'a', 'b', 'c']);
+  });
+
+  it('always puts missing values last, in both directions', () => {
+    expect(ids({ key: 'hHpbw', dir: 'asc' })).toEqual(['c', 'a', 'd', 'b']);
+    expect(ids({ key: 'hHpbw', dir: 'desc' })).toEqual(['d', 'a', 'c', 'b']);
+    const noGain = [row('x', 'X', 1, 1, { gain: null }), row('y', 'Y', 1, 1, { gain: 3 })];
+    expect(sortRows(noGain, { key: 'gain', dir: 'desc' }).map((r) => r.id)).toEqual(['y', 'x']);
+  });
+
+  it('sorts original → tilted cells by the tilted value when there is one', () => {
+    const t = [
+      row('p', 'P', 1, 60, { tilted: { hHpbw: res(90) } }),
+      row('q', 'Q', 1, 80, { tilted: { hHpbw: res(null, 'off beam') } }),
+      row('r', 'R', 1, 70),
+    ];
+    expect(sortValue(t[0], 'hHpbw')).toBe(90);
+    expect(sortValue(t[1], 'hHpbw')).toBeNull();
+    expect(sortValue(t[2], 'hHpbw')).toBe(70);
+    expect(sortRows(t, { key: 'hHpbw', dir: 'asc' }).map((r) => r.id)).toEqual(['r', 'p', 'q']);
+  });
+});
+
+describe('revealScrollTop', () => {
+  const view = { scrollTop: 100, clientHeight: 300, headerHeight: 30 };
+  it('keeps the scroll position for a row that is fully visible', () => {
+    expect(revealScrollTop({ top: 200, height: 20 }, view)).toBe(100);
+  });
+  it('scrolls up so the row sits just under the sticky header', () => {
+    expect(revealScrollTop({ top: 110, height: 20 }, view)).toBe(80);
+    expect(revealScrollTop({ top: 0, height: 20 }, view)).toBe(0);
+  });
+  it('scrolls down so the row ends at the bottom edge', () => {
+    expect(revealScrollTop({ top: 390, height: 20 }, view)).toBe(110);
   });
 });

@@ -204,6 +204,75 @@ export function buildRows(
   return rows;
 }
 
+export type SortKey = 'file' | 'group' | 'freq' | 'gain' | MetricColumn;
+export interface SortState {
+  key: SortKey;
+  dir: 'asc' | 'desc';
+}
+
+/** Header click: ascending, then descending, then unsorted; another column starts ascending. */
+export function nextSort(current: SortState | null, key: SortKey): SortState | null {
+  if (current?.key !== key) return { key, dir: 'asc' };
+  return current.dir === 'asc' ? { key, dir: 'desc' } : null;
+}
+
+export function ariaSort(sort: SortState | null, key: SortKey): 'ascending' | 'descending' | 'none' {
+  if (sort?.key !== key) return 'none';
+  return sort.dir === 'asc' ? 'ascending' : 'descending';
+}
+
+/** The value a column sorts by; an `original → tilted` cell sorts by its tilted value. `null` = missing ("—"). */
+export function sortValue(row: MetricsRow, key: SortKey): number | string | null {
+  switch (key) {
+    case 'file':
+      return row.file;
+    case 'group':
+      return row.group;
+    case 'freq':
+      return row.freq;
+    case 'gain':
+      return row.gain;
+    default:
+      return (row.tilted?.[key] ?? row.cells[key]).value;
+  }
+}
+
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+/** A sorted copy of the rows; missing values stay last in both directions, ties keep their order. */
+export function sortRows(rows: MetricsRow[], sort: SortState | null): MetricsRow[] {
+  if (!sort) return rows;
+  const sign = sort.dir === 'asc' ? 1 : -1;
+  return rows
+    .map((row, index) => ({ row, index, value: sortValue(row, sort.key) }))
+    .sort((p, q) => {
+      if (p.value === null || q.value === null) {
+        if (p.value === q.value) return p.index - q.index;
+        return p.value === null ? 1 : -1;
+      }
+      const c =
+        typeof p.value === 'number' && typeof q.value === 'number'
+          ? p.value - q.value
+          : collator.compare(String(p.value), String(q.value));
+      return c !== 0 ? sign * c : p.index - q.index;
+    })
+    .map((x) => x.row);
+}
+
+/**
+ * New `scrollTop` of the table wrapper that shows a row (`top` is its offset in the table) fully,
+ * below the sticky header; unchanged when it is already visible.
+ */
+export function revealScrollTop(
+  row: { top: number; height: number },
+  view: { scrollTop: number; clientHeight: number; headerHeight: number },
+): number {
+  if (row.top - view.headerHeight < view.scrollTop) return Math.max(0, row.top - view.headerHeight);
+  const bottom = row.top + row.height;
+  if (bottom > view.scrollTop + view.clientHeight) return bottom - view.clientHeight;
+  return view.scrollTop;
+}
+
 const fmt = (v: number | null) => (v === null ? '' : v.toFixed(2));
 /** One CSV field, quoted only where CSV syntax needs it. */
 export const csvCell = (raw: string) => (/[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw);

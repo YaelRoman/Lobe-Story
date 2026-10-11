@@ -221,6 +221,12 @@ export const FilePanel = memo(function FilePanel({ groups, errors, warnings, col
   const [renaming, setRenaming] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
 
+  // A highlight set from the table or a plot brings the file's item into view in the panel.
+  useEffect(() => {
+    if (highlighted === null) return;
+    panelRef.current?.querySelector<HTMLElement>('li.hl')?.scrollIntoView?.({ block: 'nearest' });
+  }, [highlighted]);
+
   // Menus close on an outside click or Esc; opening one menu closes the others. `<details>`
   // menus already stop clicks inside them from reaching `document`, so any click that gets
   // here is outside every menu. The `toggle` event doesn't bubble, so the listener below

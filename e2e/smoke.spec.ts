@@ -326,3 +326,91 @@ test('polar plot stays large with many files and the read-out lists the marker v
   const entry = await plot.locator('.legend .legendtext').first().textContent();
   expect(entry!.length).toBeLessThanOrEqual(34);
 });
+
+test('metrics table: sorting, sticky header and file column, scroll sync and blank-cell note', async ({ page }) => {
+  await page.goto('/');
+  const freqs = [1900, 1700, 2100, 1800, 2000];
+  const files = freqs.map((f) => file(`_${f}_X_CO_P45_08T_Y2.MSI`, msi(f)));
+  // A flat horizontal cut has no half-power width: its H-HPBW cell is "—".
+  files.push(file('_1600_flat.MSI', planetText({ headers: ['NAME F', 'FREQUENCY 1600', 'GAIN 15 dBd', 'TILT ELECTRICAL'], h: points(() => 0) })));
+  for (let i = 0; i < 24; i++) files.push(file(`_${1000 + i}_X_CO_P45_08T_Y2.MSI`, msi(1000 + i)));
+  await page.getByTestId('file-input').setInputFiles(files);
+  const rows = page.locator('.metrics tbody tr');
+  await expect(rows).toHaveCount(30);
+  await page.getByRole('checkbox', { name: /Show all in/ }).first().check();
+
+  const mhz = async () => (await rows.locator('td:nth-child(3)').allTextContents()).map(Number);
+  const header = (name: RegExp) => page.getByRole('columnheader', { name });
+  const unsorted = await mhz();
+  await header(/^MHz/).getByRole('button').click();
+  await expect(header(/^MHz/)).toHaveAttribute('aria-sort', 'ascending');
+  const asc = await mhz();
+  expect(asc).toEqual([...unsorted].sort((a, b) => a - b));
+  await header(/^MHz/).getByRole('button').click();
+  await expect(header(/^MHz/)).toHaveAttribute('aria-sort', 'descending');
+  expect(await mhz()).toEqual([...unsorted].sort((a, b) => b - a));
+  await header(/^MHz/).getByRole('button').click();
+  await expect(header(/^MHz/)).toHaveAttribute('aria-sort', 'none');
+  expect(await mhz()).toEqual(unsorted);
+
+  // "—" stays last in both directions; the header is keyboard operable.
+  const hh = header(/^H-HPBW/);
+  await hh.getByRole('button').focus();
+  await page.keyboard.press('Enter');
+  await expect(hh).toHaveAttribute('aria-sort', 'ascending');
+  await expect(rows.last().locator('td:nth-child(5)')).toHaveText('—');
+  await page.keyboard.press('Enter');
+  await expect(hh).toHaveAttribute('aria-sort', 'descending');
+  await expect(rows.last().locator('td:nth-child(5)')).toHaveText('—');
+  await expect(rows.first().locator('td:nth-child(5)')).not.toHaveText('—');
+
+  // The CSV export follows the on-screen order.
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV' }).click();
+  const csv = await (await downloadPromise).createReadStream();
+  const text = await new Promise<string>((resolve) => {
+    let out = '';
+    csv.on('data', (c) => (out += c));
+    csv.on('end', () => resolve(out));
+  });
+  const lines = text.replace('\uFEFF', '').trim().split('\r\n');
+  expect(lines[lines.length - 1].startsWith('_1600_flat.MSI')).toBe(true);
+
+  // Sticky header row and File column while scrolling both ways.
+  const wrap = page.locator('.metrics-wrap');
+  await wrap.evaluate((el) => {
+    el.scrollTop = 300;
+    el.scrollLeft = 700;
+  });
+  const wrapBox = (await wrap.boundingBox())!;
+  const thBox = (await page.locator('.metrics thead th').nth(8).boundingBox())!;
+  const fileTh = (await page.locator('.metrics thead th').first().boundingBox())!;
+  const fileTd = (await rows.nth(20).locator('td').first().boundingBox())!;
+  expect(Math.abs(thBox.y - wrapBox.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(fileTh.x - wrapBox.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(fileTd.x - wrapBox.x)).toBeLessThanOrEqual(1);
+  expect(fileTd.y).toBeGreaterThan(wrapBox.y);
+
+  // Highlighting a file from the panel brings its table row into view inside the table.
+  await wrap.evaluate((el) => (el.scrollTop = 0));
+  const items = page.getByLabel('Files and groups').locator('li');
+  await items.last().locator('.fname').click();
+  const hl = page.locator('.metrics tbody tr.hl');
+  await expect(hl).toHaveCount(1);
+  await expect
+    .poll(async () => {
+      const w = (await wrap.boundingBox())!;
+      const r = (await hl.boundingBox())!;
+      return r.y >= w.y && r.y + r.height <= w.y + w.height;
+    })
+    .toBe(true);
+  // ... and clicking a table row brings its panel item into view.
+  await rows.nth(1).locator('td').nth(2).click();
+  await expect(page.getByLabel('Files and groups').locator('li.hl')).toBeInViewport();
+
+  // The blank-cell note appears with a simulation.
+  await expect(page.getByTestId('sim-blank-note')).toHaveCount(0);
+  await page.getByLabel('Mechanical tilt (°) value').fill('2.5');
+  await page.getByLabel('Mechanical tilt (°) value').press('Enter');
+  await expect(page.getByTestId('sim-blank-note')).toContainText('not defined');
+});
