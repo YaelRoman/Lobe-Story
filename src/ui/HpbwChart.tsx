@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
-import { buildHpbwFigure, type HpbwSeries } from './hpbwFigure';
+import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { PALETTE } from './colors';
 import { bwName } from './bwLabel';
@@ -22,6 +22,7 @@ export const HpbwChart = memo(function HpbwChart({
   const visible = useStore((s) => s.visible);
   const theme = useStore((s) => s.view.theme);
   const levelDb = useStore((s) => s.settings.levelDb);
+  const simulated = sim.tiltActive;
 
   const figure = useMemo(() => {
     const series: HpbwSeries[] = [];
@@ -47,6 +48,8 @@ export const HpbwChart = memo(function HpbwChart({
     return series.length ? buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb) : null;
   }, [groups, metrics, visible, theme, sim, levelDb]);
 
+  const exportCaption = useMemo(() => hpbwCaption(levelDb, simulated), [levelDb, simulated]);
+
   if (!figure) return null;
   return (
     <section>
@@ -54,7 +57,12 @@ export const HpbwChart = memo(function HpbwChart({
         {bwName(levelDb)} vs frequency (groups with a visible file; hollow markers = declared)
         {sim.tiltActive ? ' — faint lines = original' : ''}
       </h2>
-      <PlotlyChart className="plot wide" figure={figure} testId="plot-hpbw" ariaLabel={`${levelDb === 3 ? 'Half-power beamwidth' : `Beamwidth at ${levelDb} dB`} against frequency, one line per group`} />
+      <PlotlyChart
+        className="plot wide"
+        figure={figure}
+        testId="plot-hpbw" ariaLabel={`${levelDb === 3 ? 'Half-power beamwidth' : `Beamwidth at ${levelDb} dB`} against frequency, one line per group`}
+        labelledExport={{ caption: exportCaption, filename: 'beamwidth-vs-frequency' }}
+      />
     </section>
   );
 });

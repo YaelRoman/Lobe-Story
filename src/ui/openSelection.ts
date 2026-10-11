@@ -55,5 +55,5 @@ export async function openSelection(read: ReadInputsResult): Promise<void> {
     return;
   }
   useStore.getState().loadProject(parsed.project);
-  if (read.inputs.length > 0 || read.failed > 0) loadPatterns({ keepUndo: true });
+  if (read.inputs.length > 0 || read.failed > 0) loadPatterns({ keepUndo: true, openedProject: name });
 }

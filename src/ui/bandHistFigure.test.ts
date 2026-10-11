@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Annotations, PlotData, Shape } from 'plotly.js';
-import { buildBandHistFigure, histBins, labelLevels } from './bandHistFigure';
+import { bandHistCaption, buildBandHistFigure, histBins, labelLevels, statText } from './bandHistFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { PALETTE } from './colors';
 import { doubleSided, meanOnly, singleSided } from '../core/analysis/bandStats';
@@ -93,5 +93,33 @@ describe('buildBandHistFigure', () => {
     );
     expect(notes(close).map((a) => a.yshift)).toEqual([0, 14, 28]);
     expect(close.layout.margin?.t).toBe(58);
+  });
+});
+
+describe('statText and bandHistCaption', () => {
+  it('lists every line drawn in the histogram', () => {
+    expect(statText(doubleSided(BASTA_AZ_HPBW, 'arithmetic'), '°')).toBe('mean 65.13 °, P6.7 61.36 °, P93.3 69.4 °');
+    expect(statText(null, '°')).toBe('none');
+    expect(statText(meanOnly([1, 2, 3], 'arithmetic'), 'dB')).toBe('mean 2 dB');
+  });
+
+  it('does not repeat a sub-band range its name already holds', () => {
+    const c = bandHistCaption({ antenna: 'A', subBand: { name: '1710–1795 MHz', minMHz: 1710, maxMHz: 1795 }, parameter: 'p', stat: null, unit: '', n: 1 });
+    expect(c.file).toBe('Antenna: A · Sub-band: 1710–1795 MHz');
+  });
+
+  it('names antenna, sub-band, parameter, statistic and sample count', () => {
+    const c = bandHistCaption({
+      antenna: 'Antenna A',
+      subBand: { name: 'Band 1', minMHz: 1710, maxMHz: 1880 },
+      parameter: 'Azimuth beamwidth',
+      stat: doubleSided(BASTA_AZ_HPBW, 'arithmetic'),
+      unit: '°',
+      n: 126,
+      tilted: true,
+    });
+    expect(c.title).toContain('Azimuth beamwidth');
+    expect(c.file).toBe('Antenna: Antenna A · Sub-band: Band 1 (1710–1880 MHz)');
+    expect(c.items).toEqual(['Parameter: Azimuth beamwidth', 'Statistic: mean 65.13 °, P6.7 61.36 °, P93.3 69.4 °', 'N = 126 (tilted)']);
   });
 });

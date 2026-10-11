@@ -7,8 +7,9 @@ import { openSelection } from './openSelection';
 import { SettingsPanel } from './SettingsPanel';
 import { confirmDialog, saveProjectDialog } from './dialogs';
 import { downloadText } from './download';
+import type { OpenHelp } from './HelpDialog';
 
-export function Toolbar({ onHelp }: { onHelp: () => void }) {
+export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
   const clear = useStore((s) => s.clear);
   const gainUnit = useStore((s) => s.view.gainUnit);
   const theme = useStore((s) => s.view.theme);

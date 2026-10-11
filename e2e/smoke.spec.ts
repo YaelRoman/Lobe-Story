@@ -402,7 +402,8 @@ test('metrics table: sorting, sticky header and file column, scroll sync and bla
     .poll(async () => {
       const w = (await wrap.boundingBox())!;
       const r = (await hl.boundingBox())!;
-      return r.y >= w.y && r.y + r.height <= w.y + w.height;
+      // 1 px of tolerance: the header height is fractional in some browsers.
+      return r.y >= w.y - 1 && r.y + r.height <= w.y + w.height + 1;
     })
     .toBe(true);
   // ... and clicking a table row brings its panel item into view.

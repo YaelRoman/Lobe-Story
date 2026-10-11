@@ -123,6 +123,11 @@ export interface AddFilesOptions {
   unreadable?: number;
   /** Keep the undo offered by the project that was just opened (its pattern files arrive right after). */
   keepUndo?: boolean;
+  /**
+   * Name of the project that was opened together with this selection: the status line then starts with
+   * "Opened the project <name>", and pattern files that the project already held (skipped) are not reported as a problem.
+   */
+  openedProject?: string;
   /** Something else the status line should say about this selection (e.g. project files left unopened). */
   note?: string;
   /** The note is a plain information, not a problem: the line keeps the calm tone and fades out by itself. */
@@ -381,10 +386,14 @@ export const useStore = create<State>()((rawSet, get) => {
         parsed.map((f) => ({ path: f.path, text: f.text, ok: f.result.ok })),
       );
       const counts = { ...plan.counts, unreadable };
+      // Files the opened project already held are not a finding: the project opening is the news.
+      const onlyHeld =
+        options.openedProject !== undefined && counts.skipped > 0 && counts.loaded === 0 && counts.failed === 0 && counts.unreadable === 0 && counts.renamed === 0;
+      const summary = onlyHeld ? [] : [loadSummary(counts)];
       const report: Partial<StoreData> = {
         loadFailed: counts.failed,
-        loadTone: isCleanLoad(counts) && (note.length === 0 || options.noteIsInfo) ? 'info' : 'warn',
-        loadMessage: [loadSummary(counts), ...note].join(' · '),
+        loadTone: (onlyHeld || isCleanLoad(counts)) && (note.length === 0 || options.noteIsInfo) ? 'info' : 'warn',
+        loadMessage: [...(options.openedProject !== undefined ? [`Opened the project ${options.openedProject}`] : []), ...summary, ...note].join(' · '),
       };
       if (plan.add.length === 0) return report;
 

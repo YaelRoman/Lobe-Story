@@ -15,7 +15,7 @@ import { useSimulation } from './ui/useSimulation';
 import { StatusArea } from './ui/StatusArea';
 import { useUnsavedGuard } from './ui/useUnsavedGuard';
 import { EmptyState } from './ui/EmptyState';
-import { HelpDialog } from './ui/HelpDialog';
+import { HelpDialog, type OpenHelp } from './ui/HelpDialog';
 import { useEscapeClear } from './ui/useEscapeClear';
 
 export default function App() {
@@ -54,8 +54,13 @@ export default function App() {
   useEscapeClear();
   // Phone layout: the file panel is a drawer, closed until asked for (on wider screens it is always shown).
   const [filesOpen, setFilesOpen] = useState(false);
+  // The Help dialog is open while `helpOpener` is set: the button that was clicked, which gets the focus back.
+  const [helpOpener, setHelpOpener] = useState<HTMLElement | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const openHelp = useCallback(() => setHelpOpen(true), []);
+  const openHelp = useCallback<OpenHelp>((event) => {
+    setHelpOpener(event.currentTarget instanceof HTMLElement ? event.currentTarget : null);
+    setHelpOpen(true);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -97,7 +102,7 @@ export default function App() {
       </div>
       {dragging && <div className="drop-overlay">Drop pattern files or folders</div>}
       <Dialog />
-      {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
+      {helpOpen && <HelpDialog opener={helpOpener} onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

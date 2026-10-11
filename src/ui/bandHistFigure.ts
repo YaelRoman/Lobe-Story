@@ -1,6 +1,7 @@
 import type { Annotations, Data, Shape } from 'plotly.js';
 import type { BandStat } from '../core/analysis/bandStats';
 import { PALETTE } from './colors';
+import type { ExportCaption } from './exportFigure';
 import type { Figure, FigureTheme } from './figureTheme';
 
 export interface BandHistInput {
@@ -36,6 +37,36 @@ function marks(stat: BandStat | null): Mark[] {
       ];
     }
   }
+}
+
+const fmt = (v: number): string => String(Number(v.toFixed(2)));
+
+/** The statistic as text: "mean 65.13 °, P6.7 61.36 °, P93.3 69.4 °" (the lines drawn in the histogram). */
+export function statText(stat: BandStat | null, unit: string): string {
+  const lines = marks(stat);
+  if (lines.length === 0) return 'none';
+  return lines.map((m) => `${m.text} ${fmt(m.x)}${unit ? ` ${unit}` : ''}`).join(', ');
+}
+
+export interface BandHistCaptionInput {
+  antenna: string;
+  subBand: { name: string; minMHz: number; maxMHz: number };
+  parameter: string;
+  stat: BandStat | null;
+  unit: string;
+  n: number;
+  /** The samples are of the tilted (simulated) patterns. */
+  tilted?: boolean;
+}
+
+/** What the exported histogram says about itself: antenna, sub-band, parameter and statistic (the figure has no legend). */
+export function bandHistCaption(c: BandHistCaptionInput): ExportCaption {
+  const range = `${fmt(c.subBand.minMHz)}–${fmt(c.subBand.maxMHz)} MHz`;
+  return {
+    title: `${c.parameter} — histogram of the band samples`,
+    file: `Antenna: ${c.antenna} · Sub-band: ${c.subBand.name}${range.includes(c.subBand.name) || c.subBand.name.includes(range) ? '' : ` (${range})`}`,
+    items: [`Parameter: ${c.parameter}`, `Statistic: ${statText(c.stat, c.unit)}`, `N = ${c.n}${c.tilted ? ' (tilted)' : ''}`],
+  };
 }
 
 /** Bin count from the sample count: about sqrt(N) + 2, between 5 and 20. */

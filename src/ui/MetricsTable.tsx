@@ -9,7 +9,7 @@ import {
 import { middleEllipsis } from './legend';
 import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { downloadText } from './download';
-import { DefinitionsButton } from './HelpDialog';
+import { DefinitionsButton, type OpenHelp } from './HelpDialog';
 import type { SimulationResult } from './useSimulation';
 
 const FILE_NAME_MAX = 28;
@@ -22,7 +22,7 @@ export const MetricsTable = memo(function MetricsTable({
   sim,
   onHelp,
 }: {
-  onHelp: () => void;
+  onHelp: OpenHelp;
   groups: GroupView[];
   metrics: Map<string, PatternMetrics>;
   colors: Map<string, string>;
@@ -72,7 +72,8 @@ export const MetricsTable = memo(function MetricsTable({
     revealed.current = highlighted === null ? null : cur;
     const row = reveal ? wrap?.querySelector<HTMLElement>('tr.hl') : null;
     if (!wrap || !row) return;
-    const headerHeight = wrap.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+    // Rounded up: a fractional header height (Firefox) must never leave the row clipped by a fraction of a pixel.
+    const headerHeight = Math.ceil(wrap.querySelector('thead')?.getBoundingClientRect().height ?? 0);
     const top = revealScrollTop(
       { top: row.offsetTop, height: row.offsetHeight },
       { scrollTop: wrap.scrollTop, clientHeight: wrap.clientHeight, headerHeight },

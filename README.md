@@ -51,8 +51,15 @@ and the app asks before opening it. Project files stay on your computer; nothing
 npm install
 npm run dev        # http://localhost:5173
 npm test           # unit tests
-npm run e2e        # Playwright smoke test
+npm run e2e        # Playwright end-to-end tests (Chromium, as in CI)
 npm run build
+```
+
+To run the end-to-end tests in Firefox as well (not part of CI), install it once and select its project:
+
+```bash
+npx playwright install firefox
+npx playwright test --project=firefox
 ```
 
 ## Deployment

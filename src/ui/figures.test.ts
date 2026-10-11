@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Legend, PlotData, Shape } from 'plotly.js';
+import { buildHpbwFigure, hpbwCaption } from './hpbwFigure';
+import { exportFigure } from './exportFigure';
 import { buildCutFigure, markerReadout, type CutFigureOptions, type PlotSeries } from './cutFigure';
-import { buildHpbwFigure } from './hpbwFigure';
 import { colorMap, PALETTE } from './colors';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
@@ -511,5 +512,30 @@ describe('legend placement', () => {
     const f = buildHpbwFigure([{ label: 'a', color: '#123456', points: [{ freq: 1800, h: 65, v: 8 }] }], FIGURE_THEMES.light);
     expectBottomLegend(f.layout.legend);
     expect(f.layout.xaxis?.automargin).toBe(true);
+  });
+});
+
+describe('beamwidth chart export', () => {
+  const series = [
+    { label: '+45 · 2°T', color: '#111', points: [{ freq: 1800, h: 60, v: 7 }] },
+    { label: '-45 · 2°T', color: '#222', points: [{ freq: 1800, h: 61, v: 7 }] },
+  ];
+
+  it('gives each group one legend trace carrying its full name, so the labelled export lists the groups', () => {
+    const f = buildHpbwFigure(series, FIGURE_THEMES.light);
+    const metas = (f.data as unknown as { meta?: string }[]).map((t) => t.meta).filter(Boolean);
+    expect(metas).toEqual(['+45 · 2°T', '-45 · 2°T']);
+    const out = exportFigure(f, hpbwCaption(3, false));
+    const legend = (out.data as unknown as { name?: string; showlegend?: boolean }[]).filter((t) => t.showlegend !== false).map((t) => t.name);
+    expect(legend).toEqual(['+45 · 2°T', '-45 · 2°T']);
+    const title = (out.layout.title as { text: string }).text;
+    expect(title).toContain('H-HPBW and V-HPBW against frequency');
+    expect(title).toContain('dashed lines: vertical');
+  });
+
+  it('follows the beamwidth level and mentions the original lines under a simulation', () => {
+    const c = hpbwCaption(10, true);
+    expect(c.title).toContain('H-BW@10 dB');
+    expect(c.items.join(' ')).toContain('original');
   });
 });

@@ -223,6 +223,46 @@ describe('startPrefs', () => {
     stop();
   });
 
+  it('a change still waiting to be written is written with the value the user set, even if a project is opened meanwhile', () => {
+    const storage = new FakeStorage();
+    const stop = startPrefs({ storage, delayMs: 300 });
+    useStore.getState().updateView({ gainUnit: 'dBi' });
+    useStore.getState().updateSettings({ levelDb: 6 });
+    vi.advanceTimersByTime(100);
+    // Inside the quiet time a project that has other values for the same keys is opened.
+    useStore.getState().loadProject({
+      format: 'lobe-story-project', version: 1, savedAt: '', files: [], state: { view: { gainUnit: 'dBd' } as never, settings: { levelDb: 12 } as never },
+    });
+    expect(useStore.getState().view.gainUnit).toBe('dBd');
+    vi.advanceTimersByTime(300);
+    const stored = JSON.parse(storage.getItem(PREFS_KEY)!);
+    expect(stored.view.gainUnit).toBe('dBi');
+    expect(stored.settings.levelDb).toBe(6);
+    stop();
+  });
+
+  it('stores only the keys of markers, table columns and folded controls that the user changed', () => {
+    const storage = new FakeStorage();
+    const stop = startPrefs({ storage, delayMs: 10 });
+    const d = defaults().view;
+    // A project that shows other markers, columns and folds is opened, then the user changes one key of each.
+    useStore.getState().loadProject({
+      format: 'lobe-story-project', version: 1, savedAt: '', files: [],
+      state: { view: { markers: { ...d.markers, usls: true, null: true }, tableGroups: { ...d.tableGroups, declared: true }, collapsed: { simBar: !d.collapsed.simBar, markers: !d.collapsed.markers } } as never },
+    });
+    const v = useStore.getState().view;
+    expect(v.markers.usls).toBe(true);
+    useStore.getState().updateView({ markers: { ...v.markers, fb: true } });
+    useStore.getState().updateView({ tableGroups: { ...v.tableGroups, sector: false } });
+    useStore.getState().updateView({ collapsed: { ...v.collapsed, simBar: !v.collapsed.simBar } });
+    vi.advanceTimersByTime(10);
+    const stored = JSON.parse(storage.getItem(PREFS_KEY)!).view;
+    expect(stored.markers).toEqual({ ...d.markers, fb: true });
+    expect(stored.tableGroups).toEqual({ ...d.tableGroups, sector: false });
+    expect(stored.collapsed).toEqual({ ...d.collapsed, simBar: !v.collapsed.simBar });
+    stop();
+  });
+
   it('a project opened first does not leak into an empty store of preferences', () => {
     const storage = new FakeStorage();
     const stop = startPrefs({ storage, delayMs: 10 });

@@ -5,12 +5,12 @@ import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
 import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
-import { buildBandHistFigure } from './bandHistFigure';
+import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
 import { downloadText } from './download';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
 import { SubBandEditor } from './SubBandEditor';
-import { DefinitionsButton } from './HelpDialog';
+import { DefinitionsButton, type OpenHelp } from './HelpDialog';
 import type { SimulationResult } from './useSimulation';
 
 /** A clicked cell; `scope` ties it to the dataset and sub-band it was clicked in. */
@@ -29,7 +29,7 @@ export const BandStats = memo(function BandStats({
   sim,
   onHelp,
 }: {
-  onHelp: () => void;
+  onHelp: OpenHelp;
   tagged: TaggedPattern[];
   metrics: Map<string, PatternMetrics>;
   sim: SimulationResult;
@@ -91,6 +91,22 @@ export const BandStats = memo(function BandStats({
           )
         : null,
     [histogramCell, pickedSpec, settings, theme],
+  );
+
+  const exportCaption = useMemo(
+    () =>
+      histogramCell && pickedSpec && pickedColumn && dataset
+        ? bandHistCaption({
+            antenna: dataset.label,
+            subBand: pickedColumn.subBand,
+            parameter: bandParamLabel(pickedSpec, settings),
+            stat: histogramCell.stat,
+            unit: histogramCell.unit,
+            n: histogramCell.n,
+            tilted: tiltedColumns !== null,
+          })
+        : null,
+    [histogramCell, pickedSpec, pickedColumn, dataset, settings, tiltedColumns],
   );
 
   if (!dataset || largest < MIN_SAMPLES) {
@@ -210,7 +226,15 @@ export const BandStats = memo(function BandStats({
       <p className="count band-detail" data-testid="band-detail" aria-live="polite">
         {pickedDetail}
       </p>
-      {figure && <PlotlyChart className="plot wide" figure={figure} testId="plot-band" ariaLabel="Band statistics plot" />}
+      {figure && (
+        <PlotlyChart
+          className="plot wide"
+          figure={figure}
+          testId="plot-band"
+          ariaLabel="Band statistics plot"
+          labelledExport={{ caption: exportCaption ?? undefined, filename: 'band-statistics-histogram' }}
+        />
+      )}
       {anyAdjusted(columns, tiltedColumns) && (
         <p className="count" data-testid="band-adjusted-legend">
           {ADJUSTED_LEGEND}

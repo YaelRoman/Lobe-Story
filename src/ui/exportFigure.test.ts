@@ -76,6 +76,33 @@ describe('exportFigure', () => {
   });
 });
 
+describe('exportFigure for charts without a title or without file traces', () => {
+  const hist: Figure = { data: [{ type: 'histogram', x: [1, 2, 3] }] as unknown as Data[], layout: { showlegend: false, margin: { l: 60, r: 20, t: 30, b: 50 } } };
+
+  it('uses the caption title when the figure has none and prints the caption lines', () => {
+    const out = exportFigure(hist, { title: 'Azimuth beamwidth — histogram', file: 'Antenna: A', items: ['Statistic: mean 3'] });
+    const text = (out.layout.title as { text: string }).text;
+    expect(text.startsWith('Azimuth beamwidth — histogram<br>')).toBe(true);
+    expect(text).toContain('Antenna: A');
+    expect(text).toContain('Statistic: mean 3');
+  });
+
+  it('draws no legend and keeps the right margin when there are no file traces', () => {
+    const out = exportFigure(hist, { title: 't', items: [] });
+    expect(out.layout.showlegend).toBe(false);
+    expect(out.layout.margin?.r).toBe(20);
+  });
+
+  it('names legend entries by their full label and widens the margin for a long one', () => {
+    const long = 'x'.repeat(80);
+    const f: Figure = { data: [{ type: 'scatter', name: 'x…x', meta: long }] as unknown as Data[], layout: { margin: {} } };
+    const out = exportFigure(f);
+    expect((out.data[0] as unknown as T).name).toBe(long);
+    expect(out.layout.margin?.r).toBeGreaterThan(280);
+    expect(out.layout.margin?.r).toBeLessThanOrEqual(520);
+  });
+});
+
 describe('exportCaptionLines', () => {
   it('wraps the values into lines of bounded length', () => {
     const items = Array.from({ length: 12 }, (_, i) => `D/U value number ${i}: 12.3°`);
@@ -83,6 +110,9 @@ describe('exportCaptionLines', () => {
     expect(lines.length).toBeGreaterThan(2);
     for (const l of lines.slice(1)) expect(l.length).toBeLessThanOrEqual(120);
     expect(lines.join(' ')).toContain('value number 11');
+  });
+  it('is empty without a file name and values', () => {
+    expect(exportCaptionLines({ items: [] })).toEqual([]);
   });
   it('is just the file name when there are no values', () => {
     expect(exportCaptionLines({ file: 'f', items: [] })).toEqual(['f']);

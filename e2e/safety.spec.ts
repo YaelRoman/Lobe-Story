@@ -309,3 +309,15 @@ test('Reset offers sliders only or everything', async ({ page }) => {
   await page.getByRole('dialog').getByRole('button', { name: 'Reset everything' }).click();
   await expect(page.getByLabel('Offsets: az +20°')).toHaveCount(0);
 });
+
+test('opening a project together with its own pattern files says so calmly instead of "already loaded"', async ({ page }) => {
+  await page.goto('/');
+  // The project holds p.MSI; the selection carries the same file next to it.
+  await page.getByTestId('file-input').setInputFiles([file('p.MSI', msi(2100)), file('p.lobestory.json', project('p.MSI', 2100))]);
+  await page.getByRole('dialog', { name: 'This selection contains a project file: p.lobestory.json' }).getByRole('button', { name: 'Open the project' }).click();
+  const status = page.getByTestId('load-status');
+  await expect(status).toHaveText(/^Opened the project p\.lobestory\.json/);
+  await expect(status).not.toContainText('skipped');
+  await expect(status).toHaveClass(/info/);
+  await expect(page.locator('.panel').getByText('From project', { exact: true })).toBeVisible();
+});

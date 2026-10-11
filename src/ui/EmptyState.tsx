@@ -1,12 +1,13 @@
 import { useStore } from '../state/store';
 import { canOfferExample, loadExample } from './loadExample';
+import type { OpenHelp } from './HelpDialog';
 
 /** Presses one of the toolbar's file inputs, so the empty state uses exactly the toolbar's handlers. */
 const openVia = (testId: 'file-input' | 'folder-input' | 'project-input') =>
   document.querySelector<HTMLInputElement>(`[data-testid="${testId}"]`)?.click();
 
 /** What the page shows before anything is loaded: what the tool does and the first things to try. */
-export function EmptyState({ onHelp }: { onHelp: () => void }) {
+export function EmptyState({ onHelp }: { onHelp: OpenHelp }) {
   const offerExample = useStore(canOfferExample);
   return (
     <section className="empty-state" data-testid="empty-state" aria-label="Getting started">

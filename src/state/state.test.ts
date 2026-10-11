@@ -1184,3 +1184,42 @@ describe('group names stay unique', () => {
     expect(names()).toEqual(['A', 'A (copy)', 'A (copy) (2)']);
   });
 });
+
+describe('opening a project together with its pattern files', () => {
+  const st = useStore.getState;
+
+  const embedded = () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    const parsed = parseProject(serializeProject(st(), true));
+    if (!parsed.ok) throw new Error(parsed.error);
+    st().clear();
+    return parsed.project;
+  };
+
+  it('says the project was opened, calmly, when the files it holds are skipped', () => {
+    const project = embedded();
+    st().loadProject(project);
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))], { keepUndo: true, openedProject: 'site.lobestory.json' });
+    expect(st().loadMessage).toBe('Opened the project site.lobestory.json');
+    expect(st().loadTone).toBe('info');
+    expect(st().files).toHaveLength(2);
+  });
+
+  it('still reports files that really are new, or that failed', () => {
+    const project = embedded();
+    st().loadProject(project);
+    st().addFiles([input('a.MSI', msi(1800)), input('c.MSI', msi(2100))], { openedProject: 'p.json' });
+    expect(st().loadMessage).toBe('Opened the project p.json · Loaded 1 file · 1 already loaded (skipped)');
+    expect(st().loadTone).toBe('warn');
+    st().addFiles([input('bad.pln', 'NAME X\n')], { openedProject: 'p.json' });
+    expect(st().loadMessage).toContain('could not be loaded');
+    expect(st().loadTone).toBe('warn');
+  });
+
+  it('leaves the usual message alone when no project was opened', () => {
+    st().addFiles([input('a.MSI', msi(1800))]);
+    st().addFiles([input('a.MSI', msi(1800))]);
+    expect(st().loadMessage).toBe('No new files loaded: 1 already loaded (skipped)');
+    expect(st().loadTone).toBe('warn');
+  });
+});

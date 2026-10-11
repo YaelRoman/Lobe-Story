@@ -21,7 +21,7 @@ interface Props {
   ariaLabel?: string;
   onRelayout?: RelayoutHandler;
   /** Replaces the modebar's image download by one of a labelled version of the figure (legend on, highlighted file's values). */
-  labelledExport?: { caption?: ExportCaption };
+  labelledExport?: { caption?: ExportCaption; /** Name of the saved file, without extension. */ filename?: string };
 }
 
 export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, labelledExport }: Props) {
@@ -62,7 +62,7 @@ export function PlotlyChart({ figure, className, testId, ariaLabel, onRelayout, 
                     const out = exportFigure(cur.figure, cur.labelledExport?.caption);
                     void Plotly.downloadImage(
                       { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
-                      { ...IMAGE_OPTIONS, width: out.layout.width ?? null, height: out.layout.height ?? null },
+                      { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },
                     );
                   },
                 },

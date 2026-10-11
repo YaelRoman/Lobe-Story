@@ -98,12 +98,18 @@ test('Definitions buttons in the metrics table and the band statistics open the 
   await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
   await expect(page.locator('.panel li')).toHaveCount(24);
   await expect(page.locator('.metrics tbody tr').first()).toBeVisible();
+  // Let the page settle after Load example: band statistics section shown and at least one Plotly plot rendered.
   await expect(page.getByTestId('load-status')).toBeVisible();
+  await expect(page.getByTestId('band-stats')).toBeVisible();
+  await expect(page.getByTestId('plot-h').locator('.main-svg').first()).toBeVisible();
   const dialog = page.getByRole('dialog', { name: 'Help and glossary' });
   for (const section of [page.locator('section', { has: page.locator('table.metrics') }), page.getByTestId('band-stats')]) {
     const button = section.getByRole('button', { name: 'Definitions' });
-    await button.click();
-    await expect(dialog).toBeVisible();
+    // A re-render can still swallow the click: retry opening until the dialog shows.
+    await expect(async () => {
+      await button.click();
+      await expect(dialog).toBeVisible({ timeout: 1000 });
+    }).toPass();
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
     await expect(button).toBeFocused();

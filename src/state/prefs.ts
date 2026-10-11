@@ -103,16 +103,27 @@ export interface PrefsOptions {
   delayMs?: number;
 }
 
-/** The preference values of `s` by name ("settings.levelDb", "view.mode", ...), as comparable text. */
-function prefEntries(s: Pick<StoreData, 'settings' | 'view'>): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const [k, v] of Object.entries(s.settings)) out.set(`settings.${k}`, JSON.stringify(v));
-  for (const k of VIEW_KEYS) out.set(`view.${k}`, JSON.stringify(s.view[k]));
+/** The object-valued view preferences: each of their keys is remembered on its own. */
+const OBJECT_KEYS: readonly PrefViewKey[] = ['markers', 'tableGroups', 'collapsed'];
+
+/**
+ * The preference values of `s` by name ("settings.levelDb", "view.mode", "view.markers.fb", ...), each as
+ * its value and as comparable text. Object-valued preferences are listed key by key.
+ */
+function prefEntries(s: Pick<StoreData, 'settings' | 'view'>): Map<string, { value: unknown; text: string }> {
+  const out = new Map<string, { value: unknown; text: string }>();
+  const add = (name: string, value: unknown) => out.set(name, { value, text: JSON.stringify(value) });
+  for (const [k, v] of Object.entries(s.settings)) add(`settings.${k}`, v);
+  for (const k of VIEW_KEYS) {
+    const value = s.view[k];
+    if (OBJECT_KEYS.includes(k)) for (const [sub, v] of Object.entries(value as Record<string, unknown>)) add(`view.${k}.${sub}`, v);
+    else add(`view.${k}`, value);
+  }
   return out;
 }
 
-/** The stored preferences (on top of the defaults) with the values of `changed` put in. */
-function mergeChanged(storage: StorageLike, s: Pick<StoreData, 'settings' | 'view'>, defaults: Pick<StoreData, 'settings' | 'view'>, changed: Set<string>): Pick<StoreData, 'settings' | 'view'> {
+/** The stored preferences (on top of the defaults) with the changed values (name → value, as of the change) put in. */
+function mergeChanged(storage: StorageLike, defaults: Pick<StoreData, 'settings' | 'view'>, changed: Map<string, unknown>): Pick<StoreData, 'settings' | 'view'> {
   let text: string | null = null;
   try {
     text = storage.getItem(PREFS_KEY);
@@ -122,19 +133,21 @@ function mergeChanged(storage: StorageLike, s: Pick<StoreData, 'settings' | 'vie
   const base = applyPrefs(text, defaults) ?? defaults;
   const settings: Record<string, unknown> = { ...base.settings };
   const view: Record<string, unknown> = { ...base.view };
-  for (const name of changed) {
-    const [group, key] = name.split('.');
-    if (group === 'settings') settings[key] = (s.settings as unknown as Record<string, unknown>)[key];
-    else view[key] = (s.view as unknown as Record<string, unknown>)[key];
+  for (const [name, value] of changed) {
+    const [group, key, sub] = name.split('.');
+    if (group === 'settings') settings[key] = value;
+    else if (sub !== undefined) view[key] = { ...(view[key] as Record<string, unknown>), [sub]: value };
+    else view[key] = value;
   }
   return { settings: settings as unknown as AnalysisSettings, view: view as unknown as ViewState };
 }
 
 /**
  * Restores the stored preferences into the store, then keeps them up to date: a preference the user
- * changes is written after `delayMs` of quiet, and at once when the page is hidden or closed. What a
+ * changes is written after `delayMs` of quiet (with the value it had when it was changed), and at once when the page is hidden or closed. What a
  * project that is opened (or an undo) puts on screen is not the user's choice and is never stored;
- * only the keys the user changes are written, on top of what was stored before.
+ * only the keys the user changes are written (for markers, table columns and folded controls each key on
+ * its own), on top of what was stored before.
  * Returns a function that stops it.
  */
 export function startPrefs({ storage = browserStorage(), delayMs = 300 }: PrefsOptions = {}): () => void {
@@ -151,16 +164,18 @@ export function startPrefs({ storage = browserStorage(), delayMs = 300 }: PrefsO
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const pending = new Set<string>();
+  // What the user changed and has not been written yet: name → the value they set. The value is taken when
+  // the change happens, so a project opened (or an undo applied) during the quiet time cannot replace it.
+  const pending = new Map<string, unknown>();
   const flush = () => {
     clearTimeout(timer);
     timer = undefined;
     if (pending.size === 0) return;
-    const changed = new Set(pending);
+    const changed = new Map(pending);
     pending.clear();
     if (!storage) return;
     try {
-      writePrefs(storage, mergeChanged(storage, useStore.getState(), defaults, changed), defaults);
+      writePrefs(storage, mergeChanged(storage, defaults, changed), defaults);
     } catch {
       // Storage gone: preferences are a convenience, never an error.
     }
@@ -171,7 +186,7 @@ export function startPrefs({ storage = browserStorage(), delayMs = 300 }: PrefsO
     swaps = sessionSwapCount();
     if (swapped || (s.settings === prev.settings && s.view === prev.view)) return;
     const before = prefEntries(prev);
-    for (const [name, text] of prefEntries(s)) if (before.get(name) !== text) pending.add(name);
+    for (const [name, now] of prefEntries(s)) if (before.get(name)?.text !== now.text) pending.set(name, now.value);
     clearTimeout(timer);
     timer = setTimeout(flush, delayMs);
   });

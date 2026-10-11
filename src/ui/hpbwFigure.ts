@@ -1,5 +1,6 @@
 import type { Data, PlotData } from 'plotly.js';
 import { bwName } from './bwLabel';
+import type { ExportCaption } from './exportFigure';
 import { LEGEND_NAME_MAX, middleEllipsis } from './legend';
 import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
 
@@ -18,8 +19,19 @@ export interface HpbwSeries {
   ghost?: boolean;
 }
 
+/** What the exported chart says about itself: its title, which line is which, and what the other marks mean (the legend lists the groups). */
+export function hpbwCaption(levelDb: number, simulated: boolean): ExportCaption {
+  const name = bwName(levelDb);
+  return {
+    title: `H-${name} and V-${name} against frequency, one line per group`,
+    file: `Solid lines: horizontal (H-${name}) · dashed lines: vertical (V-${name}) · hollow markers: values declared in the file`,
+    items: simulated ? ['Faint lines: original patterns before the simulated tilt'] : [],
+  };
+}
+
 export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelDb = 3): Figure {
-  const data: Partial<PlotData>[] = [];
+  // Plotly has `meta` (the export reads it as the full legend name); @types/plotly.js does not declare it.
+  const data: (Partial<PlotData> & { meta?: string })[] = [];
   for (const s of series) {
     const x = s.points.map((p) => p.freq);
     if (s.ghost) {
@@ -28,7 +40,7 @@ export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelD
       data.push({ type: 'scatter', mode: 'lines', name, showlegend: false, opacity: 0.35, x, y: s.points.map((p) => p.v), yaxis: 'y2', line: { color: s.color, dash: 'dash' } });
       continue;
     }
-    data.push({ type: 'scatter', mode: 'lines+markers', name: middleEllipsis(s.label, LEGEND_NAME_MAX), legendgroup: s.label, x, y: s.points.map((p) => p.h), yaxis: 'y', line: { color: s.color } });
+    data.push({ type: 'scatter', mode: 'lines+markers', name: middleEllipsis(s.label, LEGEND_NAME_MAX), legendgroup: s.label, meta: s.label, x, y: s.points.map((p) => p.h), yaxis: 'y', line: { color: s.color } });
     data.push({ type: 'scatter', mode: 'lines+markers', name: s.label, legendgroup: s.label, showlegend: false, x, y: s.points.map((p) => p.v), yaxis: 'y2', line: { color: s.color, dash: 'dash' } });
     const declared = s.points.filter((p) => p.declH !== undefined || p.declV !== undefined);
     if (declared.length) {

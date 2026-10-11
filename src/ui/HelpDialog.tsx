@@ -1,11 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { GLOSSARY, METRICS_DOC_URL, README_URL } from './glossary';
 
+/** What a Help button hands over when clicked: its click event (the dialog gives the focus back to `currentTarget`). */
+export type OpenHelp = (event: { currentTarget: EventTarget | null }) => void;
+
 /**
  * Help and glossary as a native modal dialog: Esc closes it, Tab stays inside, and the focus goes
  * back to the control that opened it (restored here too, in case the browser does not).
  */
-export function HelpDialog({ onClose }: { onClose: () => void }) {
+export function HelpDialog({ onClose, opener }: { onClose: () => void; opener: HTMLElement | null }) {
   const ref = useRef<HTMLDialogElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -19,7 +22,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
       if (!dialog.open) onCloseRef.current();
     };
     dialog.addEventListener('close', onNativeClose);
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // The button that was clicked, taken from its click event: the focused element at this point can be a stale one.
     if (!dialog.open) dialog.showModal();
     // The dialog itself, so it opens at its top (the title is read first) and Tab then reaches the links.
     dialog.focus({ preventScroll: true });
@@ -29,7 +32,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
       if (dialog.open) dialog.close();
       if (opener?.isConnected) opener.focus();
     };
-  }, []);
+  }, [opener]);
 
   return (
     <dialog
@@ -78,7 +81,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
 }
 
 /** A small button that opens the Help dialog from a table or section; the dialog gives the focus back to it. */
-export function DefinitionsButton({ onHelp }: { onHelp: () => void }) {
+export function DefinitionsButton({ onHelp }: { onHelp: OpenHelp }) {
   return (
     <button type="button" aria-haspopup="dialog" title="What the terms and columns mean" onClick={onHelp}>
       Definitions
