@@ -462,7 +462,10 @@ export const useStore = create<State>()((rawSet, get) => {
   setTags: (id, tags) =>
     set((state) => {
       const current = state.tagOverrides[id];
-      if (current && sameValues(current, tags)) return state;
+      // Nothing to change when every given tag is already overridden to that value (and `{}` changes
+      // nothing). A key counts only when it is present: an override with `undefined` clears an inferred tag.
+      const held = current ?? {};
+      if ((Object.keys(tags) as (keyof Tags)[]).every((k) => Object.prototype.hasOwnProperty.call(held, k) && Object.is(held[k], tags[k]))) return state;
       return { tagOverrides: { ...state.tagOverrides, [id]: { ...current, ...tags } } };
     }),
 
@@ -558,7 +561,8 @@ export const useStore = create<State>()((rawSet, get) => {
   renameGroup: (id, name) =>
     set((s) => {
       const trimmed = name.trim();
-      if (!trimmed || !s.customGroups.some((g) => g.id === id)) return s;
+      const group = s.customGroups.find((g) => g.id === id);
+      if (!trimmed || !group || group.name === trimmed) return s;
       return { customGroups: s.customGroups.map((g) => (g.id === id ? { ...g, name: trimmed } : g)) };
     }),
 

@@ -1047,3 +1047,53 @@ describe('status line', () => {
     expect(st().undo?.label).toBe('Cleared the session');
   });
 });
+
+describe('actions that change nothing', () => {
+  const st = useStore.getState;
+  const loadTwo = () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    st().removeFile('b.MSI'); // leaves an undo on offer
+    expect(st().undo).not.toBeNull();
+  };
+
+  it('renaming a group to the name it has returns the same state and keeps the undo', () => {
+    const g = st().createGroup('North');
+    loadTwo();
+    const before = st();
+    st().renameGroup(g, 'North');
+    st().renameGroup(g, '  North  ');
+    expect(st()).toBe(before);
+    expect(st().undo).not.toBeNull();
+    st().renameGroup(g, 'South');
+    expect(st().customGroups[0].name).toBe('South');
+    expect(st().undo).toBeNull();
+  });
+
+  it('setTags with tags the override already has, or {} without an override, is a no-op', () => {
+    st().addFiles([input('a.MSI', msi(1800))]);
+    st().markSaved();
+    const clean = st();
+    st().setTags('a.MSI', {});
+    expect(st()).toBe(clean);
+    expect(st().tagOverrides).toEqual({});
+    expect(isDirty(st())).toBe(false);
+
+    st().setTags('a.MSI', { tiltDeg: 4 });
+    expect(st().tagOverrides['a.MSI']).toEqual({ tiltDeg: 4 });
+    st().markSaved();
+    st().addFiles([input('b.MSI', msi(1900))]);
+    st().removeFile('b.MSI');
+    const before = st();
+    st().setTags('a.MSI', { tiltDeg: 4 });
+    st().setTags('a.MSI', {});
+    expect(st()).toBe(before);
+    expect(st().undo).not.toBeNull();
+  });
+
+  it('setTags with an explicit undefined still overrides (clears) an inferred tag', () => {
+    loadTwo();
+    st().setTags('a.MSI', { polarization: undefined });
+    expect('polarization' in st().tagOverrides['a.MSI']).toBe(true);
+    expect(st().undo).toBeNull();
+  });
+});

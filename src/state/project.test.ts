@@ -333,6 +333,32 @@ describe('saving with pending files', () => {
   });
 });
 
+describe('a failed file on a pending path', () => {
+  it('does not make a save list the path twice: the pending entry and its fingerprint win', () => {
+    const st = useStore.getState;
+    const fp = fingerprint(msi(1800));
+    st().loadProject({ format: PROJECT_FORMAT, version: 1, savedAt: '', files: [{ path: 'a.msi', fp }], state: {} });
+    st().addFiles([input('a.msi', 'NAME X\nFREQUENCY 900\n')]);
+    expect(st().files.map((f) => f.id)).toEqual(['a.msi']);
+    expect(st().files[0].result.ok).toBe(false);
+    expect(st().pendingFiles).toEqual([{ path: 'a.msi', fp }]);
+
+    for (const includeFiles of [false, true]) {
+      const saved = JSON.parse(serializeProject(st(), includeFiles));
+      expect(saved.files).toEqual([{ path: 'a.msi', fp }]);
+      const reopened = restore(serializeProject(st(), includeFiles));
+      expect(reopened.files).toEqual([]);
+      expect(reopened.pendingFiles).toEqual([{ path: 'a.msi', fp }]);
+    }
+  });
+
+  it('is still saved when no pending entry waits for the path', () => {
+    const st = useStore.getState;
+    st().addFiles([input('a.msi', 'NAME X\nFREQUENCY 900\n')]);
+    expect(JSON.parse(serializeProject(st(), false)).files.map((f: { path: string }) => f.path)).toEqual(['a.msi']);
+  });
+});
+
 describe('pending files', () => {
   it('labels the pending list', () => {
     expect(pendingLabel([{ path: 's/a.MSI' }])).toBe('1 pattern file needed: a.MSI');

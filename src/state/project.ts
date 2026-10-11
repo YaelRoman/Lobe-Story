@@ -51,14 +51,19 @@ type SessionSource = Pick<
   'files' | 'pendingFiles' | 'tagOverrides' | 'visible' | 'copies' | 'names' | 'customGroups' | 'membership' | 'settings' | 'view'
 >;
 
-/** A failed file that shares its path with a loaded one (id `path#failed`) is not saved. */
-const savedFiles = (files: LoadedFile[]): LoadedFile[] => files.filter((f) => f.id === f.path);
+/**
+ * The files a project lists. A failed file that shares its path with a loaded one (id `path#failed`)
+ * is not saved, and neither is a failed file on a path a pending entry still waits for: the pending
+ * entry (with its fingerprint) is the one that stays, so a path is never listed twice.
+ */
+const savedFiles = (files: LoadedFile[], pending: PendingFile[]): LoadedFile[] =>
+  files.filter((f) => f.id === f.path && (f.result.ok || !pending.some((p) => p.path === f.path)));
 
 const pendingEntry = (p: PendingFile): PendingFile => (p.fp !== undefined ? { path: p.path, fp: p.fp } : { path: p.path });
 
 /** The files a project lists: path and content fingerprint of every loaded and still-pending file. */
 export function sessionFiles(s: Pick<StoreData, 'files' | 'pendingFiles'>): PendingFile[] {
-  return [...savedFiles(s.files).map((f) => ({ path: f.path, fp: fingerprint(f.text) })), ...s.pendingFiles.map(pendingEntry)];
+  return [...savedFiles(s.files, s.pendingFiles).map((f) => ({ path: f.path, fp: fingerprint(f.text) })), ...s.pendingFiles.map(pendingEntry)];
 }
 
 /**
@@ -88,7 +93,7 @@ export function serializeProject(s: StoreData, includeFiles: boolean, now: Date 
     version: PROJECT_VERSION,
     savedAt: now.toISOString(),
     files: [
-      ...savedFiles(s.files).map((f) => ({ path: f.path, ...(includeFiles ? { text: f.text } : {}), fp: fingerprint(f.text) })),
+      ...savedFiles(s.files, s.pendingFiles).map((f) => ({ path: f.path, ...(includeFiles ? { text: f.text } : {}), fp: fingerprint(f.text) })),
       ...s.pendingFiles.map(pendingEntry),
     ],
     state: { ...sessionState(s), highlighted: s.highlighted, selected: s.selected },
