@@ -1,6 +1,7 @@
 import type { Tags } from '../core/types';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import { clampSetting, FLOOR_LIMITS } from '../core/analysis/settingLimits';
+import { sanitizeSubBands } from '../core/analysis/subBands';
 import { clampSim, type OffsetState } from './simLimits';
 import type { CustomGroup, LoadedFile, Selection, SimulationState, StoreData, ViewState } from './store';
 
@@ -262,6 +263,7 @@ export function projectToState(
       floorDb: floor >= FLOOR_LIMITS.min && floor <= FLOOR_LIMITS.max ? floor : dv.floorDb,
       markers,
       tableGroups,
+      subBands: sanitizeSubBands(rawView.subBands),
       dimension: oneOf(rawView.dimension, ['2d', '3d'] as const, dv.dimension),
       method3d: oneOf(rawView.method3d, ['summation', 'weighted'] as const, dv.method3d),
       layout3d: oneOf(rawView.layout3d, ['grid', 'overlay'] as const, dv.layout3d),

@@ -3,6 +3,7 @@ import type { GainUnit, ParseResult, Tags } from '../core/types';
 import { parsePlanet } from '../core/parse/planet';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import type { Method3d } from '../core/analysis/pattern3d';
+import type { SubBand } from '../core/analysis/subBands';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
 import { matchPending, projectToState, type ProjectFile } from './project';
@@ -55,6 +56,8 @@ export interface ViewState {
   floorDb: number;
   markers: Record<MarkerKey, boolean>;
   tableGroups: Record<ColumnGroupKey, boolean>;
+  /** User-defined band-statistics sub-bands; empty = automatic. */
+  subBands: SubBand[];
   dimension: Dimension;
   method3d: Method3d;
   layout3d: Layout3d;
@@ -154,6 +157,7 @@ export function initialState(): StoreData {
       floorDb: 40,
       markers: { hpbw: true, fb: false, usls: false, null: false, peak: true, sector: false },
       tableGroups: { ...DEFAULT_TABLE_GROUPS },
+      subBands: [],
       dimension: '2d',
       method3d: 'summation',
       layout3d: 'grid',

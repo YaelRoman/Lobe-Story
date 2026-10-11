@@ -103,6 +103,15 @@ describe('store', () => {
     expect(useStore.getState().view.mode).toBe('rect');
   });
 
+  it('stores sub-bands in the view and keeps them on clear', () => {
+    expect(useStore.getState().view.subBands).toEqual([]);
+    const subBands = [{ name: 'A', minMHz: 1, maxMHz: 2 }];
+    useStore.getState().updateView({ subBands });
+    expect(useStore.getState().view.subBands).toEqual(subBands);
+    useStore.getState().clear();
+    expect(useStore.getState().view.subBands).toEqual(subBands);
+  });
+
   it('starts in 2D with summation and side-by-side 3D defaults', () => {
     expect(useStore.getState().view).toMatchObject({ dimension: '2d', method3d: 'summation', layout3d: 'grid' });
   });

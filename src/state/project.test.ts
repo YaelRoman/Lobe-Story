@@ -259,6 +259,19 @@ describe('damaged values', () => {
     expect(s.view.tableGroups).toEqual({ ...DEFAULT_TABLE_GROUPS, sector: false, declared: true });
   });
 
+  it('restores and round-trips sub-bands', () => {
+    expect(restore(withState({})).view.subBands).toEqual([]);
+    const s = restore(withState({ view: { subBands: [{ name: 'L', minMHz: 1920, maxMHz: 1710 }, 'junk'] } }));
+    expect(s.view.subBands).toEqual([{ name: 'L', minMHz: 1710, maxMHz: 1920 }]);
+    const before = { ...initialState() };
+    const two = [
+      { name: 'A', minMHz: 880, maxMHz: 960 },
+      { name: 'B', minMHz: 1710, maxMHz: 1880 },
+    ];
+    before.view = { ...before.view, subBands: two };
+    expect(restore(serializeProject(before, true)).view.subBands).toEqual(two);
+  });
+
   it('dedupes files by path, first wins', () => {
     const s = restore(
       withState({}, [
