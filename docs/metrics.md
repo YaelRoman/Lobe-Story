@@ -175,6 +175,7 @@ not check that all frequency samples required by Annex B are present.
 - With a tilt simulation a cell shows original → tilted where they differ; simulated values are estimates, not measurements.
 - A beamwidth level other than 3 dB changes the beamwidth, squint and tilt rows (a warning is shown).
 - A first-lobe limit other than the standard 1.78 × V-HPBW makes the sidelobe and null-fill rows non-standard (a warning is shown).
+- A file whose declared gain lies outside −10 to 40 dBi (after the unit conversion), or whose FREQUENCY is missing or not above 0 MHz, still loads and gets a warning mark in the file panel. A file without a usable frequency is left out of the frequency chart and the band statistics (a note says how many).
 - No pass/fail grading against limits.
 
 ## Settings

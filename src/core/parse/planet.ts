@@ -1,4 +1,5 @@
 import type { Cut, ParseResult, ParseWarning, Pattern } from '../types';
+import { convertGain, hasUsableFrequency, PLAUSIBLE_GAIN_DBI } from '../gain';
 
 const KNOWN_HEADERS = new Set([
   'NAME',
@@ -132,10 +133,22 @@ export function parsePlanet(text: string, fileName: string): ParseResult {
   if (!vertical) return { ok: false, error: 'Missing VERTICAL block' };
 
   const freq = headers.get('FREQUENCY');
-  if (!freq) return { ok: false, error: 'Missing FREQUENCY' };
-  const frequencyMHz = parseFloat(freq.value);
-  if (!Number.isFinite(frequencyMHz)) {
-    return { ok: false, error: `Non-numeric FREQUENCY "${freq.value}"`, line: freq.line };
+  let frequencyMHz = 0;
+  if (!freq || freq.value === '') {
+    // The file still loads; it has no place on a frequency axis and in no band.
+    warnings.push({ code: 'no-frequency', message: 'No FREQUENCY header: shown as 0 MHz and left out of the frequency chart and the band statistics' });
+  } else {
+    frequencyMHz = parseFloat(freq.value);
+    if (!Number.isFinite(frequencyMHz)) {
+      return { ok: false, error: `Non-numeric FREQUENCY "${freq.value}"`, line: freq.line };
+    }
+    if (!hasUsableFrequency(frequencyMHz)) {
+      warnings.push({
+        code: 'no-frequency',
+        message: `FREQUENCY ${freq.value} is not above 0 MHz: left out of the frequency chart and the band statistics`,
+        line: freq.line,
+      });
+    }
   }
 
   const get = (k: string) => {
@@ -149,6 +162,16 @@ export function parsePlanet(text: string, fileName: string): ParseResult {
     gain = { value: parseFloat(gainMatch[1]), unit: gainMatch[2]?.toLowerCase() === 'dbi' ? 'dBi' : 'dBd' };
   } else {
     warnings.push({ code: 'missing-gain', message: 'No usable GAIN header' });
+  }
+  if (gain) {
+    const dbi = convertGain(gain, 'dBi')!;
+    if (dbi < PLAUSIBLE_GAIN_DBI.min || dbi > PLAUSIBLE_GAIN_DBI.max) {
+      warnings.push({
+        code: 'gain-out-of-range',
+        message: `Declared gain ${gain.value} ${gain.unit} (${Number(dbi.toFixed(2))} dBi) is outside ${PLAUSIBLE_GAIN_DBI.min} to ${PLAUSIBLE_GAIN_DBI.max} dBi; check the GAIN header`,
+        line: headers.get('GAIN')?.line,
+      });
+    }
   }
 
   warnings.push(...checkCut('HORIZONTAL', horizontal), ...checkCut('VERTICAL', vertical));

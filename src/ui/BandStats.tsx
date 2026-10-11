@@ -6,6 +6,7 @@ import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, 
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
 import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
 import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
+import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
 import { copyAndAnnounce } from './clipboard';
 import { FIGURE_THEMES } from './figureTheme';
@@ -53,6 +54,7 @@ export const BandStats = memo(function BandStats({
 
   const datasets = useMemo(() => buildDatasets(tagged, customGroups), [tagged, customGroups]);
   const largest = largestDataset(datasets);
+  const noFrequency = useMemo(() => tagged.filter((t) => !t.copyOf && !hasUsableFrequency(t.pattern.frequencyMHz)).length, [tagged]);
   const dataset =
     datasets.find((d) => d.key === chosen) ??
     datasets.find((d) => d.key === highlightedKey) ??
@@ -178,6 +180,7 @@ export const BandStats = memo(function BandStats({
       <p className="count">
         BASTA V13 Annex C statistics over every loaded file of the antenna in each sub-band (all tilts and ports; copies
         excluded; co-polar cuts).
+        {noFrequency > 0 && ` ${noFrequency} loaded file${noFrequency === 1 ? ' has' : 's have'} no frequency above 0 MHz and ${noFrequency === 1 ? 'is' : 'are'} left out.`}
         {userSubBands.length === 0 && ' Sub-bands are automatic.'}
         {sim.tiltActive && ' Simulation active: cells show original → tilted where they differ.'}
         {settings.levelDb !== 3 &&

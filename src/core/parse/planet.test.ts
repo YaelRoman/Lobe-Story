@@ -93,11 +93,39 @@ describe('parsePlanet', () => {
     expect(r.line).toBe(6);
   });
 
-  it('rejects missing or non-numeric FREQUENCY', () => {
-    const noFreq = planetText({ headers: ['NAME X', 'GAIN 1 dBd'] });
-    expect(parsePlanet(noFreq, 'x')).toEqual({ ok: false, error: 'Missing FREQUENCY' });
+  it('rejects a non-numeric FREQUENCY', () => {
     const badFreq = planetText({ headers: ['NAME X', 'FREQUENCY abc', 'GAIN 1 dBd'] });
     expect(parsePlanet(badFreq, 'x')).toEqual({ ok: false, error: 'Non-numeric FREQUENCY "abc"', line: 2 });
+  });
+
+  it('warns about a FREQUENCY that is missing, empty or not above 0 and still loads the file', () => {
+    for (const headers of [['NAME X', 'GAIN 1 dBd'], ['NAME X', 'FREQUENCY', 'GAIN 1 dBd']]) {
+      const r = expectOk(parsePlanet(planetText({ headers }), 'x'));
+      expect(r.pattern.frequencyMHz).toBe(0);
+      expect(r.warnings.map((w) => w.code)).toEqual(['no-frequency']);
+      expect(r.warnings[0].message).toContain('No FREQUENCY');
+    }
+    for (const value of ['0', '-5']) {
+      const r = expectOk(parsePlanet(planetText({ headers: ['NAME X', `FREQUENCY ${value}`, 'GAIN 1 dBd'] }), 'x'));
+      expect(r.pattern.frequencyMHz).toBe(Number(value));
+      expect(r.warnings.map((w) => w.code)).toEqual(['no-frequency']);
+      expect(r.warnings[0].message).toContain('not above 0 MHz');
+      expect(r.warnings[0].line).toBe(2);
+    }
+  });
+
+  it('warns about a declared gain outside -10 to 40 dBi, after the unit conversion', () => {
+    const codes = (gain: string) => expectOk(parsePlanet(planetText({ headers: ['NAME X', 'FREQUENCY 900', `GAIN ${gain}`] }), 'x')).warnings.map((w) => w.code);
+    expect(codes('999 dBi')).toEqual(['gain-out-of-range']);
+    expect(codes('-10.5 dBi')).toEqual(['gain-out-of-range']);
+    expect(codes('39 dBd')).toEqual(['gain-out-of-range']); // 41.15 dBi
+    expect(codes('-9 dBd')).toEqual([]); // -6.85 dBi
+    expect(codes('40 dBi')).toEqual([]);
+    expect(codes('-10 dBi')).toEqual([]);
+    expect(codes('18 dBd')).toEqual([]);
+    const r = expectOk(parsePlanet(planetText({ headers: ['NAME X', 'FREQUENCY 900', 'GAIN 999 dBi'] }), 'x'));
+    expect(r.pattern.gain).toEqual({ value: 999, unit: 'dBi' });
+    expect(r.warnings[0].message).toContain('outside -10 to 40 dBi');
   });
 
   it('rejects data lines after the blocks', () => {

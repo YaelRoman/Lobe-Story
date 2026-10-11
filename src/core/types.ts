@@ -30,7 +30,9 @@ export type ParseWarningCode =
   | 'missing-gain'
   | 'resampled'
   | 'duplicate-angle'
-  | 'peak-not-zero';
+  | 'peak-not-zero'
+  | 'gain-out-of-range'
+  | 'no-frequency';
 
 export interface ParseWarning {
   code: ParseWarningCode;

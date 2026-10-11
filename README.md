@@ -33,6 +33,7 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   **Δ vs reference** above the metrics table shows every metric and the gain as a signed difference from it; the reference row stays first with
   its own values. **Copy table** and the CSV follow what is shown, with a Row column (`reference` /
   `difference`) and "Δ vs <reference>" headers. The reference is saved with the project.
+- A file with a declared gain outside −10 to 40 dBi, or a missing or non-positive frequency, still loads and gets a warning mark; one without a usable frequency is left out of the frequency chart and the band statistics, with a note.
 - Automatic grouping by polarization, tilt, port and array (editable; drag files between groups).
 - Column groups can be shown or hidden above the metrics table (saved with the project); the CSV
   always contains every column.

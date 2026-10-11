@@ -10,6 +10,7 @@ import { FIGURE_THEMES } from './figureTheme';
 import { groupLook, PER_FILE_COLOURS } from './colors';
 import { bwName } from './bwLabel';
 import { nameOf } from '../core/names';
+import { hasUsableFrequency } from '../core/gain';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 
@@ -17,6 +18,10 @@ const DECLARED: Partial<Record<MetricColumn, (p: Pattern) => number | undefined>
   vHpbw: (p) => p.declared.vBeamwidth,
   fb180: (p) => p.declared.frontToBack,
 };
+
+/** The note under the frequency chart's heading for ticked files without a usable frequency. */
+const leftOutText = (n: number): string =>
+  `${n} ticked file${n === 1 ? ' has' : 's have'} no frequency above 0 MHz and ${n === 1 ? 'is' : 'are'} left out of this chart.`;
 
 export const HpbwChart = memo(function HpbwChart({
   groups,
@@ -45,18 +50,19 @@ export const HpbwChart = memo(function HpbwChart({
   const label = labelOf(column);
   const vColumn = METRIC_COLUMNS.find((c) => c.key === 'vHpbw') ?? METRIC_COLUMNS[0];
   // The diamond is only mentioned when it is drawn: the reference file exists here and has metrics.
-  const refDrawn = reference !== null && sim.metrics.has(reference) && groups.some((g) => g.items.some((i) => i.pattern.id === reference));
+  const refDrawn = reference !== null && sim.metrics.has(reference) && groups.some((g) => g.items.some((i) => i.pattern.id === reference && hasUsableFrequency(i.pattern.frequencyMHz)));
+  const leftOut = useMemo(() => groups.reduce((n, g) => n + g.items.filter((i) => visible[i.pattern.id] && !hasUsableFrequency(i.pattern.frequencyMHz)).length, 0), [groups, visible]);
 
   const figure = useMemo(() => {
     const series: HpbwSeries[] = [];
     const single: MetricSeries[] = [];
     // Above ten visible files the files are coloured by group: the group's line takes the colour of its place among all groups (see colors.ts).
-    const byGroup = groups.reduce((n, g) => n + g.items.filter((i) => visible[i.pattern.id]).length, 0) > PER_FILE_COLOURS;
+    const byGroup = groups.reduce((n, g) => n + g.items.filter((i) => visible[i.pattern.id] && hasUsableFrequency(i.pattern.frequencyMHz)).length, 0) > PER_FILE_COLOURS;
     groups.forEach((g, k) => {
-      if (!g.items.some((i) => visible[i.pattern.id])) return;
+      if (!g.items.some((i) => visible[i.pattern.id] && hasUsableFrequency(i.pattern.frequencyMHz))) return;
       const { color, symbol } = groupLook(k, byGroup);
       const points = (ms: Map<string, PatternMetrics>) =>
-        g.items.map(({ pattern }) => {
+        g.items.filter(({ pattern }) => hasUsableFrequency(pattern.frequencyMHz)).map(({ pattern }) => {
           const m = ms.get(pattern.id);
           return {
             freq: pattern.frequencyMHz,
@@ -67,7 +73,7 @@ export const HpbwChart = memo(function HpbwChart({
           };
         });
       const valuePoints = (ms: Map<string, PatternMetrics>) =>
-        g.items.map(({ pattern }) => {
+        g.items.filter(({ pattern }) => hasUsableFrequency(pattern.frequencyMHz)).map(({ pattern }) => {
           const m = ms.get(pattern.id);
           const declared = DECLARED[metric]?.(pattern);
           return { freq: pattern.frequencyMHz, value: m ? cellsOf(m)[metric].value : null, ...(declared !== undefined ? { declared } : {}) };
@@ -83,7 +89,7 @@ export const HpbwChart = memo(function HpbwChart({
     });
     // The reference file's point (its value as plotted: the tilted one under a simulation), whether or not its group is shown.
     const refItem = reference === null ? undefined : groups.flatMap((g) => g.items).find((i) => i.pattern.id === reference);
-    const refMetrics = refItem ? sim.metrics.get(refItem.pattern.id) : undefined;
+    const refMetrics = refItem && hasUsableFrequency(refItem.pattern.frequencyMHz) ? sim.metrics.get(refItem.pattern.id) : undefined;
     const refLabel = refItem ? nameOf(refItem.pattern) : '';
     const freq = refItem?.pattern.frequencyMHz ?? 0;
     if (both) {
@@ -99,7 +105,8 @@ export const HpbwChart = memo(function HpbwChart({
     [both, levelDb, simulated, label, column.unit, refDrawn, metric],
   );
 
-  if (!figure) return null;
+  const note = leftOut > 0 ? <p className="count" data-testid="freq-left-out">{leftOutText(leftOut)}</p> : null;
+  if (!figure) return note && <section>{note}</section>;
   const heading = both ? bwName(levelDb) : label;
   return (
     <section>
@@ -124,6 +131,7 @@ export const HpbwChart = memo(function HpbwChart({
           </select>
         </div>
       </div>
+      {note}
       <PlotlyChart
         className="plot wide"
         figure={figure}

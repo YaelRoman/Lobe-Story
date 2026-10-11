@@ -321,3 +321,20 @@ test('opening a project together with its own pattern files says so calmly inste
   await expect(status).toHaveClass(/info/);
   await expect(page.locator('.panel').getByText('From project', { exact: true })).toBeVisible();
 });
+
+test('a file with an implausible gain or a frequency of 0 loads with a warning mark and is left out of the frequency chart', async ({ page }) => {
+  await page.goto('/');
+  const text = (freq: number, gain: string) => planetText({ headers: ['NAME A', `FREQUENCY ${freq}`, `GAIN ${gain}`, 'TILT ELECTRICAL'] });
+  await page.getByTestId('file-input').setInputFiles([
+    file('ok.msi', text(1800, '15 dBd')),
+    file('loud.msi', text(1900, '999 dBi')),
+    file('zero.msi', text(0, '15 dBd')),
+  ]);
+  const panel = page.locator('.panel');
+  await expect(panel.locator('li')).toHaveCount(3);
+  await expect(panel.locator('li', { hasText: 'ok.msi' }).locator('.warn')).toHaveCount(0);
+  await expect(panel.locator('li', { hasText: 'loud.msi' }).locator('.warn')).toHaveAttribute('title', /outside -10 to 40 dBi/);
+  await expect(panel.locator('li', { hasText: 'zero.msi' }).locator('.warn')).toHaveAttribute('title', /not above 0 MHz/);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await expect(page.getByTestId('freq-left-out')).toHaveText('1 ticked file has no frequency above 0 MHz and is left out of this chart.');
+});
