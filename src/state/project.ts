@@ -128,7 +128,8 @@ const SETTING_MAX: Record<keyof AnalysisSettings, number> = {
   fbWindowDeg: 360,
   uslsRangeDeg: 360,
   nullSearchDeg: 360,
-  trackingWindowDeg: 360,
+  sectorEdgeDeg: 179,
+  siteSectors: 12,
 };
 
 function cleanMap<T>(raw: unknown, ok: (v: unknown) => v is T): Record<string, T> {
@@ -230,6 +231,14 @@ export function projectToState(
     const v = rawSettings[k];
     if (typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= SETTING_MAX[k]) settings[k] = v;
   }
+  if (rawSettings.sectorEdgeDeg === undefined) {
+    const legacy = rawSettings.trackingWindowDeg;
+    if (typeof legacy === 'number' && Number.isFinite(legacy) && legacy > 0 && legacy <= SETTING_MAX.sectorEdgeDeg) {
+      settings.sectorEdgeDeg = legacy;
+    }
+  }
+  const sectors = rawSettings.siteSectors;
+  settings.siteSectors = Number.isInteger(sectors) && (sectors as number) >= 2 && (sectors as number) <= 12 ? (sectors as number) : DEFAULT_SETTINGS.siteSectors;
 
   const floor = num(rawView.floorDb, dv.floorDb);
   const selected = st.selected && st.selected.kind === 'group' && !groupIds.has(st.selected.id) ? null : (st.selected ?? null);

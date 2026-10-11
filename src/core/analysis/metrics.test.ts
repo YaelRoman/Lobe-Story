@@ -105,3 +105,42 @@ describe('analyzeAll', () => {
     expect(all.get('m')!.beamTracking).toEqual({ value: 1.5, angle: 20 });
   });
 });
+
+describe('sector metrics', () => {
+  it('analyzePattern exposes SPR, AIR, roll-off and D/U', () => {
+    const m = analyzePattern(item());
+    expect(m.spr.value).not.toBeNull();
+    expect(m.air.value).not.toBeNull();
+    expect(m.rollOff.value).toBeCloseTo(3 * (60 / 32.5) ** 2, 6);
+    expect(Object.keys(m.du)).toEqual(['qam16', 'qam64', 'qam256']);
+    expect(m.du.qam16.value).toBeGreaterThan(m.du.qam64.value!);
+  });
+
+  const pair = (gp?: Pattern['gain'], gm?: Pattern['gain']) => {
+    const p: TaggedPattern = {
+      pattern: patternFrom(quadBeam(65), vBeamWithLobes, { id: 'p', gain: gp }),
+      tags: { polarization: '+45', tiltDeg: 8 },
+    };
+    const m: TaggedPattern = {
+      pattern: patternFrom(quadBeam(65), vBeamWithLobes, { id: 'm', gain: gm }),
+      tags: { polarization: '-45', tiltDeg: 8 },
+    };
+    return analyzeAll([p, m]);
+  };
+
+  it('makes port tracking gain-aware when both gains are declared', () => {
+    const all = pair({ value: 15, unit: 'dBd' }, { value: 14.2, unit: 'dBd' });
+    expect(all.get('p')!.beamTracking.value).toBeCloseTo(0.8, 9);
+    expect(all.get('m')!.beamTracking.value).toBeCloseTo(0.8, 9);
+  });
+
+  it('converts dBi to dBd before subtracting', () => {
+    const all = pair({ value: 17.15, unit: 'dBi' }, { value: 14.2, unit: 'dBd' });
+    expect(all.get('p')!.beamTracking.value).toBeCloseTo(0.8, 9);
+  });
+
+  it('ignores gain when one is missing', () => {
+    const all = pair({ value: 15, unit: 'dBd' }, undefined);
+    expect(all.get('p')!.beamTracking.value).toBeCloseTo(0, 9);
+  });
+});

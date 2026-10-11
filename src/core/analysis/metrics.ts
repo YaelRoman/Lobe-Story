@@ -3,6 +3,7 @@ import { beamwidth, type BeamResult } from './beamwidth';
 import { frontToBack } from './frontToBack';
 import { toGrid, type Grid } from './grid';
 import { firstNullFill, usls } from './sidelobes';
+import { DU_LEVELS, duAperture, rollOff, sectorPower } from './sector';
 import { beamTracking } from './tracking';
 
 export interface AnalysisSettings {
@@ -10,7 +11,8 @@ export interface AnalysisSettings {
   fbWindowDeg: number;
   uslsRangeDeg: number;
   nullSearchDeg: number;
-  trackingWindowDeg: number;
+  sectorEdgeDeg: number;
+  siteSectors: number;
 }
 
 export const DEFAULT_SETTINGS: AnalysisSettings = {
@@ -18,7 +20,8 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   fbWindowDeg: 30,
   uslsRangeDeg: 20,
   nullSearchDeg: 90,
-  trackingWindowDeg: 60,
+  sectorEdgeDeg: 60,
+  siteSectors: 3,
 };
 
 export interface TaggedPattern {
@@ -48,6 +51,10 @@ export interface PatternMetrics {
   usls: MetricResult;
   nullFill: MetricResult;
   beamTracking: MetricResult;
+  spr: MetricResult;
+  air: MetricResult;
+  rollOff: MetricResult;
+  du: { qam16: MetricResult; qam64: MetricResult; qam256: MetricResult };
   delta: { hHpbw: MetricResult; vHpbw: MetricResult; fb: MetricResult };
 }
 
@@ -84,6 +91,13 @@ export function analyzePattern(
       : tilt.value === null
         ? missing(tilt.reason ?? 'Tilt undefined')
         : { value: tilt.value - nominal };
+  const power = sectorPower(grids.h, s.sectorEdgeDeg);
+  const du = Object.fromEntries(
+    DU_LEVELS.map((l) => {
+      const { value, reason, angle } = duAperture(grids.h, l.db, s.siteSectors);
+      return [l.key, { value, reason, angle }];
+    }),
+  ) as PatternMetrics['du'];
   const declared = item.pattern.declared;
   const declaredReason =
     typeof opts.declaredReason === 'function' ? opts.declaredReason(item.pattern.id) : opts.declaredReason;
@@ -98,6 +112,10 @@ export function analyzePattern(
     usls: usls(grids.v, v, s.uslsRangeDeg),
     nullFill: firstNullFill(grids.v, v, s.nullSearchDeg),
     beamTracking: missing('Not computed'),
+    spr: power.spr,
+    air: power.air,
+    rollOff: rollOff(grids.h, s.sectorEdgeDeg),
+    du,
     delta: declaredReason
       ? {
           hHpbw: missing(declaredReason),
@@ -152,6 +170,9 @@ export function findTrackingPartner(
   return { partner: candidates[0] };
 }
 
+const DBI_OVER_DBD = 2.15;
+const gainDbd = (g: NonNullable<Pattern['gain']>): number => (g.unit === 'dBi' ? g.value - DBI_OVER_DBD : g.value);
+
 export function analyzeAll(
   items: TaggedPattern[],
   s: AnalysisSettings = DEFAULT_SETTINGS,
@@ -165,7 +186,14 @@ export function analyzeAll(
     const found = findTrackingPartner(item, items);
     metrics.beamTracking =
       'partner' in found
-        ? beamTracking(own.h, grids.get(found.partner.pattern.id)!.h, s.trackingWindowDeg)
+        ? beamTracking(
+            own.h,
+            grids.get(found.partner.pattern.id)!.h,
+            s.sectorEdgeDeg,
+            item.pattern.gain && found.partner.pattern.gain
+              ? gainDbd(item.pattern.gain) - gainDbd(found.partner.pattern.gain)
+              : 0,
+          )
         : missing(found.reason);
     out.set(item.pattern.id, metrics);
   }

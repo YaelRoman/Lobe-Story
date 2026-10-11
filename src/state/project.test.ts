@@ -175,12 +175,24 @@ describe('damaged values', () => {
   });
 
   it('falls back to defaults for settings above their bounds', () => {
-    const big = { levelDb: 1e9, fbWindowDeg: 1e9, uslsRangeDeg: 1e9, nullSearchDeg: 1e9, trackingWindowDeg: 1e9 };
+    const big = { levelDb: 1e9, fbWindowDeg: 1e9, uslsRangeDeg: 1e9, nullSearchDeg: 1e9, sectorEdgeDeg: 1e9 };
     expect(restore(withState({ settings: big })).settings).toEqual(initialState().settings);
     expect(restore(withState({ settings: { levelDb: 100, fbWindowDeg: 360 } })).settings).toMatchObject({
       levelDb: 100,
       fbWindowDeg: 360,
     });
+  });
+
+  it('sanitises the sector settings and migrates the legacy tracking window', () => {
+    const settings = (raw: object) => restore(withState({ settings: raw })).settings;
+    expect(settings({ trackingWindowDeg: 45 }).sectorEdgeDeg).toBe(45);
+    expect(settings({ trackingWindowDeg: 45, sectorEdgeDeg: 30 }).sectorEdgeDeg).toBe(30);
+    expect(settings({ sectorEdgeDeg: 400 }).sectorEdgeDeg).toBe(60);
+    expect(settings({ sectorEdgeDeg: 179 }).sectorEdgeDeg).toBe(179);
+    expect(settings({ siteSectors: 2.5 }).siteSectors).toBe(3);
+    expect(settings({ siteSectors: 99 }).siteSectors).toBe(3);
+    expect(settings({ siteSectors: 1 }).siteSectors).toBe(3);
+    expect(settings({ siteSectors: 6 }).siteSectors).toBe(6);
   });
 
   it('dedupes files by path, first wins', () => {

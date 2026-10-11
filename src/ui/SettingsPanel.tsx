@@ -9,7 +9,7 @@ const FIELDS: { key: keyof AnalysisSettings; label: string }[] = [
   { key: 'fbWindowDeg', label: 'F/B window ± (°)' },
   { key: 'uslsRangeDeg', label: 'USLS range above peak (°)' },
   { key: 'nullSearchDeg', label: 'Null search range (°)' },
-  { key: 'trackingWindowDeg', label: 'Tracking window ± (°)' },
+  { key: 'sectorEdgeDeg', label: 'Tracking window ± (°)' },
 ];
 
 /**
