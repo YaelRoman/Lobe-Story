@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
+import { collectFileChoosers } from './fileChooser';
 
 const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
 const msi = (freq: number) => planetText({ headers: ['NAME A', `FREQUENCY ${freq}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] });
@@ -58,16 +59,19 @@ test('Help / glossary: keyboard accessible, Esc closes, focus comes back, links 
 });
 
 test('empty state: the three open actions are real buttons that use the toolbar inputs', async ({ page }) => {
+  const nextChooser = collectFileChoosers(page);
   await page.goto('/');
   const empty = page.getByTestId('empty-state');
   for (const [name, input] of [['Open files', 'file-input'], ['Open folder', 'folder-input'], ['Open project', 'project-input']] as const) {
-    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), empty.getByRole('button', { name }).click()]);
+    await empty.getByRole('button', { name }).click();
+    const chooser = await nextChooser();
     expect(chooser.isMultiple()).toBe(input !== 'project-input');
   }
   // Keyboard: focus the button, press Enter.
   const open = empty.getByRole('button', { name: 'Open files' });
   await open.focus();
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.keyboard.press('Enter')]);
+  await page.keyboard.press('Enter');
+  const chooser = await nextChooser();
   await chooser.setFiles([file('a.msi', msi(1800))]);
   await expect(page.locator('.panel li')).toHaveCount(1);
 });

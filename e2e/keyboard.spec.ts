@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
+import { collectFileChoosers } from './fileChooser';
 import { openSimulation } from './simulationBar';
 
 const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
@@ -231,14 +232,14 @@ test('Settings takes focus, closes on Esc and returns the focus', async ({ page 
 });
 
 test('the Open buttons show a focus ring and open the file chooser from the keyboard', async ({ page }) => {
+  const nextChooser = collectFileChoosers(page);
   await page.goto('/');
   const open = page.locator('label.button', { hasText: 'Open files' });
   await tabTo(page, page.getByTestId('file-input'));
   const outline = await open.evaluate((el) => getComputedStyle(el).outlineStyle);
   expect(outline).toBe('solid');
-  const chooser = page.waitForEvent('filechooser');
   await page.keyboard.press('Enter');
-  expect((await chooser).isMultiple()).toBe(true);
+  expect((await nextChooser()).isMultiple()).toBe(true);
 });
 
 test('Shift+Tab and Tab from the dialog container itself wrap inside the dialog', async ({ page }) => {
