@@ -152,6 +152,9 @@ test('exported images are white whatever the screen theme, named by cut, and say
   await openSimulation(page);
   await page.getByLabel('Electrical tilt Δ (°) value').fill('3');
   await page.getByLabel('Electrical tilt Δ (°) value').press('Enter');
+  // The cut plots take the new tilt a moment later (deferred); the file name follows them. Wait for them, not a timer.
+  await expect(page.getByTestId('readout-v')).toContainText('Tilt 5.0°');
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
   const simulated = await download('plot-v');
   expect(simulated.name).toBe('vertical-cut-simulated.png');
   const freq = await download('plot-hpbw');

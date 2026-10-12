@@ -170,9 +170,12 @@ test('a dialog traps Tab, closes on Esc and gives the focus back to its opener',
   const menu = page.locator('.panel').getByLabel('Actions for b.msi');
   await menu.focus();
   await page.keyboard.press('Enter');
+  // The menu is open before its item is focused (a click-less open can lag on a busy machine).
+  await expect(menu.locator('..')).toHaveAttribute('open', '');
   await page.getByRole('menuitem', { name: 'Create site…' }).focus();
   await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog', { name: 'Number of sectors (2–12)' });
+  await expect(dialog).toBeVisible();
   const input = dialog.getByRole('textbox');
   await expect(input).toBeFocused();
   const seen = new Set<string>();
@@ -190,8 +193,11 @@ test('a dialog traps Tab, closes on Esc and gives the focus back to its opener',
 
   // A confirm opened from the toolbar (Clear asks once a name or an offset was changed) returns to its button.
   await openSimulation(page);
-  await page.getByLabel('Azimuth offset (°) value').fill('10');
-  await page.getByLabel('Azimuth offset (°) value').press('Enter');
+  const azimuth = page.getByLabel('Azimuth offset (°) value');
+  await expect(azimuth).toBeVisible();
+  await azimuth.fill('10');
+  await azimuth.press('Enter');
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
   await clear.focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog')).toBeVisible();
