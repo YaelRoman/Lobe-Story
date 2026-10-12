@@ -10,6 +10,7 @@ import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
 import { gripKey, gripSlider } from './sliderHold';
+import { usePhoneLayout } from './phoneLayout';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
   { key: 'electricalDeg', label: 'Electrical tilt Δ (°)' },
@@ -184,6 +185,38 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
   const methodUses = { view3d: is3d, tilt: tiltActive, horizonCut: sim.hCut === 'horizon', angularRegions: withAngularRegions };
   const methodUsed = methodUses.view3d || methodUses.tilt || methodUses.horizonCut || methodUses.angularRegions;
   const weightedNote = weightedHorizonNote(sim.hCut, method);
+  const phone = usePhoneLayout();
+
+  // The lines about the Horizontal cut take the bar's whole width (beside the buttons they made the row so wide that
+  // Reset went to a row of its own at 1024 px). On a phone they come directly under the control; on a wide screen
+  // under the control's row, which Show original and Reset end. They are placed there in the page, not by the
+  // stylesheet, so that Tab reaches "What is this?" in the order the bar is read.
+  const notes = (
+    <div className="sim-notes">
+      <span className="count sim-hint">
+        <span id="sim-hcut-hint" data-testid="sim-hcut-hint">
+          {H_CUT_HINT}
+        </span>{' '}
+        {/* A real button, so the explanation is one Tab or one tap away (a tooltip on the box reaches neither). It ends
+            the line it explains and follows the control in the Tab order. */}
+        <button type="button" className="link" aria-haspopup="dialog" onClick={(e) => onHelp(e, 'Horizon cut')}>
+          What is this?
+        </button>
+      </span>
+      {/* The control stays usable in 3D (the table and the charts below follow it): the line says what it does not change. */}
+      {is3d && (
+        <span id="sim-hcut-3d" className="count sim-hint" data-testid="sim-hcut-3d">
+          {H_CUT_3D_NOTE}
+        </span>
+      )}
+      {/* Not blocked, but said where the two are chosen: the Weighted rule reshapes this cut. */}
+      {weightedNote && (
+        <span className="sim-hint sim-caveat" role="note" data-testid="sim-weighted-note">
+          {weightedNote}
+        </span>
+      )}
+    </div>
+  );
 
   return (
     <div className="sim-bar" role="group" aria-label="Simulation">
@@ -261,32 +294,7 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
           }}
         />
       </div>
-      {/* The lines about the Horizontal cut take the bar's whole width under its row (directly under the control on a
-          phone): beside the buttons they made the row so wide that Reset went to a row of its own at 1024 px. */}
-      <div className="sim-notes">
-        <span className="count sim-hint">
-          <span id="sim-hcut-hint" data-testid="sim-hcut-hint">
-            {H_CUT_HINT}
-          </span>{' '}
-          {/* A real button, so the explanation is one Tab or one tap away (a tooltip on the box reaches neither). It ends
-              the line it explains and follows the control in the Tab order. */}
-          <button type="button" className="link" aria-haspopup="dialog" onClick={(e) => onHelp(e, 'Horizon cut')}>
-            What is this?
-          </button>
-        </span>
-        {/* The control stays usable in 3D (the table and the charts below follow it): the line says what it does not change. */}
-        {is3d && (
-          <span id="sim-hcut-3d" className="count sim-hint" data-testid="sim-hcut-3d">
-            {H_CUT_3D_NOTE}
-          </span>
-        )}
-        {/* Not blocked, but said where the two are chosen: the Weighted rule reshapes this cut. */}
-        {weightedNote && (
-          <span className="sim-hint sim-caveat" role="note" data-testid="sim-weighted-note">
-            {weightedNote}
-          </span>
-        )}
-      </div>
+      {phone && notes}
       <label>
         <input
           type="checkbox"
@@ -317,6 +325,7 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
       >
         Reset
       </button>
+      {!phone && notes}
       <OffsetsRow />
       </div>
     </div>

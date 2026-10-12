@@ -378,10 +378,31 @@ for (const width of [1440, 390]) {
     for (const b of [beam, horizon]) await expect(b).toHaveAttribute('aria-describedby', (await hint.getAttribute('id'))!);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 
-    // "What is this?" is a button next to the control: one Tab from it, and it opens Help at the entry.
+    // Tab walks the open bar as it is read: never back up to a row above, and left to right within a row.
+    const stops = await page.locator('.sim-bar').locator('button:not([disabled]), input').evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        return { name: e.getAttribute('aria-label') ?? e.textContent ?? '', x: r.x, mid: r.y + r.height / 2 };
+      }),
+    );
+    for (let i = 1; i < stops.length; i++) {
+      const [a, b] = [stops[i - 1], stops[i]];
+      const sameRow = Math.abs(a.mid - b.mid) < 14;
+      expect(sameRow ? b.x > a.x : b.mid > a.mid, `${a.name} (${Math.round(a.x)}, ${Math.round(a.mid)}) then ${b.name} (${Math.round(b.x)}, ${Math.round(b.mid)})`).toBe(true);
+    }
+
+    // "What is this?" is a button that ends the line under the control, and it opens Help at the entry. On a phone
+    // the line is directly under the control: one Tab from it. On a wide screen Show original and Reset stand on the
+    // control's row and come first.
     await horizon.focus();
     await page.keyboard.press('Tab');
     const what = page.getByRole('button', { name: 'What is this?' });
+    if (width > 760) {
+      await expect(page.getByLabel('Show original')).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('button', { name: 'Reset', exact: true })).toBeFocused();
+      await page.keyboard.press('Tab');
+    }
     await expect(what).toBeFocused();
     await page.keyboard.press('Enter');
     const help = page.getByRole('dialog', { name: 'Help and glossary' });
