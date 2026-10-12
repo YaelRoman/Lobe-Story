@@ -164,8 +164,11 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
 .band th[scope='row'], .band thead th:first-child { position: sticky; left: 0; z-index: 1; background: var(--bg); }
 /* Metrics table: sticky header row and File column inside a bounded scroll area. */
 .metrics-wrap { max-height: min(70vh, 640px); }
-/* The selected cell's line: three lines high whatever it says, so the table does not move from cell to cell. */
-.cell-line { box-sizing: border-box; height: 4.6em; margin: 0 0 6px; padding: 2px 6px; overflow-y: auto; font-size: 13px; line-height: 1.4; border-left: 3px solid var(--border); }
+/* The selected cell's line: three lines high whatever it says, so the table does not move from cell to cell. A longer text ends in an
+   ellipsis; with the focus on it the line opens over the top of the table (above its sticky headers) and takes no more room. */
+.cell-line-box { position: relative; height: 4.6em; margin: 0 0 6px; font-size: 13px; }
+.cell-line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; box-sizing: border-box; margin: 0; padding: 2px 6px; overflow: hidden; line-height: 1.4; border-left: 3px solid var(--border); cursor: default; }
+.cell-line:focus { position: absolute; inset: 0 0 auto; z-index: 4; display: block; -webkit-line-clamp: none; line-clamp: none; background: var(--bg); border-bottom: 1px solid var(--border); box-shadow: 0 6px 14px rgb(0 0 0 / 22%); }
 .subband-note { margin: 0; font-size: 13px; }
 .subband-note:empty { display: none; }
 .cell-line:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -190,7 +193,8 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
 .metrics td.has-reason { text-decoration: underline dotted; text-underline-offset: 3px; }
 @media (max-width: 760px) {
   .metrics-wrap { max-height: 60vh; }
-  .cell-line { height: 7.4em; }
+  .cell-line-box { height: 7.4em; }
+  .cell-line { -webkit-line-clamp: 5; line-clamp: 5; }
   .metrics .file-cell { max-width: 148px; }
   .metrics .file-sub { display: block; overflow: hidden; font-size: 11px; font-weight: 400; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 }

@@ -92,3 +92,28 @@ test('on a phone a tap on a cell shows its column definition and the estimate ca
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
   await context.close();
 });
+
+test('a long definition ends in an ellipsis instead of being cut, and opens over the table when the line is focused', async ({ page }) => {
+  await loadExample(page);
+  await page.getByLabel('Show Angular regions (est.) columns').check();
+  const line = page.getByTestId('cell-line');
+  const wrap = page.locator('.metrics-wrap');
+  const cell = page.locator('.metrics tbody tr').first().locator('td[data-col="areSector"]');
+  await cell.focus();
+  await expect(line).toContainText('Sector eff. est. [Summation] (%)');
+  // Three lines and an ellipsis: nothing scrolls away unseen.
+  expect(await line.evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('3');
+  expect(await line.evaluate((el) => getComputedStyle(el).overflowY)).toBe('hidden');
+  const closed = (await line.boundingBox())!.height;
+  const tableAt = (await wrap.boundingBox())!.y - (await line.boundingBox())!.y;
+  // Focused (Tab, click or tap): the whole text, laid over the top of the table, which does not move.
+  await line.focus();
+  await expect(line).toBeFocused();
+  const open = (await line.boundingBox())!;
+  expect(open.height).toBeGreaterThan(closed + 10);
+  expect(await line.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  expect((await wrap.boundingBox())!.y - open.y).toBe(tableAt);
+  await cell.focus();
+  expect((await line.boundingBox())!.height).toBe(closed);
+  expect((await wrap.boundingBox())!.y - (await line.boundingBox())!.y).toBe(tableAt);
+});
