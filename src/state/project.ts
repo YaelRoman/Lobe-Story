@@ -361,9 +361,14 @@ const fileNameOf = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
 const filesText = (n: number): string => `${n} ${n === 1 ? 'file' : 'files'}`;
 
-/** The status line after Save project. */
-export const savedMessage = (fileName: string, fileCount: number, withPatternData: boolean): string =>
-  `Saved ${fileName} (${filesText(fileCount)}, ${withPatternData ? 'with pattern data' : 'layout only'})`;
+/** The status line after Save project: the files written, and how many listed files are still missing (pending, no data to write). */
+export const savedMessage = (fileName: string, fileCount: number, withPatternData: boolean, missing = 0): string =>
+  `Saved ${fileName} (${filesText(fileCount)}, ${withPatternData ? 'with pattern data' : 'layout only'}${missing > 0 ? `, ${missing} still missing` : ''})`;
+
+/** What Save project writes: the loaded files (with their data or just their fingerprint) and the pending ones it can only list. */
+export function savedCounts(s: Pick<StoreData, 'files' | 'pendingFiles'>): { written: number; missing: number } {
+  return { written: savedFiles(s.files, s.pendingFiles).length, missing: s.pendingFiles.length };
+}
 
 /** The status line after Open project: how many files the session now lists and how many are still to be supplied. */
 export const openedMessage = (name: string, fileCount: number, missing: number): string =>

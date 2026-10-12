@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { inputsFromFileList } from '../state/files';
-import { savedMessage, serializeProject, sessionFiles } from '../state/project';
+import { savedCounts, savedMessage, serializeProject } from '../state/project';
 import { clearNeedsConfirm } from '../state/undo';
 import { openSelection } from './openSelection';
 import { SettingsPanel } from './SettingsPanel';
@@ -57,7 +57,8 @@ export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
         'application/json',
       );
       useStore.getState().markSaved();
-      setLoadMessage(savedMessage(fileName, sessionFiles(useStore.getState()).length, options.includeFiles), 'info');
+      const { written, missing } = savedCounts(useStore.getState());
+      setLoadMessage(savedMessage(fileName, written, options.includeFiles, missing), 'info');
     } catch {
       setLoadMessage('Could not save the project');
     }

@@ -4,7 +4,7 @@ import { isPatternFile, type FileInput } from './files';
 import { COPY_NOTE_MS, initialState, useStore, clampSim } from './store';
 import { groupPatterns, selectErrors, selectTagged, selectWarnings, selectInstances, buildPanelGroups, instanceIds, instanceName, warningsFor } from './selectors';
 import { changesSession, clearNeedsConfirm, isDirty, markOf, stableStringify, takeSnapshot } from './undo';
-import { openedMessage, parseProject, savedMessage, serializeProject } from './project';
+import { openedMessage, parseProject, savedCounts, savedMessage, serializeProject } from './project';
 import { DEFAULT_HEADERS, planetText, points } from '../test/planetText';
 
 const enc = new TextEncoder();
@@ -1434,6 +1434,20 @@ describe('the Save project status line', () => {
   it('names the file, the count and whether the pattern data is in it', () => {
     expect(savedMessage('lobe-story-2026-01-01.lobestory.json', 24, true)).toBe('Saved lobe-story-2026-01-01.lobestory.json (24 files, with pattern data)');
     expect(savedMessage('x.lobestory.json', 1, false)).toBe('Saved x.lobestory.json (1 file, layout only)');
+    expect(savedMessage('x.lobestory.json', 3, true, 2)).toBe('Saved x.lobestory.json (3 files, with pattern data, 2 still missing)');
     expect(openedMessage('x.json', 1, 0)).toBe('Opened project x.json: 1 file');
+  });
+
+  it('counts the files it writes apart from the ones still missing', () => {
+    const st = useStore.getState;
+    st().clear();
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    const layout = parseProject(serializeProject(st(), false));
+    if (!layout.ok) throw new Error('bad project');
+    st().clear();
+    st().loadProject(layout.project);
+    expect(savedCounts(st())).toEqual({ written: 0, missing: 2 });
+    st().addFiles([input('c.MSI', msi(2100))]);
+    expect(savedCounts(st())).toEqual({ written: 1, missing: 2 });
   });
 });
