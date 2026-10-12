@@ -187,16 +187,19 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
       >
         <span aria-hidden="true">{collapsed ? '▸' : '▾'}</span> Simulation
       </button>
-      {/* The badge's place is kept while nothing is simulated: a badge that appeared at the first step of a drag
-          would push the sliders along under the held pointer. */}
+      {/* The badge's place is kept while the bar is open and nothing is simulated: a badge that appeared at the first
+          step of a drag would push the sliders along under the held pointer. Folded there is no slider to protect,
+          and on a phone the kept place would push the summary onto a second line. */}
       {anyActive ? (
         <span className="badge" data-testid="sim-badge">
           Simulated
         </span>
       ) : (
-        <span className="badge badge-ghost" aria-hidden="true">
-          Simulated
-        </span>
+        !collapsed && (
+          <span className="badge badge-ghost" aria-hidden="true">
+            Simulated
+          </span>
+        )
       )}
       {collapsed && (
         <span className="count" data-testid="sim-summary">

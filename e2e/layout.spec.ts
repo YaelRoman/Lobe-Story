@@ -112,3 +112,19 @@ for (const label of ['Mechanical tilt (°)', 'Electrical tilt Δ (°)']) {
     expect(after.y).toBe(before.y);
   });
 }
+
+test('the folded Simulation bar is one line on a phone: no room is kept for the badge while there is no slider to protect', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.getByRole('button', { name: 'Files (24)' })).toBeVisible();
+  const fold = page.getByRole('button', { name: /Simulation/ });
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  const bar = page.locator('.sim-bar');
+  const summary = page.getByTestId('sim-summary');
+  await expect(summary).toHaveText('Tilt Δ 0° · Mech 0° · Az 0°');
+  // One row: the fold button (32 px on a phone) plus the bar's padding and border.
+  expect((await bar.boundingBox())!.height).toBeLessThanOrEqual(52);
+  // The summary sits beside the fold button, not under it.
+  expect(Math.abs((await summary.boundingBox())!.y - (await fold.boundingBox())!.y)).toBeLessThan(16);
+});
