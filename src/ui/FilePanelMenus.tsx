@@ -1,7 +1,13 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { useStore } from '../state/store';
 import { confirmDialog, promptDialog } from './dialogs';
 import { moveFocus } from './rovingKeys';
+
+/** An opened menu that reaches past the drawer's edge is scrolled into view, down to its last item. */
+function scrollOpenMenuIntoView(e: SyntheticEvent<HTMLDetailsElement>) {
+  const menu = e.currentTarget;
+  if (menu.open) menu.querySelector<HTMLElement>('.menu-items')?.scrollIntoView?.({ block: 'nearest' });
+}
 
 /** Said in the Create site dialog: what the new site also changes (see store `createSite`). */
 const SITE_HINT =
@@ -84,11 +90,7 @@ export function FileMenu({
     <details
       className="menu"
       onClick={(e) => e.stopPropagation()}
-      // An opened menu that reaches past the drawer's edge is scrolled into view, down to its last item.
-      onToggle={(e) => {
-        const menu = e.currentTarget;
-        if (menu.open) menu.querySelector<HTMLElement>('.menu-items')?.scrollIntoView?.({ block: 'nearest' });
-      }}
+      onToggle={scrollOpenMenuIntoView}
     >
       <summary aria-label={`Actions for ${name}`} aria-haspopup="menu" tabIndex={tabIndex} data-focus-target>
         ⋯
@@ -216,11 +218,7 @@ export function GroupMenu({
     <details
       className="menu"
       onClick={(e) => e.stopPropagation()}
-      // An opened menu that reaches past the drawer's edge is scrolled into view, down to its last item.
-      onToggle={(e) => {
-        const menu = e.currentTarget;
-        if (menu.open) menu.querySelector<HTMLElement>('.menu-items')?.scrollIntoView?.({ block: 'nearest' });
-      }}
+      onToggle={scrollOpenMenuIntoView}
     >
       <summary aria-label={`Actions for group ${name}`} aria-haspopup="menu" tabIndex={tabIndex} data-focus-target>
         ⋯

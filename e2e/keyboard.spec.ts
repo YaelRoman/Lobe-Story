@@ -206,6 +206,12 @@ test('a dialog traps Tab, closes on Esc and gives the focus back to its opener',
   await expect(clear).toBeFocused();
 });
 
+test('the Settings panel, which traps Tab like a dialog, says it is modal', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Analysis settings' })).toHaveAttribute('aria-modal', 'true');
+});
+
 test('Settings takes focus, closes on Esc and returns the focus', async ({ page }) => {
   await page.goto('/');
   const button = page.getByRole('button', { name: 'Settings' });

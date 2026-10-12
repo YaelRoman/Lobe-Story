@@ -148,6 +148,7 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
     <div
       className="settings"
       role="dialog"
+      aria-modal="true"
       aria-label="Analysis settings"
       ref={ref}
       onKeyDown={(e) => {

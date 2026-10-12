@@ -292,7 +292,9 @@ test('on a phone the chart toolbar lies in a strip above each plot, not over its
       const p = el.getBoundingClientRect();
       return { bar: { top: b.top, bottom: b.bottom, left: b.left, right: b.right }, box: { top: p.top, left: p.left, right: p.right } };
     });
-    expect(bar.top + 30, id).toBeGreaterThan(0); // on screen
+    // The whole toolbar is on screen (the plot was scrolled into view above).
+    expect(bar.top, id).toBeGreaterThanOrEqual(0);
+    expect(bar.bottom, id).toBeLessThanOrEqual(844);
     expect(await plot.locator('.modebar-btn').count(), id).toBeGreaterThan(0);
     const btn = (await plot.locator('.modebar-btn').first().boundingBox())!;
     expect(btn.y + btn.height, `${id}: toolbar bottom ${btn.y + btn.height} against plot top ${box.top}`).toBeLessThanOrEqual(box.top + 1);
