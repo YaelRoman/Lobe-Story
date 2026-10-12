@@ -183,10 +183,12 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
     const make = ({ options: base, figure }: (typeof bases)['h']) => {
       const options = { ...base, markers: view.markers, markerTarget: target };
       const shown = options.series.find((x) => x.id === target);
+      const overlay = buildCutOverlay(options);
       return {
         figure,
-        overlay: buildCutOverlay(options),
-        exportFigure: () => buildCutFigure(options),
+        overlay,
+        // The layout is the drawn one: it carries the view the user has zoomed to, as the image always did.
+        exportFigure: () => ({ data: buildCutFigure(options).data, layout: { ...figure.layout, ...overlay.layout } }),
         referenceLabel: options.series.find((x) => x.reference)?.label ?? null,
         markerLine: markerCaption(options.cut, view.markers, options),
         mode: options.mode,
