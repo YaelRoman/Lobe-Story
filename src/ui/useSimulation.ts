@@ -15,7 +15,7 @@ import {
 } from '../core/analysis/tilt';
 import { anySimulated, offsetCountsAmong } from './simSummary';
 import { useHeldWhile } from './heldValue';
-import { useSliderGripped } from './sliderHold';
+import { GRIP_PAUSE_MS, useSliderGrip } from './sliderHold';
 
 export interface SimulationResult {
   /** True when any loaded file is tilted (effective Δe or m non-zero). */
@@ -87,12 +87,14 @@ export interface SettledSimulation {
  * The simulation state the plots and the table are made from. It follows the store's a render later (deferred), so a
  * slider's thumb and number are answered first. Where the page does not follow a drag (`follows` false: too many
  * files, see `followsDrag`), a gripped slider holds it back: the steps in between are dropped and the last one is
- * taken once, at release or when the slider has stopped for a moment. Whatever is set without a grip (a number box,
+ * taken once, at release (for the arrow keys a moment after it, so that a run of taps is one) or when the slider has
+ * stopped for a moment. Whatever is set without a grip (a number box,
  * Reset, undo, a loaded project) is followed at once, and the end state is the same either way.
  */
 export function useSettledSimulation(follows: boolean): SettledSimulation {
   const live = useStore((s) => s.view.simulation);
-  const held = useHeldWhile(live, useSliderGripped(!follows));
+  const grip = useSliderGrip(!follows);
+  const held = useHeldWhile(live, grip !== null, grip ? GRIP_PAUSE_MS[grip] : undefined);
   // Deferred so dragging a slider stays smooth while tilting/analysing catches up.
   const state = useDeferredValue(held.value);
   return { state, behind: state !== live, waiting: held.waiting };

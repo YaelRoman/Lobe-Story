@@ -1,5 +1,23 @@
 import { useSyncExternalStore } from 'react';
 import { createStore } from 'zustand/vanilla';
+import { PAUSE_MS } from './heldValue';
+
+/** What grips a slider. */
+export type Grip = 'pointer' | 'key';
+
+/**
+ * A key's grip ends this long after its last key up, not at the key up: a run of arrow-key taps is then one grip,
+ * followed once when it is over (each tap a release would be each tap a pass, with the hint flipping between its two
+ * sentences). The next key down on a slider keeps the grip.
+ */
+export const KEY_RELEASE_MS = PAUSE_MS;
+
+/**
+ * How long a gripped slider may stand still before the page follows although the grip goes on (see `useHeldWhile`).
+ * A key that is held down starts to repeat only after the system's delay, half a second and more: that wait is not
+ * a pause, so a key gets longer. It still bounds a key up that never comes.
+ */
+export const GRIP_PAUSE_MS: Record<Grip, number> = { pointer: PAUSE_MS, key: 800 };
 
 /**
  * Whether a simulation slider is gripped: a pointer or a key that moves it is down on it. A tiny store of its own
@@ -7,7 +25,16 @@ import { createStore } from 'zustand/vanilla';
  */
 const gripStore = createStore<{ pointer: number | null; key: boolean }>(() => ({ pointer: null, key: false }));
 
-const gripped = (): boolean => gripStore.getState().pointer !== null || gripStore.getState().key;
+/** What grips a slider now: the pointer before the key (its pause is the shorter). */
+export function sliderGrip(): Grip | null {
+  const { pointer, key } = gripStore.getState();
+  return pointer !== null ? 'pointer' : key ? 'key' : null;
+}
+
+const gripped = (): boolean => sliderGrip() !== null;
+
+/** Ends the key's grip, set at its key up. */
+let keyRelease = 0;
 
 /** What can end a grip; listened for on the window (the pointer may leave the slider while it drags) while one is on. */
 const WATCHED = ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerdown', 'pointermove', 'contextmenu', 'keyup', 'blur', 'visibilitychange'] as const;
@@ -23,6 +50,8 @@ function watch(on: boolean): void {
 }
 
 function setGrip(next: Partial<{ pointer: number | null; key: boolean }>): void {
+  // Any change of the key's grip (down again, or ended) takes the release that a key up had set.
+  if (next.key !== undefined) window.clearTimeout(keyRelease);
   gripStore.setState(next);
   watch(gripped());
 }
@@ -30,7 +59,7 @@ function setGrip(next: Partial<{ pointer: number | null; key: boolean }>): void 
 /**
  * A grip never outlives what holds it. The pointer's: its up or cancel, its capture lost, and the signs that an up
  * was missed (a context menu swallows it; so does a release outside the window, after which the pointer comes back
- * moving with no button down, or is pressed again). The key's: its key up.
+ * moving with no button down, or is pressed again). The key's: a moment after its key up (see `KEY_RELEASE_MS`).
  * Both: the window losing the focus, the page being hidden.
  */
 function onWatched(event: Event): void {
@@ -50,7 +79,9 @@ function onWatched(event: Event): void {
       setGrip({ pointer: null });
       break;
     case 'keyup':
-      setGrip({ key: false });
+      if (!gripStore.getState().key) break;
+      window.clearTimeout(keyRelease);
+      keyRelease = window.setTimeout(() => setGrip({ key: false }), KEY_RELEASE_MS);
       break;
     case 'blur':
       // The window's own blur only: an element's (the press on a slider takes the focus from another field) passes here too.
@@ -79,7 +110,7 @@ export function gripByPointer(press: PressLike): void {
   setGrip({ pointer: press.pointerId });
 }
 
-/** A key that moves a slider went down on it (see `gripKey`); held down it repeats, as a drag does. */
+/** A key that moves a slider went down on it (see `gripKey`); held down it repeats, as a drag does, and tapped it is pressed again. */
 export function gripByKey(): void {
   setGrip({ key: true });
 }
@@ -91,9 +122,9 @@ const GRIP_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'H
 /** Whether a key moves a slider (held down it repeats, as a drag does). */
 export const gripKey = (key: string): boolean => GRIP_KEYS.has(key);
 
-/** Whether a slider is gripped while `counts` is set; never re-renders the caller while it is not. */
-export function useSliderGripped(counts: boolean): boolean {
-  return useSyncExternalStore(gripStore.subscribe, () => counts && gripped());
+/** What grips a slider while `counts` is set (else null); never re-renders the caller while it is not. */
+export function useSliderGrip(counts: boolean): Grip | null {
+  return useSyncExternalStore(gripStore.subscribe, () => (counts ? sliderGrip() : null));
 }
 
 /**

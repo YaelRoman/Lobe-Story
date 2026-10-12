@@ -190,3 +190,35 @@ test('a right click on a slider grips nothing: a value typed after it is followe
   expect(await sawWaiting(page)).toBe(false);
   await page.mouse.up({ button: 'right' });
 });
+
+test('with many files ticked a run of arrow-key taps is followed once: the line waits through the taps and does not flip at each', async ({ page }) => {
+  await loadMany(page, 48);
+  const slider = page.getByRole('slider', { name: 'Electrical tilt Δ (°)', exact: true });
+  await slider.focus();
+  // Every text the line over the plots had, in order (null: no line), without repeats.
+  await page.evaluate(() => {
+    const w = window as unknown as { lineLog: (string | null)[] };
+    w.lineLog = [];
+    const note = () => {
+      const text = document.querySelector('[data-testid="updating-2d"]')?.textContent ?? null;
+      if (w.lineLog[w.lineLog.length - 1] !== text) w.lineLog.push(text);
+    };
+    new MutationObserver(note).observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
+  for (let tap = 0; tap < 6; tap++) {
+    await page.keyboard.press('ArrowRight', { delay: 40 });
+    await page.waitForTimeout(140);
+  }
+  await expect(slider).toHaveValue('3');
+  await settled(page);
+  await expect(page.locator('p.count', { hasText: 'Simulated:' })).toContainText('Δe +3°');
+  const log = await page.evaluate(() => (window as unknown as { lineLog: (string | null)[] }).lineLog);
+  // One wait, from the first tap to the pass after the last: the waiting sentence came once.
+  expect(log.filter((text) => text === WAITING), JSON.stringify(log)).toHaveLength(1);
+  expect(log[0]).toBe(WAITING);
+  const afterTaps = await shown(page);
+
+  await setDirect(page, 'Electrical tilt Δ (°)', '0');
+  await setDirect(page, 'Electrical tilt Δ (°)', '3');
+  expect(await shown(page)).toEqual(afterTaps);
+});

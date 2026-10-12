@@ -2,9 +2,9 @@
 import { act } from 'react';
 import { createElement, useMemo } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSettledSimulation, useSimulation, type SimulationResult } from './useSimulation';
-import { gripByPointer } from './sliderHold';
+import { GRIP_PAUSE_MS, gripByKey, gripByPointer, KEY_RELEASE_MS } from './sliderHold';
 import { initialState, useStore } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS, type TaggedPattern } from '../core/analysis/metrics';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
@@ -213,6 +213,68 @@ describe('a slider dragged where the page does not follow it (many files)', () =
     expect(probe.flags()).toEqual({ behind: false, waiting: false });
     act(() => useStore.getState().resetSimulation());
     expect(probe.latest().tiltActive).toBe(false);
+  });
+
+  describe('arrow keys', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => {
+      act(() => void window.dispatchEvent(new Event('blur')));
+      vi.useRealTimers();
+    });
+    const wait = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
+    const keyDown = (mechanicalDeg: number) =>
+      act(() => {
+        gripByKey();
+        useStore.getState().updateSimulation({ mechanicalDeg });
+      });
+    const keyUp = () => act(() => void window.dispatchEvent(new Event('keyup')));
+
+    it('a run of taps is followed once, after the last one, and the wait is one wait: it does not end and start again at each tap', () => {
+      probe = mountSettled(false);
+      const waited: boolean[] = [];
+      for (let tap = 1; tap <= 6; tap++) {
+        keyDown(tap);
+        wait(60);
+        keyUp();
+        waited.push(probe.flags().waiting);
+        wait(120);
+        waited.push(probe.flags().waiting);
+      }
+      expect(waited.every(Boolean)).toBe(true);
+      expect(probe.passes()).toBe(1);
+      wait(KEY_RELEASE_MS);
+      expect(probe.flags()).toEqual({ behind: false, waiting: false });
+      expect(probe.passes()).toBe(2);
+      expect(probe.latest().tilt.mechanicalDeg).toBe(6);
+      // Nothing is left to come.
+      wait(5000);
+      expect(probe.passes()).toBe(2);
+    });
+
+    it('a key held down is not followed in the wait before it starts to repeat', () => {
+      probe = mountSettled(false);
+      keyDown(1);
+      wait(600);
+      expect(probe.flags().waiting).toBe(true);
+      expect(probe.passes()).toBe(1);
+      for (let step = 2; step <= 8; step++) {
+        keyDown(step);
+        wait(30);
+      }
+      expect(probe.passes()).toBe(1);
+      keyUp();
+      wait(KEY_RELEASE_MS);
+      expect(probe.passes()).toBe(2);
+      expect(probe.latest().tilt.mechanicalDeg).toBe(8);
+    });
+
+    it('a key up that never comes: the value is handed on once the key has stood still for its pause', () => {
+      probe = mountSettled(false);
+      keyDown(3);
+      wait(GRIP_PAUSE_MS.key);
+      expect(probe.latest().tilt.mechanicalDeg).toBe(3);
+      expect(probe.flags()).toEqual({ behind: false, waiting: false });
+    });
   });
 
   it('where the page follows the drag, a grip holds nothing back', () => {

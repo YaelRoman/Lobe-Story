@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
-import { followsDrag, gripByKey, gripByPointer, gripKey, LIVE_DRAG_BUDGET_MS, sliderGripped } from './sliderHold';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { followsDrag, GRIP_PAUSE_MS, gripByKey, gripByPointer, gripKey, KEY_RELEASE_MS, LIVE_DRAG_BUDGET_MS, sliderGrip, sliderGripped } from './sliderHold';
+import { PAUSE_MS } from './heldValue';
 
 afterEach(() => window.dispatchEvent(new Event('blur')));
 
@@ -19,12 +20,11 @@ describe('a slider is gripped from pointer or key down to the matching up', () =
     expect(sliderGripped()).toBe(false);
   });
 
-  it('a key up and a window that loses the focus let go as well', () => {
-    for (const end of ['keyup', 'blur']) {
-      gripByKey();
-      window.dispatchEvent(new Event(end));
-      expect(sliderGripped(), end).toBe(false);
-    }
+  it('a key grips, and a window that loses the focus lets go', () => {
+    gripByKey();
+    expect(sliderGripped()).toBe(true);
+    window.dispatchEvent(new Event('blur'));
+    expect(sliderGripped()).toBe(false);
   });
 
   it('an element that loses the focus does not let go: the press on a slider takes the focus from another field', () => {
@@ -108,8 +108,89 @@ describe('a grip never outlives its pointer', () => {
     window.dispatchEvent(pointer('pointerup'));
     expect(sliderGripped()).toBe(false);
     gripByKey();
+    window.dispatchEvent(new Event('keyup'));
     window.dispatchEvent(pointer('pointerup'));
     expect(sliderGripped()).toBe(true);
+  });
+});
+
+describe('arrow-key taps: the grip of a key ends a moment after its last key up', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  const keyUp = () => window.dispatchEvent(new Event('keyup'));
+
+  it('a key up does not let go at once, but after the pause', () => {
+    gripByKey();
+    keyUp();
+    expect(sliderGripped()).toBe(true);
+    vi.advanceTimersByTime(KEY_RELEASE_MS - 1);
+    expect(sliderGripped()).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(sliderGripped()).toBe(false);
+  });
+
+  it('the next key down keeps the grip: a run of taps is one grip from the first key down to the pause after the last key up', () => {
+    const seen: boolean[] = [];
+    for (let tap = 0; tap < 6; tap++) {
+      gripByKey();
+      vi.advanceTimersByTime(60);
+      keyUp();
+      for (let waited = 0; waited < 120; waited += 20) {
+        vi.advanceTimersByTime(20);
+        seen.push(sliderGripped());
+      }
+    }
+    expect(seen.every(Boolean)).toBe(true);
+    vi.advanceTimersByTime(KEY_RELEASE_MS);
+    expect(sliderGripped()).toBe(false);
+  });
+
+  it('a held key (it repeats: many key downs, one key up) is one grip as well, and the listeners go with it', () => {
+    gripByKey();
+    gripByKey();
+    gripByKey();
+    keyUp();
+    vi.advanceTimersByTime(KEY_RELEASE_MS);
+    expect(sliderGripped()).toBe(false);
+    // A later, unrelated key up changes nothing and throws nothing.
+    keyUp();
+    vi.advanceTimersByTime(KEY_RELEASE_MS);
+    expect(sliderGripped()).toBe(false);
+  });
+
+  it('a window that loses the focus or a page that is hidden ends it at once, also inside the pause', () => {
+    for (const lost of [() => window.dispatchEvent(new Event('blur')), () => document.dispatchEvent(new Event('visibilitychange'))]) {
+      gripByKey();
+      keyUp();
+      lost();
+      expect(sliderGripped()).toBe(false);
+      // The timer of the key up is gone with it: a new grip is not ended by it.
+      gripByKey();
+      vi.advanceTimersByTime(KEY_RELEASE_MS + 1);
+      expect(sliderGripped()).toBe(true);
+      window.dispatchEvent(new Event('blur'));
+    }
+  });
+
+  it('a pointer is still let go at once, and a key grip beside it runs its own course', () => {
+    gripByKey();
+    keyUp();
+    press();
+    window.dispatchEvent(pointer('pointerup'));
+    expect(sliderGripped()).toBe(true);
+    vi.advanceTimersByTime(KEY_RELEASE_MS);
+    expect(sliderGripped()).toBe(false);
+  });
+
+  it('says what grips, the pointer before the key, and how long each may stand still before the page follows', () => {
+    expect(sliderGrip()).toBeNull();
+    gripByKey();
+    expect(sliderGrip()).toBe('key');
+    press();
+    expect(sliderGrip()).toBe('pointer');
+    // A held key starts to repeat only after the system's delay (half a second and more): that wait is no pause.
+    expect(GRIP_PAUSE_MS.pointer).toBe(PAUSE_MS);
+    expect(GRIP_PAUSE_MS.key).toBeGreaterThan(700);
   });
 });
 
