@@ -247,7 +247,7 @@ describe('drawingOrder (the highlighted file on top on the screen)', () => {
     expect(drawingOrder(data, 'r')).toEqual([0, 1, 2, 3]);
   });
 
-  it('draws the files in the order of the complete figure, the one an exported image has', () => {
+  it('draws the files (without a simulation, so without originals) in the order of the complete figure, the one an exported image has', () => {
     const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a' });
     const metrics = analyzePattern({ pattern, tags: {} });
     const one = (id: string, extra: Partial<PlotSeries> = {}): PlotSeries => ({ id, label: id, color: '#123456', cut: pattern.horizontal, metrics, ...extra });

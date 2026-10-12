@@ -190,7 +190,9 @@ test('a plot that throws while it draws a highlight\'s markers is replaced by th
   await expect(failed.first()).toContainText('injected: not a valid selector');
   // Nothing escaped to the page, the redraw counts as over, and the rest of the app is alive.
   expect(errors).toEqual([]);
-  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+  // (Whether the "Updating the plots…" hint goes away after a failed redraw is not asserted here: with two files the
+  // expected cost is far below the hint threshold, so the hint is never shown and such a line could not fail. The
+  // redraw counts as over through `onDrawn`, which the assertions above exercise.)
   await expect(page.getByRole('button', { name: 'Save project' })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Plot type' })).toBeVisible();
   await expect(page.locator('.metrics tbody tr')).toHaveCount(2);

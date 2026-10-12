@@ -455,7 +455,9 @@ export function buildCutFigure(o: CutFigureOptions): Figure {
  * The cut figure without a highlighted file: every file trace in its plain look and in series order, no marker. It
  * does not depend on the highlight, so highlighting a file builds no trace again: the plot restyles the traces it has
  * (see `previewRestyle`) and takes the file's markers and title from `buildCutOverlay`. The plot hands the traces to
- * the library with the highlighted one on top (see `drawingOrder`), as `buildCutFigure` orders them.
+ * the library with the highlighted one on top (see `drawingOrder`). Without a simulation that is the order
+ * `buildCutFigure` gives an exported image. Under a tilt simulation the two differ in one place: on screen the
+ * highlighted file's dashed original moves right under it, while the export keeps it at its place in the series.
  */
 export function buildCutBase(o: CutBaseOptions): Figure {
   const files = fileTraces(o, null);
