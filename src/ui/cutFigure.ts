@@ -401,6 +401,28 @@ export function buildCutOverlay(o: CutFigureOptions): CutOverlay {
   return { data: rect.traces as Data[], layout: { title, shapes: rect.shapes } };
 }
 
+/**
+ * Tick labels of the vertical polar plot in the tool's convention: 0 is the horizon, positive angles are below it,
+ * the front side runs −90…+90 (as every number in the tool: tilt, sidelobe windows). The back side is left blank so a
+ * student never reads "150°" for a direction that is 30° below the horizon behind the antenna; 180° is named as it is.
+ */
+export function verticalAngleTicks(step = 30): { tickvals: number[]; ticktext: string[] } {
+  const signed: number[] = [];
+  for (let a = 0; a < 360; a += step) signed.push(a > 180 ? a - 360 : a);
+  const text = (a: number) => (Math.abs(a) > 90 ? (a === 180 ? '180°' : '') : a === 0 ? '0°' : `${a > 0 ? '+' : '−'}${Math.abs(a)}°`);
+  // Plotly places polar ticks by their position on the 0…360 circle; only the text is signed.
+  return { tickvals: signed.map((a) => (a < 0 ? a + 360 : a)), ticktext: signed.map(text) };
+}
+
+/** Small hints that say which side of the vertical polar plot is above and which is below the horizon. */
+function horizonHints(o: CutBaseOptions): Partial<Layout>['annotations'] {
+  const hint = (text: string, y: number) => ({
+    text, x: 0, y, xref: 'paper' as const, yref: 'paper' as const, xanchor: 'left' as const, yanchor: 'middle' as const,
+    showarrow: false, font: { size: 11, color: o.theme.fg }, opacity: 0.75,
+  });
+  return [hint('▲ above horizon', 0.97), hint('▼ below horizon', 0.03)];
+}
+
 /** The figure's layout apart from the highlighted file's part (`CutOverlay.layout`). */
 function baseLayout(o: CutBaseOptions, top: number): Partial<Layout> {
   const base: Partial<Layout> = {
@@ -414,12 +436,15 @@ function baseLayout(o: CutBaseOptions, top: number): Partial<Layout> {
   if (o.mode === 'polar') {
     return {
       ...base,
+      // The vertical plot names +90° below the circle: room for it above the legend.
+      ...(o.cut === 'V' ? { annotations: horizonHints(o), margin: { ...base.margin, b: 66 } } : {}),
       polar: {
         bgcolor: 'rgba(0,0,0,0)',
         angularaxis: {
           rotation: o.cut === 'H' ? 90 : 0,
           direction: 'clockwise',
           dtick: 30,
+          ...(o.cut === 'V' ? verticalAngleTicks() : {}),
           gridcolor: o.theme.grid,
           linecolor: o.theme.grid,
         },

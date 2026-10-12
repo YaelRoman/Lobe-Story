@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Legend, PlotData, Shape } from 'plotly.js';
 import { buildHpbwFigure, hpbwCaption } from './hpbwFigure';
 import { exportFigure } from './exportFigure';
-import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout, type CutFigureOptions, type PlotSeries } from './cutFigure';
+import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout, verticalAngleTicks, type CutFigureOptions, type PlotSeries } from './cutFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
 import { tiltPattern } from '../core/analysis/tilt';
@@ -479,6 +479,42 @@ describe('markerReadout', () => {
     expect(r.some((x) => x.startsWith('HPBW '))).toBe(true);
     expect(r.some((x) => x.startsWith('Squint '))).toBe(true);
     expect(markerReadout(opts({ series: [s], markerTarget: 'a', markers: NO_MARKERS }))).toEqual([]);
+  });
+});
+
+describe('vertical polar angle labels', () => {
+  it('label the front side −90…+90 with positive below the horizon, the back side blank but for 180°', () => {
+    const { tickvals, ticktext } = verticalAngleTicks();
+    // Ticks sit at 0…330 on the circle (Plotly's positions); a signed angle a is at a mod 360.
+    const at = (a: number) => ticktext[tickvals.indexOf((a + 360) % 360)];
+    expect([-90, -60, -30, 0, 30, 60, 90].map(at)).toEqual(['−90°', '−60°', '−30°', '0°', '+30°', '+60°', '+90°']);
+    expect([-150, -120, 120, 150].map(at)).toEqual(['', '', '', '']);
+    expect(at(180)).toBe('180°');
+    expect(tickvals).toHaveLength(12);
+  });
+
+  it('are on the vertical polar plot only, with "above / below horizon" hints; the horizontal polar and the rectangular plots are unchanged', () => {
+    const [h, v] = series('a');
+    const vf = buildCutFigure(opts({ cut: 'V', series: [v] }));
+    expect(vf.layout.polar?.angularaxis?.ticktext).toContain('−30°');
+    const hints = (vf.layout.annotations ?? []).map((x) => x.text);
+    expect(hints).toEqual(['▲ above horizon', '▼ below horizon']);
+    const hf = buildCutFigure(opts({ cut: 'H', series: [h] }));
+    expect(hf.layout.polar?.angularaxis?.ticktext).toBeUndefined();
+    expect(hf.layout.annotations ?? []).toEqual([]);
+    // Room under the vertical circle for the "+90°" label (the legend sits at the bottom).
+    expect(vf.layout.margin?.b).toBeGreaterThan(hf.layout.margin?.b ?? 0);
+    const rf = buildCutFigure(opts({ cut: 'V', series: [v], mode: 'rect' }));
+    expect(rf.layout.annotations ?? []).toEqual([]);
+    expect(rf.layout.xaxis?.ticktext).toBeUndefined();
+  });
+
+  it('agree with the data: the traces and the hover text carry the same signed angle (positive below)', () => {
+    const [, v] = series('a');
+    const t = traces(buildCutFigure(opts({ cut: 'V', series: [v] })))[0];
+    expect(Math.min(...(t.theta as number[]))).toBeLessThan(-170);
+    expect(Math.max(...(t.theta as number[]))).toBe(180);
+    expect(t.hovertemplate).toContain('%{theta:.0f}°');
   });
 });
 
