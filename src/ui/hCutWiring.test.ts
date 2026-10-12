@@ -6,7 +6,7 @@ import type { PlotData } from 'plotly.js';
 import { hCutLabel, simSummary, simulatedCaption, simulationActive, summaryHCut, summaryMethod } from './simSummary';
 import { buildRows, columnTitle, csvColumns, HORIZON_TAG, METRIC_COLUMNS, simulationLabel, toCsv, toTsv, visibleColumns } from './table';
 import { bandCsv, bandTsv } from './bandView';
-import { FAR_BELOW_PEAK_DB, FAR_BELOW_PEAK_NOTE, horizonCutFarBelowPeak } from './cutSeries';
+import { FAR_BELOW_PEAK_DB, FAR_BELOW_PEAK_NOTE, farBelowPeakNote, horizonCutFarBelowPeak } from './cutSeries';
 import { buildCutSeries } from './cutSeries';
 import { buildCutFigure, buildCutOverlay, markerReadout, type CutFigureOptions } from './cutFigure';
 import { exportCaptionLines, withSimulated } from './exportFigure';
@@ -492,5 +492,32 @@ describe('a horizon cut far below the peak in the polar plot', () => {
     expect(horizonCutFarBelowPeak(['x'], new Map([['x', level(15)], ['c', level(37)]]))).toBe(false);
     expect(FAR_BELOW_PEAK_DB).toBe(15);
     expect(FAR_BELOW_PEAK_NOTE).toBe('This cut is far below the peak; the rectangular view shows it better');
+  });
+
+  describe('says which cuts it is about, so it cannot contradict the read-out of the highlighted file above it', () => {
+    const metrics = new Map([['near', level(0.6)], ['near2', level(4)], ['far', level(16.8)], ['far2', level(37)], ['far3', level(20)]]);
+    it('says nothing when no drawn cut is far below', () => {
+      expect(farBelowPeakNote(['near', 'near2'], metrics, 'near')).toBeUndefined();
+      expect(farBelowPeakNote([], metrics, null)).toBeUndefined();
+    });
+    it('is "this cut" only for the one drawn file or the file the read-out describes', () => {
+      expect(farBelowPeakNote(['far'], metrics, 'far')).toBe(FAR_BELOW_PEAK_NOTE);
+      expect(farBelowPeakNote(['far'], metrics, null)).toBe(FAR_BELOW_PEAK_NOTE);
+      expect(farBelowPeakNote(['near', 'far'], metrics, 'far')).toBe(FAR_BELOW_PEAK_NOTE);
+    });
+    it('counts the others when the read-out is about a file that is not far below, or about none', () => {
+      expect(farBelowPeakNote(['near', 'near2', 'far'], metrics, 'near')).toBe('1 of the 3 horizon cuts drawn is more than 15 dB below its peak; the rectangular view shows it better');
+      expect(farBelowPeakNote(['near', 'far', 'far2'], metrics, 'near')).toBe('2 of the 3 horizon cuts drawn are more than 15 dB below their peak; the rectangular view shows them better');
+      expect(farBelowPeakNote(['near', 'far', 'far2'], metrics, null)).toBe('2 of the 3 horizon cuts drawn are more than 15 dB below their peak; the rectangular view shows them better');
+      expect(farBelowPeakNote(['far', 'far2'], metrics, null)).toBe('Both horizon cuts drawn are more than 15 dB below their peak; the rectangular view shows them better');
+      expect(farBelowPeakNote(['far', 'far2', 'far3'], metrics, null)).toBe('All 3 horizon cuts drawn are more than 15 dB below their peak; the rectangular view shows them better');
+    });
+    it('names the described cut and counts the rest when it is one of several', () => {
+      expect(farBelowPeakNote(['near', 'far', 'far2'], metrics, 'far')).toBe('This cut and 1 other of the 3 drawn are more than 15 dB below their peak; the rectangular view shows them better');
+      expect(farBelowPeakNote(['near', 'far', 'far2', 'far3'], metrics, 'far2')).toBe('This cut and 2 others of the 4 drawn are more than 15 dB below their peak; the rectangular view shows them better');
+    });
+    it('ignores a described file that is not drawn', () => {
+      expect(farBelowPeakNote(['near', 'far'], metrics, 'far2')).toBe('1 of the 2 horizon cuts drawn is more than 15 dB below its peak; the rectangular view shows it better');
+    });
   });
 });

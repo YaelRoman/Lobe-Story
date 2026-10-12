@@ -484,6 +484,28 @@ test('a horizon cut far below the peak in the polar plot offers the rectangular 
   await expect(note).toHaveCount(0);
 });
 
+test('with several files drawn the far-below note says how many cuts it is about and does not contradict the read-out', async ({ page }) => {
+  await loadExample(page);
+  await openSimulation(page);
+  const note = page.getByTestId('far-below-note');
+  const readout = page.getByTestId('readout-h');
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  await expect(note).toHaveCount(0);
+  // Show all, no tilt: the read-out is about the highlighted 2° file (0.6 dB down), some 8° files are over 15 dB down.
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await expect(note).toBeVisible();
+  await expect(readout).toContainText('example_1710_P45_02T.msi');
+  await expect(readout).toContainText('maximum 0.6 dB below the 3D peak');
+  await expect(note).toContainText(/^\d+ of the 24 horizon cuts drawn (is|are) more than 15 dB below (its|their) peak; the rectangular view shows (it|them) better/);
+  await expect(note).not.toContainText('This cut');
+  await expect(note.getByRole('button', { name: 'Show rectangular' })).toBeVisible();
+  // The read-out moved to one of the far ones: the note is about that cut and the others.
+  const far = page.locator('.metrics tbody tr').filter({ has: page.locator('td[data-col="hLevel"]', { hasText: /^(1[6-9]|[2-9]\d)\./ }) }).first();
+  await far.locator('.row-main').click();
+  await expect(readout).toContainText(/maximum (1[6-9]|[2-9]\d)\.\d dB below the 3D peak/);
+  await expect(note).toContainText(/^This cut( and \d+ others? of the 24 drawn are| is) /);
+});
+
 test('Reset at the horizon with no offsets can be undone, by the offer and by the keyboard', async ({ page }) => {
   await loadExample(page);
   await openSimulation(page);

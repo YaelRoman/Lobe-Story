@@ -7,7 +7,7 @@ import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerRea
 import { exportName, simulatedCaption, weightedHorizonNote } from './simSummary';
 import { withSimulated } from './exportFigure';
 import { bwMarkerLabel } from './bwLabel';
-import { buildCutSeries, FAR_BELOW_PEAK_NOTE, horizonCutFarBelowPeak, withReference } from './cutSeries';
+import { buildCutSeries, farBelowPeakNote, withReference } from './cutSeries';
 import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend, traceNote } from './legend';
 import { PlotlyChart, type FigureOverlay } from './PlotlyChart';
@@ -78,7 +78,8 @@ interface CutPlotProps {
   exportNote?: string;
   /** Name of the exported image, without extension. */
   exportBase: string;
-  /** Offered under a polar plot whose horizon cut is too small to read: switches to the rectangular view. */
+  /** Under a polar plot with a horizon cut too small to read: which cuts that is (see `farBelowPeakNote`), with the offer of the rectangular view. */
+  farBelowNote?: string;
   onShowRectangular?: () => void;
 }
 
@@ -89,7 +90,7 @@ interface Drawn {
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, fileCut, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportNote, exportBase, onShowRectangular }: CutPlotProps) {
+function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, fileCut, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportNote, exportBase, farBelowNote, onShowRectangular }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -114,9 +115,9 @@ function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, 
             <strong>{target}:</strong> {readout.join(' · ')}
           </p>
         )}
-        {onShowRectangular && (
+        {farBelowNote && (
           <p className="count" data-testid="far-below-note">
-            {FAR_BELOW_PEAK_NOTE}{' '}
+            {farBelowNote}{' '}
             <button type="button" onClick={onShowRectangular}>
               Show rectangular
             </button>
@@ -247,9 +248,10 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
 
   const byGroup = styles.size > PER_FILE_COLOURS;
   // A horizon cut tens of dB down is a dot at the centre of a polar plot: offer the view that shows it (the drawing is not changed).
+  // The line stands under the read-out of the marker target: it says whether it is about that file or about how many others.
   const farBelow = useMemo(
-    () => drawn.mode === 'polar' && drawn.sim.hCut === 'horizon' && horizonCutFarBelowPeak(drawn.items.map((i) => i.pattern.id), drawn.sim.metrics),
-    [drawn],
+    () => (drawn.mode === 'polar' && drawn.sim.hCut === 'horizon' ? farBelowPeakNote(drawn.items.map((i) => i.pattern.id), drawn.sim.metrics, target) : undefined),
+    [drawn, target],
   );
   const updateView = useStore((s) => s.updateView);
   const showRectangular = useCallback(() => updateView({ mode: 'rect' }), [updateView]);
@@ -271,7 +273,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
           </p>
         )}
         <div className="plots">
-          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={exportName('horizontal-cut', simulatedH)} onShowRectangular={farBelow ? showRectangular : undefined} />}
+          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={exportName('horizontal-cut', simulatedH)} farBelowNote={farBelow} onShowRectangular={showRectangular} />}
           {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} simulatedLine={simulatedLineV} exportBase={exportName('vertical-cut', simulatedV)} />}
         </div>
       </div>

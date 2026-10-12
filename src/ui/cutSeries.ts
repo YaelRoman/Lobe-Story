@@ -8,9 +8,31 @@ import type { SimulationResult } from './useSimulation';
 export const FAR_BELOW_PEAK_DB = 15;
 export const FAR_BELOW_PEAK_NOTE = 'This cut is far below the peak; the rectangular view shows it better';
 
+/** The drawn files whose horizon cut has its maximum more than `FAR_BELOW_PEAK_DB` below their 3D peak. */
+const farBelowPeak = (drawnIds: readonly string[], metrics: ReadonlyMap<string, { hCutPeakDb?: number }>): string[] =>
+  drawnIds.filter((id) => (metrics.get(id)?.hCutPeakDb ?? 0) > FAR_BELOW_PEAK_DB);
+
 /** Whether one of the drawn files has a horizon cut whose maximum lies more than `FAR_BELOW_PEAK_DB` below its 3D peak. */
 export function horizonCutFarBelowPeak(drawnIds: readonly string[], metrics: ReadonlyMap<string, { hCutPeakDb?: number }>): boolean {
-  return drawnIds.some((id) => (metrics.get(id)?.hCutPeakDb ?? 0) > FAR_BELOW_PEAK_DB);
+  return farBelowPeak(drawnIds, metrics).length > 0;
+}
+
+/**
+ * The line under a polar horizontal plot while a drawn horizon cut is far below its peak, else undefined. It stands
+ * under the read-out of one file (`describedId`, the file whose markers are drawn), so it says "this cut" only when
+ * it is about that file or the only one drawn; otherwise it counts the cuts it is about.
+ */
+export function farBelowPeakNote(drawnIds: readonly string[], metrics: ReadonlyMap<string, { hCutPeakDb?: number }>, describedId: string | null): string | undefined {
+  const far = farBelowPeak(drawnIds, metrics);
+  const [n, total] = [far.length, drawnIds.length];
+  if (n === 0) return undefined;
+  const below = `more than ${FAR_BELOW_PEAK_DB} dB below`;
+  const them = '; the rectangular view shows them better';
+  if (total === 1 || (n === 1 && far[0] === describedId)) return FAR_BELOW_PEAK_NOTE;
+  if (describedId !== null && far.includes(describedId)) return `This cut and ${n - 1} other${n === 2 ? '' : 's'} of the ${total} drawn are ${below} their peak${them}`;
+  if (n === 1) return `1 of the ${total} horizon cuts drawn is ${below} its peak; the rectangular view shows it better`;
+  const which = n < total ? `${n} of the ${total}` : total === 2 ? 'Both' : `All ${total}`;
+  return `${which} horizon cuts drawn are ${below} their peak${them}`;
 }
 
 /** The non-solid line pattern of a file's style, if any. */
