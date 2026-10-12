@@ -182,8 +182,14 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
       >
         <span aria-hidden="true">{collapsed ? '▸' : '▾'}</span> Simulation
       </button>
-      {anyActive && (
+      {/* The badge's place is kept while nothing is simulated: a badge that appeared at the first step of a drag
+          would push the sliders along under the held pointer. */}
+      {anyActive ? (
         <span className="badge" data-testid="sim-badge">
+          Simulated
+        </span>
+      ) : (
+        <span className="badge badge-ghost" aria-hidden="true">
           Simulated
         </span>
       )}

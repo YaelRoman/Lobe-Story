@@ -71,3 +71,44 @@ test('phone layout: no horizontal overflow, file drawer closed, first plot on th
   await toggle.press('Enter');
   await expect(page.locator('.panel')).toBeHidden();
 });
+
+for (const label of ['Mechanical tilt (°)', 'Electrical tilt Δ (°)']) {
+  test(`the first drag of the ${label} slider follows the pointer: the bar does not move when the simulation becomes active`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+    await expect(page.locator('.panel li')).toHaveCount(24);
+    const fold = page.getByRole('button', { name: /Simulation/ });
+    await fold.click();
+    await expect(fold).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByTestId('sim-badge')).toHaveCount(0);
+
+    const slider = page.getByRole('slider', { name: label, exact: true });
+    await expect(slider).toHaveValue('0');
+    const before = (await slider.boundingBox())!;
+    const [min, max] = [Number(await slider.getAttribute('min')), Number(await slider.getAttribute('max'))];
+    // The thumb of a slider at 0: its centre travels the track width less one thumb (about 16 px) over min…max.
+    const thumb = 16;
+    const perDegree = (before.width - thumb) / (max - min);
+    const x = before.x + thumb / 2 + (0 - min) * perDegree;
+    const y = before.y + before.height / 2;
+    const dragPx = 28;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 6, y, { steps: 2 });
+    // The simulation is active from the first step on: the badge shows while the pointer is still held.
+    await expect(page.getByTestId('sim-badge')).toBeVisible();
+    await page.mouse.move(x + dragPx, y, { steps: 4 });
+    const during = (await slider.boundingBox())!;
+    await page.mouse.up();
+
+    const expected = dragPx / perDegree;
+    const value = Number(await slider.inputValue());
+    expect(Math.abs(value - expected), `value ${value}, expected about ${expected.toFixed(1)}`).toBeLessThanOrEqual(1);
+    expect(during.x).toBe(before.x);
+    expect(during.y).toBe(before.y);
+    const after = (await slider.boundingBox())!;
+    expect(after.x).toBe(before.x);
+    expect(after.y).toBe(before.y);
+  });
+}
