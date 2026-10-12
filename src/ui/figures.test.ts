@@ -163,7 +163,7 @@ describe('buildCutFigure', () => {
 
     it('marks the elevation sidelobes, merging coinciding ones', () => {
       const n = nm(names('V', quadBeam(60), vBeamWithLobes));
-      expect(n).toContain('First USLS · USLS peak to 20° · USLS horizon to 20° 18.0 dB');
+      expect(n).toContain('First USLS = USLS peak to 20° = USLS horizon to 20° 18.0 dB');
       expect(n).toContain('Null fill 22.0 dB');
       expect(n).toContain('First LSLS 15.0 dB');
       expect(n.filter((x) => x?.startsWith('USLS'))).toEqual([]);
@@ -171,14 +171,14 @@ describe('buildCutFigure', () => {
 
     it('marks merged lobes', () => {
       const n = nm(names('V', quadBeam(60), quadBeam(8, 6)));
-      expect(n).toContain('First USLS (merged) · USLS peak to 20° · USLS horizon to 20° 28.9 dB');
-      expect(n).toContain('Null fill (merged) · First LSLS (merged) 28.9 dB');
+      expect(n).toContain('First USLS (merged) = USLS peak to 20° = USLS horizon to 20° 28.9 dB');
+      expect(n).toContain('Null fill (merged) = First LSLS (merged) 28.9 dB');
     });
 
     it('keeps differing values as separate markers', () => {
       const n = nm(names('V', quadBeam(60), vFarLobes));
       expect(n).toContain('First USLS (merged) 23.2 dB');
-      expect(n).toContain('USLS peak to 20° · USLS horizon to 20° 18.0 dB');
+      expect(n).toContain('USLS peak to 20° = USLS horizon to 20° 18.0 dB');
     });
 
     it('draws nothing for a null result', () => {
@@ -479,6 +479,26 @@ describe('markerReadout', () => {
     expect(r.some((x) => x.startsWith('HPBW '))).toBe(true);
     expect(r.some((x) => x.startsWith('Squint '))).toBe(true);
     expect(markerReadout(opts({ series: [s], markerTarget: 'a', markers: NO_MARKERS }))).toEqual([]);
+  });
+});
+
+describe('read-out wording', () => {
+  const [h, v] = series('a');
+  it('joins labels that share one value with " = " and keeps " · " for the separate items (the page does the latter)', () => {
+    const r = markerReadout(opts({ cut: 'V', series: [v], markerTarget: 'a', markers: { ...NO_MARKERS, usls: true } }));
+    expect(r).toContain('First USLS = USLS peak to 20° = USLS horizon to 20° 18.0 dB');
+    expect(r.some((x) => x.includes(' · '))).toBe(false);
+  });
+
+  it('replaces the two sector-edge items by one roll-off item with its value', () => {
+    const r = markerReadout(opts({ series: [h], markerTarget: 'a', markers: { ...NO_MARKERS, sector: true } }));
+    const roll = analyzePattern({ pattern: patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a' }), tags: {} }).rollOff.value!;
+    expect(r.filter((x) => x.startsWith('Sector edge'))).toEqual([]);
+    expect(r).toContain(`Roll-off at ±60°: ${roll.toFixed(1)} dB`);
+    expect(r.filter((x) => x.startsWith('Roll-off'))).toHaveLength(1);
+    // The edge lines are still drawn.
+    const names = traces(buildCutFigure(opts({ markers: { ...NO_MARKERS, sector: true }, markerTarget: 'a' }))).map((t) => t.name);
+    expect(names).toContain('Sector edge +60°');
   });
 });
 

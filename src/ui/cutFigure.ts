@@ -49,10 +49,12 @@ export interface CutFigureOptions {
 interface Sector { from: number; to: number; label: string; opacity: number; readout?: boolean }
 interface Ring { db: number; label: string }
 interface Point { angle: number; db: number; label: string }
-interface Ray { angle: number; label: string; dash?: 'dot' | 'dashdot' }
+/** `readout: false`: the ray is drawn but the read-out says it in one item of its own (see `notes`). */
+interface Ray { angle: number; label: string; dash?: 'dot' | 'dashdot'; readout?: boolean }
 /** A band drawn along the outer radius (polar) or near the top (rectangular); `slot` stacks several. */
 interface Arc { from: number; to: number; slot: number; label: string }
-interface MarkerSpec { sectors: Sector[]; rings: Ring[]; points: Point[]; rays: Ray[]; arcs: Arc[] }
+/** `notes`: read-out items that belong to no single mark. */
+interface MarkerSpec { sectors: Sector[]; rings: Ring[]; points: Point[]; rays: Ray[]; arcs: Arc[]; notes: string[] }
 
 function sortedCut(cut: Cut, rotationDeg: number): { x: number[]; y: number[] } {
   const pts = cut.angles
@@ -71,7 +73,7 @@ function arc(from: number, to: number): number[] {
 }
 
 function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
-  const spec: MarkerSpec = { sectors: [], rings: [], points: [], rays: [], arcs: [] };
+  const spec: MarkerSpec = { sectors: [], rings: [], points: [], rays: [], arcs: [], notes: [] };
   const m = target.metrics;
   const beam = o.cut === 'H' ? m.h : m.v;
   const offset = Math.min(...target.cut.atten);
@@ -99,7 +101,7 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
       if (same) same.labels.push(text);
       else groups.push({ angle: r.angle, value: r.value, labels: [text] });
     }
-    for (const g of groups) point({ value: g.value, angle: g.angle }, (v) => `${g.labels.join(' · ')} ${v.toFixed(1)} dB`);
+    for (const g of groups) point({ value: g.value, angle: g.angle }, (v) => `${g.labels.join(' = ')} ${v.toFixed(1)} dB`);
   };
   if (o.markers.usls && o.cut === 'V') {
     lobeMarkers([
@@ -122,8 +124,10 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
   if (o.markers.sector && o.cut === 'H') {
     for (const sign of [1, -1]) {
       const angle = signed(sign * o.sectorEdgeDeg + rot);
-      spec.rays.push({ angle, label: `Sector edge ${sign > 0 ? '+' : '−'}${o.sectorEdgeDeg}°`, dash: 'dashdot' });
+      spec.rays.push({ angle, label: `Sector edge ${sign > 0 ? '+' : '−'}${o.sectorEdgeDeg}°`, dash: 'dashdot', readout: false });
     }
+    // The edges carry the roll-off value of the table (the worse of the two edges): one item says it.
+    if (m.rollOff.value !== null) spec.notes.push(`Roll-off at ±${o.sectorEdgeDeg}°: ${m.rollOff.value.toFixed(1)} dB`);
     DU_LEVELS.forEach((l, slot) => {
       const r = m.du[l.key];
       if (r.value === null || !r.edges) return;
@@ -284,7 +288,8 @@ export function markerReadout(o: CutFigureOptions): string[] {
   return [
     ...spec.sectors.filter((s) => s.readout !== false).map((s) => s.label),
     ...spec.points.map((p) => p.label),
-    ...spec.rays.map((r) => r.label),
+    ...spec.rays.filter((r) => r.readout !== false).map((r) => r.label),
+    ...spec.notes,
     ...spec.arcs.map((a) => a.label),
   ];
 }
@@ -334,7 +339,7 @@ export interface CutOverlay {
   layout: Partial<Layout>;
 }
 
-const NO_MARKERS: MarkerSpec = { sectors: [], rings: [], points: [], rays: [], arcs: [] };
+const NO_MARKERS: MarkerSpec = { sectors: [], rings: [], points: [], rays: [], arcs: [], notes: [] };
 
 /** The file traces, drawn in series order with the emphasised file last but for the reference, and the top of the level axis. */
 function fileTraces(o: CutBaseOptions, emphasised: string | null): { data: FileTrace[]; top: number } {
