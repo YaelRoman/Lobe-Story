@@ -448,3 +448,30 @@ test('clicking a point of the frequency chart highlights that file (again: clear
   expect(row2.y).toBeGreaterThanOrEqual(wrap2.y - 1);
   expect(row2.y + row2.height).toBeLessThanOrEqual(wrap2.y + wrap2.height + 1);
 });
+
+test('the sub-band editor says when a typed minimum above the maximum was swapped', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  const band = page.getByTestId('band-stats');
+  await band.getByRole('button', { name: 'Sub-bands' }).click();
+  await band.getByRole('button', { name: 'Start from automatic' }).click();
+  const note = band.getByTestId('subband-note');
+  await expect(note).toBeHidden();
+  const min = band.getByLabel('Sub-band 1 min (MHz)');
+  await min.fill('3000');
+  await min.press('Enter');
+  // The range is kept by swapping, as before, and now it is said (visibly, and in a status region).
+  await expect(band.locator('table.band thead th', { hasText: /^1795–3000 MHz/ })).toBeVisible();
+  await expect(note).toBeVisible();
+  await expect(note).toHaveText('Sub-band 1: the minimum 3000 MHz is above the maximum 1795 MHz, so the two were swapped (1795–3000 MHz).');
+  await expect(note).toHaveAttribute('role', 'status');
+  await expect(band.getByLabel('Sub-band 1 min (MHz)')).toHaveValue('1795');
+  await expect(band.getByLabel('Sub-band 1 max (MHz)')).toHaveValue('3000');
+  // An ordinary edit clears it.
+  const max = band.getByLabel('Sub-band 1 max (MHz)');
+  await max.fill('2500');
+  await max.press('Enter');
+  await expect(note).toBeHidden();
+});

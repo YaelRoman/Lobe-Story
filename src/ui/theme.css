@@ -158,6 +158,8 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
 .metrics-wrap { max-height: min(70vh, 640px); }
 /* The selected cell's line: three lines high whatever it says, so the table does not move from cell to cell. */
 .cell-line { box-sizing: border-box; height: 4.6em; margin: 0 0 6px; padding: 2px 6px; overflow-y: auto; font-size: 13px; line-height: 1.4; border-left: 3px solid var(--border); }
+.subband-note { margin: 0; font-size: 13px; }
+.subband-note:empty { display: none; }
 .cell-line:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* Row lines are inset shadows: collapsed borders do not travel with sticky cells. Whole-pixel line heights keep every row a whole number
    of pixels high, so the sticky File column and the other cells put their lines on the same pixel row. */

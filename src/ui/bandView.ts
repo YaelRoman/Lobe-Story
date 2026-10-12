@@ -85,6 +85,22 @@ export function editSubBand(list: readonly SubBand[], index: number, patch: Part
   return sanitizeSubBands(next);
 }
 
+/**
+ * What the editor says when a typed limit crosses the other one (a minimum above the maximum, or the reverse): the
+ * range is kept by swapping the two, which would otherwise happen without a word. Null for any other edit.
+ */
+export function swappedNote(index: number, old: SubBand | undefined, patch: Partial<SubBand>): string | null {
+  if (!old) return null;
+  const range = (a: number, b: number) => `${Math.min(a, b)}–${Math.max(a, b)} MHz`;
+  if (patch.minMHz !== undefined && patch.minMHz > old.maxMHz) {
+    return `Sub-band ${index + 1}: the minimum ${patch.minMHz} MHz is above the maximum ${old.maxMHz} MHz, so the two were swapped (${range(patch.minMHz, old.maxMHz)}).`;
+  }
+  if (patch.maxMHz !== undefined && patch.maxMHz < old.minMHz) {
+    return `Sub-band ${index + 1}: the maximum ${patch.maxMHz} MHz is below the minimum ${old.minMHz} MHz, so the two were swapped (${range(patch.maxMHz, old.minMHz)}).`;
+  }
+  return null;
+}
+
 export function sameSubBands(a: readonly SubBand[], b: readonly SubBand[]): boolean {
   return a.length === b.length && a.every((x, i) => x.name === b[i].name && x.minMHz === b[i].minMHz && x.maxMHz === b[i].maxMHz);
 }

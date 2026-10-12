@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MAX_FREQUENCY_MHZ, MAX_SUB_BANDS, sanitizeSubBands, SUB_BAND_PRESETS, type SubBand } from '../core/analysis/subBands';
-import { editSubBand, sameSubBands } from './bandView';
+import { editSubBand, sameSubBands, swappedNote } from './bandView';
 
 /**
  * An input backed by its own draft string; commits on blur / Enter. A rejected draft reverts, and so does a
@@ -56,11 +56,19 @@ export function SubBandEditor({
   onChange(next: SubBand[]): void;
 }) {
   const atMax = subBands.length >= MAX_SUB_BANDS;
-  const add = (b: SubBand) => onChange(sanitizeSubBands([...subBands, b]));
+  const [note, setNote] = useState<string | null>(null);
+  /** Any change other than an edit of a limit: the note of an earlier swap no longer applies. */
+  const change = (next: SubBand[]) => {
+    setNote(null);
+    onChange(next);
+  };
+  const add = (b: SubBand) => change(sanitizeSubBands([...subBands, b]));
   /** Applies an edit; false (and no `onChange`) when it leaves the sub-bands as they are. */
   const edit = (index: number, patch: Partial<SubBand>): boolean => {
     const next = editSubBand(subBands, index, patch);
     if (sameSubBands(next, subBands)) return false;
+    // A limit typed past the other one is kept by swapping the two: say so, where it was typed.
+    setNote(swappedNote(index, subBands[index], patch));
     onChange(next);
     return true;
   };
@@ -73,7 +81,7 @@ export function SubBandEditor({
       {subBands.length === 0 ? (
         <div className="subband-row">
           <span className="count">Automatic: one sub-band per group of frequencies no more than 100 MHz apart.</span>
-          <button disabled={automatic.length === 0} onClick={() => onChange(automatic)}>
+          <button disabled={automatic.length === 0} onClick={() => change(automatic)}>
             Start from automatic
           </button>
         </div>
@@ -101,12 +109,16 @@ export function SubBandEditor({
               accept={positive}
               onCommit={(t) => edit(i, { maxMHz: Number(t) })}
             />
-            <button aria-label={`Remove sub-band ${i + 1}`} onClick={() => onChange(subBands.filter((_, j) => j !== i))}>
+            <button aria-label={`Remove sub-band ${i + 1}`} onClick={() => change(subBands.filter((_, j) => j !== i))}>
               ✕
             </button>
           </div>
         ))
       )}
+      {/* Always in the page, so that a note put into it is read out. */}
+      <p className="warn subband-note" role="status" data-testid="subband-note">
+        {note}
+      </p>
       <div className="subband-row">
         <button disabled={atMax} onClick={() => add({ name: '', ...span })}>
           Add sub-band
@@ -127,7 +139,7 @@ export function SubBandEditor({
             </option>
           ))}
         </select>
-        {subBands.length > 0 && <button onClick={() => onChange([])}>Use automatic</button>}
+        {subBands.length > 0 && <button onClick={() => change([])}>Use automatic</button>}
       </div>
     </div>
   );

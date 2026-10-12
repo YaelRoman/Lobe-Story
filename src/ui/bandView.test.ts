@@ -3,7 +3,7 @@ import { BAND_PARAMS, bandTable, type BandCell, type BandColumn } from '../core/
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import type { SubBand } from '../core/analysis/subBands';
 import { bandItems } from '../test/bandFixture';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandFollowsHCut, bandHistogramMarks, bandTsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandFollowsHCut, bandHistogramMarks, bandTsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands, swappedNote } from './bandView';
 
 const items = bandItems();
 const metrics = analyzeAll(items, DEFAULT_SETTINGS);
@@ -273,5 +273,20 @@ describe('band histogram marks at the horizon with no tilt', () => {
     const state = (label: string) => lines.filter((l) => l.includes(`,${label},`)).map((l) => l.split(',')[1]);
     expect(state('Azimuth beamwidth')).toEqual(['original', 'tilted [H cut at the horizon]']);
     expect(state('Elevation beamwidth')).toEqual(['original', 'tilted']);
+  });
+});
+
+describe('swappedNote', () => {
+  const band = { name: '1710–1795 MHz', minMHz: 1710, maxMHz: 1795 };
+  it('says so when a typed minimum is above the maximum (or a maximum below the minimum): the two are swapped', () => {
+    expect(swappedNote(0, band, { minMHz: 3000 })).toBe('Sub-band 1: the minimum 3000 MHz is above the maximum 1795 MHz, so the two were swapped (1795–3000 MHz).');
+    expect(swappedNote(2, band, { maxMHz: 900 })).toBe('Sub-band 3: the maximum 900 MHz is below the minimum 1710 MHz, so the two were swapped (900–1710 MHz).');
+  });
+  it('says nothing for an edit that keeps the order, or one that is not a frequency', () => {
+    expect(swappedNote(0, band, { minMHz: 1700 })).toBeNull();
+    expect(swappedNote(0, band, { minMHz: 1795 })).toBeNull();
+    expect(swappedNote(0, band, { maxMHz: 1710 })).toBeNull();
+    expect(swappedNote(0, band, { name: 'x' })).toBeNull();
+    expect(swappedNote(0, undefined, { minMHz: 3000 })).toBeNull();
   });
 });
