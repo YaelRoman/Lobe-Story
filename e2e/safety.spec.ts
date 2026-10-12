@@ -343,6 +343,7 @@ test('Reset offers sliders only or everything', async ({ page }) => {
   await offset.fill('20');
   await offset.press('Enter');
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('"Reset everything" also returns the horizontal cut to "Through the beam peak"');
   await page.getByRole('dialog').getByRole('button', { name: 'Reset sliders only' }).click();
   await expect(mech).toHaveValue('0');
   await expect(page.getByLabel('Offsets: az +20°')).toBeVisible();

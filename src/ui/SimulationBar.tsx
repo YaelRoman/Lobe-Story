@@ -239,7 +239,7 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
             n > 0 ? `${n} file${n === 1 ? '' : 's'}` : '',
             m > 0 ? `${m} group${m === 1 ? '' : 's'}` : '',
           ].filter(Boolean);
-          void choiceDialog(`Reset the global sliders. Per-file offsets are set on ${parts.join(' and ')}.`, [
+          void choiceDialog(`Reset the global sliders. Per-file offsets are set on ${parts.join(' and ')}. "Reset everything" also returns the horizontal cut to "Through the beam peak".`, [
             { value: 'sliders', label: 'Reset sliders only' },
             { value: 'all', label: 'Reset everything' },
           ]).then((choice) => {
