@@ -466,19 +466,24 @@ export function buildCutBase(o: CutBaseOptions): Figure {
 /**
  * One caption line saying what the markers that are on mean in an exported cut image, or undefined when none is
  * drawn for this cut. Only the markers of this cut are listed (the F/B window, sector edges and D/U arcs are horizontal
- * only; the null fill and lower sidelobe are vertical only).
+ * only; the null fill and lower sidelobe are vertical only). The words follow what the plot mode really draws: a ring,
+ * wedge, ray and arc on the polar plot; a line, band, vertical line and segment on the rectangular one. The line says
+ * "highlighted file" only when `highlighted` (default) is true, else "the only ticked file".
  */
 export function markerCaption(
   cut: 'H' | 'V',
   markers: Record<MarkerKey, boolean>,
-  o: { levelDb: number; fbWindowDeg: number; sectorEdgeDeg: number; uslsRangeDeg: number },
+  o: { levelDb: number; fbWindowDeg: number; sectorEdgeDeg: number; uslsRangeDeg: number; mode?: PlotMode; highlighted?: boolean },
 ): string | undefined {
+  const polar = (o.mode ?? 'polar') === 'polar';
   const parts: string[] = [];
-  if (markers.hpbw) parts.push(`dashed ring: the −${o.levelDb} dB level; shaded wedge: the ${bwName(o.levelDb)}`);
-  if (markers.fb && cut === 'H') parts.push(`light wedge: the F/B window (180° ± ${o.fbWindowDeg}°); ×: the F/B level`);
+  if (markers.hpbw) parts.push(`${polar ? 'dashed ring' : 'dashed line'}: the −${o.levelDb} dB level; ${polar ? 'shaded wedge' : 'shaded band'}: the ${bwName(o.levelDb)}`);
+  if (markers.fb && cut === 'H') parts.push(`${polar ? 'light wedge' : 'light band'}: the F/B window (180° ± ${o.fbWindowDeg}°); ×: the F/B level`);
   if (markers.usls) parts.push(cut === 'H' ? '×: the highest horizontal sidelobe (H-SLS)' : `×: the first upper sidelobe and the USLS peaks within ${o.uslsRangeDeg}°`);
   if (markers.null && cut === 'V') parts.push('×: the null fill and the first lower sidelobe');
-  if (markers.peak) parts.push(`dotted ray: the beam direction (${cut === 'H' ? 'squint' : 'tilt'})`);
-  if (markers.sector && cut === 'H') parts.push(`dash-dot rays: the sector edges (±${o.sectorEdgeDeg}°); thick arcs: the D/U apertures (16, 64, 256 QAM)`);
-  return parts.length > 0 ? `Markers of the highlighted file: ${parts.join('; ')}` : undefined;
+  if (markers.peak) parts.push(`${polar ? 'dotted ray' : 'dotted vertical line'}: the beam direction (${cut === 'H' ? 'squint' : 'tilt'})`);
+  if (markers.sector && cut === 'H') {
+    parts.push(`${polar ? 'dash-dot rays' : 'dash-dot vertical lines'}: the sector edges (±${o.sectorEdgeDeg}°); ${polar ? 'thick arcs' : 'thick segments'}: the D/U apertures (16, 64, 256 QAM)`);
+  }
+  return parts.length > 0 ? `Markers of ${o.highlighted === false ? 'the only ticked file' : 'the highlighted file'}: ${parts.join('; ')}` : undefined;
 }

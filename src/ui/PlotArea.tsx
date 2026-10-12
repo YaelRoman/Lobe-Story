@@ -126,13 +126,15 @@ interface CutPlotsProps {
   markerTarget: string | null;
   /** A file is highlighted (it may be unticked, and then is not the marker target). */
   highlighted: boolean;
+  /** The marker target is the highlighted file (and not just the only ticked one). */
+  targetHighlighted: boolean;
 }
 
 /**
  * The two cut plots. The figures are built here, inside the plot area's error boundary, so a figure that cannot be
  * built leaves the controls above it in place.
  */
-function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerTarget, highlighted }: CutPlotsProps) {
+function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerTarget, highlighted, targetHighlighted }: CutPlotsProps) {
   const view = useStore(useShallow((s) => ({ cut: s.view.cut, mode: s.view.mode, floorDb: s.view.floorDb, markers: s.view.markers, theme: s.view.theme })));
   const settings = useStore((s) => s.settings);
   // Everything that decides which traces are drawn and how the figure looks (colours, plot type, floor, theme,
@@ -190,7 +192,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
         // The layout is the drawn one: it carries the view the user has zoomed to, as the image always did.
         exportFigure: () => ({ data: buildCutFigure(options).data, layout: { ...figure.layout, ...overlay.layout } }),
         referenceLabel: options.series.find((x) => x.reference)?.label ?? null,
-        markerLine: markerCaption(options.cut, view.markers, options),
+        markerLine: markerCaption(options.cut, view.markers, { ...options, highlighted: targetHighlighted }),
         mode: options.mode,
         readout: markerReadout(options),
         target: shown?.label ?? '',
@@ -199,7 +201,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
       };
     };
     return { h: make(bases.h), v: make(bases.v) };
-  }, [bases, target, view.markers]);
+  }, [bases, target, targetHighlighted, view.markers]);
 
   // What each cut plot has finished drawing: until the shown ones have caught up (new traces, or another highlighted
   // file's markers, which the charting library also redraws the whole plot for), the redraw is still running.
@@ -346,7 +348,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
           {is3d ? (
             <Pattern3D items={items} colors={colors} sim={sim} />
           ) : (
-            <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} />
+            <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} targetHighlighted={markerTarget !== null && markerTarget === highlighted} />
           )}
         </PlotBoundary>
       )}

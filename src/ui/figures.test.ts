@@ -677,6 +677,21 @@ describe('markerCaption and the export of a real cut figure', () => {
     expect(v).toContain('USLS peaks within 20°');
   });
 
+  it('uses the words of the plot mode and says "highlighted" only for a highlighted file', () => {
+    const rect = markerCaption('H', all, { ...o, mode: 'rect' })!;
+    expect(rect).toContain('dashed line: the −3 dB level');
+    expect(rect).toContain('shaded band: the HPBW');
+    expect(rect).toContain('light band: the F/B window');
+    expect(rect).toContain('dotted vertical line: the beam direction');
+    expect(rect).toContain('dash-dot vertical lines: the sector edges');
+    expect(rect).toContain('thick segments: the D/U apertures');
+    for (const word of ['ring', 'wedge', 'ray', 'arc']) expect(rect).not.toContain(word);
+    const polar = markerCaption('H', all, { ...o, mode: 'polar' })!;
+    for (const word of ['ring', 'wedge', 'ray', 'arc']) expect(polar).toContain(word);
+    expect(rect.startsWith('Markers of the highlighted file:')).toBe(true);
+    expect(markerCaption('V', all, { ...o, highlighted: false })!.startsWith('Markers of the only ticked file:')).toBe(true);
+  });
+
   it('a dark-theme cut figure exports without any dark colour, light and on white', () => {
     const dark = buildCutFigure(opts({ theme: FIGURE_THEMES.dark, markers: all, markerTarget: 'a', series: [series('a')[0]] }));
     const text = JSON.stringify(dark).toLowerCase();
