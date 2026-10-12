@@ -5,7 +5,7 @@ import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as Plotly
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
 import { PlotBoundary } from './ErrorBoundary';
-import { CHART_PRIVACY, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
+import { CHART_PRIVACY, guardedReset, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
 import { canvasesOf, releaseGlContexts } from './glContexts';
 import { appliedAfterRedraw, applyLook, createRedrawGate, drawingOrder, hoverStore, ownTraces, positionsIn, previewRestyle, restyleAt, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
@@ -71,9 +71,11 @@ function builtViewOf(figure: Figure, toolbar: ChartToolbar): Record<string, unkn
  * click) return to the view of the first figure a chart drew, and a chart that is updated in place has drawn others
  * since: another floor, another metric.
  */
-function resetView(gd: HTMLElement, view: Record<string, unknown> | null): void {
+function resetView(gd: HTMLElement, view: Record<string, unknown> | null, onThrow: (error: unknown) => void): void {
   // A copy: the library keeps the arrays it is given, and a later drag would change the noted view.
-  if (view) Plotly.relayout(gd, structuredClone(view) as Partial<PlotlyNativeLayout>).catch((error: unknown) => console.error('The view could not be reset', error));
+  if (view) {
+    guardedReset(() => Plotly.relayout(gd, structuredClone(view) as Partial<PlotlyNativeLayout>), onThrow, (error) => console.error('The view could not be reset', error));
+  }
 }
 
 /**
@@ -99,6 +101,10 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
     rethrow(() => {
       throw error;
     });
+
+  // The toolbar's handlers outlive a render: they reach the latest `fail` through this.
+  const failure = useRef(fail);
+  failure.current = fail;
 
   const labelled = labelledExport !== undefined;
   const exporting = useRef({ figure, labelledExport });
@@ -151,7 +157,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
       name: 'resetViewBuilt',
       title: toolbar === 'polar' ? 'Reset view' : 'Reset axes',
       icon: Plotly.Icons.home,
-      click: (gd: HTMLElement) => resetView(gd, builtView.current),
+      click: (gd: HTMLElement) => resetView(gd, builtView.current, (error) => failure.current(error)),
     };
     return {
       responsive: true,
@@ -242,7 +248,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
           // A double click resets as the toolbar's button does. A polar plot cannot be told not to reset by itself,
           // and does so right after this event, to the first figure's view: ours follows it within the same task.
           el.removeAllListeners?.('plotly_doubleclick');
-          el.on?.('plotly_doubleclick', () => queueMicrotask(() => resetView(el, builtView.current)));
+          el.on?.('plotly_doubleclick', () => queueMicrotask(() => resetView(el, builtView.current, fail)));
           drawnHandler.current?.(figure, overlay);
         })
         .catch((error: unknown) => {

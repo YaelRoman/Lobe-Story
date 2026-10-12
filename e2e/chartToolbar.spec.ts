@@ -187,6 +187,30 @@ test('an offset on a file that is not drawn does not make the exports simulated'
   expect(await download('plot-h')).toBe('horizontal-cut-simulated.png');
 });
 
+test('a reset that throws at once shows the plot\'s error box, like a draw that throws', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await loadExample(page);
+  await page.getByTestId('plot-h').locator('.js-plotly-plot').evaluate((el) => {
+    // The library reads this first when it relayouts the chart.
+    Object.defineProperty(el, '_promises', {
+      configurable: true,
+      get() {
+        throw new Error('injected: relayout failed');
+      },
+    });
+  });
+  await page.getByTestId('plot-h').hover();
+  await page.getByTestId('plot-h').getByRole('button', { name: 'Reset view' }).click();
+  const failed = page.getByRole('alert').filter({ hasText: 'This plot could not be drawn' });
+  await expect(failed).toHaveCount(1);
+  await expect(failed).toContainText('injected: relayout failed');
+  // Nothing escaped to the page, and the rest of it is alive.
+  expect(errors).toEqual([]);
+  await expect(page.getByRole('button', { name: 'Save project' })).toBeVisible();
+  await expect(page.getByTestId('plot-v').locator('.polarlayer')).toHaveCount(1);
+});
+
 test('"Reset view" puts a polar cut back after a drag has zoomed it', async ({ page }) => {
   await loadExample(page);
   const plot = page.getByTestId('plot-h');

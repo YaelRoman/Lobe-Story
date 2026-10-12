@@ -83,6 +83,18 @@ export function viewReset(kind: ChartToolbar, layout: object): Record<string, un
 }
 
 /**
+ * Runs a relayout that puts a chart back to its built view. The library can fail two ways: it throws at once, or its
+ * promise rejects. A throw is given to `onThrow` (the plot shows its error box); a rejection to `onReject` (the console).
+ */
+export function guardedReset(run: () => Promise<unknown>, onThrow: (error: unknown) => void, onReject: (error: unknown) => void): void {
+  try {
+    run().catch(onReject);
+  } catch (error) {
+    onThrow(error);
+  }
+}
+
+/**
  * Chart config that keeps every chart offline: no cloud upload button (the library turns it on by default), no
  * destination for one even if a button came back, and no logo link to the library's site.
  */

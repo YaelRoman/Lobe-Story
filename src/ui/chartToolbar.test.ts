@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { axesViewReset, CHART_PRIVACY, polarViewReset, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
+import { describe, expect, it, vi } from 'vitest';
+import { axesViewReset, CHART_PRIVACY, guardedReset, polarViewReset, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
 import { buildHpbwFigure } from './hpbwFigure';
 import { buildMetricFigure } from './metricFigure';
 import { buildCutBase } from './cutFigure';
@@ -102,5 +102,31 @@ describe('the reset of an x/y chart', () => {
 describe('CHART_PRIVACY', () => {
   it('turns off the cloud upload button, its destination and the logo link', () => {
     expect(CHART_PRIVACY).toEqual({ showSendToCloud: false, plotlyServerURL: '', displaylogo: false });
+  });
+});
+
+describe('guardedReset', () => {
+  it('gives a throw at once to onThrow, and a rejection to onReject', async () => {
+    const onThrow = vi.fn();
+    const onReject = vi.fn();
+    const boom = new Error('boom');
+    guardedReset(() => {
+      throw boom;
+    }, onThrow, onReject);
+    expect(onThrow).toHaveBeenCalledWith(boom);
+    guardedReset(() => Promise.reject(boom), onThrow, onReject);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(onReject).toHaveBeenCalledWith(boom);
+    expect(onThrow).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls neither when the relayout works', async () => {
+    const onThrow = vi.fn();
+    const onReject = vi.fn();
+    guardedReset(() => Promise.resolve(), onThrow, onReject);
+    await Promise.resolve();
+    expect(onThrow).not.toHaveBeenCalled();
+    expect(onReject).not.toHaveBeenCalled();
   });
 });
