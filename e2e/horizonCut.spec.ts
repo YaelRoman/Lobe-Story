@@ -296,8 +296,10 @@ test('the band statistics histogram is marked as a horizon cut at the horizon wi
   await expect(async () => expect(await download()).toBe('band-statistics-histogram-simulated.png')).toPass();
 });
 
-test('at the horizon with no tilt nothing says "tilted": the page, the tooltips and the exports call the pair file cut and horizon cut', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('at the horizon with no tilt nothing says "tilted": the page, the tooltips and the exports call the pair file cut and horizon cut', async ({ page, context, browserName }) => {
+  // Reading the clipboard back needs a permission only Chromium has; the other browsers check everything else.
+  const canReadClipboard = browserName === 'chromium';
+  if (canReadClipboard) await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await loadExample(page);
   await page.getByRole('button', { name: 'Show all', exact: true }).click();
   await openSimulation(page);
@@ -331,9 +333,11 @@ test('at the horizon with no tilt nothing says "tilted": the page, the tooltips 
   expect(header).toContain('H-HPBW original (°),H-HPBW [H cut at the horizon] (°),Horizon level [horizon cut] (dB),V-HPBW original (°),V-HPBW simulated (°)');
   expect(header).not.toMatch(/tilted|"/);
   expect(header.endsWith('Electrical tilt Δ (°),Mechanical tilt (°),Azimuth (°)')).toBe(true);
-  await page.locator('section', { has: page.getByRole('heading', { name: 'Metrics' }) }).getByRole('button', { name: 'Copy table' }).click();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('H-HPBW [H cut at the horizon] (°)');
-  expect((await page.evaluate(() => navigator.clipboard.readText())).split('\r\n')[0]).not.toMatch(/tilted/);
+  if (canReadClipboard) {
+    await page.locator('section', { has: page.getByRole('heading', { name: 'Metrics' }) }).getByRole('button', { name: 'Copy table' }).click();
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('H-HPBW [H cut at the horizon] (°)');
+    expect((await page.evaluate(() => navigator.clipboard.readText())).split('\r\n')[0]).not.toMatch(/tilted/);
+  }
   const [bandFile] = await Promise.all([page.waitForEvent('download'), band.getByRole('button', { name: 'Export band CSV' }).click()]);
   const states = new Set((await readText(bandFile)).split('\r\n').slice(1).filter(Boolean).map((l) => l.split(',')[1]));
   expect([...states].sort()).toEqual(['horizon cut', 'original', 'simulated']);
