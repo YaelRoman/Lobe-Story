@@ -5,7 +5,8 @@ import { anyTilted, combineOffsets, type HCutMode } from '../core/analysis/tilt'
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { simSummary, summaryHCut, summaryMethod } from './simSummary';
+import { H_CUT_HINT, hCutAnnouncement, simSummary, summaryHCut, summaryMethod } from './simSummary';
+import type { OpenHelp } from './HelpDialog';
 import { needsAngularRegions } from './table';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
@@ -138,7 +139,7 @@ function OffsetsRow() {
 const H_CUT_TITLE =
   'Which horizontal cut the files show. Through the beam peak: the file cut, and under a tilt the cone at the elevation of the tilted beam peak (the cut data sheets give). At the horizon: the cut at 0° elevation of every file, tilted or not, read from the 3D reconstruction: what each antenna puts on the horizon, and how that changes under a tilt; its levels are below the 3D peak.';
 
-export function SimulationBar({ is3d }: { is3d: boolean }) {
+export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHelp }) {
   const sim = useStore((s) => s.view.simulation);
   const files = useStore((s) => s.files);
   const copies = useStore((s) => s.copies);
@@ -149,6 +150,7 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
   const updateView = useStore((s) => s.updateView);
   const updateSimulation = useStore((s) => s.updateSimulation);
   const resetSimulation = useStore((s) => s.resetSimulation);
+  const setCopyNote = useStore((s) => s.setCopyNote);
   const collapsed = useStore((s) => s.view.collapsed.simBar);
   const setCollapsed = (simBar: boolean) => updateView({ collapsed: { ...useStore.getState().view.collapsed, simBar } });
 
@@ -213,17 +215,32 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
         // The method matters in the 3D view, under a tilt, for a horizon cut, and for the angular-region estimate (integrated over the reconstruction).
         disabled={!tiltActive && sim.hCut !== 'horizon' && !is3d && !withAngularRegions}
       />
-      <div className="sim-choice" title={H_CUT_TITLE}>
-        <span>Horizontal cut</span>
-        <Seg<HCutMode>
-          label="Horizontal cut"
-          value={sim.hCut}
-          options={[
-            ['beam', 'Through the beam peak'],
-            ['horizon', 'At the horizon'],
-          ]}
-          onChange={(hCut) => updateSimulation({ hCut })}
-        />
+      <div className="sim-explained">
+        <div className="sim-choice" title={H_CUT_TITLE}>
+          <span>Horizontal cut</span>
+          <Seg<HCutMode>
+            label="Horizontal cut"
+            value={sim.hCut}
+            options={[
+              ['beam', 'Through the beam peak'],
+              ['horizon', 'At the horizon'],
+            ]}
+            describedBy="sim-hcut-hint"
+            onChange={(hCut) => {
+              if (hCut === sim.hCut) return;
+              updateSimulation({ hCut });
+              // The plot, a table column and most horizontal cells change at once: say so (shown briefly, and read out).
+              setCopyNote(hCutAnnouncement(hCut));
+            }}
+          />
+          {/* A real button, so the explanation is one Tab or one tap away (a tooltip on the box reaches neither). */}
+          <button type="button" className="link" aria-haspopup="dialog" onClick={(e) => onHelp(e, 'Horizon cut')}>
+            What is this?
+          </button>
+        </div>
+        <span id="sim-hcut-hint" className="count sim-hint" data-testid="sim-hcut-hint">
+          {H_CUT_HINT}
+        </span>
       </div>
       <label>
         <input

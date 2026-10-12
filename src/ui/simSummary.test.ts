@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anySimulated, exportName, offsetCountsAmong, simSummary, simulatedCaption, simulationActive, summaryMethod } from './simSummary';
+import { anySimulated, exportName, H_CUT_HINT, hCutAnnouncement, offsetCountsAmong, simSummary, simulatedCaption, simulationActive, summaryMethod } from './simSummary';
 
 describe('simSummary', () => {
   it('shows the global values', () => {
@@ -83,5 +83,20 @@ describe('offsets counted among the files a picture shows', () => {
     expect(simulatedCaption(s, 'summation')).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 15°; offsets on 2 files');
     expect(simulatedCaption(s, 'summation', { files: 0, groups: 0 })).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 15°');
     expect(simulatedCaption(s, 'summation', { files: 1, groups: 0 })).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 15°; offsets on 1 file');
+  });
+});
+
+describe('the horizontal-cut control explains and announces itself', () => {
+  it('has a one-line hint that says what each choice shows', () => {
+    expect(H_CUT_HINT).toContain('Through the beam peak: ');
+    expect(H_CUT_HINT).toContain('At the horizon: ');
+    expect(H_CUT_HINT).toContain('0° elevation');
+    expect(H_CUT_HINT).not.toContain('\n');
+    expect(H_CUT_HINT.length).toBeLessThan(170);
+  });
+
+  it('says what changed when the choice is switched', () => {
+    expect(hCutAnnouncement('horizon')).toBe('Horizontal cut at the horizon: every file shows its horizon cut. Horizon level column added.');
+    expect(hCutAnnouncement('beam')).toBe('Horizontal cut through the beam peak. Horizon level column removed.');
   });
 });

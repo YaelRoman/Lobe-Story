@@ -4,17 +4,20 @@ export function Seg<T extends string>({
   options,
   onChange,
   disabled = false,
+  describedBy,
 }: {
   label: string;
   value: T;
   options: [T, string][];
   onChange: (v: T) => void;
   disabled?: boolean;
+  /** Id of a visible line that explains the choices: read with each button. */
+  describedBy?: string;
 }) {
   return (
     <div className="seg" role="group" aria-label={label}>
       {options.map(([v, text]) => (
-        <button key={v} aria-pressed={value === v} disabled={disabled} onClick={() => onChange(v)}>
+        <button key={v} aria-pressed={value === v} aria-describedby={describedBy} disabled={disabled} onClick={() => onChange(v)}>
           {text}
         </button>
       ))}

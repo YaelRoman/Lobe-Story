@@ -19,6 +19,7 @@ import { SKIP_TARGETS } from './SkipLinks';
 import { Seg } from './Seg';
 import { PER_FILE_COLOURS, type FileStyle } from './colors';
 import type { SimulationResult } from './useSimulation';
+import type { OpenHelp } from './HelpDialog';
 
 interface Props {
   groups: GroupView[];
@@ -27,6 +28,7 @@ interface Props {
   /** Colour and line pattern of each shown file. */
   styles: Map<string, FileStyle>;
   sim: SimulationResult;
+  onHelp: OpenHelp;
 }
 
 /** The marker names in display order; the first follows the beamwidth level of the settings. */
@@ -252,7 +254,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
   );
 }
 
-export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles, sim }: Props) {
+export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles, sim, onHelp }: Props) {
   // Only the fields used here: subscribing to the whole view would re-render on every slider tick.
   const view = useStore(
     useShallow((s) => ({
@@ -284,7 +286,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
       <h2 id={SKIP_TARGETS.plots} className="visually-hidden" tabIndex={-1}>
         {is3d ? '3D pattern' : 'Cut plots'}
       </h2>
-      <SimulationBar is3d={is3d} />
+      <SimulationBar is3d={is3d} onHelp={onHelp} />
       <div className="controls">
         <Seg<Dimension>
           label="Dimension"

@@ -340,3 +340,53 @@ test('at the horizon with no tilt nothing says "tilted": the page, the tooltips 
   expect(tiltedHeader).toContain('H-HPBW original (°),H-HPBW tilted [horizon cut] (°),Horizon level [horizon cut] (dB),V-HPBW original (°),V-HPBW tilted (°)');
   expect(tiltedHeader.split(',')).toHaveLength(header.split(',').length);
 });
+
+for (const width of [1440, 390]) {
+  test(`the Horizontal cut control explains itself without a mouse at ${width} px: hint line, a link to the Help entry, an announcement, the folded summary`, async ({ page }) => {
+    await loadExample(page);
+    await page.setViewportSize({ width, height: 844 });
+    const fold = page.getByRole('button', { name: /Simulation/ });
+    await openSimulation(page);
+    const choice = page.getByRole('group', { name: 'Horizontal cut' });
+    const horizon = choice.getByRole('button', { name: 'At the horizon' });
+    const beam = choice.getByRole('button', { name: 'Through the beam peak' });
+
+    // A visible line says what each choice shows, and each button is described by it.
+    const hint = page.getByTestId('sim-hcut-hint');
+    await expect(hint).toBeVisible();
+    await expect(hint).toContainText('Through the beam peak: ');
+    await expect(hint).toContainText('At the horizon: ');
+    for (const b of [beam, horizon]) await expect(b).toHaveAttribute('aria-describedby', (await hint.getAttribute('id'))!);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+
+    // "What is this?" is a button next to the control: one Tab from it, and it opens Help at the entry.
+    await horizon.focus();
+    await page.keyboard.press('Tab');
+    const what = page.getByRole('button', { name: 'What is this?' });
+    await expect(what).toBeFocused();
+    await page.keyboard.press('Enter');
+    const help = page.getByRole('dialog', { name: 'Help and glossary' });
+    await expect(help).toBeVisible();
+    const entry = help.locator('dt', { hasText: /^Horizon cut$/ });
+    await expect(entry).toBeFocused();
+    await expect(entry).toBeInViewport();
+    await page.keyboard.press('Escape');
+    await expect(help).toBeHidden();
+    await expect(what).toBeFocused();
+
+    // Switching by keyboard is announced in the status region.
+    const announcer = page.getByTestId('announcer');
+    await horizon.focus();
+    await page.keyboard.press('Space');
+    await expect(horizon).toHaveAttribute('aria-pressed', 'true');
+    await expect(announcer).toContainText('Horizontal cut at the horizon: every file shows its horizon cut. Horizon level column added.');
+    await beam.focus();
+    await page.keyboard.press('Space');
+    await expect(announcer).toContainText('Horizontal cut through the beam peak. Horizon level column removed.');
+    await horizon.click();
+
+    // Folded, the summary names the choice although no tilt is set.
+    await fold.click();
+    await expect(page.getByTestId('sim-summary')).toContainText('H cut: at the horizon');
+  });
+}

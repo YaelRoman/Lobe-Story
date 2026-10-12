@@ -27,6 +27,8 @@ vi.mock('./cutFigure', async (original) => {
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+const NO_HELP = () => {};
+
 /** The plot area fed as the app feeds it. */
 function Harness() {
   const s = useStore();
@@ -36,7 +38,7 @@ function Harness() {
   const sim = useSimulation(tagged, metrics, s.settings);
   const styles = useMemo(() => styleMapByGroup(groups.map((g) => ({ ids: g.items.map((i) => i.pattern.id) })), s.visible), [groups, s.visible]);
   const colors = useMemo(() => new Map([...styles].map(([id, st]) => [id, st.color])), [styles]);
-  return createElement(PlotArea, { groups, metrics, colors, styles, sim });
+  return createElement(PlotArea, { groups, metrics, colors, styles, sim, onHelp: NO_HELP });
 }
 
 describe('PlotArea: a figure that cannot be built', () => {

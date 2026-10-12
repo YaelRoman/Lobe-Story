@@ -123,6 +123,10 @@ h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sim-field input[type='number'] { width: 70px; }
 .badge { padding: 2px 8px; border-radius: 999px; background: var(--accent-fill); color: #fff; font-size: 12px; }
 .badge-ghost { visibility: hidden; }
+/* A control with its one-line explanation under it; the line wraps inside the control's own width share. */
+.sim-explained { display: inline-flex; flex-direction: column; gap: 2px; align-items: flex-start; min-width: 0; max-width: 100%; }
+.sim-hint { max-width: 64ch; font-size: 12px; }
+button.link { padding: 0 2px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
 .seg button:disabled { opacity: 0.5; cursor: not-allowed; }
 .sim-offsets { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; flex-basis: 100%; padding-top: 6px; border-top: 1px dashed var(--border); }
 .offset-badge { padding: 0 6px; border-radius: 999px; background: var(--accent-fill); color: #fff; font-size: 11px; }
@@ -218,6 +222,7 @@ h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .group li .row-main { justify-content: flex-start; }
   .group li input[type='checkbox'] { width: 20px; height: 20px; }
   .fold { min-height: 32px; }
+  button.link { min-height: 32px; }
   .sim-field, .sim-choice { flex-wrap: wrap; }
   .sim-field input[type='range'] { width: 110px; }
   .toolbar { padding: 6px 8px; }

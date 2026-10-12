@@ -61,9 +61,11 @@ export default function App() {
   // The Help dialog is open while `helpOpener` is set: the button that was clicked, which gets the focus back.
   const [helpOpener, setHelpOpener] = useState<HTMLElement | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const openHelp = useCallback<OpenHelp>((event) => {
+  const [helpTerm, setHelpTerm] = useState<string | undefined>(undefined);
+  const openHelp = useCallback<OpenHelp>((event, term) => {
     // The button is taken from its click event: the focused element at this point can be a stale one.
     setHelpOpener(event.currentTarget instanceof HTMLElement ? event.currentTarget : null);
+    setHelpTerm(term);
     setHelpOpen(true);
   }, []);
 
@@ -100,7 +102,7 @@ export default function App() {
             <>
               {/* A figure that cannot be built or drawn fails inside its own box, below the controls (see PlotArea, HpbwChart and PlotlyChart). These are the last line for anything else in the two regions. */}
               <PlotBoundary className="plot">
-                <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} />
+                <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} onHelp={openHelp} />
               </PlotBoundary>
               <PlotBoundary className="plot wide">
                 <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
@@ -113,7 +115,7 @@ export default function App() {
       </div>
       {dragging && <div className="drop-overlay">Drop pattern files or folders</div>}
       <Dialog />
-      {helpOpen && <HelpDialog opener={helpOpener} onClose={() => setHelpOpen(false)} />}
+      {helpOpen && <HelpDialog opener={helpOpener} term={helpTerm} onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

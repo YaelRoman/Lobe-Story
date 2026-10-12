@@ -26,6 +26,16 @@ const H_CUT_WHERE: Record<HCutMode, string> = { beam: 'through the beam peak', h
 /** The choice of the simulated horizontal cut in words, as captions and notes name it. */
 export const hCutLabel = (hCut: HCutMode): string => `horizontal cut ${H_CUT_WHERE[hCut]}`;
 
+/** The line under the Horizontal cut control: what each choice shows. */
+export const H_CUT_HINT =
+  'Through the beam peak: the cut a data sheet gives. At the horizon: what each antenna radiates along the horizon (0° elevation), with or without a tilt.';
+
+/** What the status region says when the choice is switched: the plot, a table column and most horizontal cells change at once. */
+export const hCutAnnouncement = (hCut: HCutMode): string =>
+  hCut === 'horizon'
+    ? 'Horizontal cut at the horizon: every file shows its horizon cut. Horizon level column added.'
+    : 'Horizontal cut through the beam peak. Horizon level column removed.';
+
 /**
  * The horizontal-cut choice for the collapsed bar's summary: the cut at the horizon always (every file shows it, tilted
  * or not), the cut through the beam peak only while a file is tilted (without a tilt it is the file cut).

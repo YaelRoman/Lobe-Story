@@ -3,13 +3,13 @@ import { trapTab } from './trapTab';
 import { FEATURE_HELP, GLOSSARY, METRICS_DOC_URL, PANEL_HELP, README_URL } from './glossary';
 
 /** What a Help button hands over when clicked: its click event (the dialog gives the focus back to `currentTarget`). */
-export type OpenHelp = (event: { currentTarget: EventTarget | null }) => void;
+export type OpenHelp = (event: { currentTarget: EventTarget | null }, term?: string) => void;
 
 /**
  * Help and glossary as a native modal dialog: Esc closes it, Tab stays inside, and the focus goes
  * back to the control that opened it (restored here too, in case the browser does not).
  */
-export function HelpDialog({ onClose, opener }: { onClose: () => void; opener: HTMLElement | null }) {
+export function HelpDialog({ onClose, opener, term }: { onClose: () => void; opener: HTMLElement | null; /** A glossary term to open at (a "What is this?" link): shown at the top and focused. */ term?: string }) {
   const ref = useRef<HTMLDialogElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -27,12 +27,18 @@ export function HelpDialog({ onClose, opener }: { onClose: () => void; opener: H
     // The dialog itself, so it opens at its top (the title is read first) and Tab then reaches the links.
     dialog.focus({ preventScroll: true });
     dialog.scrollTop = 0;
+    // Asked for one term: its entry is brought to the top and takes the focus, so it is what is read first.
+    const entry = term ? Array.from(dialog.querySelectorAll<HTMLElement>('dt[data-term]')).find((dt) => dt.dataset.term === term) : undefined;
+    if (entry) {
+      entry.scrollIntoView?.({ block: 'start' });
+      entry.focus({ preventScroll: true });
+    }
     return () => {
       dialog.removeEventListener('close', onNativeClose);
       if (dialog.open) dialog.close();
       if (opener?.isConnected) opener.focus();
     };
-  }, [opener]);
+  }, [opener, term]);
 
   return (
     <dialog
@@ -56,7 +62,7 @@ export function HelpDialog({ onClose, opener }: { onClose: () => void; opener: H
       <dl className="glossary">
         {GLOSSARY.map((g) => (
           <div key={g.term}>
-            <dt>{g.term}</dt>
+            <dt data-term={g.term} tabIndex={-1}>{g.term}</dt>
             <dd>{g.text}</dd>
           </div>
         ))}
