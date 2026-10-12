@@ -547,6 +547,19 @@ describe('read-out wording', () => {
   });
 });
 
+describe('hpbw figure file ids', () => {
+  it('puts each point\'s file id in customdata of both panels, the declared markers and the reference diamond', () => {
+    const f = buildHpbwFigure(
+      [{ label: 'g', color: '#111', points: [{ freq: 1700, h: 60, v: 7, id: 'a' }, { freq: 1800, h: 61, v: 8, declH: 62, id: 'b' }] }],
+      FIGURE_THEMES.light, 3, { label: 'r', point: { freq: 1800, h: 60, v: 7, id: 'ref' } },
+    );
+    const t = f.data as { customdata?: unknown; yaxis?: string; mode?: string }[];
+    const byAxis = (axis: string) => t.filter((x) => x.yaxis === axis).map((x) => x.customdata);
+    expect(byAxis('y')).toEqual([['a', 'b'], ['b'], ['ref']]);
+    expect(byAxis('y2')).toEqual([['a', 'b'], ['b'], ['ref']]);
+  });
+});
+
 describe('legend placement', () => {
   const expectBottomLegend = (legend: (Partial<Legend> & { maxheight?: number }) | undefined) => {
     expect(legend?.yref).toBe('container');

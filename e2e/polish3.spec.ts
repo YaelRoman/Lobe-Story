@@ -323,3 +323,61 @@ test.describe('phone file drawer', () => {
     await expect.poll(async () => inside((await save.boundingBox())!, (await panel.boundingBox())!)).toBe(true);
   });
 });
+
+test('clicking a point of the frequency chart highlights that file (again: clears) and scrolls its table row into view', async ({ page }) => {
+  await loadExample(page);
+  const hl = page.locator('.metrics tbody tr.hl');
+  // The example highlights its first file on load; clear it so the click is what highlights.
+  await page.keyboard.press('Escape');
+  await expect(hl).toHaveCount(0);
+  const chart = page.getByTestId('plot-hpbw');
+  await expect(chart.locator('.scatterlayer .trace').first()).toBeAttached();
+  // The ticked file's group is drawn (the first group); click the last point of its H line.
+  const points = chart.locator('.scatterlayer .trace').first().locator('.points path');
+  const count = await points.count();
+  expect(count).toBeGreaterThanOrEqual(4);
+  const clickLast = async () => {
+    await chart.scrollIntoViewIfNeeded();
+    const box = (await points.nth(count - 1).boundingBox())!;
+    // The library finds the point under the pointer on a move, then reports the click.
+    await page.mouse.move(box.x + box.width / 2 - 5, box.y + box.height / 2);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+    await expect(chart.locator('.hoverlayer .hovertext').first()).toBeAttached();
+    await page.mouse.down();
+    await page.mouse.up();
+  };
+  await clickLast();
+  await expect(hl).toHaveCount(1);
+  await expect(hl.locator('td').nth(2)).toHaveText('2170');
+  await expect(page.locator('.panel li.hl')).toHaveCount(1);
+  // The row is inside the table's scroll area.
+  const wrap = (await page.locator('.metrics-wrap').boundingBox())!;
+  const row = (await hl.boundingBox())!;
+  expect(row.y).toBeGreaterThanOrEqual(wrap.y - 1);
+  expect(row.y + row.height).toBeLessThanOrEqual(wrap.y + wrap.height + 1);
+  // Again: clears, as a second click on a row does.
+  await clickLast();
+  await expect(hl).toHaveCount(0);
+
+  // With every file ticked, a point of the last group is a file far down the table: the table scrolls to it.
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await expect(page.locator('.metrics tbody tr')).toHaveCount(24);
+  await chart.scrollIntoViewIfNeeded();
+  const lastTrace = chart.locator('.scatterlayer .trace').last();
+  await expect.poll(async () => lastTrace.locator('.points path').count()).toBeGreaterThanOrEqual(1);
+  const lastPoints = lastTrace.locator('.points path');
+  const n = await lastPoints.count();
+  const p = (await lastPoints.nth(n - 1).boundingBox())!;
+  await page.mouse.move(p.x + p.width / 2 - 5, p.y + p.height / 2);
+  await page.mouse.move(p.x + p.width / 2, p.y + p.height / 2, { steps: 4 });
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(hl).toHaveCount(1);
+  const index = await page.locator('.metrics tbody tr').evaluateAll((rows) => rows.findIndex((r) => r.classList.contains('hl')));
+  expect(index).toBeGreaterThanOrEqual(16);
+  await expect.poll(async () => page.locator('.metrics-wrap').evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  const wrap2 = (await page.locator('.metrics-wrap').boundingBox())!;
+  const row2 = (await hl.boundingBox())!;
+  expect(row2.y).toBeGreaterThanOrEqual(wrap2.y - 1);
+  expect(row2.y + row2.height).toBeLessThanOrEqual(wrap2.y + wrap2.height + 1);
+});

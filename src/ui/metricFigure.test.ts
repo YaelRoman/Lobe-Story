@@ -117,3 +117,17 @@ describe('coincidingNote', () => {
     expect(coincidingNote(many)).toBe('2 lines coincide: a1 = a2; 2 lines coincide: b1 = b2; 2 lines coincide: c1 = c2; 1 more set.');
   });
 });
+
+describe('file ids on the points', () => {
+  const ids = [
+    { label: 'g1', color: '#111', points: [{ freq: 1700, value: 25, id: 'a' }, { freq: 1800, value: null, id: 'b' }, { freq: 1900, value: 27, declared: 26, id: 'c' }] },
+  ];
+  it('puts each point\'s file id in customdata of the line, the declared markers and the reference diamond; a ghost line has none', () => {
+    const f = buildMetricFigure([...ids, { ...ids[0], ghost: true }], FIGURE_THEMES.light, 'F/B', 'dB', { label: 'r', point: { freq: 1800, value: 3, id: 'ref' } });
+    const t = f.data as { name?: string; customdata?: unknown; mode?: string }[];
+    expect(t[0].customdata).toEqual(['a', 'b', 'c']);
+    expect(t[1].customdata).toEqual(['c']); // declared marker of c
+    expect(t[2].customdata).toBeUndefined(); // ghost
+    expect(t[3].customdata).toEqual(['ref']);
+  });
+});

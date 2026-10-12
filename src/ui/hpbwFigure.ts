@@ -10,6 +10,8 @@ export interface HpbwPoint {
   v: number | null;
   declH?: number;
   declV?: number;
+  /** The file's id: a click on the point names it (see `pickedFileId`). */
+  id?: string;
 }
 
 export interface HpbwSeries {
@@ -62,21 +64,23 @@ export function buildHpbwFigure(series: HpbwSeries[], theme: FigureTheme, levelD
       data.push({ type: 'scatter', mode: 'lines', name, showlegend: false, opacity: 0.35, x, y: s.points.map((p) => p.v), yaxis: 'y2', line: { color: s.color, dash: 'dash' } });
       continue;
     }
-    data.push({ type: 'scatter', mode: 'lines+markers', name: middleEllipsis(s.label, LEGEND_NAME_MAX), legendgroup: s.label, meta: s.label, x, y: s.points.map((p) => p.h), yaxis: 'y', line: { color: s.color }, marker: { symbol: s.symbol ?? 'circle' } as Partial<PlotData['marker']> });
-    data.push({ type: 'scatter', mode: 'lines+markers', name: s.label, legendgroup: s.label, showlegend: false, x, y: s.points.map((p) => p.v), yaxis: 'y2', line: { color: s.color, dash: 'dash' }, marker: { symbol: s.symbol ?? 'circle' } as Partial<PlotData['marker']> });
+    const ids = s.points.map((p) => p.id ?? null);
+    data.push({ type: 'scatter', mode: 'lines+markers', name: middleEllipsis(s.label, LEGEND_NAME_MAX), legendgroup: s.label, meta: s.label, x, customdata: ids, y: s.points.map((p) => p.h), yaxis: 'y', line: { color: s.color }, marker: { symbol: s.symbol ?? 'circle' } as Partial<PlotData['marker']> });
+    data.push({ type: 'scatter', mode: 'lines+markers', name: s.label, legendgroup: s.label, showlegend: false, x, customdata: ids, y: s.points.map((p) => p.v), yaxis: 'y2', line: { color: s.color, dash: 'dash' }, marker: { symbol: s.symbol ?? 'circle' } as Partial<PlotData['marker']> });
     const declared = s.points.filter((p) => p.declH !== undefined || p.declV !== undefined);
     if (declared.length) {
       const marker = { color: s.color, symbol: 'circle-open' as const, size: 9 };
-      data.push({ type: 'scatter', mode: 'markers', name: `${s.label} declared`, legendgroup: s.label, showlegend: false, x: declared.map((p) => p.freq), y: declared.map((p) => p.declH ?? null), yaxis: 'y', marker });
-      data.push({ type: 'scatter', mode: 'markers', name: `${s.label} declared`, legendgroup: s.label, showlegend: false, x: declared.map((p) => p.freq), y: declared.map((p) => p.declV ?? null), yaxis: 'y2', marker });
+      const declaredIds = declared.map((p) => p.id ?? null);
+      data.push({ type: 'scatter', mode: 'markers', name: `${s.label} declared`, legendgroup: s.label, showlegend: false, x: declared.map((p) => p.freq), customdata: declaredIds, y: declared.map((p) => p.declH ?? null), yaxis: 'y', marker });
+      data.push({ type: 'scatter', mode: 'markers', name: `${s.label} declared`, legendgroup: s.label, showlegend: false, x: declared.map((p) => p.freq), customdata: declaredIds, y: declared.map((p) => p.declV ?? null), yaxis: 'y2', marker });
     }
   }
   if (reference) {
     const marker = { color: theme.fg, symbol: 'diamond' as const, size: 13, line: { color: theme.bg, width: 1.5 } };
     const name = `${reference.label} (reference)`;
     const x = [reference.point.freq];
-    data.push({ type: 'scatter', mode: 'markers', name: middleEllipsis(name, LEGEND_NAME_MAX), meta: name, x, y: [reference.point.h], yaxis: 'y', marker: marker as Partial<PlotData['marker']> });
-    data.push({ type: 'scatter', mode: 'markers', name, showlegend: false, x, y: [reference.point.v], yaxis: 'y2', marker: marker as Partial<PlotData['marker']> });
+    data.push({ type: 'scatter', mode: 'markers', name: middleEllipsis(name, LEGEND_NAME_MAX), meta: name, x, customdata: [reference.point.id ?? null], y: [reference.point.h], yaxis: 'y', marker: marker as Partial<PlotData['marker']> });
+    data.push({ type: 'scatter', mode: 'markers', name, showlegend: false, x, customdata: [reference.point.id ?? null], y: [reference.point.v], yaxis: 'y2', marker: marker as Partial<PlotData['marker']> });
   }
   const values = (axis: 'h' | 'v') => [...series.flatMap((s) => s.points.flatMap((p) => [p[axis], axis === 'h' ? p.declH : p.declV])), ...(reference ? [reference.point[axis]] : [])];
   const hRange = minSpanRange(values('h'));

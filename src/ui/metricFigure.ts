@@ -10,6 +10,8 @@ export interface MetricPoint {
   value: number | null;
   /** The value the file's header declares for this metric, drawn as a hollow marker. */
   declared?: number;
+  /** The file's id: a click on the point names it (see `pickedFileId`). */
+  id?: string;
 }
 
 export interface MetricSeries {
@@ -97,13 +99,13 @@ export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, la
     }
     data.push({
       type: 'scatter', mode: 'lines+markers', name: middleEllipsis(s.label, LEGEND_NAME_MAX), legendgroup: s.label, meta: s.label,
-      x, y, line: { color: s.color }, marker: { symbol: s.symbol ?? 'circle' } as Partial<PlotData['marker']>,
+      x, y, customdata: s.points.map((p) => p.id ?? null), line: { color: s.color }, marker: { symbol: s.symbol ?? 'circle' } as Partial<PlotData['marker']>,
     });
     const declared = s.points.filter((p) => p.declared !== undefined);
     if (declared.length) {
       data.push({
         type: 'scatter', mode: 'markers', name: `${s.label} declared`, legendgroup: s.label, showlegend: false,
-        x: declared.map((p) => p.freq), y: declared.map((p) => p.declared as number),
+        x: declared.map((p) => p.freq), y: declared.map((p) => p.declared as number), customdata: declared.map((p) => p.id ?? null),
         marker: { color: s.color, symbol: 'circle-open' as const, size: 9 },
       });
     }
@@ -112,7 +114,7 @@ export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, la
     const name = `${reference.label} (reference)`;
     data.push({
       type: 'scatter', mode: 'markers', name: middleEllipsis(name, LEGEND_NAME_MAX), meta: name,
-      x: [reference.point.freq], y: [reference.point.value],
+      x: [reference.point.freq], y: [reference.point.value], customdata: [reference.point.id ?? null],
       marker: { color: theme.fg, symbol: 'diamond' as const, size: 13, line: { color: theme.bg, width: 1.5 } } as Partial<PlotData['marker']>,
     });
   }

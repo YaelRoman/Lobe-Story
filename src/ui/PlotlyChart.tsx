@@ -7,6 +7,7 @@ import { exportFigure, type ExportCaption } from './exportFigure';
 import { PlotBoundary } from './ErrorBoundary';
 import { CHART_PRIVACY, guardedReset, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
 import { canvasesOf, releaseGlContexts } from './glContexts';
+import { pickedFileId } from './pointPick';
 import { appliedAfterRedraw, applyLook, createRedrawGate, drawingOrder, hoverStore, ownTraces, positionsIn, previewRestyle, restyleAt, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
 const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
@@ -27,6 +28,8 @@ interface Props {
   /** The plot's accessible name (a group, not an image: Plotly's modebar buttons inside must stay reachable). */
   ariaLabel?: string;
   onRelayout?: RelayoutHandler;
+  /** Called with the file id of a clicked point (the figure's `customdata`, see `pickedFileId`). */
+  onPointClick?: (id: string) => void;
   /** Which toolbar (modebar) buttons the chart gets: see `ChartToolbar`. */
   toolbar: ChartToolbar;
   /**
@@ -92,9 +95,11 @@ export function PlotlyChart(props: Props) {
   );
 }
 
-function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayout, labelledExport, overlay, previewBase, onDrawn }: Props) {
+function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayout, onPointClick, labelledExport, overlay, previewBase, onDrawn }: Props) {
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
+  const clickHandler = useRef(onPointClick);
+  clickHandler.current = onPointClick;
   const [error, setError] = useState<string | null>(null);
   // An error of a draw that React did not start (the one that waits for a paint runs from a timer) is thrown again
   // while rendering, so that the plot's boundary shows it: thrown in a timer it would only reach the console.
@@ -247,6 +252,11 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
           if (previewing) void restylePreview(el);
           el.removeAllListeners?.('plotly_relayout');
           el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
+          el.removeAllListeners?.('plotly_click');
+          el.on?.('plotly_click', (event) => {
+            const id = pickedFileId(event as { points?: { customdata?: unknown }[] });
+            if (id !== null) clickHandler.current?.(id);
+          });
           // A double click resets as the toolbar's button does. A polar plot cannot be told not to reset by itself,
           // and does so right after this event, to the first figure's view: ours follows it within the same task.
           el.removeAllListeners?.('plotly_doubleclick');

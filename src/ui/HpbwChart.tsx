@@ -46,6 +46,7 @@ export const HpbwChart = memo(function HpbwChart({
   const metric = useStore((s) => s.view.freqMetric);
   const reference = useStore((s) => s.reference);
   const updateView = useStore((s) => s.updateView);
+  const pickFile = useStore((s) => s.pickFile);
   const simulated = sim.tiltActive;
   const labelOf = (c: (typeof METRIC_COLUMNS)[number]) => columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
   const column = METRIC_COLUMNS.find((c) => c.key === metric) ?? METRIC_COLUMNS[0];
@@ -71,6 +72,7 @@ export const HpbwChart = memo(function HpbwChart({
         g.items.filter(({ pattern }) => hasUsableFrequency(pattern.frequencyMHz)).map(({ pattern }) => {
           const m = ms.get(pattern.id);
           return {
+            id: pattern.id,
             freq: pattern.frequencyMHz,
             h: m?.h.hpbw.value ?? null,
             v: m?.v.hpbw.value ?? null,
@@ -82,7 +84,7 @@ export const HpbwChart = memo(function HpbwChart({
         g.items.filter(({ pattern }) => hasUsableFrequency(pattern.frequencyMHz)).map(({ pattern }) => {
           const m = ms.get(pattern.id);
           const declared = DECLARED[metric]?.(pattern);
-          return { freq: pattern.frequencyMHz, value: m ? cellsOf(m)[metric].value : null, ...(declared !== undefined ? { declared } : {}) };
+          return { id: pattern.id, freq: pattern.frequencyMHz, value: m ? cellsOf(m)[metric].value : null, ...(declared !== undefined ? { declared } : {}) };
         });
       const ghost = g.items.some((i) => sim.isTiltedId(i.pattern.id));
       if (both) {
@@ -99,12 +101,12 @@ export const HpbwChart = memo(function HpbwChart({
     const refLabel = refItem ? nameOf(refItem.pattern) : '';
     const freq = refItem?.pattern.frequencyMHz ?? 0;
     if (both) {
-      const ref = refMetrics ? { label: refLabel, point: { freq, h: refMetrics.h.hpbw.value, v: refMetrics.v.hpbw.value } } : undefined;
+      const ref = refMetrics ? { label: refLabel, point: { id: refItem?.pattern.id, freq, h: refMetrics.h.hpbw.value, v: refMetrics.v.hpbw.value } } : undefined;
       // A line is the same as another only when both its panels are (the vertical points are told apart by a negative frequency).
       const lines: LineSignature[] = series.filter((s) => !s.ghost).map((s) => ({ label: s.label, points: [...s.points.map((p) => ({ freq: p.freq, value: p.h })), ...s.points.map((p) => ({ freq: -p.freq, value: p.v }))] }));
       return { build: series.length ? () => buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb, ref) : null, empty: null, coincide: coincidingNote(lines) };
     }
-    const ref = refMetrics ? { label: refLabel, point: { freq, value: cellsOf(refMetrics)[metric].value } } : undefined;
+    const ref = refMetrics ? { label: refLabel, point: { id: refItem?.pattern.id, freq, value: cellsOf(refMetrics)[metric].value } } : undefined;
     if (!single.length) return { build: null, empty: null, coincide: null };
     // Nothing to draw at a number: say so (with the reasons the table's tooltips give) instead of an empty chart.
     if (noValues(single, ref)) {
@@ -175,6 +177,7 @@ export const HpbwChart = memo(function HpbwChart({
           }
           caption={exportCaption}
           filename={exportName(both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency`, exportSimulated)}
+          onPointClick={pickFile}
         />
       </PlotBoundary>
       )}
@@ -184,7 +187,7 @@ export const HpbwChart = memo(function HpbwChart({
 });
 
 /** The frequency chart itself: builds the figure and draws it. */
-function FrequencyPlot({ build, ariaLabel, caption, filename }: { build: () => Figure; ariaLabel: string; caption: ExportCaption | undefined; filename: string }) {
+function FrequencyPlot({ build, ariaLabel, caption, filename, onPointClick }: { build: () => Figure; ariaLabel: string; caption: ExportCaption | undefined; filename: string; onPointClick: (id: string) => void }) {
   const figure = useMemo(build, [build]);
-  return <PlotlyChart className="plot wide" figure={figure} testId="plot-hpbw" toolbar="xy" ariaLabel={ariaLabel} labelledExport={{ caption, filename }} />;
+  return <PlotlyChart className="plot wide" figure={figure} testId="plot-hpbw" toolbar="xy" ariaLabel={ariaLabel} labelledExport={{ caption, filename }} onPointClick={onPointClick} />;
 }
