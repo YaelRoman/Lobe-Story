@@ -1,3 +1,6 @@
+/** A number with a true minus sign (U+2212), as the marker labels write it. */
+const minus = (v: number): string => String(v).replace('-', '−');
+
 /** The one-line state of a collapsed bar: the global values and how many per-file / group offsets are set. */
 export function simSummary(
   g: { electricalDeg: number; mechanicalDeg: number; azimuthDeg: number },
@@ -6,7 +9,7 @@ export function simSummary(
   /** The 3D method, given only while a tilt is active (it changes the result then). */
   method?: 'summation' | 'weighted',
 ): string {
-  const parts = [`Tilt Δ ${g.electricalDeg}°`, `Mech ${g.mechanicalDeg}°`, `Az ${g.azimuthDeg}°`];
+  const parts = [`Tilt Δ ${minus(g.electricalDeg)}°`, `Mech ${minus(g.mechanicalDeg)}°`, `Az ${minus(g.azimuthDeg)}°`];
   if (fileOffsets > 0) parts.push(`${fileOffsets} file offset${fileOffsets === 1 ? '' : 's'}`);
   if (groupOffsets > 0) parts.push(`${groupOffsets} group offset${groupOffsets === 1 ? '' : 's'}`);
   if (method) parts.push(`3D method: ${method === 'weighted' ? 'Weighted' : 'Summation'}`);
@@ -32,7 +35,7 @@ export const simulationActive = (s: SimFacts): boolean => s.tiltActive || s.azim
  */
 export function simulatedCaption(s: SimFacts, method: 'summation' | 'weighted'): string | undefined {
   if (!simulationActive(s)) return undefined;
-  const parts = [`electrical Δ ${s.tilt.electricalDeg}°`, `mechanical ${s.tilt.mechanicalDeg}°`, `azimuth ${s.azimuthDeg}°`];
+  const parts = [`electrical Δ ${minus(s.tilt.electricalDeg)}°`, `mechanical ${minus(s.tilt.mechanicalDeg)}°`, `azimuth ${minus(s.azimuthDeg)}°`];
   if (s.tiltActive) parts.push(`${method} method`);
   const offsets = [
     s.offsetCount > 0 ? `${s.offsetCount} file${s.offsetCount === 1 ? '' : 's'}` : '',
