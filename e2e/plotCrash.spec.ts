@@ -154,3 +154,54 @@ test('the message of a plot that failed goes away by itself when what the plot i
   await expect(page.getByTestId('plot-h').locator('.scatterlayer .trace .lines path')).toHaveCount(1);
   await expect(page.getByTestId('plot-v').locator('.scatterlayer .trace .lines path')).toHaveCount(1);
 });
+
+test('a plot that throws while it draws a highlight\'s markers is replaced by the message too, and other inputs clear it', async ({ page }) => {
+  const errors = pageErrors(page);
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', 1910), file('b.msi', 1930)]);
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  await showAll(page, 2);
+  await expect(page.getByTestId('plot-h').locator('.polarlayer')).toHaveCount(1);
+  // Start from a highlighted file with its markers drawn: taking the highlight off drops marker traces, which is where the library clears.
+  const rows = page.locator('tr[data-row-id]');
+  // (The first file is highlighted on load.)
+  await expect(rows.nth(0)).toHaveClass(/hl/);
+  const markerTraces = () =>
+    page.evaluate(() => (document.querySelector('[data-testid="plot-h"] .js-plotly-plot') as unknown as { data: { uid?: string }[] }).data.filter((t) => typeof t.uid !== 'string').length);
+  await expect.poll(markerTraces).toBeGreaterThan(0);
+
+  await page.evaluate(() => {
+    const original = Element.prototype.querySelector;
+    const w = window as unknown as { restoreQuerySelector: () => void };
+    w.restoreQuerySelector = () => {
+      Element.prototype.querySelector = original;
+    };
+    Element.prototype.querySelector = function (this: Element, selector: string) {
+      if (selector.startsWith('.cb')) throw new SyntaxError('injected: not a valid selector');
+      return original.call(this, selector);
+    } as typeof original;
+  });
+  // A click on the highlighted row takes the highlight off: the plots are not built again, only the markers are
+  // redrawn, a moment later and outside any render.
+  await rows.nth(0).click();
+
+  const failed = page.getByRole('alert').filter({ hasText: 'This plot could not be drawn' });
+  await expect(failed).toHaveCount(2);
+  await expect(failed.first()).toContainText('injected: not a valid selector');
+  // Nothing escaped to the page, the redraw counts as over, and the rest of the app is alive.
+  expect(errors).toEqual([]);
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save project' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Plot type' })).toBeVisible();
+  await expect(page.locator('.metrics tbody tr')).toHaveCount(2);
+  await rows.nth(1).click();
+  await expect(rows.nth(1)).toHaveClass(/hl/);
+
+  // Other inputs (a file unticked) draw both plots again once the library works.
+  await page.evaluate(() => (window as unknown as { restoreQuerySelector: () => void }).restoreQuerySelector());
+  await page.locator('.panel li', { hasText: 'a.msi' }).locator('input[type="checkbox"]').uncheck();
+  await expect(failed).toHaveCount(0);
+  await expect(page.getByTestId('plot-h').locator('.polarlayer')).toHaveCount(1);
+  await expect(page.getByTestId('plot-v').locator('.polarlayer')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});

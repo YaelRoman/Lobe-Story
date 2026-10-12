@@ -82,6 +82,13 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
   const [error, setError] = useState<string | null>(null);
+  // An error of a draw that React did not start (the one that waits for a paint runs from a timer) is thrown again
+  // while rendering, so that the plot's boundary shows it: thrown in a timer it would only reach the console.
+  const [, rethrow] = useState(null);
+  const fail = (error: unknown) =>
+    rethrow(() => {
+      throw error;
+    });
 
   const labelled = labelledExport !== undefined;
   const exporting = useRef({ figure, labelledExport });
@@ -180,7 +187,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const draw = () => {
+    const draw = (deferred = false) => {
       setError(null);
       const generation = redrawGate.current.start();
       redrawing.current = true;
@@ -221,6 +228,11 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
           if (!redrawGate.current.isLatest(generation)) return;
           redrawing.current = false;
           restyledDuringRedraw.current = false;
+          if (deferred) {
+            // As a throw of the deferred draw (below): the boundary shows it and reports the plot as done.
+            fail(error);
+            return;
+          }
           setError('This plot could not be drawn (WebGL unavailable?)');
           drawnHandler.current?.(figure, overlay);
         });
@@ -234,7 +246,16 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
     // replaces one that is still waiting.
     let timer = 0;
     const frame = requestAnimationFrame(() => {
-      timer = window.setTimeout(draw, 0);
+      timer = window.setTimeout(() => {
+        // The library throws while it draws (an effect's throw is caught by React, a timer's is not).
+        try {
+          draw(true);
+        } catch (error) {
+          redrawing.current = false;
+          restyledDuringRedraw.current = false;
+          fail(error);
+        }
+      }, 0);
     });
     return () => {
       cancelAnimationFrame(frame);
