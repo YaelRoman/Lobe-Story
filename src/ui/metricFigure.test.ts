@@ -172,6 +172,13 @@ describe('a metric whose values are tiny against its unit (the lower region rati
     expect(f.layout.yaxis).toMatchObject({ exponentformat: 'none' });
   });
 
+  it('lets the left margin grow with the long tick labels, so the axis title does not lie on them', () => {
+    const usual = buildMetricFigure(tiny, FIGURE_THEMES.light, 'Lower region est.', '%');
+    expect(usual.layout.yaxis).not.toHaveProperty('automargin');
+    const f = buildMetricFigure(tiny, FIGURE_THEMES.light, 'Lower region est.', '%', undefined, { fitToData: true });
+    expect(f.layout.yaxis).toMatchObject({ automargin: true, title: { text: 'Lower region est. (%)', standoff: 8 } });
+  });
+
   it('fitRange: a margin of a quarter of the spread or a tenth of the largest value; one value still gets a readable axis', () => {
     expect(fitRange([0, 0.4])).toEqual([0, 0.5]);
     const [lo, hi] = fitRange([0.3, 0.3])!;

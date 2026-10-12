@@ -154,7 +154,13 @@ export function buildMetricFigure(
       margin: { l: 60, r: 20, t: 20, b: 50 },
       legend: LEGEND,
       xaxis: { automargin: true, title: { text: 'Frequency (MHz)', standoff: 8 }, gridcolor: theme.grid },
-      yaxis: { title: { text: metricAxisTitle(label, unit) }, gridcolor: theme.grid, ...(range ? { range } : {}), ...(options.fitToData ? { exponentformat: 'none' as const } : {}) },
+      // A fitted axis writes small numbers out ("0.00085"): the left margin grows with them, so the title stays clear of the labels (also in the image).
+      yaxis: {
+        title: { text: metricAxisTitle(label, unit), ...(options.fitToData ? { standoff: 8 } : {}) },
+        gridcolor: theme.grid,
+        ...(range ? { range } : {}),
+        ...(options.fitToData ? { exponentformat: 'none' as const, automargin: true } : {}),
+      },
     },
   };
 }

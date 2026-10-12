@@ -131,6 +131,10 @@ test('Lower region est.: the frequency chart fits its axis to the small values, 
   const ticks = await chart.locator('.ytick text').allTextContents();
   expect(ticks.length).toBeGreaterThan(1);
   for (const t of ticks) expect(t).toMatch(/^0(\.\d+)?$/);
+  // Seven-character tick labels: the axis title stands to their left, not on them.
+  const titleRight = await chart.locator('.ytitle').evaluate((t) => t.getBoundingClientRect().right);
+  const labelsLeft = await chart.locator('.ytick text').evaluateAll((labels) => Math.min(...labels.map((l) => l.getBoundingClientRect().left)));
+  expect(titleRight).toBeLessThanOrEqual(labelsLeft);
   // The lines no longer lie flat on one level: their points span a good part of the plot's height.
   const ys = await chart.locator('.scatterlayer .trace .points path').evaluateAll((points) => points.map((p) => p.getBoundingClientRect().y));
   expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(60);
