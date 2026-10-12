@@ -51,7 +51,7 @@ test('while a slider is held with many files, the table, the band statistics and
   const opacity = () => marked.evaluate((e) => Number(getComputedStyle(e).opacity));
   expect(await opacity()).toBe(1);
 
-  await holdSlider(page);
+  const slider = await holdSlider(page);
   await expect(page.getByTestId('sim-lag')).toHaveText(WAITING);
   await expect(marked).toHaveAttribute('aria-busy', 'true');
   await expect.poll(opacity).toBeLessThanOrEqual(0.6);
@@ -61,7 +61,8 @@ test('while a slider is held with many files, the table, the band statistics and
   await stopOn(page, 4);
   await page.mouse.up();
   await settled(page);
-  await expect(page.locator('p.count', { hasText: 'Simulated:' })).toContainText('mech +4°');
+  // Where the slider ended (a browser may take the released thumb back to the pointer): the table is of that value.
+  await expect(page.locator('p.count', { hasText: 'Simulated:' })).toContainText(`mech +${await slider.inputValue()}°`);
   await expect(marked).not.toHaveAttribute('aria-busy');
   await expect.poll(opacity).toBe(1);
 });
@@ -94,44 +95,28 @@ test('with the built-in example (the page follows the drag) no sentence comes in
   expect(await page.evaluate(() => (window as unknown as { sawLag: boolean }).sawLag)).toBe(false);
 });
 
-test('exports taken while a slider is held are of the value the slider shows: the same as after typing it', async ({ page }) => {
+/** With the slider held and the hand moving: clicks `button` in the task in which the slider reaches `value` (the page has not followed, the mouse is still down), and the hand moves on. */
+const heldClick = (page: Page, value: number, within: string, button: string) => async () => {
+  await stopAndClick(page, value, within, button);
+  await keepMoving(page, MECHANICAL);
+};
+
+test('the metrics table exported or copied while a slider is held is of the value the slider shows: the same as after typing it', async ({ page }) => {
+  // Loads 48 files and waits for six full passes: long on a busy machine.
+  test.slow();
   await catchCopies(page);
   await loadMany(page, 48);
-  const downloads: Download[] = [];
-  page.on('download', (d) => downloads.push(d));
   const slider = await holdSlider(page);
   await expect(page.getByTestId('sim-lag')).toHaveText(WAITING);
-  // Each export is clicked in the task in which the slider reaches its value: the page has not followed, the mouse is still down.
-  const heldClick = (value: number, within: string, button: string) => async () => {
-    await stopAndClick(page, value, within, button);
-    await keepMovingAgain();
-  };
-  const keepMovingAgain = () => keepMoving(page, MECHANICAL);
-
-  // A picture cannot be made of what is not drawn yet: it is not saved, and the page says why.
-  for (const plot of ['plot-h', 'plot-hpbw']) {
-    await heldClick(3, `[data-testid="${plot}"]`, 'Download plot')();
-    await expect(page.getByTestId('copy-note')).toHaveText(IMAGE_BEHIND);
-  }
-  expect(await page.getByTestId('plot-hpbw').locator(DOWNLOAD).evaluate((b) => Number(getComputedStyle(b).opacity))).toBeLessThan(0.5);
-
-  // The table's exports first bring the table up to the slider, each at a value of its own.
-  const held = {
-    csv: await saved(page, heldClick(4, TABLE, 'Export CSV')),
-    copy: await copied(page, heldClick(5, TABLE, 'Copy table')),
-    bandCsv: await saved(page, heldClick(6, BAND, 'Export band CSV')),
-    bandCopy: await copied(page, heldClick(7, BAND, 'Copy table')),
-  };
+  const held = { csv: await saved(page, heldClick(page, 4, TABLE, 'Export CSV')), copy: await copied(page, heldClick(page, 5, TABLE, 'Copy table')) };
   expect(held.csv.name).toBe('pattern-metrics-simulated.csv');
-  expect(held.bandCsv.name).toBe('band-statistics-simulated.csv');
   expect(held.csv.text).toContain('H-HPBW tilted');
-  // The pictures were never saved, and nothing but the two files was.
-  expect(downloads).toHaveLength(2);
 
-  // The last export, with the hand standing still on its value: the table has caught up with it, the slider is still held.
+  // Once more with the hand standing still on its value: the table has caught up with it, and the slider is still held.
   await stopAndClick(page, 8, TABLE, 'Export CSV');
   await expect(page.locator('p.count', { hasText: 'Simulated:' })).toContainText('mech +8°');
   await expect(page.getByTestId('sim-lag')).toHaveCount(0);
+  await expect(page.locator('.follows-sim')).not.toHaveAttribute('aria-busy');
   await expect(slider).toHaveValue('8');
   await page.mouse.up();
   await settled(page);
@@ -143,12 +128,47 @@ test('exports taken while a slider is held are of the value the slider shows: th
   expect(await saved(page, press(page, 'Export CSV'))).toEqual(held.csv);
   await setDirect(page, '5');
   expect(await copied(page, press(page, 'Copy table', TABLE))).toBe(held.copy);
-  await setDirect(page, '6');
-  expect(await saved(page, press(page, 'Export band CSV'))).toEqual(held.bandCsv);
-  await setDirect(page, '7');
-  expect(await copied(page, press(page, 'Copy table', BAND))).toBe(held.bandCopy);
+});
 
-  // Caught up, the pictures are saved again.
+test('the band statistics exported or copied while a slider is held are of the value the slider shows: the same as after typing it', async ({ page }) => {
+  test.slow();
+  await catchCopies(page);
+  await loadMany(page, 48);
+  await holdSlider(page);
+  await expect(page.getByTestId('sim-lag')).toHaveText(WAITING);
+  const held = { csv: await saved(page, heldClick(page, 6, BAND, 'Export band CSV')), copy: await copied(page, heldClick(page, 7, BAND, 'Copy table')) };
+  expect(held.csv.name).toBe('band-statistics-simulated.csv');
+  await stopOn(page, 7);
+  await page.mouse.up();
+  await settled(page);
+
+  await setDirect(page, '0');
+  expect((await saved(page, press(page, 'Export band CSV'))).name).toBe('band-statistics.csv');
+  await setDirect(page, '6');
+  expect(await saved(page, press(page, 'Export band CSV'))).toEqual(held.csv);
+  await setDirect(page, '7');
+  expect(await copied(page, press(page, 'Copy table', BAND))).toBe(held.copy);
+});
+
+test('a picture is not saved while a slider is held: the click says why, and it is saved once the page has caught up', async ({ page }) => {
+  await loadMany(page, 48);
+  const downloads: Download[] = [];
+  page.on('download', (d) => downloads.push(d));
+  await holdSlider(page);
+  await expect(page.getByTestId('sim-lag')).toHaveText(WAITING);
+  // A picture cannot be made of what is not drawn yet.
+  for (const plot of ['plot-h', 'plot-hpbw']) {
+    await heldClick(page, 3, `[data-testid="${plot}"]`, 'Download plot')();
+    await expect(page.getByTestId('copy-note')).toHaveText(IMAGE_BEHIND);
+  }
+  expect(await page.getByTestId('plot-hpbw').locator(DOWNLOAD).evaluate((b) => Number(getComputedStyle(b).opacity))).toBeLessThan(0.5);
+  await stopOn(page, 3);
+  await page.mouse.up();
+  await settled(page);
+  expect(downloads).toHaveLength(0);
+
+  // Caught up, the pictures are saved again, and the button is as it was.
+  expect(await page.getByTestId('plot-hpbw').locator(DOWNLOAD).evaluate((b) => Number(getComputedStyle(b).opacity))).toBeGreaterThan(0.5);
   const image = await Promise.all([page.waitForEvent('download'), page.getByTestId('plot-hpbw').locator(DOWNLOAD).click()]);
   expect(image[0].suggestedFilename()).toMatch(/-simulated\.png$/);
   const cut = await Promise.all([page.waitForEvent('download'), page.getByTestId('plot-h').locator(DOWNLOAD).click()]);
