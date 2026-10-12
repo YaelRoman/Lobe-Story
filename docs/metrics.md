@@ -181,6 +181,89 @@ the kind of tilt:
   simulation does everywhere; that convention alone can move a value by about 0.2 points against a
   finer integration.
 
+## The simulated horizontal cut
+
+Under a tilt simulation the Simulation bar offers **Horizontal cut: Through the beam peak | At the
+horizon**. The control is available once a file is tilted (an electrical or a mechanical tilt, from
+the sliders or from an offset). Both cuts are read from the same model: the 3D reconstruction of the
+file's two cuts with the selected 3D method, the elevation cut moved by the electrical tilt, the
+whole pattern turned by the mechanical tilt. Both are drawn against the pattern's 3D peak, so neither
+is ever above 0 dB (or above the file's own offset, for a file whose cut does not start at 0 dB).
+The vertical cut, the vertical metrics, the 3D view and the angular-region estimate do not depend
+on the choice. The choice is saved with the project (not remembered as a preference) and is put
+back to "Through the beam peak" by Reset (with offsets set: by "Reset everything").
+
+**Through the beam peak** (the default). The cut on the ground-frame cone at the elevation of the
+tilted beam peak: the cut a data sheet gives. Electrical tilt leaves it unchanged; mechanical tilt
+distorts it, and by how much depends on the 3D method. On that cone the sides are about m (the
+mechanical tilt) away from the antenna's own peak cone and the back about 2·m, so under mechanical
+tilt "Summation" narrows the cut slightly and raises F/B, while "Weighted" widens it slightly and
+leaves F/B almost unchanged.
+
+**At the horizon.** The cut at ground elevation 0°: what the antenna radiates towards the horizon
+in every azimuth. This is where the widening known from mechanical tilt is seen, and how much is
+left at the horizon after a down-tilt.
+
+- *Which files.* Every file with a non-zero tilt (sliders plus its own and its group's offsets). A
+  file without one is not simulated and keeps its file cut, in either mode.
+- *Electrical tilt only.* The horizon cut is lower than the cut through the beam peak: the beam has
+  moved down, and the horizon is now that far above its peak. With "Summation" it is the file's
+  azimuth cut lowered by the level of the elevation cut at the horizon (same shape, same
+  beamwidth); with "Weighted" the shape changes as well.
+- *A file with built-in electrical tilt.* The file's own azimuth cut is taken as a cut through its
+  beam peak (below the horizon), not as a horizon cut. So with no offset such a file shows its file
+  cut, and from the smallest offset on it shows the horizon cut, which lies above its beam: the
+  trace drops at once by what the elevation cut has lost at the horizon (several dB to tens of dB
+  for a narrow beam with several degrees of tilt). Only for a file whose beam peak is at 0°
+  elevation does the horizon cut start from the file cut. The dashed original stays the file cut.
+- *What the cut can look like.* When the horizon passes through the upper side of the main beam the
+  cut is a wider, lower copy of the azimuth beam. With more tilt the horizon reaches the first
+  upper null and sidelobes at boresight while the sides of the panel, which a mechanical tilt
+  lowers less, still look at the main beam: the cut then has a dip at boresight and its maximum
+  off to one side.
+
+**Metrics on the horizon cut.** One rule for every horizontal column:
+
+- *Widths and directions are those of the cut, measured against the cut's own maximum*, as for any
+  cut: H-HPBW, H-BW 10 dB, Squint, Peak az. When the maximum of the cut is off boresight (see
+  above), these describe that lobe, not the antenna's main beam: a squint of tens of degrees or a
+  beamwidth of 20° is then a property of the horizon cut.
+- *Levels in dB are below the pattern's 3D peak*, not below the cut's maximum: F/B 180°, F/B ±W°,
+  H-SLS and Roll-off. F/B on the horizon cut is therefore "peak gain over the level behind the
+  antenna at the horizon". P2P tracking compares the two ports at the horizon, each referenced to
+  its own 3D peak (and to its gain, when both are declared); a tilted file is compared with the
+  cut its partner shows.
+- *Power ratios do not depend on the reference*: SPR, AIR and the D/U apertures are those of the
+  cut.
+- The read-out under the horizontal plot (and the caption of its image) says how far the cut's
+  maximum lies below the 3D peak: "Horizon cut: maximum 10.6 dB below the 3D peak". The dashed
+  −3 dB ring is drawn 3 dB under the cut's own maximum; the F/B and H-SLS crosses lie on the trace.
+- The band statistics, the frequency chart and the difference from a reference use these tilted
+  values as they use any other.
+- The angular-region estimate does not change: its regions follow the beam (the cut through the
+  beam peak) and it integrates the 3D reconstruction.
+
+On the cut through the beam peak the levels are measured against that cut's maximum, which is the
+3D peak (for a squinted beam under mechanical tilt the cone can miss the peak by a small fraction
+of a dB).
+
+**Where the choice is written.** The title of the horizontal plot ("· cut at the horizon" or
+"· cut through the tilted beam peak"), the folded Simulation bar ("H cut: at the horizon"), the
+note above the metrics table and in the band statistics, and the caption of every exported image
+("…, summation method, horizontal cut at the horizon"). In the exports only the horizon cut is
+marked, with a comma-free tag: the metrics CSV has "H-HPBW tilted [horizon cut] (°)" on the tilted
+column of every horizontal metric (in the difference view "…, tilted values [horizon cut]"), Copy
+table has "H-HPBW [tilted: horizon cut] (°)", the band statistics CSV has the State
+"tilted [H cut at the horizon]" and its copied table starts with "Parameter [tilted: H cut at the
+horizon]". Without a tag the tilted values are those of the cut through the beam peak.
+
+**What the model gives.** A synthetic 65° × 8° panel whose beam peak is at 0° elevation (H-HPBW
+65.0°), mechanical tilt +2° / +4° / +6°, horizon cut: "Summation" 67.0° / 76.0° / 97.7°, with the
+maximum staying at boresight; "Weighted" 73.9° / 90.0° / 104.8°, with the maximum moving off
+boresight (to about ±36° at +6°). On the cut through the beam peak "Summation" narrows the same
+panel instead (64.4° at +2°). Up-tilt and down-tilt are the same on the horizon cut of a symmetric
+elevation beam.
+
 ## Difference from a reference
 
 With a reference file chosen (⋯ menu of a file, **Use as reference**) and **Δ vs reference** on, every
@@ -300,14 +383,8 @@ The panel shows each range; the same limits apply to projects and saved preferen
   substitutes 22 dB only in statistics over a set of measurements, so no substitute is applied per
   file.
 - **Tilt simulation.** Metrics of a simulated tilt are estimates from a two-cut reconstruction.
-  The elevation cut is shifted. The simulated horizontal cut is the cut through the tilted beam
-  peak (the cone at the peak's elevation), reconstructed from the two cuts with the selected 3D
-  method, and is never above the file's peak level. Electrical tilt leaves it unchanged;
-  mechanical tilt distorts it, and by how much depends on the 3D method. On that cone the sides
-  are about m (the mechanical tilt) away from the antenna's own peak cone and the back about 2·m,
-  so under mechanical tilt the "Summation" method narrows the cut slightly and raises F/B, while
-  "Weighted" widens it slightly and leaves F/B almost unchanged. The widening usually associated
-  with mechanical tilt is seen on the horizon cut, which this plot does not show (the 3D view
-  does). The back hemisphere is rebuilt from the front half of the vertical cut (the back half of
-  the vertical cut is not used), so the simulated F/B is a rough estimate. Coverage at the
-  horizon is visible in the 3D view.
+  The elevation cut is shifted. The simulated horizontal cut is read from the 3D reconstruction
+  of the two cuts (selected 3D method), turned by the mechanical tilt; which cut is read is a
+  choice in the Simulation bar, see "The simulated horizontal cut" above. The back hemisphere is
+  rebuilt from the front half of the vertical cut (the back half of the vertical cut is not used),
+  so the simulated F/B is a rough estimate.
