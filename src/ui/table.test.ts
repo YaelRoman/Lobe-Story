@@ -9,6 +9,9 @@ import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import { analyzeTilted, tiltTagged, effectiveFor, isTilted, tiltEach, type SimSettings } from '../core/analysis/tilt';
 import { buildPanelGroups, groupPatterns } from '../state/selectors';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
+import { bandItems } from '../test/bandFixture';
+import { bandTable } from '../core/analysis/bandParams';
+import { bandCsv } from './bandView';
 
 describe('convertGain', () => {
   it('converts between dBd and dBi', () => {
@@ -724,11 +727,16 @@ describe('the formula guard and the own group labels of the app', () => {
 
   it('keeps the band CSV guard for the antenna label, which carries a group name', () => {
     expect(csvText('+cmd|x')).toBe("'+cmd|x");
+    const items = bandItems();
+    const columns = bandTable(items, analyzeAll(items, DEFAULT_SETTINGS), [{ name: '=cmd|x', minMHz: 1800, maxMHz: 1900 }], { gainUnit: 'dBi', settings: DEFAULT_SETTINGS });
+    const lines = bandCsv([{ label: '+cmd|x', columns }], DEFAULT_SETTINGS).split('\r\n');
+    // The antenna label and the sub-band name are user text: both start with an apostrophe in every line.
+    for (const line of lines.slice(1, -1)) expect(line.startsWith("'+cmd|x,'=cmd|x,")).toBe(true);
   });
 });
 
 describe('the declared columns in the difference view', () => {
-  it('read "Δ H-HPBW − decl." in the CSV header, not "Δ ΔH-HPBW"', () => {
+  it('read "H-HPBW − decl. Δ vs ref" in the CSV header, not "Δ ΔH-HPBW"', () => {
     const p = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a', fileName: 'a.MSI' });
     const tagged = [{ pattern: p, tags: {} }];
     const rows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
