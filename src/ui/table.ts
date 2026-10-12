@@ -611,17 +611,30 @@ function signedDecimals(v: number | null, decimals: number): string {
   return rounded === 0 ? (0).toFixed(decimals) : rounded > 0 ? `+${rounded.toFixed(decimals)}` : rounded.toFixed(decimals);
 }
 
-/** What a cell shows: the value, or `original → tilted`; one decimal unless the column has its own (`decimals`). */
-export function formatCell(original: MetricResult, tilted?: MetricResult, decimals = 1): { text: string; title?: string } {
+/** Said in the tooltip of a cell that shows one value for an original and a tilted result that read the same. */
+const EQUAL_NOTE = 'original and tilted are equal under the simulation';
+
+/**
+ * What a cell shows: the value, or `original → tilted` where the two shown texts differ (equal ones show once, with
+ * `equal` set when the tooltip is only that note); one decimal unless the column has its own (`decimals`).
+ */
+export function formatCell(
+  original: MetricResult,
+  tilted?: MetricResult,
+  decimals = 1,
+): { text: string; title?: string; equal?: true } {
   if (!tilted) return { text: shownValue(original, decimals), title: original.reason };
   const reasons = [
     original.reason ? `original: ${original.reason}` : '',
     tilted.reason ? `tilted: ${tilted.reason}` : '',
   ].filter(Boolean);
-  return {
-    text: `${shownValue(original, decimals)} → ${shownValue(tilted, decimals)}`,
-    ...(reasons.length ? { title: reasons.join('\n') } : {}),
-  };
+  const [from, to] = [shownValue(original, decimals), shownValue(tilted, decimals)];
+  if (from === to) {
+    return reasons.length
+      ? { text: from, title: [EQUAL_NOTE, ...reasons].join('\n') }
+      : { text: from, title: EQUAL_NOTE, equal: true };
+  }
+  return { text: `${from} → ${to}`, ...(reasons.length ? { title: reasons.join('\n') } : {}) };
 }
 
 const signedDeg = (n: number) => (n > 0 ? `+${n}` : `${n}`);
@@ -712,7 +725,7 @@ export function toCsv(
 export const cellText = (r: MetricsRow, key: TableColumn): string => rowCell(r, key).text;
 
 /** What a row's cell shows (and its tooltip): the difference in the difference view, else the value (`original → tilted` under a simulation). */
-export function rowCell(r: MetricsRow, key: TableColumn): { text: string; title?: string } {
+export function rowCell(r: MetricsRow, key: TableColumn): { text: string; title?: string; equal?: true } {
   const cell = cellOf(r, key);
   if (r.isDelta) return { text: signedDecimals(cell.value, shownDecimals(key)), title: cell.reason };
   return formatCell(cell, tiltedOf(r, key), shownDecimals(key));

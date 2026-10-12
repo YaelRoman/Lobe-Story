@@ -411,7 +411,7 @@ export const MetricsTable = memo(function MetricsTable({
                 {columns.map((c) => {
                   const cell = rowCell(r, c.key);
                   return (
-                    <td key={c.key} data-col={c.key} tabIndex={-1} title={cell.title} className={cell.title ? 'has-reason' : undefined}>
+                    <td key={c.key} data-col={c.key} tabIndex={-1} title={cell.title} className={cell.title && !cell.equal ? 'has-reason' : undefined}>
                       {cell.text}
                       {focusedCell?.id === r.id && focusedCell.col === c.key && (
                         <button

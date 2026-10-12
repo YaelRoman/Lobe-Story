@@ -66,9 +66,22 @@ describe('simulation in the table', () => {
   it('formats original → tilted with both reasons', () => {
     expect(formatCell({ value: 6 }, { value: 10 })).toEqual({ text: '6.0 → 10.0' });
     expect(formatCell({ value: 6 })).toEqual({ text: '6.0', title: undefined });
+    expect(formatCell({ value: 6 }, { value: null, reason: 'b' })).toEqual({ text: '6.0 → —', title: 'tilted: b' });
+  });
+
+  it('shows a single value, with a tooltip saying so, when original and tilted read the same', () => {
+    expect(formatCell({ value: 66.94 }, { value: 66.91 })).toEqual({
+      text: '66.9',
+      title: 'original and tilted are equal under the simulation',
+      equal: true,
+    });
+    expect(formatCell({ value: null }, { value: null }).text).toBe('—');
+    // Different at the shown precision: still a pair.
+    expect(formatCell({ value: 66.94 }, { value: 66.96 }).text).toBe('66.9 → 67.0');
+    // Reasons stay in the tooltip (and keep the cell marked as having one).
     expect(formatCell({ value: null, reason: 'a' }, { value: null, reason: 'b' })).toEqual({
-      text: '— → —',
-      title: 'original: a\ntilted: b',
+      text: '—',
+      title: 'original and tilted are equal under the simulation\noriginal: a\ntilted: b',
     });
   });
 
@@ -495,6 +508,17 @@ describe('sorting the table', () => {
     expect(ids({ key: 'hHpbw', dir: 'desc' })).toEqual(['d', 'a', 'c', 'b']);
     const noGain = [row('x', 'X', 1, 1, { gain: null }), row('y', 'Y', 1, 1, { gain: 3 })];
     expect(sortRows(noGain, { key: 'gain', dir: 'desc' }).map((r) => r.id)).toEqual(['y', 'x']);
+  });
+
+  it('sorts an equal-pair cell (shown once) by its tilted value', () => {
+    const t = [
+      row('p', 'P', 1, 60.04, { tilted: { hHpbw: res(60.02) } }),
+      row('q', 'Q', 1, 60.2, { tilted: { hHpbw: res(59.98) } }),
+    ];
+    expect(cellText(t[0], 'hHpbw')).toBe('60.0');
+    expect(cellText(t[1], 'hHpbw')).toBe('60.2 → 60.0');
+    expect(sortRows(t, { key: 'hHpbw', dir: 'asc' }).map((r) => r.id)).toEqual(['q', 'p']);
+    expect(sortValue(t[0], 'hHpbw')).toBe(60.02);
   });
 
   it('sorts original → tilted cells by the tilted value when there is one', () => {
