@@ -52,6 +52,14 @@ export interface AnalyzeOptions {
    * copy, see `analyzeTilted`); `undefined` leaves the pattern to the two-cut estimate. Only asked with `areMethod`.
    */
   areModel?: (pattern: Pattern, grids: { h: Grid; v: Grid }, sectorEdgeDeg: number, method: Method3d) => AngularRegionEfficiency | undefined;
+  /**
+   * How far (dB) the maximum of a pattern's H cut lies below the pattern's 3D peak, for an H cut that does not pass
+   * through the peak (a simulated horizon cut); `undefined` for a cut that does. With it, the dB levels read from the
+   * H cut (F/B, H-SLS, roll-off, port-to-port tracking) are levels below the 3D peak; the beamwidths, the squint and
+   * the peak azimuth are measured on the cut against its own maximum, and the power ratios (SPR, AIR, D/U) do not
+   * depend on the reference.
+   */
+  hCutPeakDb?: (pattern: Pattern) => number | undefined;
 }
 
 export interface PatternMetrics {
@@ -96,6 +104,12 @@ export interface PatternMetrics {
   delta: { hHpbw: MetricResult; vHpbw: MetricResult; fb: MetricResult };
   /** Angular region efficiency, Type A, estimated from the two cuts (after BASTA 7.2.4; see `are.ts`). */
   are: AngularRegionEfficiency;
+  /**
+   * Only for an H cut that does not pass through the 3D peak (a simulated horizon cut): how far its maximum lies
+   * below that peak, in dB. The levels `fb180`, `fbWindow`, `hSls`, `rollOff`, `rollOffEdges` and the tracking
+   * values then include it.
+   */
+  hCutPeakDb?: number;
 }
 
 const missing = (reason: string): MetricResult => ({ value: null, reason });
@@ -165,7 +179,12 @@ function analyze(
 ): PatternMetrics {
   const h = beamwidth(grids.h, s.levelDb);
   const v = beamwidth(grids.v, s.levelDb);
-  const fb = frontToBack(grids.h, s.fbWindowDeg);
+  const below = opts.hCutPeakDb?.(item.pattern);
+  // A level read from the H grid (normalised to the cut's own maximum), referenced to the 3D peak.
+  const lift = <T extends MetricResult>(r: T): T => (below === undefined || r.value === null ? r : { ...r, value: r.value + below });
+  const fb0 = frontToBack(grids.h, s.fbWindowDeg);
+  const fb = { fb180: lift(fb0.fb180), fbWindow: lift(fb0.fbWindow) };
+  const edges = rollOffEdges(grids.h, s.sectorEdgeDeg);
   const tilt = v.direction;
   const offset =
     typeof opts.nominalOffsetDeg === 'function'
@@ -201,12 +220,12 @@ function analyze(
     fb180: fb.fb180,
     fbWindow: fb.fbWindow,
     ...elevationSidelobes(grids.v, s.uslsRangeDeg, s.lobeLimitFactor),
-    hSls: horizontalSls(grids.h, s.sectorEdgeDeg),
+    hSls: lift(horizontalSls(grids.h, s.sectorEdgeDeg)),
     beamTracking: missing('Not computed'),
     spr: power.spr,
     air: power.air,
-    rollOff: rollOff(grids.h, s.sectorEdgeDeg),
-    rollOffEdges: rollOffEdges(grids.h, s.sectorEdgeDeg),
+    rollOff: lift(rollOff(grids.h, s.sectorEdgeDeg)),
+    rollOffEdges: below === undefined ? edges : [edges[0] + below, edges[1] + below],
     du,
     delta: declaredReason
       ? {
@@ -220,6 +239,7 @@ function analyze(
           fb: delta(fb.fb180, declared.frontToBack),
         },
     are: opts.areMethod ? areOf(item.pattern, grids, s.sectorEdgeDeg, opts.areMethod, ownGrids, opts.areModel) : ARE_NOT_COMPUTED,
+    ...(below === undefined ? {} : { hCutPeakDb: below }),
   };
 }
 
@@ -280,10 +300,12 @@ export function analyzeAll(
     const found = findTrackingPartner(item, items);
     if ('partner' in found) {
       const partnerGrid = grids.get(found.partner.pattern.id)!.h;
+      // The grids are normalised to each cut's own maximum; a cut that lies below its 3D peak is put back there.
+      const belowDelta = (metrics.hCutPeakDb ?? 0) - (opts.hCutPeakDb?.(found.partner.pattern) ?? 0);
       const sameGainDelta =
-        item.pattern.gain && found.partner.pattern.gain
+        (item.pattern.gain && found.partner.pattern.gain
           ? gainDbd(item.pattern.gain) - gainDbd(found.partner.pattern.gain)
-          : 0;
+          : 0) - belowDelta;
       metrics.beamTracking = beamTracking(own.h, partnerGrid, s.sectorEdgeDeg, sameGainDelta);
       metrics.trackingEdges = {
         partnerId: found.partner.pattern.id,
