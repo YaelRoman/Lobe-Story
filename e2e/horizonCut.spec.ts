@@ -116,7 +116,7 @@ test('the simulated horizontal cut can be taken at the horizon: plot, table, sum
   let csv = '';
   for await (const chunk of (await csvFile.createReadStream())!) csv += chunk.toString();
   const header = csv.split('\r\n')[0];
-  expect(header).toContain('H-HPBW original (°),H-HPBW tilted [horizon cut] (°)');
+  expect(header).toContain('H-HPBW original (°),H-HPBW tilted [horizon cut] [Summation] (°)');
   expect(header).toContain('V-HPBW original (°),V-HPBW tilted (°)');
 
   // Folded, the bar's summary names it.
@@ -256,15 +256,15 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   let csv = '';
   for await (const chunk of (await csvFile.createReadStream())!) csv += chunk.toString();
   const lines = csv.split('\r\n').map((l) => l.split(','));
-  const fb = lines[0].indexOf('F/B 180° tilted [horizon cut] (dB)');
+  const fb = lines[0].indexOf('F/B 180° tilted [horizon cut] [Summation] (dB)');
   const v = lines[0].indexOf('V-HPBW tilted (°)');
   const partner = lines.find((l) => l[0].includes('1710_M45_02T'))!;
   expect(fb).toBeGreaterThan(0);
   expect(partner[fb]).not.toBe(partner[fb - 1]);
   expect(partner[v]).toBe(partner[v - 1]);
   // One column for the level, right after the tilted horizontal beamwidth; the untilted partner has its own value.
-  const levelAt = lines[0].indexOf('Horizon level [horizon cut] (dB)');
-  expect(levelAt).toBe(lines[0].indexOf('H-HPBW tilted [horizon cut] (°)') + 1);
+  const levelAt = lines[0].indexOf('Horizon level [horizon cut] [Summation] (dB)');
+  expect(levelAt).toBe(lines[0].indexOf('H-HPBW tilted [horizon cut] [Summation] (°)') + 1);
   expect(partner[levelAt]).toMatch(/^\d+\.\d\d$/);
   expect(csv.split('\r\n')[0]).not.toContain('"');
 
@@ -338,12 +338,12 @@ test('at the horizon with no tilt nothing says "tilted": the page, the tooltips 
   // The exports: the same columns as under a tilt, other words.
   const [csvFile] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
   const header = (await readText(csvFile)).split('\r\n')[0];
-  expect(header).toContain('H-HPBW original (°),H-HPBW [H cut at the horizon] (°),Horizon level [horizon cut] (dB),V-HPBW original (°),V-HPBW simulated (°)');
+  expect(header).toContain('H-HPBW original (°),H-HPBW [H cut at the horizon] [Summation] (°),Horizon level [horizon cut] [Summation] (dB),V-HPBW original (°),V-HPBW simulated (°)');
   expect(header).not.toMatch(/tilted|"/);
   expect(header.endsWith('Electrical tilt Δ (°),Mechanical tilt (°),Azimuth pointing (°)')).toBe(true);
   if (canReadClipboard) {
     await page.locator('section', { has: page.getByRole('heading', { name: 'Metrics' }) }).getByRole('button', { name: 'Copy table' }).click();
-    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('H-HPBW [H cut at the horizon] (°)');
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('H-HPBW [H cut at the horizon] [Summation] (°)');
     expect((await page.evaluate(() => navigator.clipboard.readText())).split('\r\n')[0]).not.toMatch(/tilted/);
   }
   const [bandFile] = await Promise.all([page.waitForEvent('download'), band.getByRole('button', { name: 'Export band CSV' }).click()]);
@@ -356,7 +356,7 @@ test('at the horizon with no tilt nothing says "tilted": the page, the tooltips 
   await expect(band).toContainText('Simulation active: cells show original → tilted where they differ (horizontal cut at the horizon).');
   const [tiltedCsv] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
   const tiltedHeader = (await readText(tiltedCsv)).split('\r\n')[0];
-  expect(tiltedHeader).toContain('H-HPBW original (°),H-HPBW tilted [horizon cut] (°),Horizon level [horizon cut] (dB),V-HPBW original (°),V-HPBW tilted (°)');
+  expect(tiltedHeader).toContain('H-HPBW original (°),H-HPBW tilted [horizon cut] [Summation] (°),Horizon level [horizon cut] [Summation] (dB),V-HPBW original (°),V-HPBW tilted (°)');
   expect(tiltedHeader.split(',')).toHaveLength(header.split(',').length);
 });
 

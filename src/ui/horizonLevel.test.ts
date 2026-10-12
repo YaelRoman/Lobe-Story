@@ -75,12 +75,12 @@ describe('the Horizon level column', () => {
     expect(withHorizonLevel(csvColumns({ ...DEFAULT_TABLE_GROUPS, beam: false }), true).map((c) => c.key)).toContain('hLevel');
   });
 
-  it('CSV: one column "Horizon level [horizon cut] (dB)" with two decimals, comma-free, between the tilted H beamwidth and the V beamwidth', () => {
+  it('CSV: one column "Horizon level [horizon cut] [Summation] (dB)" with two decimals, comma-free, between the tilted H beamwidth and the V beamwidth', () => {
     const { rows, effective } = rowsFor('horizon');
     const columns = withHorizonLevel(csvColumns(DEFAULT_TABLE_GROUPS), true);
     const lines = toCsv(rows, 'dBd', 30, effective, 20, 3, undefined, false, columns, 'summation', true).split('\r\n').map((l) => l.split(','));
-    const at = lines[0].indexOf('Horizon level [horizon cut] (dB)');
-    expect(lines[0].slice(at - 1, at + 2)).toEqual(['H-HPBW tilted [horizon cut] (°)', 'Horizon level [horizon cut] (dB)', 'V-HPBW original (°)']);
+    const at = lines[0].indexOf('Horizon level [horizon cut] [Summation] (dB)');
+    expect(lines[0].slice(at - 1, at + 2)).toEqual(['H-HPBW tilted [horizon cut] [Summation] (°)', 'Horizon level [horizon cut] [Summation] (dB)', 'V-HPBW original (°)']);
     expect(lines[0].filter((h) => h.startsWith('Horizon level'))).toHaveLength(1);
     expect(lines[0].join(',')).not.toContain('"');
     expect(lines[1][at]).toBe('7.50');
@@ -88,16 +88,16 @@ describe('the Horizon level column', () => {
     // Every line has as many fields as the header.
     expect(lines[1]).toHaveLength(lines[0].length);
     // The horizon level relates an exported level to its cut: F/B below the 3D peak less the level is F/B of the cut itself.
-    const fb = lines[0].indexOf('F/B 180° tilted [horizon cut] (dB)');
+    const fb = lines[0].indexOf('F/B 180° tilted [horizon cut] [Summation] (dB)');
     expect(Number(lines[1][fb]) - Number(lines[1][at])).toBeCloseTo(Number(lines[1][fb - 1]), 1);
   });
 
-  it('Copy table and Copy row: the value as shown under "Horizon level (dB)"', () => {
+  it('Copy table and Copy row: the value as shown, under "Horizon level [Summation] (dB)" (the header names the 3D method the level is read with)', () => {
     const { rows } = rowsFor('horizon');
     const columns = withHorizonLevel(visibleColumns(DEFAULT_TABLE_GROUPS), true);
     const tsv = toTsv(rows, columns, 'dBd', 30, 20, 3, undefined, false, 'summation', true).split('\r\n').map((l) => l.split('\t'));
-    const at = tsv[0].indexOf('Horizon level (dB)');
-    expect(at).toBe(tsv[0].indexOf('H-HPBW [tilted: horizon cut] (°)') + 1);
+    const at = tsv[0].indexOf('Horizon level [Summation] (dB)');
+    expect(at).toBe(tsv[0].indexOf('H-HPBW [tilted: horizon cut] [Summation] (°)') + 1);
     expect(tsv[1][at]).toBe('7.5');
     expect(tsv[2][at]).toBe('0.0');
     expect(rowToTsv(rows[0], columns).split('\t')[at]).toBe('7.5');
@@ -113,9 +113,9 @@ describe('the Horizon level column', () => {
     expect(cellText(ref, 'hLevel')).toBe('0.0');
     const columns = withHorizonLevel(csvColumns(DEFAULT_TABLE_GROUPS), true);
     const csv = toCsv(delta, 'dBd', 30, undefined, 20, 3, 'b.msi', true, columns, 'summation', true).split('\r\n');
-    expect(csv[0]).toContain('"Horizon level Δ vs b.msi, tilted values [horizon cut] (dB)"');
+    expect(csv[0]).toContain('"Horizon level Δ vs b.msi, tilted values [horizon cut] [Summation] (dB)"');
     const tsv = toTsv(delta, withHorizonLevel(visibleColumns(DEFAULT_TABLE_GROUPS), true), 'dBd', 30, 20, 3, 'b.msi', true, 'summation', true).split('\r\n')[0].split('\t');
-    expect(tsv).toContain('Horizon level Δ vs b.msi, tilted values [horizon cut] (dB)');
+    expect(tsv).toContain('Horizon level Δ vs b.msi, tilted values [horizon cut] [Summation] (dB)');
     // Without the difference view the rows are returned with their levels.
     expect(markReference(rows, 'b', false).find((r) => r.id === 'a')!.hLevel).toEqual(rows[0].hLevel);
   });

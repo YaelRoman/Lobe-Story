@@ -311,9 +311,12 @@ of a dB).
 "· cut through the tilted beam peak"), the folded Simulation bar ("H cut: at the horizon"), the
 note above the metrics table and in the band statistics, and the caption of every exported image
 ("…, summation method, horizontal cut at the horizon"). In the exports only the horizon cut is
-marked (with or without a tilt), with a comma-free tag: the metrics CSV has "H-HPBW tilted [horizon cut] (°)" on the tilted
-column of every horizontal metric (in the difference view "…, tilted values [horizon cut]"), Copy
-table has "H-HPBW [tilted: horizon cut] (°)", the band statistics CSV has the State
+marked (with or without a tilt), with a comma-free tag followed by the 3D method the cut was read with (it
+decides the numbers of a horizon cut), as on the angular-region columns: the metrics CSV has
+"H-HPBW tilted [horizon cut] [Summation] (°)" on the tilted column of every horizontal metric and
+"Horizon level [horizon cut] [Summation] (dB)" (in the difference view "…, tilted values [horizon cut]
+[Summation]"), Copy table has "H-HPBW [tilted: horizon cut] [Summation] (°)" and "Horizon level
+[Summation] (dB)", the band statistics CSV has the State
 "tilted [H cut at the horizon]" and its copied table starts with "Parameter [tilted: H cut at the
 horizon]". Without a tag the tilted values are those of the cut through the beam peak.
 
@@ -325,10 +328,10 @@ file's own cut", the legend of the horizontal plot (and of its image) lists the 
 "… (file cut)" instead of "… (original)", the band statistics say "(horizon cut)" and "cells show
 file cut → horizon cut".
 The exports keep exactly the same columns and lines and change only the words: the metrics CSV has
-"H-HPBW original (°)" and "H-HPBW [H cut at the horizon] (°)" for a horizontal metric and "V-HPBW
+"H-HPBW original (°)" and "H-HPBW [H cut at the horizon] [Summation] (°)" for a horizontal metric and "V-HPBW
 original (°)" and "V-HPBW simulated (°)" (two equal numbers) for the others, with the three tilt
 columns at the end holding zeros; in the difference view "H-HPBW Δ vs name [H cut at the horizon]
-(°)"; Copy table has "H-HPBW [H cut at the horizon] (°)"; the band statistics CSV has the State
+[Summation] (°)"; Copy table has "H-HPBW [H cut at the horizon] [Summation] (°)"; the band statistics CSV has the State
 "horizon cut" on the rows read from the horizontal cut and "simulated" on the others, and its copied
 table starts with "Parameter [H cut at the horizon]". As soon as one file is tilted the wording
 above ("original", "tilted") is used again.
@@ -348,7 +351,10 @@ column's unit; the reference row stays first with its own values. Under a tilt s
 tilted value is used where a cell has one (the original → tilted pair becomes one difference). A
 difference is "—" when either file has no value for that column. The CSV and **Copy table** carry
 the same cells, headers "… Δ vs <reference>" and a Row column (`reference` / `difference`); **Copy
-row** copies the row without that column. The frequency chart's Metric menu plots any of the
+row** copies the row without that column. Under a simulation both end with the columns "Electrical
+tilt Δ (°)", "Mechanical tilt (°)" and "Azimuth pointing (°)" (what was applied to each row, the
+reference included), since a difference of simulated values cannot be read without them; the CSV has
+no comment lines before its header. The frequency chart's Metric menu plots any of the
 columns above against frequency, the reference file's point marked with a diamond.
 
 ## Band statistics

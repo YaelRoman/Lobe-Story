@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PlotData } from 'plotly.js';
 import { hCutLabel, simSummary, simulatedCaption, simulationActive, summaryHCut, summaryMethod } from './simSummary';
-import { buildRows, columnTitle, csvColumns, HORIZON_TAG, METRIC_COLUMNS, simulationLabel, toCsv, toTsv, visibleColumns } from './table';
+import { buildRows, columnTitle, csvColumns, HORIZON_TAG, markReference, METRIC_COLUMNS, simulationLabel, toCsv, toTsv, visibleColumns, withHorizonLevel } from './table';
 import { bandCsv, bandTsv } from './bandView';
 import { FAR_BELOW_PEAK_DB, FAR_BELOW_PEAK_NOTE, farBelowPeakNote, horizonCutFarBelowPeak } from './cutSeries';
 import { buildCutSeries } from './cutSeries';
@@ -233,7 +233,7 @@ describe('exports name the horizon cut on the tilted horizontal columns', () => 
     expect(HORIZON_TAG).toBe('[horizon cut]');
     for (const label of HORIZONTAL) {
       const unit = header.match(new RegExp(`${label.replace(/[/±°]/g, (c) => `\\${c}`)} original \\(([^)]*)\\)`))![1];
-      expect(header).toContain(`${label} original (${unit}),${label} tilted [horizon cut] (${unit})`);
+      expect(header).toContain(`${label} original (${unit}),${label} tilted [horizon cut] [Summation] (${unit})`);
     }
     for (const label of VERTICAL) expect(header).toMatch(new RegExp(`${label.replace(/[/±°]/g, (c) => `\\${c}`)} tilted \\(`));
     // The angular-region estimate does not follow the choice: its columns carry the 3D method only.
@@ -242,7 +242,7 @@ describe('exports name the horizon cut on the tilted horizontal columns', () => 
     expect(header).not.toContain('"');
     // The values under those headers are the horizon cut's.
     const beamCsv = toCsv(rowsFor('beam').rows, 'dBd', 30, sim.effective, 20, 3, undefined, false, all, 'summation', false);
-    const col = header.split(',').indexOf('H-HPBW tilted [horizon cut] (°)');
+    const col = header.split(',').indexOf('H-HPBW tilted [horizon cut] [Summation] (°)');
     const line = toCsv(rows, 'dBd', 30, sim.effective, 20, 3, undefined, false, all, 'summation', true).split('\r\n')[1].split(',');
     expect(col).toBe(beamCsv.split('\r\n')[0].split(',').indexOf('H-HPBW tilted (°)'));
     expect(line[col]).not.toBe(beamCsv.split('\r\n')[1].split(',')[col]);
@@ -262,10 +262,10 @@ describe('exports name the horizon cut on the tilted horizontal columns', () => 
   it('difference view: "tilted values [horizon cut]" on the horizontal columns', () => {
     const { rows } = rowsFor('horizon');
     const header = toCsv(rows, 'dBd', 30, undefined, 20, 3, 'ref.msi', true, all, 'summation', true).split('\r\n')[0];
-    expect(header).toContain('"H-HPBW Δ vs ref.msi, tilted values [horizon cut] (°)"');
+    expect(header).toContain('"H-HPBW Δ vs ref.msi, tilted values [horizon cut] [Summation] (°)"');
     expect(header).toContain('"V-HPBW Δ vs ref.msi, tilted values (°)"');
     const tsv = toTsv(rows, visibleColumns(DEFAULT_TABLE_GROUPS), 'dBd', 30, 20, 3, 'ref.msi', true, 'summation', true).split('\r\n')[0].split('\t');
-    expect(tsv).toContain('H-HPBW Δ vs ref.msi, tilted values [horizon cut] (°)');
+    expect(tsv).toContain('H-HPBW Δ vs ref.msi, tilted values [horizon cut] [Summation] (°)');
     expect(tsv).toContain('V-HPBW Δ vs ref.msi, tilted values (°)');
   });
 
@@ -273,10 +273,65 @@ describe('exports name the horizon cut on the tilted horizontal columns', () => 
     const { rows } = rowsFor('horizon');
     const columns = visibleColumns(DEFAULT_TABLE_GROUPS);
     const header = toTsv(rows, columns, 'dBd', 30, 20, 3, undefined, false, 'summation', true).split('\r\n')[0].split('\t');
-    expect(header).toContain('H-HPBW [tilted: horizon cut] (°)');
+    expect(header).toContain('H-HPBW [tilted: horizon cut] [Summation] (°)');
     expect(header).toContain('V-HPBW (°)');
     expect(toTsv(rows, columns, 'dBd', 30, 20, 3, undefined, false, 'summation').split('\r\n')[0]).not.toContain('horizon cut');
     expect(toTsv(rows, columns, 'dBd', 30, 20, 3, undefined, false, 'summation', false).split('\r\n')[0]).not.toContain('horizon cut');
+  });
+
+  it('every header of a horizon-cut column names the 3D method, as the angular-region headers do: the method decides those numbers', () => {
+    const { sim, rows } = rowsFor('horizon');
+    const csv = (method: 'summation' | 'weighted', deltaVs?: string, tiltActive = true) =>
+      toCsv(rows, 'dBd', 30, sim.effective, 20, 3, deltaVs, deltaVs !== undefined, withHorizonLevel(all, true), method, true, tiltActive).split('\r\n')[0];
+    const tsv = (method: 'summation' | 'weighted', deltaVs?: string, tiltActive = true) =>
+      toTsv(rows, withHorizonLevel(visibleColumns(DEFAULT_TABLE_GROUPS), true), 'dBd', 30, 20, 3, deltaVs, deltaVs !== undefined, method, true, tiltActive).split('\r\n')[0];
+    // Under a tilt.
+    expect(csv('weighted')).toContain('H-HPBW original (°),H-HPBW tilted [horizon cut] [Weighted] (°),Horizon level [horizon cut] [Weighted] (dB),V-HPBW original (°),V-HPBW tilted (°)');
+    expect(csv('summation')).toContain('F/B 180° tilted [horizon cut] [Summation] (dB)');
+    expect(csv('weighted')).toContain('Sector eff. est. [Weighted] tilted (%)');
+    expect(csv('weighted')).not.toContain('"');
+    expect(tsv('weighted').split('\t')).toEqual(expect.arrayContaining(['H-HPBW [tilted: horizon cut] [Weighted] (°)', 'Horizon level [Weighted] (dB)', 'V-HPBW (°)']));
+    // The difference view.
+    expect(csv('weighted', 'ref.msi')).toContain('"H-HPBW Δ vs ref.msi, tilted values [horizon cut] [Weighted] (°)"');
+    expect(csv('weighted', 'ref.msi')).toContain('"Horizon level Δ vs ref.msi, tilted values [horizon cut] [Weighted] (dB)"');
+    expect(csv('weighted', 'ref.msi')).toContain('"V-HPBW Δ vs ref.msi, tilted values (°)"');
+    expect(tsv('summation', 'ref.msi').split('\t')).toContain('H-HPBW Δ vs ref.msi, tilted values [horizon cut] [Summation] (°)');
+    // With no tilt on any file (the cut at the horizon alone).
+    expect(csv('weighted', undefined, false)).toContain('H-HPBW original (°),H-HPBW [H cut at the horizon] [Weighted] (°),Horizon level [horizon cut] [Weighted] (dB)');
+    expect(csv('weighted', 'ref.msi', false)).toContain('H-HPBW Δ vs ref.msi [H cut at the horizon] [Weighted] (°)');
+    expect(tsv('weighted', undefined, false).split('\t')).toContain('H-HPBW [H cut at the horizon] [Weighted] (°)');
+    expect(tsv('weighted', 'ref.msi', false).split('\t')).toContain('H-HPBW Δ vs ref.msi [H cut at the horizon] [Weighted] (°)');
+    // The cut through the beam peak: no header names the method for it (only the angular regions do).
+    const beam = rowsFor('beam');
+    const beamHeader = toCsv(beam.rows, 'dBd', 30, beam.sim.effective, 20, 3, undefined, false, all, 'weighted').split('\r\n')[0];
+    expect(beamHeader.split('[Weighted]')).toHaveLength(3 * 2 + 1);
+  });
+
+  it('the difference view keeps the tilt columns: what was applied to each row, the reference included', () => {
+    const { sim, rows } = rowsFor('horizon');
+    const delta = markReference(rows, rows[0].id, true);
+    const lines = toCsv(delta, 'dBd', 30, sim.effective, 20, 3, 'ref.msi', true, all, 'weighted', true).trimEnd().split('\r\n');
+    expect(lines[0].endsWith(',Electrical tilt Δ (°),Mechanical tilt (°),Azimuth pointing (°)')).toBe(true);
+    for (const line of lines.slice(1)) expect(line.endsWith(',0,6,0')).toBe(true);
+    // One column per metric, as before: only the three columns are added.
+    const without = toCsv(delta, 'dBd', 30, undefined, 20, 3, 'ref.msi', true, all, 'weighted', true).trimEnd().split('\r\n');
+    expect(lines.map((l) => l.split(',').slice(0, -3).join(','))).toEqual(without);
+    // Per file: each row its own values.
+    const perFile = toCsv(delta, 'dBd', 30, (id) => ({ electricalDeg: id === rows[0].id ? 1 : 3, mechanicalDeg: 2, azimuthDeg: 0 }), 20, 3, 'ref.msi', true, all, 'weighted', true).trimEnd().split('\r\n');
+    expect(perFile[1].endsWith(',1,2,0')).toBe(true);
+    // Without a simulation the difference view has no such columns (an azimuth alone adds its one).
+    const plain = markReference(buildRows(groupPatterns(items), original, 'dBd'), rows[0].id, true);
+    expect(toCsv(plain, 'dBd', 30, () => ({ electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0 }), 20, 3, 'ref.msi', false, all)).not.toMatch(/Electrical tilt|Azimuth pointing/);
+    expect(toCsv(plain, 'dBd', 30, () => ({ electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 20 }), 20, 3, 'ref.msi', false, all).split('\r\n')[0].endsWith(',Azimuth pointing (°)')).toBe(true);
+    // The copied table of the difference view (single differences, nothing says what was applied) carries them too.
+    const columns = visibleColumns(DEFAULT_TABLE_GROUPS);
+    const tsv = toTsv(delta, columns, 'dBd', 30, 20, 3, 'ref.msi', true, 'weighted', true, true, sim.effective).trimEnd().split('\r\n').map((l) => l.split('\t'));
+    expect(tsv[0].slice(-3)).toEqual(['Electrical tilt Δ (°)', 'Mechanical tilt (°)', 'Azimuth pointing (°)']);
+    for (const line of tsv.slice(1)) expect(line.slice(-3)).toEqual(['0', '6', '0']);
+    expect(tsv.every((l) => l.length === tsv[0].length)).toBe(true);
+    // As shown otherwise: without the difference view, or without a simulation, the copied table has no such columns.
+    expect(toTsv(rows, columns, 'dBd', 30, 20, 3, undefined, false, 'weighted', true, true, sim.effective)).not.toContain('Mechanical tilt');
+    expect(toTsv(plain, columns, 'dBd', 30, 20, 3, 'ref.msi', false, 'weighted', false, true, sim.effective)).not.toContain('Mechanical tilt');
   });
 
   it('band statistics: the State of the tilted lines, and the first header of the copied table', () => {
@@ -424,7 +479,7 @@ describe('at the horizon every file is simulated, with or without a tilt', () =>
     const lines = toCsv(rows, 'dBd', 30, effective, 20, 3, undefined, false, csvColumns(DEFAULT_TABLE_GROUPS), 'summation', true).split('\r\n').map((l) => l.split(','));
     const col = (name: string) => lines[0].indexOf(name);
     const untilted = lines.find((l) => l[0] === 'minus.msi')!;
-    const fb = col('F/B 180° tilted [horizon cut] (dB)');
+    const fb = col('F/B 180° tilted [horizon cut] [Summation] (dB)');
     expect(fb).toBeGreaterThan(0);
     // Original: the file cut. Tilted column: the horizon cut, 7.5 dB lower, so the level behind is 7.5 dB further below the 3D peak.
     expect(Number(untilted[fb]) - Number(untilted[fb - 1])).toBeCloseTo(7.5, 2);

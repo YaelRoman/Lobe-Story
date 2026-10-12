@@ -286,7 +286,7 @@ export const MetricsTable = memo(function MetricsTable({
         '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.effective, uslsRangeDeg, levelDb, deltaVs, deltaTilted, withHorizonLevel(csvColumns(tableGroups), horizonCut), method3d, horizonCut, sim.tiltActive),
         'text/csv;charset=utf-8',
       ),
-    copyTable: () => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted, method3d, horizonCut, sim.tiltActive), copiedRows(rows.length)),
+    copyTable: () => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted, method3d, horizonCut, sim.tiltActive, sim.effective), copiedRows(rows.length)),
   });
   const current = () => {
     catchUpSimulation();

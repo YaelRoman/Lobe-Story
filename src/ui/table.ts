@@ -218,8 +218,15 @@ export const AT_HORIZON_TAG = '[H cut at the horizon]';
 /** What an export header adds to the tilted values of a horizontal column while the simulated cut is the one at the horizon (comma-free, like the 3D method). */
 export const HORIZON_TAG = '[horizon cut]';
 
+/**
+ * The 3D method after a horizon-cut tag, as the angular-region headers carry it ("[horizon cut] [Weighted]", comma-free):
+ * a horizon cut is read from the 3D reconstruction, so the method decides its numbers.
+ */
+const methodNamed = (tag: string, method: Method3d): string => `${tag} [${METHOD_NAME[method]}]`;
+
 /** The tag for column `key`, with a leading space, or nothing: only horizontal columns, only when `horizonCut`. */
-const horizonTag = (key: TableColumn, horizonCut: boolean): string => (horizonCut && (key === HORIZON_LEVEL_KEY || isHorizontal(key)) ? ` ${HORIZON_TAG}` : '');
+const horizonTag = (key: TableColumn, horizonCut: boolean, method: Method3d): string =>
+  horizonCut && (key === HORIZON_LEVEL_KEY || isHorizontal(key)) ? ` ${methodNamed(HORIZON_TAG, method)}` : '';
 
 /** The second half of the three angular-region tooltips: what kind of number this is. */
 const areNote = (method: Method3d, levelDb = 3): string =>
@@ -752,8 +759,12 @@ export function offsetLabel(o: SimSettings): string {
     .join(', ');
 }
 
-/** The CSV column that says where each file points on the plot (the azimuth slider plus the file's and its group's offsets). */
+/** The columns that say what tilt was applied to each row (the sliders plus the file's and its group's offsets). */
+const TILT_COLUMNS = ['Electrical tilt Δ (°)', 'Mechanical tilt (°)'];
+/** The column that says where each file points on the plot (the azimuth slider plus the file's and its group's offsets). */
 const AZIMUTH_COLUMN = 'Azimuth pointing (°)';
+/** A row's values under those columns. */
+const simCells = (e: SimSettings, withTilt: boolean): string[] => [...(withTilt ? [String(e.electricalDeg), String(e.mechanicalDeg)] : []), String(e.azimuthDeg)];
 
 export function toCsv(
   rows: MetricsRow[],
@@ -776,6 +787,8 @@ export function toCsv(
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
   // The difference view has one column per metric (the difference of the shown values), whatever the simulation.
   const tilted = deltaVs === undefined && (typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim));
+  // What was applied to each row is said in both views: the difference view's values are of simulated ones (`deltaTilted`).
+  const tiltColumns = simFor !== undefined && (tilted || (deltaVs !== undefined && deltaTilted));
   // The azimuth only turns the drawing: it doubles no column, but where a file is turned the export says where it points.
   const turned = simFor !== undefined && rows.some((r) => simFor(r.id).azimuthDeg !== 0);
   const withSource = rows.some((r) => r.source !== r.file);
@@ -783,10 +796,10 @@ export function toCsv(
   const paired = (c: ColumnSpec): boolean => tilted && c.key !== HORIZON_LEVEL_KEY;
   const metricHeader = columns.flatMap((c) => {
     const label = withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d);
-    if (c.key === HORIZON_LEVEL_KEY && deltaVs === undefined) return [`${label} ${HORIZON_TAG} (${c.unit})`];
-    if (!tilted) return [columnHeader(label, c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted), horizonOnly)];
+    if (c.key === HORIZON_LEVEL_KEY && deltaVs === undefined) return [`${label} ${methodNamed(HORIZON_TAG, method3d)} (${c.unit})`];
+    if (!tilted) return [columnHeader(label, c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted, method3d), horizonOnly, method3d)];
     // With no tilt the second value of a horizontal column is the horizon cut; the others are the simulated run's (equal to the file's).
-    const second = horizonOnly ? (isHorizontal(c.key) ? AT_HORIZON_TAG : 'simulated') : `tilted${horizonTag(c.key, horizonCut)}`;
+    const second = horizonOnly ? (isHorizontal(c.key) ? methodNamed(AT_HORIZON_TAG, method3d) : 'simulated') : `tilted${horizonTag(c.key, horizonCut, method3d)}`;
     return [`${label} original (${c.unit})`, `${label} ${second} (${c.unit})`];
   });
   const header = [
@@ -797,8 +810,8 @@ export function toCsv(
     'Frequency (MHz)',
     columnHeader('Gain', gainUnit, deltaVs, deltaTilted),
     ...metricHeader,
-    ...(tilted ? ['Electrical tilt Δ (°)', 'Mechanical tilt (°)'] : []),
-    ...(tilted || turned ? [AZIMUTH_COLUMN] : []),
+    ...(tiltColumns ? TILT_COLUMNS : []),
+    ...(tiltColumns || turned ? [AZIMUTH_COLUMN] : []),
   ];
   const lines = rows.map((r) => [
     csvText(r.file),
@@ -813,12 +826,7 @@ export function toCsv(
           ? [fmt(cellOf(r, c.key).value, csvDecimals(c.key)), fmt(shown(r, c.key).value, csvDecimals(c.key))]
           : [fmt(shown(r, c.key).value, csvDecimals(c.key))],
       ),
-      ...((tilted || turned) && simFor
-        ? (() => {
-            const e = simFor(r.id);
-            return [...(tilted ? [String(e.electricalDeg), String(e.mechanicalDeg)] : []), String(e.azimuthDeg)];
-          })()
-        : []),
+      ...((tiltColumns || turned) && simFor ? simCells(simFor(r.id), tiltColumns) : []),
     ].map(csvCell),
   ]);
   return [header.map(csvCell), ...lines].map((l) => l.join(',')).join('\r\n') + '\r\n';
@@ -836,10 +844,10 @@ export function rowCell(r: MetricsRow, key: TableColumn, words: PairWords = TILT
 }
 
 /** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */
-const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false, tag = '', horizonOnly = false): string => {
+const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false, tag = '', horizonOnly = false, method3d: Method3d = 'summation'): string => {
   if (deltaVs === undefined) return `${label} (${unit})`;
   // With no tilt the differences are of horizon-cut values on the horizontal columns (tagged) and of the file's own elsewhere.
-  if (horizonOnly) return `${label} Δ vs ${deltaVs}${tag ? ` ${AT_HORIZON_TAG}` : ''} (${unit})`;
+  if (horizonOnly) return `${label} Δ vs ${deltaVs}${tag ? ` ${methodNamed(AT_HORIZON_TAG, method3d)}` : ''} (${unit})`;
   return `${label} Δ vs ${deltaVs}${tilted && label !== 'Gain' ? `, tilted values${tag}` : ''} (${unit})`;
 };
 
@@ -880,14 +888,24 @@ export function toTsv(
   horizonCut = false,
   /** Some file is tilted. Without a tilt (the cut at the horizon alone) no header says "tilted": see `pairWords`. */
   tiltActive = true,
+  /**
+   * Each row's simulation settings. Used in the difference view under a simulation only: its cells are single
+   * differences of simulated values, so the copied table says what was applied to each row (as the CSV does). Without
+   * the difference view the table is copied as shown.
+   */
+  simFor?: (id: string) => SimSettings,
 ): string {
   const horizonOnly = horizonCut && !tiltActive;
   const withRole = deltaVs !== undefined;
+  const tiltColumns = simFor !== undefined && deltaVs !== undefined && deltaTilted;
   // Without the difference view a cell reads `original → tilted`: the header says which cut the tilted value is of.
   const labelOf = (c: CopyColumn): string => {
     const label = withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d);
     // (The Horizon level is a single value, not a pair: its header needs no such note.)
-    return deltaVs === undefined && horizonCut && isHorizontal(c.key) ? `${label} ${horizonOnly ? AT_HORIZON_TAG : '[tilted: horizon cut]'}` : label;
+    if (deltaVs !== undefined || !horizonCut) return label;
+    // (The Horizon level is a single value, not a pair: its header says only which reconstruction it is read from.)
+    if (c.key === HORIZON_LEVEL_KEY) return `${label} [${METHOD_NAME[method3d]}]`;
+    return isHorizontal(c.key) ? `${label} ${methodNamed(horizonOnly ? AT_HORIZON_TAG : '[tilted: horizon cut]', method3d)}` : label;
   };
   const header = [
     'File',
@@ -895,7 +913,9 @@ export function toTsv(
     ...(withRole ? ['Row'] : []),
     'MHz',
     columnHeader('Gain', gainUnit, deltaVs, deltaTilted),
-    ...columns.map((c) => columnHeader(labelOf(c), c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted), horizonOnly)),
+    ...columns.map((c) => columnHeader(labelOf(c), c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted, method3d), horizonOnly, method3d)),
+    ...(tiltColumns ? [...TILT_COLUMNS, AZIMUTH_COLUMN] : []),
   ];
-  return [header.map(tsvText).join('\t'), ...rows.map((r) => rowToTsv(r, columns, withRole))].join('\r\n') + '\r\n';
+  const line = (r: MetricsRow): string => [rowToTsv(r, columns, withRole), ...(tiltColumns ? simCells(simFor(r.id), true) : [])].join('\t');
+  return [header.map(tsvText).join('\t'), ...rows.map(line)].join('\r\n') + '\r\n';
 }

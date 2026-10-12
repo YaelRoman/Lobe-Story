@@ -228,6 +228,34 @@ test.describe('reference file', () => {
     for (const c of cells) expect(c).not.toContain('→');
   });
 
+  test('the CSV of the difference view says what was applied: the tilt columns stay, and a horizon-cut header names the 3D method', async ({ page }) => {
+    await loadExample(page);
+    await menuOf(page, 2).getByLabel(/^Actions for /).click();
+    await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+    await page.getByLabel('Δ vs reference').check();
+    await openSimulation(page);
+    for (const [label, value] of [['Electrical tilt Δ (°) value', '3'], ['Mechanical tilt (°) value', '2']] as const) {
+      await page.getByLabel(label).fill(value);
+      await page.getByLabel(label).press('Enter');
+    }
+    await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+    await page.getByRole('group', { name: '3D method' }).getByRole('button', { name: 'Weighted' }).click();
+    await expect(page.getByTestId('delta-tilted-note')).toBeVisible();
+    const [csv] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
+    expect(csv.suggestedFilename()).toBe('pattern-metrics-simulated.csv');
+    let text = '';
+    for await (const chunk of (await csv.createReadStream())!) text += chunk.toString();
+    const lines = text.trimEnd().split('\r\n');
+    expect(lines[0]).toMatch(/"H-HPBW Δ vs [^"]+, tilted values \[horizon cut\] \[Weighted\] \(°\)"/);
+    expect(lines[0]).toMatch(/"Horizon level Δ vs [^"]+, tilted values \[horizon cut\] \[Weighted\] \(dB\)"/);
+    expect(lines[0]).toMatch(/"V-HPBW Δ vs [^"]+, tilted values \(°\)"/);
+    expect(lines[0].endsWith(',Electrical tilt Δ (°),Mechanical tilt (°),Azimuth pointing (°)')).toBe(true);
+    expect(lines).toHaveLength(25);
+    for (const line of lines.slice(1)) expect(line.endsWith(',3,2,0')).toBe(true);
+    // No preamble: the first line is the header, as before.
+    expect(lines[0].replace(/^\uFEFF/, '').startsWith('File,')).toBe(true);
+  });
+
   test('pin a reference, show the differences, see it in the plots, save and reopen the project', async ({ page }, testInfo) => {
     await loadExample(page);
     // Pin the third file of the panel from its ⋯ menu.

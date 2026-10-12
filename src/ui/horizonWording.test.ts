@@ -52,8 +52,8 @@ describe('wording of the cut at the horizon while no file is tilted', () => {
     expect(plain.join(',')).not.toMatch(/tilted/);
     expect(plain.every((h) => !h.includes('"'))).toBe(true);
     const at = plain.indexOf('H-HPBW original (°)');
-    expect(plain.slice(at, at + 5)).toEqual(['H-HPBW original (°)', 'H-HPBW [H cut at the horizon] (°)', 'Horizon level [horizon cut] (dB)', 'V-HPBW original (°)', 'V-HPBW simulated (°)']);
-    expect(plain).toContain('F/B 180° [H cut at the horizon] (dB)');
+    expect(plain.slice(at, at + 5)).toEqual(['H-HPBW original (°)', 'H-HPBW [H cut at the horizon] [Summation] (°)', 'Horizon level [horizon cut] [Summation] (dB)', 'V-HPBW original (°)', 'V-HPBW simulated (°)']);
+    expect(plain).toContain('F/B 180° [H cut at the horizon] [Summation] (dB)');
     // Only the words differ from the header under a tilt: column by column.
     plain.forEach((h, i) => expect(h.replace(' [H cut at the horizon]', ' tilted [horizon cut]').replace(' simulated (', ' tilted (')).toBe(tilted[i]));
     expect(plain.slice(-3)).toEqual(['Electrical tilt Δ (°)', 'Mechanical tilt (°)', 'Azimuth pointing (°)']);
@@ -64,22 +64,22 @@ describe('wording of the cut at the horizon while no file is tilted', () => {
 
   it('copied table: [H cut at the horizon] on the horizontal columns', () => {
     const head = toTsv(rows, shown, 'dBd', 30, 20, 3, undefined, false, 'summation', true, false).split('\r\n')[0].split('\t');
-    expect(head).toContain('H-HPBW [H cut at the horizon] (°)');
+    expect(head).toContain('H-HPBW [H cut at the horizon] [Summation] (°)');
     expect(head).toContain('V-HPBW (°)');
     expect(head.join('\t')).not.toMatch(/tilted/);
-    expect(toTsv(rows, shown, 'dBd', 30, 20, 3, undefined, false, 'summation', true).split('\r\n')[0]).toContain('H-HPBW [tilted: horizon cut] (°)');
+    expect(toTsv(rows, shown, 'dBd', 30, 20, 3, undefined, false, 'summation', true).split('\r\n')[0]).toContain('H-HPBW [tilted: horizon cut] [Summation] (°)');
   });
 
   it('difference view: the horizontal columns are tagged, nothing says "tilted values"', () => {
     const delta = markReference(rows, 'b', true);
     const csv = header(toCsv(delta, 'dBd', 30, effective, 20, 3, 'b.msi', true, columns, 'summation', true, false));
-    expect(csv).toContain('H-HPBW Δ vs b.msi [H cut at the horizon] (°)');
-    expect(csv).toContain('Horizon level Δ vs b.msi [H cut at the horizon] (dB)');
+    expect(csv).toContain('H-HPBW Δ vs b.msi [H cut at the horizon] [Summation] (°)');
+    expect(csv).toContain('Horizon level Δ vs b.msi [H cut at the horizon] [Summation] (dB)');
     expect(csv).toContain('V-HPBW Δ vs b.msi (°)');
     expect(csv).toContain('Gain Δ vs b.msi (dBd)');
     expect(csv.join(',')).not.toMatch(/tilted/);
     const tsv = toTsv(delta, shown, 'dBd', 30, 20, 3, 'b.msi', true, 'summation', true, false).split('\r\n')[0];
-    expect(tsv).toContain('H-HPBW Δ vs b.msi [H cut at the horizon] (°)');
+    expect(tsv).toContain('H-HPBW Δ vs b.msi [H cut at the horizon] [Summation] (°)');
     expect(tsv).not.toMatch(/tilted/);
   });
 
