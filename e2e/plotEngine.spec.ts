@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { isReferenceUid, seriesIdOf } from '../src/ui/traceUid';
 
 async function loadExample(page: Page) {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -68,19 +69,22 @@ const cutState = (page: Page, testId = 'plot-h') =>
       shapes: gd.layout.shapes?.length ?? 0,
     };
   }, testId);
-/** Remembers the arrays of every drawn file trace of both cut plots, to see later whether they were built again. */
+type ArraysByUid = Record<string, unknown>[];
+/** Remembers the arrays of every drawn file trace of both cut plots, by trace uid, to see later whether they were built again. */
 const rememberArrays = (page: Page) =>
   page.evaluate(() => {
-    (window as unknown as { __arrays: unknown[][] }).__arrays = ['plot-h', 'plot-v'].map((id) =>
-      (document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as { data: { uid?: string; r?: unknown; y?: unknown }[] }).data.filter((t) => typeof t.uid === 'string').map((t) => t.r ?? t.y),
-    );
+    (window as unknown as { __arrays: ArraysByUid }).__arrays = ['plot-h', 'plot-v'].map((id) => {
+      const data = (document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as { data: { uid?: string; r?: unknown; y?: unknown }[] }).data;
+      return Object.fromEntries(data.filter((t) => typeof t.uid === 'string').map((t) => [t.uid!, t.r ?? t.y]));
+    });
   });
+/** By uid, not by place: a highlight moves its trace on top of the others. */
 const sameArrays = (page: Page) =>
   page.evaluate(() =>
     ['plot-h', 'plot-v'].every((id, k) => {
-      const now = (document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as { data: { uid?: string; r?: unknown; y?: unknown }[] }).data.filter((t) => typeof t.uid === 'string').map((t) => t.r ?? t.y);
-      const before = (window as unknown as { __arrays: unknown[][] }).__arrays[k];
-      return now.length === before.length && now.every((a, i) => a === before[i]);
+      const now = (document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as { data: { uid?: string; r?: unknown; y?: unknown }[] }).data.filter((t) => typeof t.uid === 'string');
+      const before = (window as unknown as { __arrays: ArraysByUid }).__arrays[k];
+      return now.length === Object.keys(before).length && now.every((t) => (t.r ?? t.y) === before[t.uid!]);
     }),
   );
 
@@ -149,6 +153,85 @@ test('a highlight restyles the traces that are drawn: no trace is built again, a
   await page.locator('body').press('Escape');
   await expect.poll(async () => (await cutState(page)).shapes).toBe(0);
   expect(problems).toEqual([]);
+});
+
+/** The file traces of a cut plot in the order the charting library holds (and draws) them: [file id, line width, is the reference]. */
+const drawingOrder = async (page: Page, testId = 'plot-h') =>
+  (await cutState(page, testId)).files.map(([uid, width]) => [seriesIdOf(uid), width, isReferenceUid(uid)] as const);
+/** The file ids of the drawn traces, bottom to top, as the SVG has them. */
+const paintedOrder = (page: Page, testId = 'plot-h') =>
+  page.evaluate((id) => {
+    const gd = document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as HTMLElement & { data: { uid?: string }[] };
+    const uids = gd.data.map((t) => t.uid).filter((uid): uid is string => typeof uid === 'string');
+    return Array.from(gd.querySelectorAll('.scatterlayer .trace'))
+      .map((el) => uids.find((uid) => el.classList.contains(`trace${uid}`)))
+      .filter((uid): uid is string => uid !== undefined);
+  }, testId);
+
+test('the highlighted file is drawn on top of the other files, under the reference only, and goes back to its place when the highlight ends', async ({ page }) => {
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await expect.poll(async () => (await cutState(page)).files.length).toBe(24);
+  await page.locator('.panel li').nth(2).getByLabel(/^Actions for /).click();
+  await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+  await page.locator('body').press('Escape');
+  await expect(page.locator('tr.hl[data-row-id]')).toHaveCount(0);
+  await expect.poll(async () => (await cutState(page)).title).toBe('Horizontal cut');
+  const series = await drawingOrder(page);
+  const seriesV = await drawingOrder(page, 'plot-v');
+  const ids = series.map((t) => t[0]);
+  // The reference is the last trace, whatever is highlighted.
+  expect(series.map((t) => t[2])).toEqual([...Array.from({ length: 23 }, () => false), true]);
+  const charts = await plotIds(page, ['plot-h', 'plot-v']);
+  const legend = await page.getByTestId('plot-h').locator('.legend .legendtext').allTextContents();
+
+  /** Series order with `id` moved to the place just under the reference. */
+  const withOnTop = (id: string) => [...ids.slice(0, 23).filter((x) => x !== id), id, ids[23]];
+  const rowId = async (n: number) => (await page.locator('tr[data-row-id]').nth(n).getAttribute('data-row-id'))!;
+  const first = await rowId(7);
+  const second = await rowId(12);
+  expect(ids.indexOf(first)).toBeLessThan(22);
+  expect(ids.indexOf(second)).toBeLessThan(22);
+
+  // A highlight: its trace is the last file trace but the reference, and thick.
+  await page.locator('tr[data-row-id]').nth(7).click();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await expect.poll(async () => (await drawingOrder(page)).map((t) => t[0])).toEqual(withOnTop(first));
+  await expect.poll(async () => (await drawingOrder(page))[22]).toEqual([first, 2.5, false]);
+  await expect.poll(async () => (await drawingOrder(page, 'plot-v'))[22]).toEqual([first, 2.5, false]);
+  expect((await paintedOrder(page)).map((uid) => seriesIdOf(uid))).toEqual(withOnTop(first));
+  // The legend keeps the order of the files.
+  expect(await page.getByTestId('plot-h').locator('.legend .legendtext').allTextContents()).toEqual(legend);
+
+  // A hover preview of another row restyles that file's trace, wherever the traces now are.
+  await page.locator('tr[data-row-id]').nth(12).hover();
+  await expect.poll(async () => (await drawingOrder(page)).filter((t) => t[1] === 2.5).map((t) => t[0])).toEqual([second]);
+  expect((await cutState(page)).files.filter((t) => t[2] === 0.35)).toHaveLength(22);
+  expect((await drawingOrder(page)).map((t) => t[0])).toEqual(withOnTop(first));
+  await page.mouse.move(2, 2);
+  await expect.poll(async () => (await drawingOrder(page)).filter((t) => t[1] === 2.5).map((t) => t[0])).toEqual([first]);
+
+  // Another highlight: the first file is back in its place, the new one on top.
+  await page.locator('tr[data-row-id]').nth(12).click();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await expect.poll(async () => (await drawingOrder(page)).map((t) => t[0])).toEqual(withOnTop(second));
+  await expect.poll(async () => (await drawingOrder(page)).filter((t) => t[1] === 2.5).map((t) => t[0])).toEqual([second]);
+
+  // A second click on the highlighted row, and Esc, put every trace back in series order.
+  await page.locator('tr[data-row-id]').nth(12).click();
+  await page.mouse.move(2, 2);
+  await expect.poll(async () => JSON.stringify(await drawingOrder(page))).toBe(JSON.stringify(series));
+  await page.locator('tr[data-row-id]').nth(7).click();
+  await page.mouse.move(2, 2);
+  await expect.poll(async () => (await drawingOrder(page)).map((t) => t[0])).toEqual(withOnTop(first));
+  await page.locator('body').press('Escape');
+  await expect.poll(async () => JSON.stringify(await drawingOrder(page))).toBe(JSON.stringify(series));
+  await expect.poll(async () => JSON.stringify(await drawingOrder(page, 'plot-v'))).toBe(JSON.stringify(seriesV));
+  expect((await paintedOrder(page)).map((uid) => seriesIdOf(uid))).toEqual(ids);
+  // All of it in the charts that were there, updated in place.
+  expect(await plotIds(page, ['plot-h', 'plot-v'])).toEqual(charts);
 });
 
 test('3D: scenes that a redraw drops release their WebGL contexts, so the browser never takes one away', async ({ page }) => {

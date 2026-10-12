@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appliedAfterRedraw, createRedrawGate, focusPreviews, hoverPreviews, ownTraces, previewRestyle, restyleDiff } from './hoverPreview';
+import { appliedAfterRedraw, applyLook, createRedrawGate, drawingOrder, focusPreviews, hoverPreviews, ownTraces, positionsIn, previewRestyle, restyleDiff, restyleAt } from './hoverPreview';
 import { exportFigure } from './exportFigure';
 import type { Figure } from './figureTheme';
 import { buildCutBase, buildCutFigure, DIMMED_OPACITY, type PlotSeries } from './cutFigure';
@@ -208,5 +208,95 @@ describe('createRedrawGate', () => {
     b.start();
     b.start();
     expect(a.isLatest(n)).toBe(true);
+  });
+});
+
+describe('drawingOrder (the highlighted file on top on the screen)', () => {
+  const uids = (data: { uid?: string }[], order: number[]) => order.map((i) => data[i].uid);
+
+  it('is the order of the figure when no file is emphasised, or the emphasised one is not drawn', () => {
+    const data = traces('a', 'b', 'c', 'r#reference');
+    expect(drawingOrder(data, null)).toEqual([0, 1, 2, 3, 4]);
+    expect(drawingOrder(data, 'zzz')).toEqual([0, 1, 2, 3, 4]);
+    expect(drawingOrder([], 'a')).toEqual([]);
+  });
+
+  it('moves the emphasised file just under the reference, which stays the last file trace', () => {
+    const data = traces('a', 'b', 'c', 'r#reference');
+    expect(drawingOrder(data, 'a')).toEqual([1, 2, 0, 3, 4]);
+    expect(drawingOrder(data, 'b')).toEqual([0, 2, 1, 3, 4]);
+    // Already there.
+    expect(drawingOrder(data, 'c')).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it('moves it to the end of the traces when there is no reference', () => {
+    const data = traces('a', 'b', 'c').slice(0, 3);
+    expect(drawingOrder(data, 'a')).toEqual([1, 2, 0]);
+    expect(drawingOrder(data, 'c')).toEqual([0, 1, 2]);
+  });
+
+  it('takes the dashed original along, under its file', () => {
+    const data = traces('a', 'a#original', 'b', 'b#original', 'c', 'r#reference').slice(0, 6);
+    expect(uids(data, drawingOrder(data, 'a'))).toEqual(uids(data, [2, 3, 4, 1, 0, 5]));
+    const apart = traces('a', 'b', 'c', 'a#original', 'b#original').slice(0, 5);
+    expect(drawingOrder(apart, 'b')).toEqual([0, 2, 3, 4, 1]);
+  });
+
+  it('leaves the order alone when the emphasised file is the reference: it is on top already', () => {
+    const data = traces('a', 'r#reference', 'b');
+    expect(drawingOrder(data, 'r')).toEqual([0, 1, 2, 3]);
+  });
+
+  it('draws the files in the order of the complete figure, the one an exported image has', () => {
+    const pattern = patternFrom(quadBeam(60), vBeamWithLobes, { id: 'a' });
+    const metrics = analyzePattern({ pattern, tags: {} });
+    const one = (id: string, extra: Partial<PlotSeries> = {}): PlotSeries => ({ id, label: id, color: '#123456', cut: pattern.horizontal, metrics, ...extra });
+    const series = [one('a'), one('b'), one('r', { reference: true }), one('c'), one('d')];
+    const options = { series, cut: 'H' as const, mode: 'polar' as const, floorDb: 40, theme: FIGURE_THEMES.light, levelDb: 3, fbWindowDeg: 30, sectorEdgeDeg: 60, uslsRangeDeg: 20 };
+    const markers = { hpbw: false, fb: false, usls: false, null: false, peak: false, sector: false };
+    const base = buildCutBase(options).data as { uid?: string }[];
+    for (const target of ['a', 'b', 'c', 'd', 'r', null]) {
+      const complete = (buildCutFigure({ ...options, markers, markerTarget: target }).data as { uid?: string }[]).map((t) => t.uid);
+      expect(uids(base, drawingOrder(base, target))).toEqual(complete);
+    }
+  });
+});
+
+describe('positionsIn and restyleAt (a restyle finds its traces after they have moved)', () => {
+  it('positionsIn says where each trace of the figure is drawn', () => {
+    expect(positionsIn([0, 1, 2])).toEqual([0, 1, 2]);
+    // The figure's first trace is drawn third.
+    expect(positionsIn([1, 2, 0, 3])).toEqual([2, 0, 1, 3]);
+    const order = drawingOrder(traces('a', 'b', 'c', 'd', 'r#reference'), 'b');
+    expect(positionsIn(order).map((at) => order[at])).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it('restyleAt sends the same looks to the places the traces are drawn at', () => {
+    const data = traces('a', 'b', 'c', 'r#reference');
+    const positions = positionsIn(drawingOrder(data, 'a'));
+    const hover = restyleDiff(previewRestyle(data, null, 'a'), previewRestyle(data, 'b', 'a'))!;
+    // In the figure: a (0) thin and dimmed, b (1) thick and bright.
+    expect(hover.indices).toEqual([0, 1]);
+    const sent = restyleAt(hover, positions);
+    expect(sent.indices).toEqual([2, 0]);
+    expect(sent.update).toEqual(hover.update);
+    // Without a map (nothing moved) it is the restyle itself.
+    expect(restyleAt(hover, null)).toBe(hover);
+  });
+});
+
+describe('applyLook', () => {
+  it('puts traces the library already holds in a look, in place, as a restyle would', () => {
+    const data = [{ uid: traceUid('a'), line: { width: 1.5, color: '#111' } }, { uid: traceUid('b'), line: { width: 1.5 } }, { x: [1] }] as { uid?: string; line?: { width: number; color?: string }; opacity?: number }[];
+    const held = ownTraces(data, previewRestyle(data, null, 'a'));
+    const lines = held.map((t) => t.line);
+    applyLook(held, previewRestyle(data, 'b', 'a'));
+    expect(held.map((t) => [t.line?.width, t.opacity])).toEqual([[1.5, DIMMED_OPACITY], [2.5, undefined], [undefined, undefined]]);
+    expect('opacity' in held[1]).toBe(false);
+    expect(held[0].line?.color).toBe('#111');
+    // The same objects: the library has them.
+    expect(held[0].line).toBe(lines[0]);
+    applyLook(held, null);
+    expect(held.map((t) => t.line?.width)).toEqual([1.5, 2.5, undefined]);
   });
 });

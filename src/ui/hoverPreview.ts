@@ -109,12 +109,59 @@ export function ownTraces<T extends object>(data: readonly T[], look: PreviewRes
     const line = (t as { line?: object }).line;
     return line ? { ...t, line: { ...line } } : { ...t };
   });
+  applyLook(out, look);
+  return out;
+}
+
+/**
+ * Puts `traces` (the copies `ownTraces` made, in the figure's order) in a `look`, in place, as `Plotly.restyle` would
+ * but without a call to the library: for traces that are about to be handed to it again anyway.
+ */
+export function applyLook(traces: readonly object[], look: PreviewRestyle | null): void {
   look?.indices.forEach((index, k) => {
-    const t = out[index] as { line?: { width?: number }; opacity?: number };
-    t.line = { ...t.line, width: look.update['line.width'][k] };
+    const t = traces[index] as { line?: { width?: number }; opacity?: number };
+    if (t.line) t.line.width = look.update['line.width'][k];
+    else t.line = { width: look.update['line.width'][k] };
     const opacity = look.update.opacity[k];
     if (opacity === null) delete t.opacity;
     else t.opacity = opacity;
   });
-  return out;
+}
+
+/**
+ * The order in which a figure's traces are handed to the charting library, which draws them in that order, the last
+ * one on top: `order[k]` is the index in `data` of the trace drawn k-th. It is the figure's own order, but for the
+ * `emphasised` file (the highlighted one): its trace goes just under the reference file's, or last when there is no
+ * reference, with its dashed original right under it. Among dozens of dimmed traces a line 1 px wider is otherwise
+ * covered where they overlap. The reference stays on top, and an emphasised reference moves nothing. The legend
+ * keeps the files' order (the traces carry a `legendrank`).
+ */
+export function drawingOrder(data: readonly { uid?: unknown }[], emphasised: string | null): number[] {
+  const all = data.map((_, i) => i);
+  if (emphasised === null) return all;
+  const is = (i: number, id: string) => !isReferenceUid(data[i].uid) && seriesIdOf(data[i].uid) === id;
+  const file = all.filter((i) => is(i, emphasised));
+  if (file.length === 0) return all;
+  const moved = [...all.filter((i) => is(i, `${emphasised}#original`)), ...file];
+  const rest = all.filter((i) => !moved.includes(i));
+  const reference = rest.findIndex((i) => isReferenceUid(data[i].uid));
+  const at = reference === -1 ? rest.length : reference;
+  return [...rest.slice(0, at), ...moved, ...rest.slice(at)];
+}
+
+/** Where each trace of the figure is drawn: `positions[i]` is the place in `order` (see `drawingOrder`) of trace `i`. */
+export function positionsIn(order: readonly number[]): number[] {
+  const positions = new Array<number>(order.length);
+  order.forEach((index, k) => {
+    positions[index] = k;
+  });
+  return positions;
+}
+
+/**
+ * `restyle`, whose indices are the figure's, addressed to the places the traces are drawn at (`positions`, see
+ * `positionsIn`; null: they are drawn in the figure's order). `Plotly.restyle` goes by the drawn order.
+ */
+export function restyleAt(restyle: PreviewRestyle, positions: readonly number[] | null): PreviewRestyle {
+  return positions === null ? restyle : { update: restyle.update, indices: restyle.indices.map((i) => positions[i]) };
 }

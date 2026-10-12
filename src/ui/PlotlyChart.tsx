@@ -7,7 +7,7 @@ import { exportFigure, type ExportCaption } from './exportFigure';
 import { PlotBoundary } from './ErrorBoundary';
 import { CHART_PRIVACY, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
 import { canvasesOf, releaseGlContexts } from './glContexts';
-import { appliedAfterRedraw, createRedrawGate, hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
+import { appliedAfterRedraw, applyLook, createRedrawGate, drawingOrder, hoverStore, ownTraces, positionsIn, previewRestyle, restyleAt, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
 const IMAGE_OPTIONS = { format: 'png', scale: 2, filename: 'antenna-pattern' } as const;
 
@@ -107,8 +107,9 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
   const drawnHandler = useRef(onDrawn);
   // Noted now, before the figure is drawn (see `builtViewOf`); the toolbar's handler reads it from the ref.
   const builtView = useRef(builtViewOf(figure, toolbar));
-  // The traces the library holds for the figure, and what the last draw was of.
-  const owned = useRef<{ figure: Figure; traces: object[] } | null>(null);
+  // The traces the library holds for the figure (in the figure's order), the order they were handed to it in (see
+  // `drawingOrder`: the highlighted file on top) with the place of each, and what the last draw was of.
+  const owned = useRef<{ figure: Figure; traces: object[]; order: number[]; positions: number[] } | null>(null);
   const lastDraw = useRef<{ figure: Figure; config: object } | null>(null);
   // What the drawn traces show now (null: unknown). Only the traces that differ from it are restyled.
   const applied = useRef<PreviewRestyle | null>(null);
@@ -170,7 +171,10 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
     const diff = restyleDiff(applied.current, next);
     applied.current = next;
     if (redrawing.current && diff) restyledDuringRedraw.current = true;
-    return diff ? Plotly.restyle(el, diff.update as unknown as Record<string, unknown>, diff.indices) : undefined;
+    if (!diff) return undefined;
+    // The looks go by the figure's traces, the library by the places they are drawn at.
+    const sent = restyleAt(diff, owned.current?.figure === fig ? owned.current.positions : null);
+    return Plotly.restyle(el, sent.update as unknown as Record<string, unknown>, sent.indices);
   };
 
   // Hover/focus preview: restyle the drawn traces in place. Changes within one frame (leave one row, enter the
@@ -200,18 +204,26 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
       const generation = redrawGate.current.start();
       redrawing.current = true;
       restyledDuringRedraw.current = false;
-      if (owned.current?.figure !== figure) {
-        // New traces start in the look that is due now (the highlighted file's emphasis, or a preview): no second pass.
-        const look = previewing ? previewRestyle(figure.data as unknown as { uid?: unknown }[], hoverStore.getState().id, preview.current.base) : null;
-        owned.current = { figure, traces: ownTraces(figure.data, look) };
+      const marked = figure.data as unknown as { uid?: unknown }[];
+      // The highlighted file is drawn on top. Every redraw hands all the traces to the library anyway, so the one a
+      // highlight already costs (its markers and title) carries the new order: no redraw of its own.
+      const order = drawingOrder(marked, previewing ? preview.current.base : null);
+      const moved = owned.current?.figure === figure && order.some((index, k) => index !== owned.current?.order[k]);
+      if (owned.current?.figure !== figure || moved) {
+        // The traces start in the look that is due now (the highlighted file's emphasis, or a preview): no second
+        // pass for new ones, and for moved ones what they show is known again from here, whatever was sent before.
+        const look = previewing ? previewRestyle(marked, hoverStore.getState().id, preview.current.base) : null;
+        if (moved && owned.current) applyLook(owned.current.traces, look);
+        owned.current = { figure, traces: moved && owned.current ? owned.current.traces : ownTraces(figure.data, look), order, positions: positionsIn(order) };
         applied.current = look;
       }
+      const { traces } = owned.current;
       lastDraw.current = { figure, config };
       // The 3D scenes this redraw drops (another 3D layout, fewer files) leave their WebGL contexts behind: release them.
       const scenes = canvasesOf(el);
       void Plotly.react(
         el,
-        [...owned.current.traces, ...(overlay?.data ?? [])] as unknown as PlotlyNativeData[],
+        [...order.map((index) => traces[index]), ...(overlay?.data ?? [])] as unknown as PlotlyNativeData[],
         { ...figure.layout, ...overlay?.layout, autosize: true } as Partial<PlotlyNativeLayout>,
         config,
       )
