@@ -155,7 +155,9 @@ test('3D: scenes that a redraw drops release their WebGL contexts, so the browse
   test.slow();
   const warnings: string[] = [];
   page.on('console', (m) => {
-    if (/WebGL context/i.test(m.text())) warnings.push(m.text());
+    // Chromium: "Too many active WebGL contexts. Oldest context will be lost."; Firefox: "Exceeded 16 live WebGL contexts…".
+    // (Firefox also notes every context that is released on purpose, "WebGL context was lost.": that one is expected.)
+    if (/too many active WebGL contexts|live WebGL contexts/i.test(m.text())) warnings.push(m.text());
   });
   // Count the WebGL contexts made and the ones released.
   await page.addInitScript(() => {
