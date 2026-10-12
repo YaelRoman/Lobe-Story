@@ -143,9 +143,27 @@ a beamwidth is not defined, or when the elevation peak lies behind the antenna.
 
 **Where it appears.** In the table and in Copy table while the group is shown; in the CSV only while
 the group is shown; in the frequency chart's Metric menu always; in Δ vs reference and under a tilt
-simulation (original → tilted, from the simulated cuts) like every other column. It is not part of
-the band statistics. The values are computed only while the group is shown or the frequency chart
-plots one of them.
+simulation (original → tilted) like every other column. It is not part of the band statistics. The
+values are computed only while the group is shown or the frequency chart plots one of them.
+
+**Under a tilt simulation.** The regions always follow the tilted beam: P and B are the peak and the
+3 dB beamwidth of the simulated elevation cut, as the table shows them. What is integrated depends on
+the kind of tilt:
+
+- *Electrical tilt only.* The pattern is still the reconstruction of its two cuts, so the two
+  simulated cuts are integrated as for an untilted file. The values hardly move, because the regions
+  move with the beam.
+- *Mechanical tilt (alone or with an electrical tilt).* The whole pattern is rotated, and a rotated
+  pattern is not the reconstruction of its own two cuts: towards the sector edges the beam is tilted
+  less than on boresight, and behind the antenna it points up. The tool therefore integrates the
+  rotated 3D reconstruction itself, the same model as the tilted 3D view and the simulated cuts (the
+  file's azimuth cut and its electrically tilted elevation cut, read in the antenna's frame), sampled
+  in every direction of the 1° grid. A mechanical down-tilt lowers the sector and spatial efficiency,
+  because part of the beam near the sector edges ends up above the service region; an up-tilt raises
+  them. On the built-in example (first file, Summation): 85.6 % untilted, 83.3 % at +4°, 78.7 % at
+  +10°, 88.1 % at −6°. Between the 1° samples the rotated pattern is read linearly in dB, as the tilt
+  simulation does everywhere; that convention alone can move a value by about 0.2 points against a
+  finer integration.
 
 ## Difference from a reference
 

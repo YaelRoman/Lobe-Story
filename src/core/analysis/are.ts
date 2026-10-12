@@ -18,6 +18,13 @@ import { combineWeighted, type Method3d } from './pattern3d';
  * with the exact solid-angle weight cos(elevation) (the document's sin θ, θ measured from the zenith). Region
  * boundaries at non-integer angles cut the 1° cells where they fall: nothing is snapped to a whole degree,
  * and the sum over the regions does not depend on where the boundaries are.
+ *
+ * Tilt simulation. An electrical tilt moves the elevation cut and leaves the pattern the product of its two
+ * cuts, so the tilted cuts are integrated as above. A mechanical tilt rotates the whole pattern, and a rotated
+ * pattern is NOT the reconstruction of its own two cuts (off boresight the beam is tilted less). For a
+ * mechanically tilted file the intensity is therefore the rotated reconstruction itself, sampled on the same
+ * 1° grid of ground-frame directions (`sampledRegionPowers`; the rotation is `tilt.ts`'s, the one behind the
+ * tilted 3D view and the simulated cuts); only the region bounds come from the tilted cuts.
  */
 
 const RAD = Math.PI / 180;
@@ -57,13 +64,14 @@ export function typeARegions(peakElevationDeg: number, vHpbwDeg: number, sectorE
   };
 }
 
-const DB_TO_NEPER = Math.LN10 / 10;
+export const DB_TO_NEPER = Math.LN10 / 10;
 
 /** Linear power of a level in dB below the peak; a level that is not a number (or not finite) carries no power. */
-const power = (att: number): number => {
+export const linearPower = (att: number): number => {
   const p = Math.exp(-att * DB_TO_NEPER);
   return Number.isFinite(p) ? p : 0;
 };
+const power = linearPower;
 
 /**
  * Weights w[i] such that Σ w[i]·f[i] is the integral over [lo, hi] (degrees, lo ≤ hi, at most one turn) of the
@@ -100,20 +108,44 @@ function elevationIntegral(rows: number[], lo: number, hi: number): number {
   return sum;
 }
 
+export interface RegionPowers {
+  upper: number;
+  interference: number;
+  service: number;
+  lower: number;
+}
+
+/** Azimuth integrals of each elevation row (whole degrees −90…90, index = elevation + 90): full circle and sector. */
+interface Rows {
+  full: number[];
+  sector: number[];
+}
+
+const sectorArc = (regions: AngularRegions): number[] => {
+  const edge = Math.min(180, Math.max(0, regions.sectorEdgeDeg));
+  return arcWeights(-edge, edge);
+};
+
+function powersFromRows({ full, sector }: Rows, regions: AngularRegions): RegionPowers {
+  const end = Math.min(90, Math.max(-90, regions.serviceEndDeg));
+  const upperEnd = Math.min(end, Math.max(-90, regions.upperEndDeg));
+  const serviceStart = Math.min(end, Math.max(upperEnd, regions.serviceStartDeg));
+  const service = elevationIntegral(sector, serviceStart, end);
+  return {
+    upper: elevationIntegral(full, -90, upperEnd),
+    interference: elevationIntegral(full, upperEnd, end) - service,
+    service,
+    lower: elevationIntegral(full, end, 90),
+  };
+}
+
 /**
  * The power in each region: ∫∫ I(az, el)·cos(el) d el d az (radians; an isotropic pattern gives the regions'
  * solid angles, 4π in all). `h` and `v` are normalised 1° grids (dB below peak).
  */
-export function regionPowers(
-  h: Grid,
-  v: Grid,
-  regions: AngularRegions,
-  method: Method3d,
-): { upper: number; interference: number; service: number; lower: number } {
-  const edge = Math.min(180, Math.max(0, regions.sectorEdgeDeg));
-  const sectorWeights = arcWeights(-edge, edge);
+export function regionPowers(h: Grid, v: Grid, regions: AngularRegions, method: Method3d): RegionPowers {
+  const sectorWeights = sectorArc(regions);
   const hPower = h.map(power);
-  // Azimuth integrals of each elevation row (whole degrees −90…90): over the full circle and over the sector.
   const full = new Array<number>(181);
   const sector = new Array<number>(181);
   if (method === 'summation') {
@@ -144,16 +176,33 @@ export function regionPowers(
       sector[k] = s * RAD;
     }
   }
-  const end = Math.min(90, Math.max(-90, regions.serviceEndDeg));
-  const upperEnd = Math.min(end, Math.max(-90, regions.upperEndDeg));
-  const serviceStart = Math.min(end, Math.max(upperEnd, regions.serviceStartDeg));
-  const service = elevationIntegral(sector, serviceStart, end);
-  return {
-    upper: elevationIntegral(full, -90, upperEnd),
-    interference: elevationIntegral(full, upperEnd, end) - service,
-    service,
-    lower: elevationIntegral(full, end, 90),
-  };
+  return powersFromRows({ full, sector }, regions);
+}
+
+/** Rows of the 1° ground-frame grid: elevations −90…90°, 360 azimuths each (see `sampledRegionPowers`). */
+export const SPHERE_ROWS = 181;
+
+/**
+ * The power in each region of an intensity that is not the product of two cuts (a rotated pattern): `intensity`
+ * holds the linear power at azimuth `az` (0…359) and elevation `row − 90` (row 0…180) of the ground frame at
+ * index `row·360 + az`. The same grid, weights and boundary handling as `regionPowers`.
+ */
+export function sampledRegionPowers(intensity: ArrayLike<number>, regions: AngularRegions): RegionPowers {
+  const sectorWeights = sectorArc(regions);
+  const full = new Array<number>(SPHERE_ROWS);
+  const sector = new Array<number>(SPHERE_ROWS);
+  for (let k = 0, at = 0; k < SPHERE_ROWS; k++) {
+    let f = 0;
+    let s = 0;
+    for (let a = 0; a < 360; a++, at++) {
+      const p = intensity[at];
+      f += p;
+      s += sectorWeights[a] * p;
+    }
+    full[k] = f * RAD;
+    sector[k] = s * RAD;
+  }
+  return powersFromRows({ full, sector }, regions);
 }
 
 export interface AngularRegionEfficiency {
@@ -165,7 +214,7 @@ export interface AngularRegionEfficiency {
   lower: MetricResult;
 }
 
-const none = (reason: string): AngularRegionEfficiency => {
+export const noAngularRegions = (reason: string): AngularRegionEfficiency => {
   const m: MetricResult = { value: null, reason };
   return { sector: m, spatial: m, lower: m };
 };
@@ -174,28 +223,42 @@ const outside = (name: string, value: number, [lo, hi]: readonly [number, number
   value < lo || value > hi ? `Not a Type A (macro) beam: ${name} ${value.toFixed(1)}° is outside ${lo}–${hi}°` : null;
 
 /**
- * The three Type A angular-region values of one file, estimated from its two cuts (see the file comment).
- * θpeak and the vertical HPBW come from the file's own elevation cut (3 dB, whatever the beamwidth-level
- * setting); the nominal direction is azimuth 0° and the nominal sector is ±`sectorEdgeDeg`. No number when a
- * beamwidth is undefined or outside the Type A ranges, or when the elevation peak is behind the antenna.
+ * The Type A regions of a beam from its two cuts: θpeak and the vertical HPBW from the elevation cut (3 dB,
+ * whatever the beamwidth-level setting), nominal direction azimuth 0°, nominal sector ±`sectorEdgeDeg`. A reason
+ * instead when a beamwidth is undefined or outside the Type A ranges, or the elevation peak is behind the antenna.
  */
-export function angularRegionEfficiency(h: Grid, v: Grid, sectorEdgeDeg: number, method: Method3d): AngularRegionEfficiency {
+export function typeABeam(h: Grid, v: Grid, sectorEdgeDeg: number): { regions: AngularRegions } | { reason: string } {
   const hBeam = beamwidth(h, 3);
   const vBeam = beamwidth(v, 3);
-  if (hBeam.hpbw.value === null) return none(`H-HPBW is not defined: ${hBeam.hpbw.reason ?? 'no 3 dB points'}`);
-  if (vBeam.hpbw.value === null) return none(`V-HPBW is not defined: ${vBeam.hpbw.reason ?? 'no 3 dB points'}`);
+  if (hBeam.hpbw.value === null) return { reason: `H-HPBW is not defined: ${hBeam.hpbw.reason ?? 'no 3 dB points'}` };
+  if (vBeam.hpbw.value === null) return { reason: `V-HPBW is not defined: ${vBeam.hpbw.reason ?? 'no 3 dB points'}` };
   const reason = outside('V-HPBW', vBeam.hpbw.value, TYPE_A_V_HPBW) ?? outside('H-HPBW', hBeam.hpbw.value, TYPE_A_H_HPBW);
-  if (reason) return none(reason);
+  if (reason) return { reason };
   const peak = vBeam.peakAngle;
-  if (Math.abs(peak) > 90) return none('The elevation peak is behind the antenna');
+  if (Math.abs(peak) > 90) return { reason: 'The elevation peak is behind the antenna' };
   const regions = typeARegions(peak, vBeam.hpbw.value, sectorEdgeDeg);
-  if (regions.serviceStartDeg >= regions.serviceEndDeg) return none('The elevation peak is below the Type A service region');
-  const p = regionPowers(h, v, regions, method);
+  if (regions.serviceStartDeg >= regions.serviceEndDeg) return { reason: 'The elevation peak is below the Type A service region' };
+  return { regions };
+}
+
+/** The three ratios of the region powers, in percent. */
+export function efficiencyOf(p: RegionPowers): AngularRegionEfficiency {
   const total = p.upper + p.interference + p.service + p.lower;
-  if (!(total > 0)) return none('The pattern has no power');
+  if (!(total > 0)) return noAngularRegions('The pattern has no power');
   return {
     sector: { value: (100 * p.service) / total },
     spatial: { value: (100 * p.service) / (p.service + p.interference) },
     lower: { value: (100 * p.lower) / total },
   };
+}
+
+/**
+ * The three Type A angular-region values of one file, estimated from its two cuts (see the file comment and
+ * `typeABeam`). No number when a beamwidth is undefined or outside the Type A ranges, or when the elevation peak
+ * is behind the antenna.
+ */
+export function angularRegionEfficiency(h: Grid, v: Grid, sectorEdgeDeg: number, method: Method3d): AngularRegionEfficiency {
+  const beam = typeABeam(h, v, sectorEdgeDeg);
+  if ('reason' in beam) return noAngularRegions(beam.reason);
+  return efficiencyOf(regionPowers(h, v, beam.regions, method));
 }

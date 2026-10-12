@@ -47,6 +47,11 @@ export interface AnalyzeOptions {
    * otherwise ("Not computed"): it is the one metric that integrates over the sphere, and its columns are optional.
    */
   areMethod?: Method3d;
+  /**
+   * The estimate of a pattern whose intensity is not the reconstruction of its own two cuts (a mechanically tilted
+   * copy, see `analyzeTilted`); `undefined` leaves the pattern to the two-cut estimate. Only asked with `areMethod`.
+   */
+  areModel?: (pattern: Pattern, grids: { h: Grid; v: Grid }, sectorEdgeDeg: number, method: Method3d) => AngularRegionEfficiency | undefined;
 }
 
 export interface PatternMetrics {
@@ -115,12 +120,21 @@ const ARE_NOT_COMPUTED: AngularRegionEfficiency = (() => {
 // tilt, does not integrate an unchanged file again.
 const areCache = new WeakMap<Pattern, { key: string; value: AngularRegionEfficiency }>();
 
-function areOf(pattern: Pattern, grids: { h: Grid; v: Grid }, edgeDeg: number, method: Method3d, remember: boolean): AngularRegionEfficiency {
-  if (!remember) return angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
-  const key = `${method}|${edgeDeg}`;
+function areOf(
+  pattern: Pattern,
+  grids: { h: Grid; v: Grid },
+  edgeDeg: number,
+  method: Method3d,
+  remember: boolean,
+  model: AnalyzeOptions['areModel'],
+): AngularRegionEfficiency {
+  const compute = () => model?.(pattern, grids, edgeDeg, method) ?? angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  if (!remember) return compute();
+  // With a model the same pattern object can have another answer than its two cuts give, so the two are kept apart.
+  const key = `${method}|${edgeDeg}|${model ? 'model' : 'cuts'}`;
   const hit = areCache.get(pattern);
   if (hit && hit.key === key) return hit.value;
-  const value = angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  const value = compute();
   areCache.set(pattern, { key, value });
   return value;
 }
@@ -198,7 +212,7 @@ function analyze(
           vHpbw: delta(v.hpbw, declared.vBeamwidth),
           fb: delta(fb.fb180, declared.frontToBack),
         },
-    are: opts.areMethod ? areOf(item.pattern, grids, s.sectorEdgeDeg, opts.areMethod, ownGrids) : ARE_NOT_COMPUTED,
+    are: opts.areMethod ? areOf(item.pattern, grids, s.sectorEdgeDeg, opts.areMethod, ownGrids, opts.areModel) : ARE_NOT_COMPUTED,
   };
 }
 

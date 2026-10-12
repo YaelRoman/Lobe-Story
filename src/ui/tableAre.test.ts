@@ -5,7 +5,8 @@ import {
 } from './table';
 import { DEFAULT_TABLE_GROUPS } from '../state/store';
 import { analyzeAll, analyzePattern, DEFAULT_SETTINGS } from '../core/analysis/metrics';
-import { analyzeTilted, tiltTagged } from '../core/analysis/tilt';
+import { analyzeTilted, tiltedAngularRegions, tiltTagged } from '../core/analysis/tilt';
+import { toGrid } from '../core/analysis/grid';
 import { angularRegionEfficiency } from '../core/analysis/are';
 import { gridFrom, patternFrom, quadBeam } from '../test/synthetic';
 import { groupPatterns } from '../state/selectors';
@@ -171,8 +172,15 @@ describe('the angular-region columns in the table and the exports', () => {
     const tiltedMetrics = analyzeTilted(tiltedItems, DEFAULT_SETTINGS, t, 'summation');
     const simRows = buildRows(groups, withAre, 'dBi', tiltedMetrics);
     const tilted = simRows[0].tilted!.areSector!;
-    expect(typeof tilted.value).toBe('number');
-    expect(tilted.value).not.toBeCloseTo(expectedA.sector.value!, 6);
+    // A mechanical down-tilt lowers the sector efficiency: off boresight the rotated beam is tilted less, so part of it
+    // lies above the service region. (The product of the two tilted cuts, which this test used to accept, rises instead.)
+    const ofTiltedCuts = angularRegionEfficiency(toGrid(tiltedItems[0].pattern.horizontal), toGrid(tiltedItems[0].pattern.vertical), 60, 'summation');
+    expect(ofTiltedCuts.sector.value!).toBeGreaterThan(expectedA.sector.value!);
+    expect(tilted.value!).toBeLessThan(expectedA.sector.value! - 1);
+    expect(tilted.value).toBeCloseTo(
+      tiltedAngularRegions(tagged[0].pattern, t, { h: toGrid(tiltedItems[0].pattern.horizontal), v: toGrid(tiltedItems[0].pattern.vertical) }, 60, 'summation').sector.value!,
+      9,
+    );
     expect(cellText(simRows[0], 'areSector')).toBe(`${fixed(expectedA.sector.value!, 1)} → ${fixed(tilted.value!, 1)}`);
     const lines = toCsv(simRows, 'dBi', 30, { ...t, azimuthDeg: 0 }, 20, 3, undefined, false, csvColumns(shownGroups)).trimEnd().split('\r\n');
     expect(lines[0]).toContain('Sector eff. est. original (%),Sector eff. est. tilted (%),Spatial eff. est. original (%)');
@@ -180,6 +188,15 @@ describe('the angular-region columns in the table and the exports', () => {
     const at = lines[0].split(',').indexOf('Sector eff. est. original (%)');
     expect(cells[at]).toBe(fixed(expectedA.sector.value!, 2));
     expect(cells[at + 1]).toBe(fixed(tilted.value!, 2));
+  });
+
+  it('takes the tilted value from the two tilted cuts under an electrical tilt alone', () => {
+    const t = { electricalDeg: 3, mechanicalDeg: 0 };
+    const tiltedItems = tiltTagged(tagged, t, 'summation');
+    const m = analyzeTilted(tiltedItems, DEFAULT_SETTINGS, t, 'summation').get('alpha.msi')!;
+    const cuts = angularRegionEfficiency(toGrid(tiltedItems[0].pattern.horizontal), toGrid(tiltedItems[0].pattern.vertical), 60, 'summation');
+    expect(m.are.sector.value).toBeCloseTo(cuts.sector.value!, 9);
+    expect(m.are.lower.value).toBeCloseTo(cuts.lower.value!, 9);
   });
 
   it('is not computed for the tilted files either unless asked for', () => {

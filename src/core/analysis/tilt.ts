@@ -1,7 +1,8 @@
 import type { Pattern } from '../types';
 import { analyzeAll, type AnalysisSettings, type PatternMetrics, type TaggedPattern } from './metrics';
 import { mod360, peakCentre, peakIndex, rawGrid, signed, type Grid } from './grid';
-import { combine, reconstruct3d, STEP_3D, type Method3d, type Surface3d } from './pattern3d';
+import { combine, combineWeighted, reconstruct3d, STEP_3D, type Method3d, type Surface3d } from './pattern3d';
+import { DB_TO_NEPER, efficiencyOf, noAngularRegions, sampledRegionPowers, SPHERE_ROWS, typeABeam, type AngularRegionEfficiency } from './are';
 
 export interface TiltSettings {
   /** Extra electrical downtilt added to the measured pattern (degrees, positive = down). */
@@ -171,6 +172,9 @@ export function coneInAntenna(thetaDeg: number, mechanicalDeg: number): Directio
 // The last tilted copy per pattern, so unchanged files keep their object when another file's tilt changes.
 const tiltedCache = new WeakMap<Pattern, { key: string; result: Pattern }>();
 
+// What each tilted copy was made from: the cuts of a mechanically tilted copy do not describe its whole pattern.
+const tiltedFrom = new WeakMap<Pattern, { source: Pattern; tilt: TiltSettings }>();
+
 /**
  * A copy of the pattern with tilted 1° cuts (raw values, offsets kept).
  * V: electrical tilt as a cone (front and back move down by Δe), then rotated exactly by m.
@@ -199,6 +203,7 @@ export function tiltPattern(p: Pattern, t: TiltSettings, method: Method3d): Patt
     vertical: { angles: [...DEG360], atten: vTilted },
   };
   tiltedCache.set(p, { key, result });
+  tiltedFrom.set(result, { source: p, tilt: { electricalDeg: t.electricalDeg, mechanicalDeg: t.mechanicalDeg } });
   return result;
 }
 
@@ -266,12 +271,122 @@ export function reconstructTilted3d(
   return { az: base.az, el: base.el, atten };
 }
 
+/**
+ * Every direction of the 1° ground-frame grid (elevation −90…90° row by row, azimuth 0…359°) in the frame of an
+ * antenna tilted down by a mechanical angle, as the sample below it and the fraction towards the next one on the
+ * 1° circles of the two cuts. The same for every file, so it is kept for the last few mechanical tilts.
+ */
+interface SphereInAntenna {
+  hIndex: Uint16Array;
+  hFrac: Float32Array;
+  vIndex: Uint16Array;
+  vFrac: Float32Array;
+}
+
+const SPHERE_CACHE_MAX = 8;
+const sphereCache = new Map<number, SphereInAntenna>();
+
+function sphereInAntenna(mechanicalDeg: number): SphereInAntenna {
+  const hit = sphereCache.get(mechanicalDeg);
+  if (hit) return hit;
+  const n = SPHERE_ROWS * 360;
+  const map: SphereInAntenna = { hIndex: new Uint16Array(n), hFrac: new Float32Array(n), vIndex: new Uint16Array(n), vFrac: new Float32Array(n) };
+  const split = (angle: number, index: Uint16Array, frac: Float32Array, at: number) => {
+    const a = mod360(angle);
+    const i0 = Math.floor(a);
+    index[at] = i0 % 360;
+    frac[at] = a - i0;
+  };
+  for (let row = 0, at = 0; row < SPHERE_ROWS; row++) {
+    for (let az = 0; az < 360; az++, at++) {
+      const d = rotateToAntenna(az, row - 90, mechanicalDeg);
+      split(d.phi, map.hIndex, map.hFrac, at);
+      split(d.theta, map.vIndex, map.vFrac, at);
+    }
+  }
+  if (sphereCache.size >= SPHERE_CACHE_MAX) sphereCache.delete(sphereCache.keys().next().value!);
+  sphereCache.set(mechanicalDeg, map);
+  return map;
+}
+
+/** One buffer for the sampled intensity: it is filled and reduced within one call. */
+const sphereIntensity = new Float64Array(SPHERE_ROWS * 360);
+
+/** A 1° circle with its first sample repeated at the end, so the sample after 359° needs no wrap. */
+const closed = (g: number[]): Float64Array => {
+  const out = new Float64Array(361);
+  out.set(g);
+  out[360] = g[0];
+  return out;
+};
+
+// Linear power of 0…120 dB in steps of 1/64 dB. Read with linear interpolation it is within 2e-6 (relative) of the
+// exponential, and several times cheaper, which matters for the 65 160 directions of every mechanically tilted file.
+const POWER_STEPS_PER_DB = 64;
+const POWER_TABLE_DB = 120;
+let powerTable: Float64Array | null = null;
+
+function powerSteps(): Float64Array {
+  if (!powerTable) {
+    powerTable = new Float64Array(POWER_TABLE_DB * POWER_STEPS_PER_DB + 2);
+    for (let i = 0; i < powerTable.length; i++) powerTable[i] = Math.exp((-i / POWER_STEPS_PER_DB) * DB_TO_NEPER);
+  }
+  return powerTable;
+}
+
+/**
+ * The angular-region estimate of a mechanically tilted file: the power of the ROTATED 3D reconstruction (the
+ * model of `reconstructTilted3d`: the file's H cut and its electrically tilted V cut, read in the antenna frame)
+ * in the Type A regions of the tilted beam. `tiltedGrids` are the simulated cuts: the regions follow their θpeak
+ * and HPBW, as the table shows them, but the cuts are not integrated — off boresight a rotated beam is tilted
+ * less than its elevation cut says, so the product of the two tilted cuts is a different pattern.
+ */
+export function tiltedAngularRegions(
+  source: Pattern,
+  t: TiltSettings,
+  tiltedGrids: { h: Grid; v: Grid },
+  sectorEdgeDeg: number,
+  method: Method3d,
+): AngularRegionEfficiency {
+  const beam = typeABeam(tiltedGrids.h, tiltedGrids.v, sectorEdgeDeg);
+  if ('reason' in beam) return noAngularRegions(beam.reason);
+  const { hN, vN } = baseGrids(source);
+  const h = closed(hN);
+  const v = closed(t.electricalDeg === 0 ? vN : electricalShift(vN, t.electricalDeg));
+  const { hIndex, hFrac, vIndex, vFrac } = sphereInAntenna(t.mechanicalDeg);
+  const out = sphereIntensity;
+  const table = powerSteps();
+  // Linear power of a level in dB; a level that is not a finite number carries none (as in `are.ts`).
+  const powerOf = (att: number): number => {
+    if (att >= 0 && att < POWER_TABLE_DB) {
+      const x = att * POWER_STEPS_PER_DB;
+      const n = x | 0;
+      return table[n] + (table[n + 1] - table[n]) * (x - n);
+    }
+    const p = Math.exp(-att * DB_TO_NEPER);
+    return p === p && p !== Infinity ? p : 0;
+  };
+  const weighted = method === 'weighted';
+  for (let k = 0; k < out.length; k++) {
+    // As `interp`: linear in dB between the samples, and the sample itself on a whole degree (a level may be infinite).
+    const i = hIndex[k];
+    const f = hFrac[k];
+    const aH = f === 0 ? h[i] : h[i] + (h[i + 1] - h[i]) * f;
+    const j = vIndex[k];
+    const g = vFrac[k];
+    const aV = g === 0 ? v[j] : v[j] + (v[j + 1] - v[j]) * g;
+    out[k] = powerOf(weighted ? combineWeighted(aH, aV, powerOf(aH), powerOf(aV)) : aH + aV);
+  }
+  return efficiencyOf(sampledRegionPowers(out, beam.regions));
+}
+
 export const DECLARED_REASON = 'Declared values describe the measured pattern';
 
 /**
  * Metrics of patterns already tilted with `tiltEach(…)`: the nominal tilt follows the sliders and
  * the Δ-declared values of tilted files are null (they describe the measured pattern). With `areMethod` the
- * angular-region estimate is computed from the tilted cuts, as for the originals.
+ * angular-region estimate is computed too: from the tilted cuts for an electrical tilt, as for the originals, and
+ * from the rotated 3D reconstruction for a file with a mechanical tilt (`tiltedAngularRegions`).
  */
 export function analyzeTilted(
   tiltedItems: TaggedPattern[],
@@ -289,5 +404,11 @@ export function analyzeTilted(
     // keeps comparing its measured pattern against its declared ones.
     declaredReason: (id) => (isTilted(tiltFor(id)) ? DECLARED_REASON : undefined),
     areMethod,
+    areModel: (pattern, grids, sectorEdgeDeg, method) => {
+      const origin = tiltedFrom.get(pattern);
+      return origin && origin.tilt.mechanicalDeg !== 0
+        ? tiltedAngularRegions(origin.source, origin.tilt, grids, sectorEdgeDeg, method)
+        : undefined;
+    },
   });
 }
