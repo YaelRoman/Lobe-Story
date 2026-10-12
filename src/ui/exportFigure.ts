@@ -103,24 +103,23 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
   });
   const traces = data.filter((t) => typeof t.meta === 'string').length;
   const lines = caption ? exportCaptionLines(caption) : [];
+  const margin = figure.layout.margin ?? {};
+  // Labels drawn above the plot area (the histogram's line names) need their own room under the caption.
+  const labelRoom = (figure.layout.annotations?.length ?? 0) > 0 ? 40 : 0;
+  /** What a caption of so many lines adds to the top margin. */
+  const topExtra = (captionLines: number) => (captionLines > 0 ? 34 * captionLines + 30 + labelRoom : 0);
   // The legend hangs from the top of the plot area: the image is made as high as its rows need. Only beyond the
   // tallest image that can be written are entries left out, and then a caption line says how many.
-  const fits = (rows: number, captionLines: number) => {
-    const top = (figure.layout.margin?.t ?? 50) + (captionLines > 0 ? 34 * captionLines + 30 + ((figure.layout.annotations?.length ?? 0) > 0 ? 40 : 0) : 0);
-    return top + (figure.layout.margin?.b ?? DEFAULT_MARGIN_B) + rows * LEGEND_ROW_PX + LEGEND_PAD_PX;
-  };
+  const heightFor = (rows: number, captionLines: number) =>
+    (margin.t ?? 50) + topExtra(captionLines) + (margin.b ?? DEFAULT_MARGIN_B) + rows * LEGEND_ROW_PX + LEGEND_PAD_PX;
   let files = traces;
-  if (fits(traces, lines.length) > EXPORT_MAX_HEIGHT) {
-    files = Math.max(0, Math.floor((EXPORT_MAX_HEIGHT - fits(0, lines.length + 1)) / LEGEND_ROW_PX));
+  if (heightFor(traces, lines.length) > EXPORT_MAX_HEIGHT) {
+    files = Math.max(0, Math.floor((EXPORT_MAX_HEIGHT - heightFor(0, lines.length + 1)) / LEGEND_ROW_PX));
     lines.push(`Legend: the first ${files} of ${traces} traces, +${traces - files} more are drawn but not listed`);
     let seen = 0;
     data = data.map((t) => (typeof t.meta === 'string' && ++seen > files ? { ...t, showlegend: false } : t));
   }
   const titleText = (figure.layout.title as { text?: string } | undefined)?.text ?? caption?.title ?? '';
-  const margin = figure.layout.margin ?? {};
-  // Labels drawn above the plot area (the histogram's line names) need their own room under the caption.
-  const labelRoom = (figure.layout.annotations?.length ?? 0) > 0 ? 40 : 0;
-  const topExtra = lines.length > 0 ? 34 * lines.length + 30 + labelRoom : 0;
   const title = {
     ...(figure.layout.title as object | undefined),
     text: lines.length > 0 ? `${titleText}<br><sup>${lines.join('<br>')}</sup>` : titleText,
@@ -146,8 +145,8 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
     },
     autosize: false,
     width: EXPORT_WIDTH,
-    height: Math.max(EXPORT_MIN_HEIGHT, fits(files, lines.length)),
-    margin: { ...margin, ...(files > 0 ? { r: legendWidth } : {}), t: (margin.t ?? 50) + topExtra },
+    height: Math.max(EXPORT_MIN_HEIGHT, heightFor(files, lines.length)),
+    margin: { ...margin, ...(files > 0 ? { r: legendWidth } : {}), t: (margin.t ?? 50) + topExtra(lines.length) },
   };
   return { data: data as unknown as Data[], layout };
 }
