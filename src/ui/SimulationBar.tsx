@@ -5,7 +5,7 @@ import { anyTilted, combineOffsets, type HCutMode } from '../core/analysis/tilt'
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { H_CUT_HINT, hCutAnnouncement, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
+import { H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
 import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
@@ -225,7 +225,7 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
               ['beam', 'Through the beam peak'],
               ['horizon', 'At the horizon'],
             ]}
-            describedBy="sim-hcut-hint"
+            describedBy={is3d ? 'sim-hcut-hint sim-hcut-3d' : 'sim-hcut-hint'}
             onChange={(hCut) => {
               if (hCut === sim.hCut) return;
               updateSimulation({ hCut });
@@ -241,6 +241,12 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
         <span id="sim-hcut-hint" className="count sim-hint" data-testid="sim-hcut-hint">
           {H_CUT_HINT}
         </span>
+        {/* The control stays usable in 3D (the table and the charts below follow it): the line says what it does not change. */}
+        {is3d && (
+          <span id="sim-hcut-3d" className="count sim-hint" data-testid="sim-hcut-3d">
+            {H_CUT_3D_NOTE}
+          </span>
+        )}
         {/* Not blocked, but said where the two are chosen: the Weighted rule reshapes this cut. */}
         {weightedHorizonNote(sim.hCut, method) && (
           <span className="sim-hint sim-caveat" role="note" data-testid="sim-weighted-note">

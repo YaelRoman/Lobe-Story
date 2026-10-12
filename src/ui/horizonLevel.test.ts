@@ -177,3 +177,19 @@ describe('the Horizon level in the frequency chart', () => {
     expect(sanitizeMetric('fb180', 'hHpbw')).toBe('fb180');
   });
 });
+
+describe('tooltips at a beamwidth level other than 3 dB', () => {
+  const settings = { sectorEdgeDeg: 60, siteSectors: 3 };
+  it('the Horizon level tooltip names the beamwidth column as its header does', () => {
+    expect(columnTitle('hLevel', { ...settings, levelDb: 6 })).toContain('H-BW@6 dB, H-BW 10 dB and Squint on this row describe that region');
+    expect(columnTitle('hLevel', { ...settings, levelDb: 6 })).not.toContain('H-HPBW');
+    expect(columnTitle('hLevel', settings)).toContain('H-HPBW, H-BW 10 dB and Squint on this row describe that region');
+  });
+
+  it('the angular-region tooltips say their widths are the 3 dB ones whatever the level', () => {
+    for (const key of ['areSector', 'areSpatial', 'areLower'] as const) {
+      expect(columnTitle(key, { ...settings, levelDb: 6 })).toContain('V-HPBW and H-HPBW here are the 3 dB widths, whatever the beamwidth level');
+      expect(columnTitle(key, settings)).not.toContain('whatever the beamwidth level');
+    }
+  });
+});

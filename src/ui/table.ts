@@ -173,8 +173,8 @@ export const HORIZON_TAG = '[horizon cut]';
 const horizonTag = (key: TableColumn, horizonCut: boolean): string => (horizonCut && (key === HORIZON_LEVEL_KEY || isHorizontal(key)) ? ` ${HORIZON_TAG}` : '');
 
 /** The second half of the three angular-region tooltips: what kind of number this is. */
-const areNote = (method: Method3d): string =>
-  `Estimate from the two co-polar cuts, integrated over the 3D reconstruction (3D method: ${METHOD_NAME[method]}, chosen in the Simulation bar); not BASTA-compliant, which needs the measured full sphere and total power. Beam Type A (macro) only: — when V-HPBW is outside 0.5–25° or H-HPBW outside 50–130°`;
+const areNote = (method: Method3d, levelDb = 3): string =>
+  `Estimate from the two co-polar cuts, integrated over the 3D reconstruction (3D method: ${METHOD_NAME[method]}, chosen in the Simulation bar); not BASTA-compliant, which needs the measured full sphere and total power. Beam Type A (macro) only: — when V-HPBW is outside 0.5–25° or H-HPBW outside 50–130°${levelDb === 3 ? '' : '. V-HPBW and H-HPBW here are the 3 dB widths, whatever the beamwidth level'}`;
 
 /** Header text for a column; the beamwidth, F/B window and USLS window labels depend on the current settings. */
 export function columnLabel(c: { key: TableColumn; label: string }, fbWindowDeg: number, uslsRangeDeg = 20, levelDb = 3): string {
@@ -289,13 +289,13 @@ function baseTitle(key: TableColumn, settings: TitleSettings): string | undefine
     case 'du256':
       return `Width around boresight where this pattern is ≥ ${DU_DB[key]} dB above the neighbouring sectors (${settings.siteSectors}-sector site)`;
     case 'areSector':
-      return `Sector efficiency (after BASTA 7.2.4): power in the service region (within ±${e}° of boresight, from half a V-HPBW above the beam peak down to 75° below the horizon) as a share of the power over the whole sphere. ${areNote(method)}`;
+      return `Sector efficiency (after BASTA 7.2.4): power in the service region (within ±${e}° of boresight, from half a V-HPBW above the beam peak down to 75° below the horizon) as a share of the power over the whole sphere. ${areNote(method, level)}`;
     case 'areSpatial':
-      return `Spatial efficiency (after BASTA 7.2.4): power in the service region (within ±${e}° of boresight) as a share of the power in the service and interference regions together (all azimuths, from one V-HPBW above the beam peak, at most the horizon, down to 75° below the horizon). ${areNote(method)}`;
+      return `Spatial efficiency (after BASTA 7.2.4): power in the service region (within ±${e}° of boresight) as a share of the power in the service and interference regions together (all azimuths, from one V-HPBW above the beam peak, at most the horizon, down to 75° below the horizon). ${areNote(method, level)}`;
     case HORIZON_LEVEL_KEY:
-      return 'Horizon level: how far the strongest point of the horizon cut is below the strongest point of the whole pattern (the 3D peak), in dB. When the level is large the horizon runs through a sidelobe or a null, and H-HPBW, H-BW 10 dB and Squint on this row describe that region, not the main beam.';
+      return `Horizon level: how far the strongest point of the horizon cut is below the strongest point of the whole pattern (the 3D peak), in dB. When the level is large the horizon runs through a sidelobe or a null, and H-${bwName(level)}, H-BW 10 dB and Squint on this row describe that region, not the main beam.`;
     case 'areLower':
-      return `Lower region ratio (after BASTA 7.2.4): power from 75° below the horizon to straight down, all azimuths, as a share of the power over the whole sphere. ${areNote(method)}`;
+      return `Lower region ratio (after BASTA 7.2.4): power from 75° below the horizon to straight down, all azimuths, as a share of the power over the whole sphere. ${areNote(method, level)}`;
     default:
       return undefined;
   }

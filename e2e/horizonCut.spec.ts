@@ -502,3 +502,35 @@ test('Reset at the horizon with no offsets can be undone, by the offer and by th
   await expect(page.getByLabel('Mechanical tilt (°) value')).toHaveValue('6');
   await expect(horizon).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('in the 3D view the Horizontal cut control says that the 3D view does not depend on it, and still changes the table', async ({ page }) => {
+  await loadExample(page);
+  await openSimulation(page);
+  const note = page.getByTestId('sim-hcut-3d');
+  const horizon = page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' });
+  await expect(note).toHaveCount(0);
+  await page.getByRole('button', { name: '3D', exact: true }).click();
+  await expect(note).toBeVisible();
+  await expect(note).toHaveText('The 3D view does not depend on this choice; the table, the frequency chart and the band statistics below do.');
+  await expect(horizon).toHaveAttribute('aria-describedby', 'sim-hcut-hint sim-hcut-3d');
+  // The control is not disabled: the table under the 3D view follows it.
+  await expect(horizon).toBeEnabled();
+  await horizon.click();
+  await expect(page.locator('.metrics thead th', { hasText: 'Horizon level (dB)' })).toHaveCount(1);
+  await page.getByRole('button', { name: '2D', exact: true }).click();
+  await expect(note).toHaveCount(0);
+});
+
+test('at a beamwidth level of 6 dB the Horizon level tooltip names the column as its header does', async ({ page }) => {
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const level = page.getByLabel(/Beamwidth level/);
+  await level.fill('6');
+  await level.press('Enter');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await openSimulation(page);
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  await expect(page.locator('.metrics thead th', { hasText: 'H-BW@6 dB (°)' })).toHaveCount(1);
+  const title = page.locator('.metrics thead th', { hasText: 'Horizon level (dB)' });
+  await expect(title).toHaveAttribute('title', /H-BW@6 dB, H-BW 10 dB and Squint on this row describe that region/);
+});

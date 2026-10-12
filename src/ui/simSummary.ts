@@ -30,6 +30,9 @@ export const hCutLabel = (hCut: HCutMode): string => `horizontal cut ${H_CUT_WHE
 export const H_CUT_HINT =
   'Through the beam peak: the cut a data sheet gives. At the horizon: what each antenna radiates along the horizon (0° elevation), with or without a tilt.';
 
+/** Added to the hint in the 3D view: the surface is drawn from the reconstruction itself, but the rest of the page follows the choice. */
+export const H_CUT_3D_NOTE = 'The 3D view does not depend on this choice; the table, the frequency chart and the band statistics below do.';
+
 /** What the status region says when the choice is switched: the plot, a table column and most horizontal cells change at once. */
 export const hCutAnnouncement = (hCut: HCutMode): string =>
   hCut === 'horizon'
