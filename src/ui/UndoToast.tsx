@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useStore } from '../state/store';
 import { SKIP_TARGETS } from './SkipLinks';
-import { isTextEntry, isUndoShortcut, undoShortcut } from './undoKeys';
+import { isTextEntry, isUndoShortcut, undoWording } from './undoKeys';
 import { MidName } from './MidName';
 import { usePhoneLayout } from './phoneLayout';
 
@@ -34,8 +34,8 @@ function OfferLabel({ label, name }: { label: string; name?: string }) {
 
 /** One offer; mounted anew for each (keyed by its id), so the timer and the pause state start fresh. */
 function Offer({ label, name }: { label: string; name?: string }) {
-  // A phone has no Ctrl+Z: the button says what it does, and the room goes to the name.
-  const phone = usePhoneLayout();
+  // A phone has no Ctrl+Z: the button says what it does (and the room goes to the name), and no note or tooltip names the key.
+  const words = undoWording(usePhoneLayout());
   const undoLast = useStore((s) => s.undoLast);
   const fadeUndo = useStore((s) => s.fadeUndo);
   const setCopyNote = useStore((s) => s.setCopyNote);
@@ -61,12 +61,12 @@ function Offer({ label, name }: { label: string; name?: string }) {
   // it entered the offer (else to the plots' heading or the panel), not to the page, where the next Tab would start
   // from the top.
   const placeBefore = () => (cameFrom.current?.isConnected ? cameFrom.current : (document.getElementById(SKIP_TARGETS.plots) ?? document.querySelector<HTMLElement>('.panel')));
-  // The cross says once, in the note that is both shown and announced, that the keyboard shortcut still undoes.
+  // The cross says once, in the note that is both shown and announced, that the keyboard shortcut still undoes (where there is a keyboard).
   const hide = () => {
     const back = placeBefore();
     fadeUndo();
     back?.focus();
-    setCopyNote(`Undo offer hidden. ${undoShortcut()} still undoes.`);
+    setCopyNote(words.hidden);
   };
   // What is undone is back in the page before the place is looked for: the plots' heading is not there while no file
   // is loaded (an undone Clear brings it back).
@@ -90,8 +90,8 @@ function Offer({ label, name }: { label: string; name?: string }) {
       onBlur={() => setFocused(false)}
     >
       <OfferLabel label={label} name={name} />
-      <button onClick={undo}>{phone ? 'Undo' : `Undo · ${undoShortcut()}`}</button>
-      <button aria-label="Hide undo offer" title="Hide (Ctrl/Cmd+Z still undoes)" onClick={hide}>
+      <button onClick={undo}>{words.button}</button>
+      <button aria-label="Hide undo offer" title={words.hideTitle} onClick={hide}>
         ✕
       </button>
     </div>

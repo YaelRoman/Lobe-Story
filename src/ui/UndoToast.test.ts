@@ -146,6 +146,24 @@ describe('the offer on a phone, and a long file name in it', () => {
     expect(label.querySelector('.mid-tail')?.textContent).toBe('P45_02T.msi');
   });
 
+  it('on a phone neither the cross nor its note speaks of a key', () => {
+    layout(true);
+    act(() => st().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => st().removeFile('a.MSI'));
+    const cross = host.querySelector<HTMLButtonElement>('button[aria-label="Hide undo offer"]')!;
+    expect(cross.title).toBe('Hide');
+    act(() => cross.click());
+    expect(st().copyNote).toBe('Undo offer hidden.');
+  });
+
+  it('on a wide screen the note of the cross says that the shortcut still undoes', () => {
+    layout(false);
+    act(() => st().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => st().removeFile('a.MSI'));
+    act(() => host.querySelector<HTMLButtonElement>('button[aria-label="Hide undo offer"]')!.click());
+    expect(st().copyNote).toMatch(/^Undo offer hidden\. (Ctrl\+Z|⌘Z) still undoes\.$/);
+  });
+
   it('an offer without a name in it is plain text', () => {
     layout(false);
     act(() => st().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));

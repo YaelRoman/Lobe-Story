@@ -468,3 +468,33 @@ test('pressing Undo in the offer by keyboard does not drop the focus to the page
   await expect(page.locator('.panel li')).toHaveCount(3);
   expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
 });
+
+test('on a phone nothing says that Ctrl+Z undoes: not the offer, its cross, the note after hiding, the status region or the Clear question', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900)), file('c.msi', msi(2000))]);
+  await page.locator('.files-toggle').click();
+  await page.getByLabel('Actions for b.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  const toast = page.getByTestId('undo-toast');
+  await expect(toast).toBeVisible();
+  const key = /Ctrl|Cmd|⌘/;
+  expect(await toast.innerText()).not.toMatch(key);
+  const hide = toast.getByRole('button', { name: 'Hide undo offer' });
+  await expect(hide).toHaveAttribute('title', 'Hide');
+  await expect(page.getByTestId('announcer')).toContainText('Removed b.msi.');
+  expect(await page.getByTestId('announcer').innerText()).not.toMatch(key);
+  await hide.click();
+  await expect(page.getByTestId('copy-note')).toHaveText('Undo offer hidden.');
+  expect(await page.getByTestId('announcer').innerText()).not.toMatch(key);
+
+  // The question before a Clear (asked once an offset was set) promises the offer, not a key.
+  await openSimulation(page);
+  const azimuth = page.getByLabel('Azimuth (°) value');
+  await azimuth.fill('10');
+  await azimuth.press('Enter');
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('You can undo this right afterwards.');
+  expect(await dialog.innerText()).not.toMatch(key);
+});

@@ -160,3 +160,26 @@ describe('the calm load line goes by itself, but not from under a held pointer',
     expect(status()).toBeNull();
   });
 });
+
+describe('what is read out with an undo offer', () => {
+  const said = () => host.querySelector('[data-testid="announcer"]')?.textContent ?? '';
+  const layout = (phone: boolean) => vi.stubGlobal('matchMedia', () => ({ matches: phone, addEventListener: () => {}, removeEventListener: () => {} }));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('names the shortcut on a wide screen', () => {
+    layout(false);
+    act(() => useStore.getState().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => useStore.getState().removeFile('a.MSI'));
+    expect(said()).toMatch(/Removed a\.MSI\. Undo: (Ctrl\+Z|⌘Z)\./);
+  });
+
+  it('names no key on a phone', () => {
+    layout(true);
+    // Rendered anew: the layout is read when the status area mounts.
+    act(() => root.render(createElement(StatusArea, { hasErrors: false, key: 'phone' })));
+    act(() => useStore.getState().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => useStore.getState().removeFile('a.MSI'));
+    expect(said()).toContain('Removed a.MSI.');
+    expect(said()).not.toMatch(/Ctrl|⌘|Undo:/);
+  });
+});

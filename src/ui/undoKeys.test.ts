@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isTextEntry, isUndoShortcut, neighbourOrder, undoShortcutLabel } from './undoKeys';
+import { isTextEntry, isUndoShortcut, neighbourOrder, undoShortcutLabel, undoWording } from './undoKeys';
 
 describe('isTextEntry', () => {
   it.each(['text', 'number', 'search', 'email', 'url', 'password', 'tel', 'TEXT', ''])('treats <input type="%s"> as a text field', (type) => {
@@ -56,5 +56,30 @@ describe('neighbourOrder', () => {
     expect(neighbourOrder(['a', 'b', 'c'], 'c')).toEqual(['b', 'a']);
     expect(neighbourOrder(['a'], 'a')).toEqual([]);
     expect(neighbourOrder(['a', 'b'], 'x')).toEqual([]);
+  });
+});
+
+describe('what is said about undoing, where there is a keyboard and where there is none', () => {
+  it('names the shortcut on a wide screen', () => {
+    expect(undoWording(false, 'Win32')).toEqual({
+      button: 'Undo · Ctrl+Z',
+      hideTitle: 'Hide (Ctrl/Cmd+Z still undoes)',
+      hidden: 'Undo offer hidden. Ctrl+Z still undoes.',
+      spoken: ' Undo: Ctrl+Z.',
+      beforeClear: 'You can undo this with Ctrl/Cmd+Z until your next change.',
+    });
+    expect(undoWording(false, 'MacIntel').button).toBe('Undo · ⌘Z');
+  });
+
+  it('names no key on a phone, and promises no undo after the offer has gone', () => {
+    const phone = undoWording(true, 'iPhone');
+    expect(phone).toEqual({
+      button: 'Undo',
+      hideTitle: 'Hide',
+      hidden: 'Undo offer hidden.',
+      spoken: '',
+      beforeClear: 'You can undo this right afterwards.',
+    });
+    for (const text of Object.values(phone)) expect(text).not.toMatch(/Ctrl|Cmd|⌘|still undoes/);
   });
 });

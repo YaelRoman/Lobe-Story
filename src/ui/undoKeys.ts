@@ -37,8 +37,35 @@ export function undoShortcutLabel(platform: string): string {
   return /mac|iphone|ipad|ipod/i.test(platform) ? '⌘Z' : 'Ctrl+Z';
 }
 
-/** The undo shortcut as written on the platform the page runs on. */
-export const undoShortcut = (): string => undoShortcutLabel(typeof navigator === 'undefined' ? '' : navigator.platform);
+/** What the page says about undoing. */
+export interface UndoWording {
+  /** The offer's button. */
+  button: string;
+  /** Tooltip of the cross that hides the offer. */
+  hideTitle: string;
+  /** The note shown and read out when the offer is hidden by its cross. */
+  hidden: string;
+  /** Read out after what was done (it starts with a space, or is empty). */
+  spoken: string;
+  /** The last sentence of the question before a Clear. */
+  beforeClear: string;
+}
+
+/**
+ * The words about undoing for a page laid out for a phone or not. A phone has no Ctrl+Z: no key is named there, and
+ * nothing is promised for after the offer has gone (the offer's button is then the only way to undo).
+ */
+export function undoWording(phone: boolean, platform: string = typeof navigator === 'undefined' ? '' : navigator.platform): UndoWording {
+  if (phone) return { button: 'Undo', hideTitle: 'Hide', hidden: 'Undo offer hidden.', spoken: '', beforeClear: 'You can undo this right afterwards.' };
+  const key = undoShortcutLabel(platform);
+  return {
+    button: `Undo · ${key}`,
+    hideTitle: 'Hide (Ctrl/Cmd+Z still undoes)',
+    hidden: `Undo offer hidden. ${key} still undoes.`,
+    spoken: ` Undo: ${key}.`,
+    beforeClear: 'You can undo this with Ctrl/Cmd+Z until your next change.',
+  };
+}
 
 /**
  * Where focus goes when the item `current` of `keys` (in display order) is removed: the items after

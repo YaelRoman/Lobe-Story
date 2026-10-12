@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { useStore } from '../state/store';
 import { pendingLabel } from '../state/project';
 import { UndoToast } from './UndoToast';
-import { undoShortcut } from './undoKeys';
+import { undoWording } from './undoKeys';
+import { usePhoneLayout } from './phoneLayout';
 import { useAnnouncement } from './announce';
 
 /** How long the line of a load where every file simply loaded stays. */
@@ -38,6 +39,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const pending = pendingFiles.length > 0 ? pendingLabel(pendingFiles) : null;
   // A line that is only read out (see `announce`): the change it reports is already visible where it was made.
   const spoken = useAnnouncement();
+  const undoSpoken = undoWording(usePhoneLayout()).spoken;
 
   // "Loaded 12 files" needs no action: it goes away by itself. Anything that failed, was skipped or renamed stays.
   // The line is in the flow, so the page moves up when it goes: not while a pointer is down (a slider dragged in the
@@ -119,7 +121,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
         {spoken && <span key={`say-${spoken.seq}`}>{spoken.text} </span>}
         {undoLabel && (
           <span>
-            {undoLabel}. Undo: {undoShortcut()}.{' '}
+            {undoLabel}.{undoSpoken}{' '}
           </span>
         )}
         {pending && <span>{pending}</span>}
