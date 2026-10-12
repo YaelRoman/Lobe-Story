@@ -190,6 +190,44 @@ test('the undo offer waits while it is hovered or focused, and focus moves to a 
   await expect(page.getByLabel('Actions for a.msi')).toBeFocused();
 });
 
+test('hiding the undo offer keeps the focus on the page and says that Ctrl/Cmd+Z still undoes', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900)), file('c.msi', msi(2000))]);
+  const toast = page.getByTestId('undo-toast');
+  await page.getByLabel('Actions for b.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  await expect(toast).toBeVisible();
+  const hide = toast.getByRole('button', { name: 'Hide undo offer' });
+
+  // Focus came from a row's menu button: it goes back there.
+  const before = page.getByLabel('Actions for c.msi');
+  await before.focus();
+  await hide.focus();
+  await page.keyboard.press('Enter');
+  await expect(toast).toHaveCount(0);
+  await expect(before).toBeFocused();
+  // The hint is text, shown and announced once, not only a tooltip.
+  await expect(page.getByTestId('copy-note')).toContainText(/(Ctrl|⌘)\+?Z still undoes/);
+  await expect(page.getByTestId('announcer')).toContainText('still undoes');
+  // And the undo still works.
+  await page.locator('h1').click();
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('.panel li')).toHaveCount(3);
+});
+
+test('hiding the undo offer with nothing focused before it does not drop the focus to the page body', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900))]);
+  const toast = page.getByTestId('undo-toast');
+  await page.getByLabel('Actions for b.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  await expect(toast).toBeVisible();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await toast.getByRole('button', { name: 'Hide undo offer' }).click();
+  await expect(toast).toHaveCount(0);
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+});
+
 test('an edit after Remove withdraws the undo; Ctrl+Z then does nothing', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900))]);

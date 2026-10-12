@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
+import { SKIP_TARGETS } from './SkipLinks';
 import { isTextEntry, isUndoShortcut, undoShortcut } from './undoKeys';
 
 /** How long the toast offering an undo stays; the undo itself stays available to Ctrl/Cmd+Z until a later edit withdraws it. */
@@ -11,9 +12,12 @@ const RESUME_MIN_MS = 3_000;
 function Offer({ label }: { label: string }) {
   const undoLast = useStore((s) => s.undoLast);
   const fadeUndo = useStore((s) => s.fadeUndo);
+  const setCopyNote = useStore((s) => s.setCopyNote);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const remaining = useRef(UNDO_MS);
+  // Where the keyboard focus was before it entered the offer, to give it back when the offer is hidden by its cross.
+  const cameFrom = useRef<HTMLElement | null>(null);
   const paused = hovered || focused;
 
   // The countdown stops while the pointer or the keyboard focus is on the bar.
@@ -27,6 +31,15 @@ function Offer({ label }: { label: string }) {
     };
   }, [paused, fadeUndo]);
 
+  // The cross removes the button that has the focus: put the focus back where it was (else on the plots' heading or the
+  // panel), and say once, in the note that is both shown and announced, that the keyboard shortcut still undoes.
+  const hide = () => {
+    const back = cameFrom.current?.isConnected ? cameFrom.current : (document.getElementById(SKIP_TARGETS.plots) ?? document.querySelector<HTMLElement>('.panel'));
+    fadeUndo();
+    back?.focus();
+    setCopyNote(`Undo offer hidden. ${undoShortcut()} still undoes.`);
+  };
+
   return (
     <div
       className="load-message undo-toast"
@@ -34,12 +47,16 @@ function Offer({ label }: { label: string }) {
       data-paused={paused || undefined}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
+      onFocus={(e) => {
+        const from = e.relatedTarget as HTMLElement | null;
+        if (from && !e.currentTarget.contains(from)) cameFrom.current = from;
+        setFocused(true);
+      }}
       onBlur={() => setFocused(false)}
     >
       <span>{label}.</span>
       <button onClick={undoLast}>Undo · {undoShortcut()}</button>
-      <button aria-label="Hide undo offer" title="Hide (Ctrl/Cmd+Z still undoes)" onClick={fadeUndo}>
+      <button aria-label="Hide undo offer" title="Hide (Ctrl/Cmd+Z still undoes)" onClick={hide}>
         ✕
       </button>
     </div>
