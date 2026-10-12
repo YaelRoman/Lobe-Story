@@ -107,10 +107,10 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
         const cur = exporting.current;
         // Always light colours on white, whatever the screen theme: the image is rebuilt from a copy, the drawn figure is not touched.
         const out = exportFigure(cur.labelledExport?.figure?.() ?? cur.figure, cur.labelledExport?.caption, useStore.getState().view.theme);
-        void Plotly.downloadImage(
+        Plotly.downloadImage(
           { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
           { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },
-        );
+        ).catch((error: unknown) => console.error('The plot image could not be saved', error));
       },
     };
     return {
@@ -188,7 +188,9 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
           el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
           drawnHandler.current?.(figure, overlay);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
+          // React cannot catch this one (it is not thrown while rendering): say why in the console, WebGL or not.
+          console.error('A chart could not be drawn', error);
           releaseGlContexts(scenes);
           if (!redrawGate.current.isLatest(generation)) return;
           redrawing.current = false;

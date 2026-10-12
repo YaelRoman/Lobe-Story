@@ -1,7 +1,10 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, createRef, type ErrorInfo, type ReactNode } from 'react';
 import { useStore } from '../state/store';
 import { serializeProject } from '../state/project';
 import { downloadText } from './download';
+
+/** Whether the keyboard focus is nowhere: what a focused element leaves behind when it is taken off the page. */
+const focusIsLost = (): boolean => document.activeElement === null || document.activeElement === document.body;
 
 const messageOf = (error: unknown): string => (error instanceof Error && error.message ? error.message : String(error));
 
@@ -51,9 +54,28 @@ export class PlotBoundary extends Component<PlotBoundaryProps, PlotCaught> {
     return sameKeys(state.failedWith, props.resetKeys) ? null : { error: null, recorded: false };
   }
 
+  private heading = createRef<HTMLParagraphElement>();
+
   componentDidCatch(error: unknown, info: ErrorInfo): void {
     console.error('A plot could not be drawn', error, info.componentStack);
     this.props.onError?.();
+  }
+
+  componentDidMount(): void {
+    this.focusHeading();
+  }
+
+  componentDidUpdate(_: PlotBoundaryProps, before: PlotCaught): void {
+    if (before.error === null) this.focusHeading();
+  }
+
+  /**
+   * When the message has just appeared and the focus was inside the plot (it is nowhere now), the heading takes it,
+   * so the keyboard and a screen reader continue from the message. A focus elsewhere (the control that was being
+   * used) is left alone: the message is an alert and is announced anyway.
+   */
+  private focusHeading(): void {
+    if (this.state.error !== null && focusIsLost()) this.heading.current?.focus();
   }
 
   render(): ReactNode {
@@ -61,7 +83,7 @@ export class PlotBoundary extends Component<PlotBoundaryProps, PlotCaught> {
     if (error === null) return this.props.children;
     return (
       <div className={`plot-failed${this.props.className ? ` ${this.props.className}` : ''}`} role="alert">
-        <p>
+        <p tabIndex={-1} ref={this.heading}>
           <strong>This plot could not be drawn</strong>
         </p>
         <p className="plot-failed-detail">{error}</p>
@@ -95,8 +117,19 @@ export class AppBoundary extends Component<AppBoundaryProps, AppCaught> {
     return { error: messageOf(error) };
   }
 
+  private heading = createRef<HTMLHeadingElement>();
+
   componentDidCatch(error: unknown, info: ErrorInfo): void {
     console.error('The app stopped on an error', error, info.componentStack);
+  }
+
+  componentDidMount(): void {
+    if (this.state.error !== null) this.heading.current?.focus();
+  }
+
+  // The whole page was replaced, whatever had the focus with it: the heading takes it.
+  componentDidUpdate(_: AppBoundaryProps, before: AppCaught): void {
+    if (before.error === null && this.state.error !== null) this.heading.current?.focus();
   }
 
   private save = (): void => {
@@ -115,7 +148,9 @@ export class AppBoundary extends Component<AppBoundaryProps, AppCaught> {
     if (error === null) return this.props.children;
     return (
       <div className="crash" role="alert">
-        <h1>Lobe-Story</h1>
+        <h1 tabIndex={-1} ref={this.heading}>
+          Lobe-Story
+        </h1>
         <p>
           <strong>Something went wrong and the page cannot be shown.</strong> Your session is still in memory: save it as a
           project, then reload and open the project again.

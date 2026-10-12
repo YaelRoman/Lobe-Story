@@ -80,6 +80,60 @@ describe('error boundaries', () => {
       expect(host.querySelector('[data-testid="drawn"]')).not.toBeNull();
     });
 
+    describe('focus and logging', () => {
+      beforeEach(() => document.body.appendChild(host));
+      afterEach(() => host.remove());
+      const heading = () => host.querySelector<HTMLElement>('[role="alert"] [tabindex="-1"]');
+
+      it('takes the focus to its heading when the failed plot leaves the focus nowhere', () => {
+        function Focused() {
+          if (failure !== null) throw new Error(failure);
+          return createElement('button', { 'data-testid': 'inside' }, 'inside the plot');
+        }
+        render(createElement(PlotBoundary, null, createElement(Focused)));
+        host.querySelector<HTMLElement>('[data-testid="inside"]')!.focus();
+        expect(document.activeElement?.textContent).toBe('inside the plot');
+        failure = 'gone';
+        render(createElement(PlotBoundary, null, createElement(Focused)));
+        expect(heading()!.textContent).toBe('This plot could not be drawn');
+        expect(document.activeElement).toBe(heading());
+      });
+
+      it('takes the focus when the plot fails as the page is first drawn (nothing has the focus)', () => {
+        failure = 'at once';
+        render(page());
+        expect(document.activeElement).toBe(heading());
+      });
+
+      it('leaves the focus on the control the user is on (the message is announced as an alert)', () => {
+        const tree = () => createElement('div', null, createElement('input', { 'data-testid': 'tilt' }), createElement(PlotBoundary, null, createElement(Plot)));
+        render(tree());
+        const input = host.querySelector<HTMLElement>('[data-testid="tilt"]')!;
+        input.focus();
+        failure = 'while typing';
+        render(tree());
+        expect(host.querySelector('[role="alert"]')).not.toBeNull();
+        expect(document.activeElement).toBe(input);
+      });
+
+      it('of two plots failing together the first takes the focus', () => {
+        failure = 'both';
+        render(createElement('div', null, createElement(PlotBoundary, null, createElement(Plot)), createElement(PlotBoundary, null, createElement(Plot))));
+        const headings = host.querySelectorAll<HTMLElement>('[role="alert"] [tabindex="-1"]');
+        expect(headings).toHaveLength(2);
+        expect(document.activeElement).toBe(headings[0]);
+      });
+
+      it('logs the error it caught', () => {
+        failure = 'log me';
+        render(page());
+        const logged = vi.mocked(console.error).mock.calls.find((call) => call[0] === 'A plot could not be drawn');
+        expect(logged).toBeDefined();
+        expect((logged![1] as Error).message).toBe('log me');
+        expect(typeof logged![2]).toBe('string');
+      });
+    });
+
     describe('reset keys (what the plot is made from)', () => {
       let renders = 0;
       function Counted() {
@@ -186,6 +240,24 @@ describe('error boundaries', () => {
       expect(button('Save project')).toBeDefined();
       click('Reload');
       expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes the focus to its heading and logs the error', () => {
+      document.body.appendChild(host);
+      try {
+        render(createElement(AppBoundary, { reload }, createElement('div', null, createElement('input', { 'data-testid': 'box' }), createElement(Plot))));
+        host.querySelector<HTMLElement>('[data-testid="box"]')!.focus();
+        failure = 'render exploded';
+        render(createElement(AppBoundary, { reload }, createElement('div', null, createElement('input', { 'data-testid': 'box' }), createElement(Plot))));
+        const h1 = host.querySelector('h1')!;
+        expect(h1.getAttribute('tabindex')).toBe('-1');
+        expect(document.activeElement).toBe(h1);
+        const logged = vi.mocked(console.error).mock.calls.find((call) => call[0] === 'The app stopped on an error');
+        expect(logged).toBeDefined();
+        expect((logged![1] as Error).message).toBe('render exploded');
+      } finally {
+        host.remove();
+      }
     });
 
     it('"Save project" saves the current session, files included, as a project that opens again', () => {
