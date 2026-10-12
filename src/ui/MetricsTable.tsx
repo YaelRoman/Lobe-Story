@@ -4,7 +4,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
   ariaSort, buildRows, COLUMN_GROUPS, csvColumns, columnGroupTitle, columnLabel, columnTitle, nextSort, onlyTicked, tickedCountText, revealScrollTop, simulationLabel,
-  cellText, clearOfSticky, gainText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, withHorizonLevel, type SortKey, type SortState,
+  cellText, clearOfSticky, gainText, markReference, pairWords, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, withHorizonLevel, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
@@ -14,7 +14,7 @@ import { MidName } from './MidName';
 import { cellEndTarget, moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { neighbourOrder } from './undoKeys';
 import { downloadText } from './download';
-import { exportName, hCutLabel } from './simSummary';
+import { exportName, hCutLabel, simulatedNote } from './simSummary';
 import { copiedRow, copiedRows, copiedValue, copyAndAnnounce } from './clipboard';
 import { copyShortcut } from './copyKeys';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
@@ -97,6 +97,9 @@ export const MetricsTable = memo(function MetricsTable({
   const deltaTilted = deltaOn && sim.simActive;
   // The simulated values of the horizontal columns are of the cut at the horizon (every file's, tilted or not): the exports and the note say so.
   const horizonCut = sim.hCut === 'horizon';
+  // With no tilt on any file nothing is "tilted": a pair is file cut → horizon cut, on screen and in the exports.
+  const words = pairWords(horizonCut, sim.tiltActive);
+  const pairNote = simulatedNote(horizonCut, sim.tiltActive);
   // The cell that has focus shows the one copy button (a row id and a column key).
   const [focusedCell, setFocusedCell] = useState<{ id: string; col: string } | null>(null);
 
@@ -244,7 +247,7 @@ export const MetricsTable = memo(function MetricsTable({
           onClick={() =>
             downloadText(
               exportName('pattern-metrics', sim.simulatedAmong(rows.map((r) => r.id)), '.csv'),
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.simActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, withHorizonLevel(csvColumns(tableGroups), horizonCut), method3d, horizonCut),
+              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.simActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, withHorizonLevel(csvColumns(tableGroups), horizonCut), method3d, horizonCut, sim.tiltActive),
               'text/csv;charset=utf-8',
             )
           }
@@ -253,7 +256,7 @@ export const MetricsTable = memo(function MetricsTable({
         </button>
         <button
           title="Copy the table as shown (visible columns, current order) to paste into a spreadsheet"
-          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted, method3d, horizonCut), copiedRows(rows.length))}
+          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted, method3d, horizonCut, sim.tiltActive), copiedRows(rows.length))}
         >
           Copy table
         </button>
@@ -285,7 +288,7 @@ export const MetricsTable = memo(function MetricsTable({
         {referenceName !== null && (
           <span className="count ref-note" data-testid="reference-note">
             <PinMark /> Reference: {referenceName}
-            {deltaTilted && <span data-testid="delta-tilted-note"> · Δ of tilted values</span>}
+            {deltaTilted && <span data-testid="delta-tilted-note"> · Δ of {pairNote ? 'horizon-cut' : 'tilted'} values</span>}
             <button type="button" onClick={() => setReference(null)}>
               Clear reference
             </button>
@@ -316,6 +319,7 @@ export const MetricsTable = memo(function MetricsTable({
           <p className="count">
             {simulationLabel(sim.tilt, sim.offsetCount, sim.groupOffsetCount)}
             <span data-testid="sim-hcut-note"> · {hCutLabel(sim.hCut)}{horizonCut ? `: ${HORIZON_CUT_NOTE}` : ''}</span>
+            {pairNote && <span data-testid="sim-pair-note"> · {pairNote}</span>}
             <span data-testid="sim-blank-note"> · {SIMULATION_BLANK_NOTE}</span>
           </p>
         )}
@@ -409,7 +413,7 @@ export const MetricsTable = memo(function MetricsTable({
                 <td>{r.freq}</td>
                 <td>{gainText(r)}</td>
                 {columns.map((c) => {
-                  const cell = rowCell(r, c.key);
+                  const cell = rowCell(r, c.key, words);
                   return (
                     <td key={c.key} data-col={c.key} tabIndex={-1} title={cell.title} className={cell.title && !cell.equal ? 'has-reason' : undefined}>
                       {cell.text}

@@ -29,8 +29,8 @@ export function splitTail(text: string, tail = 10): { head: string; tail: string
  * The note under a cut plot that has no legend (more than four traces). "dashed = original" is said only when dashed
  * originals are drawn (a tilt simulation with "Show original"); a pinned reference is the thick dashed line.
  */
-export function traceNote(o: { traces: number; byGroup: boolean; originals: boolean; referenceLabel: string | null }): string {
-  const colours = `${o.traces} traces: colours as in the file panel${o.originals ? ' (dashed = original)' : ''}`;
+export function traceNote(o: { traces: number; byGroup: boolean; originals: boolean; referenceLabel: string | null; /** The dashed lines are file cuts under horizon cuts, with no tilt on any file. */ fileCut?: boolean }): string {
+  const colours = `${o.traces} traces: colours as in the file panel${o.originals ? (o.fileCut ? " (dashed = the file's own cut)" : ' (dashed = original)') : ''}`;
   const groups = o.byGroup ? '; more than 10 files: one colour per group, a shade per file' : '';
   const reference = o.referenceLabel !== null ? ` The thick dashed line in the text colour is the reference: ${o.referenceLabel}.` : '';
   return `${colours}${groups}; hover a trace for its name.${reference}`;

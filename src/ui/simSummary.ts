@@ -40,6 +40,12 @@ export const summaryHCut = (hCut: HCutMode, tiltActive: boolean): HCutMode | und
 export const summaryMethod = <M extends 'summation' | 'weighted'>(method: M, tiltActive: boolean, angularRegions: boolean, hCut: HCutMode = 'beam'): M | undefined =>
   tiltActive || angularRegions || hCut === 'horizon' ? method : undefined;
 
+/**
+ * What the note above the metrics table adds while the cut is at the horizon and no file is tilted: what a pair of
+ * values in a cell is. (Under a tilt a pair is original → tilted, as everywhere.)
+ */
+export const simulatedNote = (horizonCut: boolean, tiltActive: boolean): string | undefined => (horizonCut && !tiltActive ? 'a → b: file cut → horizon cut' : undefined);
+
 /** The simulation facts a caption or a file name needs (the parts of `SimulationResult` used, so it can be tested without hooks). */
 export interface SimFacts {
   tiltActive: boolean;

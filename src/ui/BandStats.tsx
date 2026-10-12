@@ -4,12 +4,13 @@ import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandHistogramMarks, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandHistogramMarks, bandStateNote, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
 import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
 import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
 import { withSimulated } from './exportFigure';
-import { exportName, hCutLabel, simulatedCaption } from './simSummary';
+import { exportName, simulatedCaption } from './simSummary';
+import { pairWords } from './table';
 import { copyAndAnnounce } from './clipboard';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
@@ -78,9 +79,12 @@ export const BandStats = memo(function BandStats({
     picked && dataset && columns[picked.column] && scopeOf(dataset.key, columns[picked.column].subBand) === picked.scope
       ? columns[picked.column]
       : null;
+  // With no tilt on any file nothing is "tilted": a pair is file cut → horizon cut.
+  const words = pairWords(sim.hCut === 'horizon', sim.tiltActive);
+  const horizonOnly = sim.hCut === 'horizon' && !sim.tiltActive;
   const pickedCell = picked && pickedColumn ? (tiltedColumns?.[picked.column] ?? pickedColumn).cells[picked.key] : null;
   const pickedDetail =
-    picked && pickedColumn ? cellDisplay(pickedColumn.cells[picked.key], tiltedColumns?.[picked.column].cells[picked.key]).title : '';
+    picked && pickedColumn ? cellDisplay(pickedColumn.cells[picked.key], tiltedColumns?.[picked.column].cells[picked.key], words).title : '';
   const pickedSpec = picked ? BAND_PARAMS.find((p) => p.key === picked.key) : undefined;
   // The histogram needs samples; the tilt range row has only the nominal tilts.
   const histogramCell = pickedCell && pickedCell.values.length > 0 && pickedCell.key !== 'tiltRange' ? pickedCell : null;
@@ -114,9 +118,10 @@ export const BandStats = memo(function BandStats({
             unit: histogramCell.unit,
             n: histogramCell.n,
             tilted: histogramTilted,
+            ...(histogramTilted ? { state: horizonOnly ? ('horizon cut' as const) : ('tilted' as const) } : {}),
           })
         : null,
-    [histogramCell, pickedSpec, pickedColumn, dataset, settings, histogramTilted],
+    [histogramCell, pickedSpec, pickedColumn, dataset, settings, histogramTilted, horizonOnly],
   );
 
   if (!dataset || largest < MIN_SAMPLES) {
@@ -149,7 +154,7 @@ export const BandStats = memo(function BandStats({
         ...(sim.simActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx) } : {}),
       };
     });
-    downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id))), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut), 'text/csv;charset=utf-8');
+    downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id))), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut, sim.tiltActive), 'text/csv;charset=utf-8');
   };
 
   return (
@@ -173,7 +178,7 @@ export const BandStats = memo(function BandStats({
         <button onClick={exportCsv}>Export band CSV</button>
         <button
           title="Copy the table below as shown to paste into a spreadsheet"
-          onClick={() => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings, horizonCut), `Copied the band statistics of ${dataset.label}`, setCopyNote)}
+          onClick={() => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings, horizonCut, sim.tiltActive), `Copied the band statistics of ${dataset.label}`, setCopyNote)}
         >
           Copy table
         </button>
@@ -193,7 +198,7 @@ export const BandStats = memo(function BandStats({
         excluded; co-polar cuts).
         {noFrequency > 0 && ` ${noFrequency} loaded file${noFrequency === 1 ? ' has' : 's have'} no frequency above 0 MHz and ${noFrequency === 1 ? 'is' : 'are'} left out.`}
         {userSubBands.length === 0 && ' Sub-bands are automatic.'}
-        {sim.simActive && ` Simulation active: cells show original → tilted where they differ (${hCutLabel(sim.hCut)}).`}
+        {sim.simActive && ` ${bandStateNote(sim.hCut, sim.tiltActive)}`}
         {settings.levelDb !== 3 &&
           ` Beamwidth level is ${settings.levelDb} dB: the beamwidth, squint and tilt rows are not half-power values.`}
         {lobeWarning && ` ${lobeWarning}`}
@@ -221,7 +226,7 @@ export const BandStats = memo(function BandStats({
                   const original = c.cells[p.key];
                   const tilted = tiltedColumns?.[i].cells[p.key];
                   const shown = tilted ?? original;
-                  const d = cellDisplay(original, tilted);
+                  const d = cellDisplay(original, tilted, words);
                   const scope = scopeOf(dataset.key, c.subBand);
                   const isPicked = picked?.key === p.key && picked.column === i && picked.scope === scope;
                   const toggle = () => setPicked(isPicked ? null : { key: p.key, column: i, scope });
@@ -242,7 +247,7 @@ export const BandStats = memo(function BandStats({
       {pickedCell && pickedSpec && pickedColumn && (
         <p className="count">
           {bandParamLabel(pickedSpec, settings)} — {pickedColumn.subBand.name} — N = {pickedCell.n}
-          {histogramTilted ? ' (tilted)' : ''}
+          {histogramTilted ? (horizonOnly ? ' (horizon cut)' : ' (tilted)') : ''}
         </p>
       )}
       <p className="count band-detail" data-testid="band-detail" aria-live="polite">

@@ -294,6 +294,20 @@ table has "H-HPBW [tilted: horizon cut] (°)", the band statistics CSV has the S
 "tilted [H cut at the horizon]" and its copied table starts with "Parameter [tilted: H cut at the
 horizon]". Without a tag the tilted values are those of the cut through the beam peak.
 
+**With no tilt on any file nothing is called "tilted".** The cut at the horizon alone tilts nothing, so
+while no loaded file has a tilt the pair of values is named for what it is, file cut → horizon cut:
+the note above the table says "a → b: file cut → horizon cut", the cell tooltips say "file cut" and
+"horizon cut", the frequency chart and the note under a cut plot call the faint or dashed lines "the
+file's own cut", the band statistics say "(horizon cut)" and "cells show file cut → horizon cut".
+The exports keep exactly the same columns and lines and change only the words: the metrics CSV has
+"H-HPBW original (°)" and "H-HPBW [H cut at the horizon] (°)" for a horizontal metric and "V-HPBW
+original (°)" and "V-HPBW simulated (°)" (two equal numbers) for the others, with the three tilt
+columns at the end holding zeros; in the difference view "H-HPBW Δ vs name [H cut at the horizon]
+(°)"; Copy table has "H-HPBW [H cut at the horizon] (°)"; the band statistics CSV has the State
+"horizon cut" on the rows read from the horizontal cut and "simulated" on the others, and its copied
+table starts with "Parameter [H cut at the horizon]". As soon as one file is tilted the wording
+above ("original", "tilted") is used again.
+
 **What the model gives.** A synthetic 65° × 8° panel whose beam peak is at 0° elevation (H-HPBW
 65.0°), mechanical tilt +2° / +4° / +6°, horizon cut: "Summation" 67.0° / 76.0° / 97.7°, with the
 maximum staying at boresight; "Weighted" 73.9° / 90.0° / 104.8°, with the maximum moving off

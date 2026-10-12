@@ -152,6 +152,20 @@ export const followsHCut = (key: TableColumn): boolean => key === HORIZON_LEVEL_
 /** Whether a column holds `original → tilted` values read from the horizontal cut (the Horizon level is a single value). */
 const isHorizontal = (key: TableColumn): boolean => key !== HORIZON_LEVEL_KEY && HORIZONTAL_KEYS.has(key);
 
+/** What the two values of a simulated cell (`a → b`) are called. */
+export interface PairWords {
+  from: string;
+  to: string;
+}
+/** A tilt is set on some file: a pair is the original and the tilted value. */
+export const TILT_WORDS: PairWords = { from: 'original', to: 'tilted' };
+/** The cut at the horizon with no tilt on any file: nothing is tilted, a pair is the file cut and the horizon cut. */
+export const HORIZON_WORDS: PairWords = { from: 'file cut', to: 'horizon cut' };
+export const pairWords = (horizonCut: boolean, tiltActive: boolean): PairWords => (horizonCut && !tiltActive ? HORIZON_WORDS : TILT_WORDS);
+
+/** The tag of a horizontal column in the exports while the cut is at the horizon and no file is tilted (comma-free). */
+export const AT_HORIZON_TAG = '[H cut at the horizon]';
+
 /** What an export header adds to the tilted values of a horizontal column while the simulated cut is the one at the horizon (comma-free, like the 3D method). */
 export const HORIZON_TAG = '[horizon cut]';
 
@@ -612,7 +626,7 @@ function signedDecimals(v: number | null, decimals: number): string {
 }
 
 /** Said in the tooltip of a cell that shows one value for an original and a tilted result that read the same. */
-const EQUAL_NOTE = 'original and tilted are equal under the simulation';
+const equalNote = (w: PairWords): string => (w === TILT_WORDS ? 'original and tilted are equal under the simulation' : `${w.from} and ${w.to} are equal`);
 
 /**
  * What a cell shows: the value, or `original → tilted` where the two shown texts differ (equal ones show once, with
@@ -622,11 +636,14 @@ export function formatCell(
   original: MetricResult,
   tilted?: MetricResult,
   decimals = 1,
+  /** What the two values are called in the tooltip (see `pairWords`). */
+  words: PairWords = TILT_WORDS,
 ): { text: string; title?: string; equal?: true } {
   if (!tilted) return { text: shownValue(original, decimals), title: original.reason };
+  const EQUAL_NOTE = equalNote(words);
   const reasons = [
-    original.reason ? `original: ${original.reason}` : '',
-    tilted.reason ? `tilted: ${tilted.reason}` : '',
+    original.reason ? `${words.from}: ${original.reason}` : '',
+    tilted.reason ? `${words.to}: ${tilted.reason}` : '',
   ].filter(Boolean);
   const [from, to] = [shownValue(original, decimals), shownValue(tilted, decimals)];
   if (from === to) {
@@ -673,7 +690,10 @@ export function toCsv(
   method3d: Method3d = 'summation',
   /** The simulated values of the horizontal columns are of the cut at the horizon: their headers say so. */
   horizonCut = false,
+  /** Some file is tilted. Without a tilt (the cut at the horizon alone) no header says "tilted": see `pairWords`. */
+  tiltActive = true,
 ): string {
+  const horizonOnly = horizonCut && !tiltActive;
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
   // The difference view has one column per metric (the difference of the shown values), whatever the simulation.
   const tilted = deltaVs === undefined && (typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim));
@@ -683,9 +703,10 @@ export function toCsv(
   const metricHeader = columns.flatMap((c) => {
     const label = withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d);
     if (c.key === HORIZON_LEVEL_KEY && deltaVs === undefined) return [`${label} ${HORIZON_TAG} (${c.unit})`];
-    return tilted
-      ? [`${label} original (${c.unit})`, `${label} tilted${horizonTag(c.key, horizonCut)} (${c.unit})`]
-      : [columnHeader(label, c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted))];
+    if (!tilted) return [columnHeader(label, c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted), horizonOnly)];
+    // With no tilt the second value of a horizontal column is the horizon cut; the others are the simulated run's (equal to the file's).
+    const second = horizonOnly ? (isHorizontal(c.key) ? AT_HORIZON_TAG : 'simulated') : `tilted${horizonTag(c.key, horizonCut)}`;
+    return [`${label} original (${c.unit})`, `${label} ${second} (${c.unit})`];
   });
   const header = [
     'File',
@@ -725,15 +746,19 @@ export function toCsv(
 export const cellText = (r: MetricsRow, key: TableColumn): string => rowCell(r, key).text;
 
 /** What a row's cell shows (and its tooltip): the difference in the difference view, else the value (`original → tilted` under a simulation). */
-export function rowCell(r: MetricsRow, key: TableColumn): { text: string; title?: string; equal?: true } {
+export function rowCell(r: MetricsRow, key: TableColumn, words: PairWords = TILT_WORDS): { text: string; title?: string; equal?: true } {
   const cell = cellOf(r, key);
   if (r.isDelta) return { text: signedDecimals(cell.value, shownDecimals(key)), title: cell.reason };
-  return formatCell(cell, tiltedOf(r, key), shownDecimals(key));
+  return formatCell(cell, tiltedOf(r, key), shownDecimals(key), words);
 }
 
 /** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */
-const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false, tag = ''): string =>
-  deltaVs === undefined ? `${label} (${unit})` : `${label} Δ vs ${deltaVs}${tilted && label !== 'Gain' ? `, tilted values${tag}` : ''} (${unit})`;
+const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false, tag = '', horizonOnly = false): string => {
+  if (deltaVs === undefined) return `${label} (${unit})`;
+  // With no tilt the differences are of horizon-cut values on the horizontal columns (tagged) and of the file's own elsewhere.
+  if (horizonOnly) return `${label} Δ vs ${deltaVs}${tag ? ` ${AT_HORIZON_TAG}` : ''} (${unit})`;
+  return `${label} Δ vs ${deltaVs}${tilted && label !== 'Gain' ? `, tilted values${tag}` : ''} (${unit})`;
+};
 
 /** The "Row" column of the difference view's exports: which row is the baseline, so a "Δ vs …" column can be filtered. */
 const rowRole = (r: MetricsRow): string => (r.isReference ? 'reference' : 'difference');
@@ -770,13 +795,16 @@ export function toTsv(
   method3d: Method3d = 'summation',
   /** Tilted values are shown and those of the horizontal columns are of the cut at the horizon: their headers say so. */
   horizonCut = false,
+  /** Some file is tilted. Without a tilt (the cut at the horizon alone) no header says "tilted": see `pairWords`. */
+  tiltActive = true,
 ): string {
+  const horizonOnly = horizonCut && !tiltActive;
   const withRole = deltaVs !== undefined;
   // Without the difference view a cell reads `original → tilted`: the header says which cut the tilted value is of.
   const labelOf = (c: CopyColumn): string => {
     const label = withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d);
     // (The Horizon level is a single value, not a pair: its header needs no such note.)
-    return deltaVs === undefined && horizonCut && isHorizontal(c.key) ? `${label} [tilted: horizon cut]` : label;
+    return deltaVs === undefined && horizonCut && isHorizontal(c.key) ? `${label} ${horizonOnly ? AT_HORIZON_TAG : '[tilted: horizon cut]'}` : label;
   };
   const header = [
     'File',
@@ -784,7 +812,7 @@ export function toTsv(
     ...(withRole ? ['Row'] : []),
     'MHz',
     columnHeader('Gain', gainUnit, deltaVs, deltaTilted),
-    ...columns.map((c) => columnHeader(labelOf(c), c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted))),
+    ...columns.map((c) => columnHeader(labelOf(c), c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted), horizonOnly)),
   ];
   return [header.map(tsvText).join('\t'), ...rows.map((r) => rowToTsv(r, columns, withRole))].join('\r\n') + '\r\n';
 }

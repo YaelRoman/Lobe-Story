@@ -23,13 +23,16 @@ export interface HpbwSeries {
   symbol?: string;
 }
 
+/** What the faint lines of a frequency chart are: the originals under a tilt; with no tilt (the cut at the horizon alone) the file's own cut. */
+export const faintLinesNote = (fileCut: boolean): string => (fileCut ? "Faint lines: the file's own cut" : 'Faint lines: original patterns before the simulated tilt');
+
 /** What the exported chart says about itself: its title, which line is which, and what the other marks mean (the legend lists the groups). */
-export function hpbwCaption(levelDb: number, simulated: boolean, reference = false): ExportCaption {
+export function hpbwCaption(levelDb: number, simulated: boolean, reference = false, fileCut = false): ExportCaption {
   const name = bwName(levelDb);
   return {
     title: `H-${name} and V-${name} against frequency, one line per group`,
     file: `Solid lines: horizontal (H-${name}) · dashed lines: vertical (V-${name}) · hollow markers: values declared in the file`,
-    items: [...(simulated ? ['Faint lines: original patterns before the simulated tilt'] : []), ...(reference ? ['Diamond: the reference file'] : [])],
+    items: [...(simulated ? [faintLinesNote(fileCut)] : []), ...(reference ? ['Diamond: the reference file'] : [])],
   };
 }
 

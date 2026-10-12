@@ -14,7 +14,8 @@ async function loadExample(page: Page) {
 async function expectSimulatedCell(cell: Locator) {
   await expect(async () => {
     const [text, title] = [await cell.innerText(), await cell.getAttribute('title')];
-    expect(text.includes('→') || title === 'original and tilted are equal under the simulation', text).toBe(true);
+    // (With no tilt on any file the two values are the file cut and the horizon cut; under a tilt, original and tilted.)
+    expect(text.includes('→') || title === 'original and tilted are equal under the simulation' || title === 'file cut and horizon cut are equal', text).toBe(true);
   }).toPass();
 }
 
@@ -264,7 +265,7 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   await expect(page.getByRole('heading', { name: /HPBW vs frequency/ })).toBeVisible();
 });
 
-test('the band statistics histogram is marked tilted at the horizon with no tilt only for a parameter of the horizontal cut', async ({ page }) => {
+test('the band statistics histogram is marked as a horizon cut at the horizon with no tilt only for a parameter of the horizontal cut', async ({ page }) => {
   await loadExample(page);
   await openSimulation(page);
   await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
@@ -284,6 +285,58 @@ test('the band statistics histogram is marked tilted at the horizon with no tilt
   expect(await download()).toBe('band-statistics-histogram.png');
   // A parameter of the horizontal cut is of the cut at the horizon.
   await band.getByRole('row', { name: /^Azimuth beamwidth/ }).getByRole('button').first().click();
-  await expect(band.getByText(/^Azimuth beamwidth — .*\(tilted\)$/)).toBeVisible();
+  await expect(band.getByText(/^Azimuth beamwidth — .*\(horizon cut\)$/)).toBeVisible();
   await expect(async () => expect(await download()).toBe('band-statistics-histogram-simulated.png')).toPass();
+});
+
+test('at the horizon with no tilt nothing says "tilted": the page, the tooltips and the exports call the pair file cut and horizon cut', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await openSimulation(page);
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  await expect(page.getByTestId('sim-badge')).toBeVisible();
+  await expect(page.getByTestId('sim-pair-note')).toHaveText(' · a → b: file cut → horizon cut');
+  const readText = async (download: { createReadStream(): Promise<NodeJS.ReadableStream | null> }) => {
+    let text = '';
+    for await (const chunk of (await download.createReadStream())!) text += chunk.toString();
+    return text;
+  };
+
+  // The frequency chart and the note under the cut plots (24 traces: no legend).
+  await expect(page.getByRole('heading', { name: /HPBW vs frequency/ })).toContainText("faint lines: the file's own cut");
+  await expect(page.getByTestId('readout-h').locator('p.count')).toContainText("(dashed = the file's own cut)");
+  // The band statistics: note, cells, picked cell.
+  const band = page.getByTestId('band-stats');
+  await expect(band).toContainText('Horizontal cut at the horizon: cells show file cut → horizon cut where they differ.');
+  await band.getByRole('row', { name: /^F\/B ±30°/ }).getByRole('button').first().click();
+  await expect(page.getByTestId('band-detail')).toContainText('file cut: ');
+  await expect(page.getByTestId('band-detail')).toContainText('horizon cut: ');
+  // Nothing visible on the page, and no tooltip of a table or band cell, says "tilted".
+  expect(await page.locator('main').innerText()).not.toMatch(/tilted/i);
+  const titles = await page.locator('.metrics tbody td[title], table.band td[title]').evaluateAll((cells) => cells.map((c) => c.getAttribute('title') ?? ''));
+  expect(titles.length).toBeGreaterThan(0);
+  expect(titles.filter((t) => /tilted|original/.test(t))).toEqual([]);
+
+  // The exports: the same columns as under a tilt, other words.
+  const [csvFile] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
+  const header = (await readText(csvFile)).split('\r\n')[0];
+  expect(header).toContain('H-HPBW original (°),H-HPBW [H cut at the horizon] (°),Horizon level [horizon cut] (dB),V-HPBW original (°),V-HPBW simulated (°)');
+  expect(header).not.toMatch(/tilted|"/);
+  expect(header.endsWith('Electrical tilt Δ (°),Mechanical tilt (°),Azimuth (°)')).toBe(true);
+  await page.locator('section', { has: page.getByRole('heading', { name: 'Metrics' }) }).getByRole('button', { name: 'Copy table' }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('H-HPBW [H cut at the horizon] (°)');
+  expect((await page.evaluate(() => navigator.clipboard.readText())).split('\r\n')[0]).not.toMatch(/tilted/);
+  const [bandFile] = await Promise.all([page.waitForEvent('download'), band.getByRole('button', { name: 'Export band CSV' }).click()]);
+  const states = new Set((await readText(bandFile)).split('\r\n').slice(1).filter(Boolean).map((l) => l.split(',')[1]));
+  expect([...states].sort()).toEqual(['horizon cut', 'original', 'simulated']);
+
+  // With a tilt the wording is as before.
+  await setMechanical(page, '2');
+  await expect(page.getByTestId('sim-pair-note')).toHaveCount(0);
+  await expect(band).toContainText('Simulation active: cells show original → tilted where they differ (horizontal cut at the horizon).');
+  const [tiltedCsv] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
+  const tiltedHeader = (await readText(tiltedCsv)).split('\r\n')[0];
+  expect(tiltedHeader).toContain('H-HPBW original (°),H-HPBW tilted [horizon cut] (°),Horizon level [horizon cut] (dB),V-HPBW original (°),V-HPBW tilted (°)');
+  expect(tiltedHeader.split(',')).toHaveLength(header.split(',').length);
 });

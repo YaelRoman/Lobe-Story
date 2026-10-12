@@ -2,7 +2,7 @@ import type { Data, PlotData } from 'plotly.js';
 import type { ExportCaption } from './exportFigure';
 import { LEGEND_NAME_MAX, middleEllipsis } from './legend';
 import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
-import { minSpanRange } from './hpbwFigure';
+import { faintLinesNote, minSpanRange } from './hpbwFigure';
 import { hasUsableFrequency } from '../core/gain';
 
 /** One file's value of the plotted metric at its frequency; `null` leaves a gap in the line. */
@@ -35,11 +35,11 @@ export const metricAxisTitle = (label: string, unit: string): string => `${label
 
 /** What the exported chart says about itself. */
 /** `declared`: the metric has values declared in the file (hollow markers); only then does the caption explain them. */
-export function metricCaption(label: string, unit: string, simulated: boolean, reference = false, declared = false): ExportCaption {
+export function metricCaption(label: string, unit: string, simulated: boolean, reference = false, declared = false, fileCut = false): ExportCaption {
   return {
     title: `${metricAxisTitle(label, unit)} against frequency, one line per group`,
     file: `${label} in ${unit}: one line per group${declared ? ' · hollow markers: values declared in the file' : ''}`,
-    items: [...(simulated ? ['Faint lines: original patterns before the simulated tilt'] : []), ...(reference ? ['Diamond: the reference file'] : [])],
+    items: [...(simulated ? [faintLinesNote(fileCut)] : []), ...(reference ? ['Diamond: the reference file'] : [])],
   };
 }
 

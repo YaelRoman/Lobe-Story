@@ -55,6 +55,8 @@ export const HpbwChart = memo(function HpbwChart({
   const followsH = followsHCut(metric);
   // (The Horizon level has no original to draw: a file cut has none.)
   const simulated = !isLevel && (sim.tiltActive || (followsH && sim.simActive));
+  // With no tilt on any file the faint lines are not "originals before a tilt": they are the file's own cut under the horizon cut.
+  const fileCut = simulated && !sim.tiltActive;
   const labelOf = (c: ColumnSpec) => columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
   const menu = chartColumns(horizonCut);
   const column = menu.find((c) => c.key === metric) ?? METRIC_COLUMNS[0];
@@ -142,10 +144,10 @@ export const HpbwChart = memo(function HpbwChart({
   const exportCaption = useMemo(
     () =>
       withSimulated(
-        both ? hpbwCaption(levelDb, simulated, refDrawn) : metricCaption(plotLabel, column.unit, simulated, refDrawn, Boolean(DECLARED[metric])),
+        both ? hpbwCaption(levelDb, simulated, refDrawn, fileCut) : metricCaption(plotLabel, column.unit, simulated, refDrawn, Boolean(DECLARED[metric]), fileCut),
         simulatedLine,
       ),
-    [both, levelDb, simulated, plotLabel, column.unit, refDrawn, metric, simulatedLine],
+    [both, levelDb, simulated, fileCut, plotLabel, column.unit, refDrawn, metric, simulatedLine],
   );
 
   const note = leftOut > 0 ? <p className="count" data-testid="freq-left-out">{leftOutText(leftOut)}</p> : null;
@@ -156,7 +158,7 @@ export const HpbwChart = memo(function HpbwChart({
       <div className="freq-head">
         <h2>
           {heading} vs frequency (groups with a visible file{both || DECLARED[metric] ? '; hollow markers = declared' : ''})
-          {simulated ? ' — faint lines = original' : ''}
+          {simulated ? (fileCut ? " — faint lines: the file's own cut" : ' — faint lines = original') : ''}
           {refDrawn ? ' — diamond = reference' : ''}
         </h2>
         <div className="freq-metric">

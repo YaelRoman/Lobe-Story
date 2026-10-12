@@ -59,6 +59,8 @@ interface CutPlotProps {
   traces: number;
   /** Dashed originals of tilted files are among the traces. */
   originals: boolean;
+  /** The dashed lines are file cuts under horizon cuts, with no tilt on any file (they are not "originals" of a tilt). */
+  fileCut: boolean;
   /** The file the figure emphasises (see `PlotlyChart` `previewBase`). */
   emphasised: string | null;
   /** More than ten files are shown: colours go by group, a shade per file. */
@@ -81,7 +83,7 @@ interface Drawn {
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportBase }: CutPlotProps) {
+function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, fileCut, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportBase }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -108,7 +110,7 @@ function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, 
         )}
         {noLegend && (
           <p className="count">
-            {traceNote({ traces, byGroup, originals, referenceLabel })}
+            {traceNote({ traces, byGroup, originals, referenceLabel, fileCut })}
           </p>
         )}
       </div>
@@ -205,11 +207,12 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
         target: shown?.label ?? '',
         traces: options.series.length,
         originals: options.series.some((x) => x.dash),
+        fileCut: !drawn.sim.tiltActive,
         emphasised: shown ? target : null,
       };
     };
     return { h: make(bases.h), v: make(bases.v) };
-  }, [bases, target, targetHighlighted, view.markers]);
+  }, [bases, target, targetHighlighted, view.markers, drawn.sim.tiltActive]);
 
   // What each cut plot has finished drawing: until the shown ones have caught up (new traces, or another highlighted
   // file's markers, which the charting library also redraws the whole plot for), the redraw is still running.

@@ -69,6 +69,8 @@ export interface BandHistCaptionInput {
   n: number;
   /** The samples are of the tilted (simulated) patterns. */
   tilted?: boolean;
+  /** What the simulated samples are called when not "tilted": "horizon cut" while no file is tilted. */
+  state?: 'tilted' | 'horizon cut';
 }
 
 /** What the exported histogram says about itself: antenna, sub-band, parameter and statistic (the figure has no legend). */
@@ -77,7 +79,7 @@ export function bandHistCaption(c: BandHistCaptionInput): ExportCaption {
   return {
     title: `${c.parameter} — histogram of the band samples`,
     file: `Antenna: ${c.antenna} · Sub-band: ${c.subBand.name}${range.includes(c.subBand.name) || c.subBand.name.includes(range) ? '' : ` (${range})`}`,
-    items: [`Parameter: ${c.parameter}`, `Statistic: ${statText(c.stat, c.unit)}`, `N = ${c.n}${c.tilted ? ' (tilted)' : ''}`],
+    items: [`Parameter: ${c.parameter}`, `Statistic: ${statText(c.stat, c.unit)}`, `N = ${c.n}${c.state ? ` (${c.state})` : c.tilted ? ' (tilted)' : ''}`],
   };
 }
 

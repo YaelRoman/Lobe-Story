@@ -4,7 +4,9 @@ import type { AnalysisSettings } from '../core/analysis/metrics';
 import { sanitizeSubBands, subBandName, type BandDataset, type SubBand } from '../core/analysis/subBands';
 import { FIRST_LOBE_RANGE } from '../core/analysis/sidelobes';
 import { fixed } from './fixed';
-import { csvCell, csvText, tabSafe, tsvText } from './table';
+import { AT_HORIZON_TAG, csvCell, csvText, tabSafe, TILT_WORDS, tsvText, type PairWords } from './table';
+import { hCutLabel } from './simSummary';
+import type { HCutMode } from '../core/analysis/tilt';
 
 /** The band parameters read from the horizontal cut: the ones the horizontal cut at the horizon changes. The rest are read from the vertical cut or declared, and are the file's own with no tilt. */
 const BAND_FOLLOWS_H_CUT: ReadonlySet<BandParamKey> = new Set<BandParamKey>(['hHpbw', 'squint', 'fbWindow', 'hSls', 'tracking', 'rollOff', 'air']);
@@ -21,16 +23,22 @@ export function bandHistogramMarks(key: BandParamKey | undefined, simulatedAmong
 }
 
 /** What a table cell shows: `original → tilted` only where the two texts differ. */
-export function cellDisplay(original: BandCell, tilted?: BandCell): { text: string; title: string; muted: boolean } {
+export function cellDisplay(original: BandCell, tilted?: BandCell, words: PairWords = TILT_WORDS): { text: string; title: string; muted: boolean } {
   const shown = tilted ?? original;
   const muted = shown.state !== 'ok';
   if (!tilted || tilted.text === original.text) return { text: original.text, title: original.title, muted };
   return {
     text: `${original.text} → ${tilted.text}`,
-    title: `original: ${original.title}\ntilted: ${tilted.title}`,
+    title: `${words.from}: ${original.title}\n${words.to}: ${tilted.title}`,
     muted,
   };
 }
+
+/** The sentence of the band note while a simulation is active: what a pair of values in a cell is. */
+export const bandStateNote = (hCut: HCutMode, tiltActive: boolean): string =>
+  hCut === 'horizon' && !tiltActive
+    ? 'Horizontal cut at the horizon: cells show file cut → horizon cut where they differ.'
+    : `Simulation active: cells show original → tilted where they differ (${hCutLabel(hCut)}).`;
 
 /** Shown under the table while some visible cell ends in `*`. */
 export const ADJUSTED_LEGEND = '* adjusted by the 3 dB excursion rule (BASTA 12.2)';
@@ -138,7 +146,10 @@ function csvLine(label: string, state: string | null, column: BandColumn, p: (ty
 const TILTED_AT_HORIZON = 'tilted [H cut at the horizon]';
 
 /** The band statistics in long form: one line per antenna × sub-band × parameter (× state with a tilt simulation). */
-export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings, horizonCut = false): string {
+export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings, horizonCut = false, tiltActive = true): string {
+  // With no tilt on any file nothing is "tilted": the horizontal rows are of the horizon cut, the others the simulated run's (equal to the file's).
+  const second = (key: BandParamKey): string =>
+    horizonCut && !tiltActive ? (bandFollowsHCut(key) ? 'horizon cut' : 'simulated') : horizonCut && bandFollowsHCut(key) ? TILTED_AT_HORIZON : 'tilted';
   const withState = sheets.some((s) => s.tilted);
   const header = (withState ? [HEADER[0], 'State', ...HEADER.slice(1)] : HEADER).map(csvCell);
   const lines: string[][] = [header];
@@ -151,7 +162,7 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
           const tilted = (sheet.tilted ?? sheet.columns)[i];
           lines.push(csvLine(sheet.label, 'original', column, p, column.cells[p.key], settings));
           // Only a parameter read from the horizontal cut is of the cut at the horizon; the others are tilted as in any mode.
-          lines.push(csvLine(sheet.label, horizonCut && bandFollowsHCut(p.key) ? TILTED_AT_HORIZON : 'tilted', tilted, p, tilted.cells[p.key], settings));
+          lines.push(csvLine(sheet.label, second(p.key), tilted, p, tilted.cells[p.key], settings));
         }
       }
     });
@@ -163,9 +174,9 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
  * The band statistics table as shown, for a spreadsheet: a header row (Parameter, then each sub-band with its file
  * count) and a line per parameter with the cell text (`original → tilted` under a simulation). Tab-separated.
  */
-export function bandTsv(columns: readonly BandColumn[], tilted: readonly BandColumn[] | null, settings: AnalysisSettings, horizonCut = false): string {
+export function bandTsv(columns: readonly BandColumn[], tilted: readonly BandColumn[] | null, settings: AnalysisSettings, horizonCut = false, tiltActive = true): string {
   // Only the sub-band names are user text (formula-guarded); the labels and cells are computed, so they only lose tabs and line breaks.
-  const header = [tilted && horizonCut ? 'Parameter [tilted: H cut at the horizon]' : 'Parameter', ...columns.map((c) => `${tsvText(c.subBand.name)} (${filesText(c.files)})`)];
+  const header = [tilted && horizonCut ? (tiltActive ? 'Parameter [tilted: H cut at the horizon]' : `Parameter ${AT_HORIZON_TAG}`) : 'Parameter', ...columns.map((c) => `${tsvText(c.subBand.name)} (${filesText(c.files)})`)];
   const lines = BAND_PARAMS.map((p) => [
     tabSafe(bandParamLabel(p, settings)),
     ...columns.map((c, i) => tabSafe(cellDisplay(c.cells[p.key], tilted?.[i].cells[p.key]).text)),
