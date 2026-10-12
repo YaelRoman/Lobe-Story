@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASSUMED_MS_PER_TRACE, expectedUpdateMs, HINT_AFTER_MS, showsUpdateHint } from './updateHint';
+import { ASSUMED_MS_PER_TRACE, expectedUpdateMs, HINT_AFTER_MS, showsUpdateHint, timedCost } from './updateHint';
 
 describe('the "Updating the plots…" hint', () => {
   it('expects a redraw to take as long per trace as the last one did', () => {
@@ -29,5 +29,18 @@ describe('the "Updating the plots…" hint', () => {
     expect(showsUpdateHint({ ms: 300, traces: 192 }, 192)).toBe(false);
     expect(showsUpdateHint({ ms: 301, traces: 192 }, 192)).toBe(true);
     expect(showsUpdateHint({ ms: 400, traces: 60 }, 60)).toBe(true);
+  });
+});
+
+describe('timing a redraw', () => {
+  it('is its duration and the traces it drew', () => {
+    expect(timedCost({ started: 1000, hidden: false }, 1420, 192)).toEqual({ ms: 420, traces: 192 });
+  });
+
+  it('is not taken from a redraw during which the page was hidden: it would announce every later redraw', () => {
+    // A tab left for a minute while two traces were being drawn.
+    expect(timedCost({ started: 1000, hidden: true }, 61000, 2)).toBeNull();
+    // The sample it would have been: 24 traces would get the hint for good.
+    expect(showsUpdateHint({ ms: 60000, traces: 2 }, 24)).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
 /** A redraw of the cut plots expected to take longer than this shows "Updating the plots…" while it runs. */
 export const HINT_AFTER_MS = 300;
@@ -54,4 +54,42 @@ export function usePaintFirst<T>(value: T, hold: boolean): T {
     };
   }, [value, hold, released]);
   return hold ? released : value;
+}
+
+/** A redraw that is being timed: when it started, and whether the page was hidden at any moment since. */
+export interface TimedUpdate {
+  started: number;
+  hidden: boolean;
+}
+
+/**
+ * What a redraw that ended at `endedAt` says about the machine, or null when it says nothing: a hidden page draws
+ * late or not at all, so a redraw that began or ran while the page was hidden would be taken for a very slow one,
+ * and every small redraw after it would show the hint.
+ */
+export function timedCost(run: TimedUpdate, endedAt: number, traces: number): UpdateCost | null {
+  return run.hidden ? null : { ms: endedAt - run.started, traces };
+}
+
+/**
+ * Times the redraws of the cut plots: while `updating` is set a redraw runs, and when it ends its cost (of `traces`
+ * drawn traces) is noted in `cost`, which the next redraw's hint goes by (see `showsUpdateHint`).
+ */
+export function useUpdateCost(cost: RefObject<UpdateCost | null>, updating: boolean, traces: number): void {
+  const run = useRef<TimedUpdate | null>(null);
+  useEffect(() => {
+    const noteHidden = () => {
+      if (run.current && document.visibilityState !== 'visible') run.current.hidden = true;
+    };
+    document.addEventListener('visibilitychange', noteHidden);
+    return () => document.removeEventListener('visibilitychange', noteHidden);
+  }, []);
+  useEffect(() => {
+    if (updating) run.current ??= { started: performance.now(), hidden: document.visibilityState !== 'visible' };
+    else if (run.current !== null) {
+      const timed = timedCost({ ...run.current, hidden: run.current.hidden || document.visibilityState !== 'visible' }, performance.now(), traces);
+      if (timed) cost.current = timed;
+      run.current = null;
+    }
+  }, [cost, updating, traces]);
 }

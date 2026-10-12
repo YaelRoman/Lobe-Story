@@ -278,10 +278,17 @@ test('3D: scenes that a redraw drops release their WebGL contexts, so the browse
   const made = await page.evaluate(() => (window as unknown as { __gl: { made: number } }).__gl.made);
   const mech = page.getByRole('group', { name: 'Mechanical tilt (°)' }).locator('input[type="number"]');
   if (!(await mech.isVisible())) await page.getByRole('button', { name: /Simulation/ }).first().click();
+  // Count the 3D chart's finished draws from here on: the tilted surfaces are on screen when one has ended.
+  await page.evaluate(() => {
+    const w = window as unknown as { __drawn3d: number };
+    w.__drawn3d = 0;
+    (document.querySelector('[data-testid="plot-3d"] .js-plotly-plot') as unknown as { on: (event: string, cb: () => void) => void }).on('plotly_afterplot', () => w.__drawn3d++);
+  });
   await mech.fill('10');
   await mech.press('Enter');
   await expect(page.locator('.sim-bar').getByText('Simulated')).toBeVisible();
-  await page.waitForTimeout(1500);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __drawn3d: number }).__drawn3d), { timeout: 20000 }).toBeGreaterThan(0);
+  await expect(page.getByText('Updating the 3D view…')).toHaveCount(0);
   await expect(scenes).toHaveCount(6);
   expect(await page.evaluate(() => (window as unknown as { __gl: { made: number } }).__gl.made)).toBe(made);
   // Leaving 3D releases all of them.

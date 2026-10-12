@@ -12,7 +12,7 @@ import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend } from './legend';
 import { PlotlyChart, type FigureOverlay } from './PlotlyChart';
 import { PlotBoundary } from './ErrorBoundary';
-import { showsUpdateHint, usePaintFirst, type UpdateCost } from './updateHint';
+import { showsUpdateHint, usePaintFirst, useUpdateCost, type UpdateCost } from './updateHint';
 import { Pattern3D } from './Pattern3D';
 import { SimulationBar } from './SimulationBar';
 import { Seg } from './Seg';
@@ -210,15 +210,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
   const drawing = (view.cut !== 'V' && behind(finished.h, figures.h)) || (view.cut !== 'H' && behind(finished.v, figures.v));
   const updating = pending || drawing;
   const drawnTraces = (view.cut !== 'V' ? figures.h.traces : 0) + (view.cut !== 'H' ? figures.v.traces : 0);
-  const started = useRef<number | null>(null);
-  useEffect(() => {
-    if (updating) started.current ??= performance.now();
-    else if (started.current !== null) {
-      // A hidden page draws late or not at all: that says nothing about the machine.
-      if (document.visibilityState === 'visible') cost.current = { ms: performance.now() - started.current, traces: drawnTraces };
-      started.current = null;
-    }
-  }, [updating, drawnTraces]);
+  useUpdateCost(cost, updating, drawnTraces);
 
   const byGroup = styles.size > PER_FILE_COLOURS;
 
@@ -354,7 +346,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
           {is3d ? (
             <Pattern3D items={items} colors={colors} sim={sim} />
           ) : (
-                  <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} />
+            <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} />
           )}
         </PlotBoundary>
       )}
