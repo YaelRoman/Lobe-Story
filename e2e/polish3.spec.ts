@@ -253,3 +253,21 @@ test.describe('3D side by side titles', () => {
     });
   }
 });
+
+test('on a phone the chart toolbar lies in a strip above each plot, not over its title or labels', async ({ page }) => {
+  await loadExample(page, 390, 844);
+  for (const id of ['plot-h', 'plot-v', 'plot-hpbw']) {
+    const plot = page.getByTestId(id);
+    await plot.scrollIntoViewIfNeeded();
+    const { bar, box } = await plot.evaluate((el) => {
+      const b = el.querySelector('.modebar-container')!.getBoundingClientRect();
+      const p = el.getBoundingClientRect();
+      return { bar: { top: b.top, bottom: b.bottom, left: b.left, right: b.right }, box: { top: p.top, left: p.left, right: p.right } };
+    });
+    expect(bar.top + 30, id).toBeGreaterThan(0); // on screen
+    expect(await plot.locator('.modebar-btn').count(), id).toBeGreaterThan(0);
+    const btn = (await plot.locator('.modebar-btn').first().boundingBox())!;
+    expect(btn.y + btn.height, `${id}: toolbar bottom ${btn.y + btn.height} against plot top ${box.top}`).toBeLessThanOrEqual(box.top + 1);
+    expect(btn.x).toBeGreaterThanOrEqual(box.left - 1);
+  }
+});
