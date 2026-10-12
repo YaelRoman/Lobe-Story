@@ -91,7 +91,7 @@ export default function App() {
             <EmptyState onHelp={openHelp} />
           ) : (
             <>
-              {/* Each chart has its own boundary (see PlotlyChart); these also catch an error while a figure is built. */}
+              {/* A figure that cannot be built or drawn fails inside its own box, below the controls (see PlotArea, HpbwChart and PlotlyChart). These are the last line for anything else in the two regions. */}
               <PlotBoundary className="plot">
                 <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} />
               </PlotBoundary>

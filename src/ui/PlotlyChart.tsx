@@ -60,7 +60,7 @@ export interface FigureOverlay {
  */
 export function PlotlyChart(props: Props) {
   return (
-    <PlotBoundary className={props.className} onError={() => props.onDrawn?.(props.figure, props.overlay)}>
+    <PlotBoundary className={props.className} resetKeys={[props.figure, props.overlay, props.toolbar]} onError={() => props.onDrawn?.(props.figure, props.overlay)}>
       <Chart {...props} />
     </PlotBoundary>
   );

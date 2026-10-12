@@ -15,18 +15,40 @@ interface PlotBoundaryProps {
   className?: string;
   /** Called when an error was caught (the plot will not report that it was drawn). */
   onError?: () => void;
+  /**
+   * What the plot is made from (its figure, the plot type…). When one of them is another object or value than at the
+   * time of the error, the message goes away and the plot is tried again: unticking the offending file or changing
+   * the plot type is enough, "Try again" is not needed.
+   */
+  resetKeys?: readonly unknown[];
   children?: ReactNode;
 }
 
+const sameKeys = (a: readonly unknown[] | undefined, b: readonly unknown[] | undefined): boolean =>
+  a === b || (a !== undefined && b !== undefined && a.length === b.length && a.every((v, i) => Object.is(v, b[i])));
+
 /**
  * Keeps an error thrown while a plot is built or drawn inside that plot's region: the toolbar, the file panel and
- * the table stay. "Try again" mounts the plot anew.
+ * the table stay. "Try again" mounts the plot anew, and so does a change of the `resetKeys`.
  */
-export class PlotBoundary extends Component<PlotBoundaryProps, Caught> {
-  state: Caught = { error: null };
+interface PlotCaught extends Caught {
+  /** The reset keys the plot failed with (`recorded`: they have been noted since the error). */
+  failedWith: readonly unknown[] | undefined;
+  recorded: boolean;
+}
 
-  static getDerivedStateFromError(error: unknown): Caught {
-    return { error: messageOf(error) };
+export class PlotBoundary extends Component<PlotBoundaryProps, PlotCaught> {
+  state: PlotCaught = { error: null, failedWith: undefined, recorded: false };
+
+  static getDerivedStateFromError(error: unknown): Partial<PlotCaught> {
+    return { error: messageOf(error), recorded: false };
+  }
+
+  // Only keys other than the ones the plot failed with are worth another try: the same ones would fail the same way, forever.
+  static getDerivedStateFromProps(props: PlotBoundaryProps, state: PlotCaught): Partial<PlotCaught> | null {
+    if (state.error === null) return null;
+    if (!state.recorded) return { failedWith: props.resetKeys, recorded: true };
+    return sameKeys(state.failedWith, props.resetKeys) ? null : { error: null, recorded: false };
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo): void {
@@ -43,7 +65,7 @@ export class PlotBoundary extends Component<PlotBoundaryProps, Caught> {
           <strong>This plot could not be drawn</strong>
         </p>
         <p className="plot-failed-detail">{error}</p>
-        <button type="button" onClick={() => this.setState({ error: null })}>
+        <button type="button" onClick={() => this.setState({ error: null, recorded: false })}>
           Try again
         </button>
       </div>

@@ -80,6 +80,69 @@ describe('error boundaries', () => {
       expect(host.querySelector('[data-testid="drawn"]')).not.toBeNull();
     });
 
+    describe('reset keys (what the plot is made from)', () => {
+      let renders = 0;
+      function Counted() {
+        renders++;
+        return createElement(Plot);
+      }
+      const keyed = (...resetKeys: unknown[]) => createElement(PlotBoundary, { resetKeys }, createElement(Counted));
+      beforeEach(() => {
+        renders = 0;
+      });
+
+      it('clears the message by itself when a key changes, and draws the plot', () => {
+        const figure = { data: [] };
+        failure = 'bad figure';
+        render(keyed(figure, 'polar'));
+        expect(host.querySelector('[role="alert"]')!.textContent).toContain('bad figure');
+        // The same inputs again (the page re-renders for another reason): the message stays, the plot is not tried again.
+        failure = null;
+        const tried = renders;
+        render(keyed(figure, 'polar'));
+        expect(host.querySelector('[role="alert"]')).not.toBeNull();
+        expect(renders).toBe(tried);
+        // Another plot type: the plot is drawn without "Try again".
+        render(keyed(figure, 'rect'));
+        expect(host.querySelector('[role="alert"]')).toBeNull();
+        expect(host.querySelector('[data-testid="drawn"]')).not.toBeNull();
+      });
+
+      it('shows the new error when the changed inputs fail as well, without trying over and over', () => {
+        failure = 'first';
+        render(keyed(1));
+        failure = 'second';
+        const tried = renders;
+        render(keyed(2));
+        expect(host.querySelector('[role="alert"]')!.textContent).toContain('second');
+        // One attempt for the new inputs (React itself renders a failing component twice before giving up).
+        expect(renders - tried).toBeLessThanOrEqual(2);
+        const settled = renders;
+        render(keyed(2));
+        expect(renders).toBe(settled);
+      });
+
+      it('a different number of keys counts as a change; without keys only "Try again" clears it', () => {
+        failure = 'x';
+        render(keyed(1));
+        failure = null;
+        render(keyed(1, 2));
+        expect(host.querySelector('[role="alert"]')).toBeNull();
+        failure = 'y';
+        render(page());
+        failure = null;
+        render(page());
+        expect(host.querySelector('[role="alert"]')).not.toBeNull();
+      });
+
+      it('tells its owner that the plot failed', () => {
+        const onError = vi.fn();
+        failure = 'x';
+        render(createElement(PlotBoundary, { onError }, createElement(Plot)));
+        expect(onError).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it('catches what a plot throws from an effect and from its clean-up', async () => {
       const { useEffect } = await import('react');
       let throwOnCleanup = false;

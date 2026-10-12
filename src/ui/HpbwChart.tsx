@@ -1,4 +1,7 @@
 import { memo, useMemo } from 'react';
+import { PlotBoundary } from './ErrorBoundary';
+import type { Figure } from './figureTheme';
+import type { ExportCaption } from './exportFigure';
 import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
@@ -55,7 +58,8 @@ export const HpbwChart = memo(function HpbwChart({
   const refDrawn = reference !== null && sim.metrics.has(reference) && groups.some((g) => g.items.some((i) => i.pattern.id === reference && hasUsableFrequency(i.pattern.frequencyMHz)));
   const leftOut = useMemo(() => groups.reduce((n, g) => n + g.items.filter((i) => visible[i.pattern.id] && !hasUsableFrequency(i.pattern.frequencyMHz)).length, 0), [groups, visible]);
 
-  const figure = useMemo(() => {
+  // The series are put together here; the figure itself is built inside the chart's error boundary (see `FrequencyPlot`).
+  const build = useMemo<(() => Figure) | null>(() => {
     const series: HpbwSeries[] = [];
     const single: MetricSeries[] = [];
     // Above ten visible files the files are coloured by group: the group's line takes the colour of its place among all groups (see colors.ts).
@@ -96,10 +100,10 @@ export const HpbwChart = memo(function HpbwChart({
     const freq = refItem?.pattern.frequencyMHz ?? 0;
     if (both) {
       const ref = refMetrics ? { label: refLabel, point: { freq, h: refMetrics.h.hpbw.value, v: refMetrics.v.hpbw.value } } : undefined;
-      return series.length ? buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb, ref) : null;
+      return series.length ? () => buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb, ref) : null;
     }
     const ref = refMetrics ? { label: refLabel, point: { freq, value: cellsOf(refMetrics)[metric].value } } : undefined;
-    return single.length ? buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref) : null;
+    return single.length ? () => buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref) : null;
   }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, column.unit, reference]);
 
   const method3d = useStore((s) => s.view.method3d);
@@ -114,7 +118,7 @@ export const HpbwChart = memo(function HpbwChart({
   );
 
   const note = leftOut > 0 ? <p className="count" data-testid="freq-left-out">{leftOutText(leftOut)}</p> : null;
-  if (!figure) return note && <section>{note}</section>;
+  if (!build) return note && <section>{note}</section>;
   const heading = both ? bwName(levelDb) : label;
   return (
     <section>
@@ -140,18 +144,25 @@ export const HpbwChart = memo(function HpbwChart({
         </div>
       </div>
       {note}
-      <PlotlyChart
-        className="plot wide"
-        figure={figure}
-        testId="plot-hpbw"
-        toolbar="xy"
-        ariaLabel={
-          both
-            ? `${levelDb === 3 ? 'Half-power beamwidth' : `Beamwidth at ${levelDb} dB`} against frequency, one line per group`
-            : `${label} (${column.unit}) against frequency, one line per group`
-        }
-        labelledExport={{ caption: exportCaption, filename: exportName(both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency`, simulationActive(sim)) }}
-      />
+      {/* A figure that cannot be built or drawn fails in the chart's place: the heading and the Metric menu stay, and another metric or other files clear it. */}
+      <PlotBoundary className="plot wide" resetKeys={[build]}>
+        <FrequencyPlot
+          build={build}
+          ariaLabel={
+            both
+              ? `${levelDb === 3 ? 'Half-power beamwidth' : `Beamwidth at ${levelDb} dB`} against frequency, one line per group`
+              : `${label} (${column.unit}) against frequency, one line per group`
+          }
+          caption={exportCaption}
+          filename={exportName(both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency`, simulationActive(sim))}
+        />
+      </PlotBoundary>
     </section>
   );
 });
+
+/** The frequency chart itself: builds the figure and draws it. */
+function FrequencyPlot({ build, ariaLabel, caption, filename }: { build: () => Figure; ariaLabel: string; caption: ExportCaption | undefined; filename: string }) {
+  const figure = useMemo(build, [build]);
+  return <PlotlyChart className="plot wide" figure={figure} testId="plot-hpbw" toolbar="xy" ariaLabel={ariaLabel} labelledExport={{ caption, filename }} />;
+}

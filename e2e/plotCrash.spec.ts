@@ -117,3 +117,40 @@ test('a plot that throws while it redraws is replaced by a message; the rest of 
   while ((await failed.count()) > 0) await failed.first().getByRole('button', { name: 'Try again' }).click();
   await expect(page.getByTestId('plot-h').locator('.scatterlayer .trace .lines path')).toHaveCount(2);
 });
+
+test('the message of a plot that failed goes away by itself when what the plot is made from changes', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', 1910), file('b.msi', 1930)]);
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  await showAll(page, 2);
+  await expect(page.getByTestId('plot-h').locator('.polarlayer')).toHaveCount(1);
+
+  await page.evaluate(() => {
+    const original = Element.prototype.querySelector;
+    const w = window as unknown as { restoreQuerySelector: () => void };
+    w.restoreQuerySelector = () => {
+      Element.prototype.querySelector = original;
+    };
+    Element.prototype.querySelector = function (this: Element, selector: string) {
+      if (selector.startsWith('.cb')) throw new SyntaxError('injected: not a valid selector');
+      return original.call(this, selector);
+    } as typeof original;
+  });
+  await page.getByRole('button', { name: 'Rectangular', exact: true }).click();
+  const failed = page.getByRole('alert').filter({ hasText: 'This plot could not be drawn' });
+  await expect(failed).toHaveCount(2);
+  // The plot controls are above the failed plots, not replaced by them.
+  await expect(page.getByRole('group', { name: 'Plot type' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Cut' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Markers/ })).toBeVisible();
+
+  // Nothing the plots are made from has changed yet: the messages stay.
+  await page.evaluate(() => (window as unknown as { restoreQuerySelector: () => void }).restoreQuerySelector());
+  await expect(failed).toHaveCount(2);
+
+  // Unticking a file is a change of the figure: both plots are drawn again, nobody pressed "Try again".
+  await page.locator('.panel li', { hasText: 'b.msi' }).locator('input[type="checkbox"]').uncheck();
+  await expect(failed).toHaveCount(0);
+  await expect(page.getByTestId('plot-h').locator('.scatterlayer .trace .lines path')).toHaveCount(1);
+  await expect(page.getByTestId('plot-v').locator('.scatterlayer .trace .lines path')).toHaveCount(1);
+});
