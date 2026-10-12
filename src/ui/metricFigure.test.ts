@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlotData } from 'plotly.js';
-import { buildMetricFigure, metricAxisTitle, metricCaption, minSpanForUnit, noValueNote, noValues } from './metricFigure';
+import { buildMetricFigure, metricAxisTitle, metricCaption, minSpanForUnit, noValueNote, noValues, coincidingNote } from './metricFigure';
 import { FIGURE_THEMES } from './figureTheme';
 
 const traces = (f: { data: unknown[] }) => f.data as Partial<PlotData>[];
@@ -93,5 +93,27 @@ describe('no value for the metric', () => {
     );
     expect(noValueNote('SPR', [undefined])).toBe('No file has a value for SPR.');
     expect(noValueNote('F/B', ['a', 'b'])).toBe('No file has a value for F/B: a; b.');
+  });
+});
+
+describe('coincidingNote', () => {
+  const line = (label: string, ...v: (number | null)[]) => ({ label, points: v.map((value, i) => ({ freq: 1700 + 100 * i, value })) });
+
+  it('names lines that are exactly on top of each other, joined with " = "', () => {
+    expect(coincidingNote([line('+45 · 2°T', 20, 21), line('-45 · 2°T', 20, 21), line('+45 · 5°T', 22, 23)])).toBe('2 lines coincide: +45 · 2°T = -45 · 2°T.');
+    expect(coincidingNote([line('A', 1, 2), line('B', 1, 2), line('C', 1, 2), line('D', 5, 6), line('E', 5, 6)])).toBe('3 lines coincide: A = B = C; 2 lines coincide: D = E.');
+  });
+
+  it('is null when every line differs, and ignores lines without a number and tiny float noise only below 1e-6', () => {
+    expect(coincidingNote([line('A', 1, 2), line('B', 1, 2.1)])).toBeNull();
+    expect(coincidingNote([line('A', null, null), line('B', null, null)])).toBeNull();
+    expect(coincidingNote([line('A', 1, null), line('B', 1, 2)])).toBeNull();
+    expect(coincidingNote([line('A', 1, 2), line('B', 1.0000000001, 2)])).toBe('2 lines coincide: A = B.');
+    expect(coincidingNote([])).toBeNull();
+  });
+
+  it('keeps the note short when there are many sets', () => {
+    const many = ['a', 'b', 'c', 'd'].flatMap((x, i) => [line(`${x}1`, i, i), line(`${x}2`, i, i)]);
+    expect(coincidingNote(many)).toBe('2 lines coincide: a1 = a2; 2 lines coincide: b1 = b2; 2 lines coincide: c1 = c2; 1 more set.');
   });
 });

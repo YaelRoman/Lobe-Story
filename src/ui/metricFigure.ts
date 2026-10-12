@@ -58,6 +58,32 @@ export function noValueNote(label: string, reasons: (string | undefined)[]): str
   return `No file has a value for ${label}${why.length ? `: ${why.join('; ')}` : ''}.`;
 }
 
+/** One drawn line reduced to what makes it look the same as another: its label and its points as text. */
+export interface LineSignature {
+  label: string;
+  points: { freq: number; value: number | null }[];
+}
+
+const signatureText = (l: LineSignature): string => l.points.map((p) => `${p.freq}:${p.value === null ? '-' : p.value.toFixed(6)}`).join('|');
+
+/**
+ * "2 lines coincide: A = B": lines whose points are exactly the same are drawn on top of each other, so the legend
+ * lists more lines than the chart shows. Null when no two lines coincide (a line without any number never does).
+ */
+export function coincidingNote(lines: LineSignature[], maxSets = 3): string | null {
+  const bySignature = new Map<string, string[]>();
+  for (const l of lines) {
+    if (!l.points.some((p) => p.value !== null)) continue;
+    const key = signatureText(l);
+    bySignature.set(key, [...(bySignature.get(key) ?? []), l.label]);
+  }
+  const sets = [...bySignature.values()].filter((labels) => labels.length > 1);
+  if (!sets.length) return null;
+  const text = sets.slice(0, maxSets).map((labels) => `${labels.length} lines coincide: ${labels.join(' = ')}`);
+  if (sets.length > maxSets) text.push(`${sets.length - maxSets} more ${sets.length - maxSets === 1 ? 'set' : 'sets'}`);
+  return `${text.join('; ')}.`;
+}
+
 /** One y axis: `label (unit)` against frequency, a line per group, gaps where a file has no value. */
 export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, label: string, unit: string, reference?: MetricReference): Figure {
   // Plotly has `meta` (the export reads it as the full legend name); @types/plotly.js does not declare it.

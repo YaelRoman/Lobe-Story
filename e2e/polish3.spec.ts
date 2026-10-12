@@ -19,3 +19,19 @@ test('a metric no file has a value for says so in place of an empty chart', asyn
   await expect(page.getByTestId('plot-hpbw')).toBeVisible();
   await expect(note).toHaveCount(0);
 });
+
+test('lines of the frequency chart that lie exactly on top of each other are named under it', async ({ page }) => {
+  await loadExample(page);
+  const menu = page.getByLabel('Metric', { exact: true });
+  const group = page.locator('.group header input[type="checkbox"]');
+  for (let i = 0; i < (await group.count()); i++) await group.nth(i).check();
+  await menu.selectOption({ label: 'F/B 180° (dB)' });
+  // The example's +45 and −45 groups are the same patterns: their lines coincide.
+  const note = page.getByTestId('freq-coincide');
+  await expect(note).toContainText('lines coincide:');
+  await expect(note).toContainText(' = ');
+  // With one ticked file only its own group is drawn: nothing to coincide with.
+  await page.getByRole('button', { name: 'Show none', exact: true }).click();
+  await page.locator('.panel li input[type="checkbox"]').first().check();
+  await expect(note).toHaveCount(0);
+});

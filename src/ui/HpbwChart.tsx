@@ -6,7 +6,7 @@ import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
-import { buildMetricFigure, metricCaption, noValueNote, noValues, type MetricSeries } from './metricFigure';
+import { buildMetricFigure, coincidingNote, metricCaption, noValueNote, noValues, type LineSignature, type MetricSeries } from './metricFigure';
 import { cellsOf, columnLabel, COLUMN_GROUPS, METRIC_COLUMNS, type MetricColumn } from './table';
 import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
@@ -59,7 +59,7 @@ export const HpbwChart = memo(function HpbwChart({
   const leftOut = useMemo(() => groups.reduce((n, g) => n + g.items.filter((i) => visible[i.pattern.id] && !hasUsableFrequency(i.pattern.frequencyMHz)).length, 0), [groups, visible]);
 
   // The series are put together here; the figure itself is built inside the chart's error boundary (see `FrequencyPlot`).
-  const { build, empty } = useMemo<{ build: (() => Figure) | null; empty: string | null }>(() => {
+  const { build, empty, coincide } = useMemo<{ build: (() => Figure) | null; empty: string | null; coincide: string | null }>(() => {
     const series: HpbwSeries[] = [];
     const single: MetricSeries[] = [];
     // Above ten visible files the files are coloured by group: the group's line takes the colour of its place among all groups (see colors.ts).
@@ -100,16 +100,18 @@ export const HpbwChart = memo(function HpbwChart({
     const freq = refItem?.pattern.frequencyMHz ?? 0;
     if (both) {
       const ref = refMetrics ? { label: refLabel, point: { freq, h: refMetrics.h.hpbw.value, v: refMetrics.v.hpbw.value } } : undefined;
-      return { build: series.length ? () => buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb, ref) : null, empty: null };
+      // A line is the same as another only when both its panels are (the vertical points are told apart by a negative frequency).
+      const lines: LineSignature[] = series.filter((s) => !s.ghost).map((s) => ({ label: s.label, points: [...s.points.map((p) => ({ freq: p.freq, value: p.h })), ...s.points.map((p) => ({ freq: -p.freq, value: p.v }))] }));
+      return { build: series.length ? () => buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb, ref) : null, empty: null, coincide: coincidingNote(lines) };
     }
     const ref = refMetrics ? { label: refLabel, point: { freq, value: cellsOf(refMetrics)[metric].value } } : undefined;
-    if (!single.length) return { build: null, empty: null };
+    if (!single.length) return { build: null, empty: null, coincide: null };
     // Nothing to draw at a number: say so (with the reasons the table's tooltips give) instead of an empty chart.
     if (noValues(single, ref)) {
       const reasons = groups.flatMap((g) => g.items.map((i) => { const m = sim.metrics.get(i.pattern.id); return m ? cellsOf(m)[metric].reason : undefined; }));
-      return { build: null, empty: noValueNote(label, reasons) };
+      return { build: null, empty: noValueNote(label, reasons), coincide: null };
     }
-    return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref), empty: null };
+    return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref), empty: null, coincide: coincidingNote(single.filter((s) => !s.ghost)) };
   }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, column.unit, reference]);
 
   const method3d = useStore((s) => s.view.method3d);
@@ -176,6 +178,7 @@ export const HpbwChart = memo(function HpbwChart({
         />
       </PlotBoundary>
       )}
+      {coincide && <p className="count" data-testid="freq-coincide">{coincide}</p>}
     </section>
   );
 });
