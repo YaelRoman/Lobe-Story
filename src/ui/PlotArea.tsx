@@ -4,7 +4,7 @@ import { useStore, type CutView, type Dimension, type Layout3d, type MarkerKey, 
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout } from './cutFigure';
-import { exportName, simulatedCaption, simulationActive } from './simSummary';
+import { exportName, simulatedCaption } from './simSummary';
 import { withSimulated } from './exportFigure';
 import { bwMarkerLabel } from './bwLabel';
 import { buildCutSeries, withReference } from './cutSeries';
@@ -12,7 +12,7 @@ import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend, traceNote } from './legend';
 import { PlotlyChart, type FigureOverlay } from './PlotlyChart';
 import { PlotBoundary } from './ErrorBoundary';
-import { showsUpdateHint, usePaintFirst, useUpdateCost, type UpdateCost } from './updateHint';
+import { expectedTraceCount, showsUpdateHint, usePaintFirst, useUpdateCost, type UpdateCost } from './updateHint';
 import { Pattern3D } from './Pattern3D';
 import { SimulationBar } from './SimulationBar';
 import { SKIP_TARGETS } from './SkipLinks';
@@ -149,7 +149,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
   );
   // How long the last redraw took: one expected to take over 300 ms shows the hint, and is held back until the hint is painted.
   const cost = useRef<UpdateCost | null>(null);
-  const expectedTraces = (view.cut === 'both' ? 2 : 1) * drawnItems.length * (sim.showOriginal && simulationActive(sim) ? 2 : 1);
+  const expectedTraces = expectedTraceCount(view.cut, drawnItems.map((i) => i.pattern.id), sim.showOriginal, sim.showsSimulatedH, sim.isTiltedId);
   const hint = showsUpdateHint(cost.current, expectedTraces);
   const drawn = useDeferredValue(usePaintFirst(inputs, hint));
   const pending = drawn !== inputs;

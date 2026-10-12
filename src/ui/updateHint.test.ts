@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASSUMED_MS_PER_TRACE, expectedUpdateMs, HINT_AFTER_MS, showsUpdateHint, timedCost } from './updateHint';
+import { ASSUMED_MS_PER_TRACE, expectedTraceCount, expectedUpdateMs, HINT_AFTER_MS, showsUpdateHint, timedCost } from './updateHint';
 
 describe('the "Updating the plots…" hint', () => {
   it('expects a redraw to take as long per trace as the last one did', () => {
@@ -42,5 +42,21 @@ describe('timing a redraw', () => {
     expect(timedCost({ started: 1000, hidden: true }, 61000, 2)).toBeNull();
     // The sample it would have been: 24 traces would get the hint for good.
     expect(showsUpdateHint({ ms: 60000, traces: 2 }, 24)).toBe(true);
+  });
+});
+
+describe('expectedTraceCount', () => {
+  const ids = ['a', 'b', 'c'];
+  const all = () => true;
+  const none = () => false;
+  it('counts a dashed original only for a cut the simulation changes', () => {
+    // At the horizon with no tilt: every horizontal cut is simulated, no vertical cut is.
+    expect(expectedTraceCount('H', ids, true, all, none)).toBe(6);
+    expect(expectedTraceCount('V', ids, true, all, none)).toBe(3);
+    expect(expectedTraceCount('both', ids, true, all, none)).toBe(9);
+  });
+  it('counts no originals when they are off, and only the tilted files for the vertical cut', () => {
+    expect(expectedTraceCount('both', ids, false, all, all)).toBe(6);
+    expect(expectedTraceCount('V', ids, true, all, (id) => id === 'b')).toBe(4);
   });
 });

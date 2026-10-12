@@ -25,6 +25,16 @@ export function expectedUpdateMs(last: UpdateCost | null, traces: number): numbe
 }
 
 /**
+ * How many traces the cut plots draw: for each cut shown, a trace per file and, with the originals on, a dashed one
+ * for each file whose cut the simulation changes (`changedH` for the horizontal cut: at the horizon that is every
+ * file; `changedV` for the vertical cut: a tilted file only).
+ */
+export function expectedTraceCount(cut: 'H' | 'V' | 'both', ids: readonly string[], showOriginal: boolean, changedH: (id: string) => boolean, changedV: (id: string) => boolean): number {
+  const count = (changed: (id: string) => boolean) => ids.length + (showOriginal ? ids.filter(changed).length : 0);
+  return (cut === 'V' ? 0 : count(changedH)) + (cut === 'H' ? 0 : count(changedV));
+}
+
+/**
  * Whether a redraw of `traces` traces gets the hint. The work blocks the page while it runs, so the hint cannot be
  * added once 300 ms have passed: it has to be on screen before the work starts, and so goes by the expected time.
  * Quick redraws get none (no flashing line above the plots).
