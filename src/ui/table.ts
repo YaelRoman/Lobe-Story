@@ -9,9 +9,9 @@ import type { ColumnGroupKey } from '../state/store';
 import type { Method3d } from '../core/analysis/pattern3d';
 import { bwName } from './bwLabel';
 import { fixed } from './fixed';
-import { METRIC_KEYS, type MetricColumn } from '../state/metricKeys';
+import { HORIZON_LEVEL_KEY, METRIC_KEYS, type MetricColumn, type TableColumn } from '../state/metricKeys';
 
-export { METRIC_KEYS, type MetricColumn, fixed };
+export { METRIC_KEYS, type MetricColumn, type TableColumn, fixed };
 
 export const COLUMN_GROUPS: { key: ColumnGroupKey; label: string }[] = [
   { key: 'beam', label: 'Beam' },
@@ -85,9 +85,46 @@ export function columnGroupTitle(key: ColumnGroupKey): string | undefined {
 const CSV_DEFAULT_COLUMNS = METRIC_COLUMNS.filter((c) => c.group !== ON_DEMAND_GROUP);
 
 /** Whether the angular-region estimate has to be computed: its group is shown, or the frequency chart plots one of its columns. */
-export function needsAngularRegions(groups: Record<ColumnGroupKey, boolean>, freqMetric: MetricColumn): boolean {
-  return groups[ON_DEMAND_GROUP] || COLUMN_INFO[freqMetric].group === ON_DEMAND_GROUP;
+export function needsAngularRegions(groups: Record<ColumnGroupKey, boolean>, freqMetric: TableColumn): boolean {
+  return groups[ON_DEMAND_GROUP] || (freqMetric !== HORIZON_LEVEL_KEY && COLUMN_INFO[freqMetric].group === ON_DEMAND_GROUP);
 }
+
+/** A column as the table, the exports and the chart menu list it. */
+export interface ColumnSpec {
+  key: TableColumn;
+  label: string;
+  unit: string;
+  group: ColumnGroupKey;
+}
+
+/**
+ * The Horizon level: how far the maximum of a row's horizon cut lies below the pattern's 3D peak. It is not among
+ * `METRIC_COLUMNS`: it exists only while the simulated horizontal cut is the one at the horizon (`withHorizonLevel`).
+ */
+export const HORIZON_LEVEL_COLUMN: ColumnSpec & { key: typeof HORIZON_LEVEL_KEY } = { key: HORIZON_LEVEL_KEY, label: 'Horizon level', unit: 'dB', group: 'beam' };
+
+/**
+ * `columns` with the Horizon level right after the horizontal beamwidth while the cut is the one at the horizon;
+ * `columns` itself otherwise, or when the horizontal beamwidth is not among them (the Beam group is hidden).
+ */
+export function withHorizonLevel<T extends ColumnSpec>(columns: readonly T[], horizonCut: boolean): readonly (T | typeof HORIZON_LEVEL_COLUMN)[] {
+  const at = horizonCut ? columns.findIndex((c) => c.key === 'hHpbw') : -1;
+  return at < 0 ? columns : [...columns.slice(0, at + 1), HORIZON_LEVEL_COLUMN, ...columns.slice(at + 1)];
+}
+
+/** What the frequency chart's Metric menu offers: the metric columns, and the Horizon level at the horizon. */
+export const chartColumns = (horizonCut: boolean): readonly ColumnSpec[] => withHorizonLevel(METRIC_COLUMNS, horizonCut);
+
+/** The metric the frequency chart plots: the stored one, or the beamwidths while the stored one is the Horizon level and the cut is not the one at the horizon. */
+export const shownChartMetric = (stored: TableColumn, horizonCut: boolean): TableColumn => (stored === HORIZON_LEVEL_KEY && !horizonCut ? 'hHpbw' : stored);
+
+const NO_HORIZON_LEVEL: MetricResult = { value: null, reason: 'Only a simulated horizon cut has a horizon level' };
+
+/** The Horizon level of a file's metrics: a value for a simulated horizon cut, missing (with the reason) for anything else. */
+const horizonLevelOf = (m: PatternMetrics | undefined): MetricResult => (m?.hCutPeakDb === undefined ? NO_HORIZON_LEVEL : { value: m.hCutPeakDb });
+
+/** One column's value of a file's metrics (what the frequency chart plots). */
+export const metricValue = (m: PatternMetrics, key: TableColumn): MetricResult => (key === HORIZON_LEVEL_KEY ? horizonLevelOf(m) : cellsOf(m)[key]);
 
 const METHOD_NAME: Record<Method3d, string> = { summation: 'Summation', weighted: 'Weighted' };
 
@@ -95,8 +132,8 @@ const METHOD_NAME: Record<Method3d, string> = { summation: 'Summation', weighted
  * A column's label where its numbers leave the table (CSV and copied headers, the frequency chart's axis and caption):
  * the angular-region estimate carries the 3D method, which changes it by several points; every other label is as given.
  */
-export function withMethod(key: MetricColumn, label: string, method: Method3d): string {
-  return COLUMN_INFO[key].group === ON_DEMAND_GROUP ? `${label} [${METHOD_NAME[method]}]` : label;
+export function withMethod(key: TableColumn, label: string, method: Method3d): string {
+  return key !== HORIZON_LEVEL_KEY && COLUMN_INFO[key].group === ON_DEMAND_GROUP ? `${label} [${METHOD_NAME[method]}]` : label;
 }
 
 /** The metric columns read from the horizontal cut: the ones that follow the choice of the simulated horizontal cut. */
@@ -111,20 +148,23 @@ const HORIZONTAL_KEYS: ReadonlySet<MetricColumn> = new Set<MetricColumn>([
 const FOLLOWS_H_CUT: ReadonlySet<MetricColumn> = new Set<MetricColumn>([...HORIZONTAL_KEYS, 'dH', 'dFb']);
 
 /** Whether a column is read from the horizontal cut, so that its values follow the simulated horizontal cut of an untilted file too. */
-export const followsHCut = (key: MetricColumn): boolean => FOLLOWS_H_CUT.has(key);
+export const followsHCut = (key: TableColumn): boolean => key === HORIZON_LEVEL_KEY || FOLLOWS_H_CUT.has(key);
+
+/** Whether a column holds `original → tilted` values read from the horizontal cut (the Horizon level is a single value). */
+const isHorizontal = (key: TableColumn): boolean => key !== HORIZON_LEVEL_KEY && HORIZONTAL_KEYS.has(key);
 
 /** What an export header adds to the tilted values of a horizontal column while the simulated cut is the one at the horizon (comma-free, like the 3D method). */
 export const HORIZON_TAG = '[horizon cut]';
 
 /** The tag for column `key`, with a leading space, or nothing: only horizontal columns, only when `horizonCut`. */
-const horizonTag = (key: MetricColumn, horizonCut: boolean): string => (horizonCut && HORIZONTAL_KEYS.has(key) ? ` ${HORIZON_TAG}` : '');
+const horizonTag = (key: TableColumn, horizonCut: boolean): string => (horizonCut && (key === HORIZON_LEVEL_KEY || isHorizontal(key)) ? ` ${HORIZON_TAG}` : '');
 
 /** The second half of the three angular-region tooltips: what kind of number this is. */
 const areNote = (method: Method3d): string =>
   `Estimate from the two co-polar cuts, integrated over the 3D reconstruction (3D method: ${METHOD_NAME[method]}, chosen in the Simulation bar); not BASTA-compliant, which needs the measured full sphere and total power. Beam Type A (macro) only: — when V-HPBW is outside 0.5–25° or H-HPBW outside 50–130°`;
 
 /** Header text for a column; the beamwidth, F/B window and USLS window labels depend on the current settings. */
-export function columnLabel(c: { key: MetricColumn; label: string }, fbWindowDeg: number, uslsRangeDeg = 20, levelDb = 3): string {
+export function columnLabel(c: { key: TableColumn; label: string }, fbWindowDeg: number, uslsRangeDeg = 20, levelDb = 3): string {
   if (c.key === 'hHpbw') return `H-${bwName(levelDb)}`;
   if (c.key === 'vHpbw') return `V-${bwName(levelDb)}`;
   if (c.key === 'dH') return `H-${bwName(levelDb)} − decl.`;
@@ -139,7 +179,7 @@ const DU_DB: Partial<Record<MetricColumn, number>> = { du16: 15, du64: 20, du256
 
 /** Header tooltip for a column; the sector columns depend on the sector settings (E, S). */
 export function columnTitle(
-  key: MetricColumn,
+  key: TableColumn,
   settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number; lobeLimitFactor?: number; levelDb?: number; fbWindowDeg?: number; method3d?: Method3d },
 ): string | undefined {
   const e = settings.sectorEdgeDeg;
@@ -207,6 +247,8 @@ export function columnTitle(
       return `Sector efficiency (after BASTA 7.2.4): power in the service region (within ±${e}° of boresight, from half a V-HPBW above the beam peak down to 75° below the horizon) as a share of the power over the whole sphere. ${areNote(method)}`;
     case 'areSpatial':
       return `Spatial efficiency (after BASTA 7.2.4): power in the service region (within ±${e}° of boresight) as a share of the power in the service and interference regions together (all azimuths, from one V-HPBW above the beam peak, at most the horizon, down to 75° below the horizon). ${areNote(method)}`;
+    case HORIZON_LEVEL_KEY:
+      return 'Horizon level: how far the strongest point of the horizon cut is below the strongest point of the whole pattern (the 3D peak), in dB. 0 dB means the beam peak is on the horizon; 10 dB means a tenth of the peak power reaches it, 20 dB a hundredth. When the level is large the horizon runs through a sidelobe or a null, and H-HPBW, H-BW 10 dB and Squint on this row describe that region, not the main beam. Subtract it from F/B, H-SLS or Roll-off to get the value against the cut itself.';
     case 'areLower':
       return `Lower region ratio (after BASTA 7.2.4): power from 75° below the horizon to straight down, all azimuths, as a share of the power over the whole sphere. ${areNote(method)}`;
     default:
@@ -226,6 +268,8 @@ export interface MetricsRow {
   cells: Record<MetricColumn, MetricResult>;
   /** Only the cells that should show `original → tilted`; absent cells stay single values. */
   tilted?: Partial<Record<MetricColumn, MetricResult>>;
+  /** The Horizon level, only for a row shown as a simulated horizon cut (in the difference view: the difference of two levels). */
+  hLevel?: MetricResult;
   /** The pinned reference file's row: marked, and in the difference view it keeps its own values. */
   isReference?: boolean;
   /** The cells hold differences from the reference (signed, one decimal) instead of values. */
@@ -310,6 +354,7 @@ export function buildRows(
         gain: convertGain(pattern.gain, gainUnit),
         cells: cellsOf(m),
         ...(tilted ? { tilted } : {}),
+        ...(tm?.hCutPeakDb !== undefined ? { hLevel: horizonLevelOf(tm) } : {}),
       });
     }
   }
@@ -330,7 +375,20 @@ export function tickedCountText(shownRows: number, totalRows: number, highlighte
   return highlightedRowHidden ? `${count} · the highlighted file is not ticked, so its row is hidden` : count;
 }
 
-const shown = (r: MetricsRow, key: MetricColumn): MetricResult => r.tilted?.[key] ?? r.cells[key];
+/** What a row holds for a column: the metric cell, or the Horizon level (missing, with the reason, on a row without one). */
+const cellOf = (r: MetricsRow, key: TableColumn): MetricResult => (key === HORIZON_LEVEL_KEY ? (r.hLevel ?? NO_HORIZON_LEVEL) : r.cells[key]);
+
+/** The simulated value of a row's cell where it has one (the Horizon level is a single value: it has none). */
+const tiltedOf = (r: MetricsRow, key: TableColumn): MetricResult | undefined => (key === HORIZON_LEVEL_KEY ? undefined : r.tilted?.[key]);
+
+const shown = (r: MetricsRow, key: TableColumn): MetricResult => tiltedOf(r, key) ?? cellOf(r, key);
+
+/** The difference of two shown values; missing (with the reason) when either side is. */
+function difference(mine: MetricResult, theirs: MetricResult): MetricResult {
+  return mine.value !== null && theirs.value !== null
+    ? { value: mine.value - theirs.value }
+    : { value: null, reason: mine.value === null ? (mine.reason ?? 'no value for this file') : 'the reference file has no value' };
+}
 
 /**
  * The rows with the reference file's row marked. With `delta`, every other row's cells and gain become the difference
@@ -351,20 +409,14 @@ export function markReference(rows: MetricsRow[], referenceId: string | null, de
     }
     if (!delta) return r;
     const cells = {} as Record<MetricColumn, MetricResult>;
-    for (const { key } of METRIC_COLUMNS) {
-      const mine = shown(r, key);
-      const theirs = shown(ref, key);
-      cells[key] =
-        mine.value !== null && theirs.value !== null
-          ? { value: mine.value - theirs.value }
-          : { value: null, reason: mine.value === null ? (mine.reason ?? 'no value for this file') : 'the reference file has no value' };
-    }
+    for (const { key } of METRIC_COLUMNS) cells[key] = difference(shown(r, key), shown(ref, key));
     const gain = r.gain !== null && ref.gain !== null ? r.gain - ref.gain : null;
-    return { ...r, cells, gain, tilted: undefined, isDelta: true };
+    const hLevel = r.hLevel || ref.hLevel ? { hLevel: difference(shown(r, HORIZON_LEVEL_KEY), shown(ref, HORIZON_LEVEL_KEY)) } : {};
+    return { ...r, cells, gain, ...hLevel, tilted: undefined, isDelta: true };
   });
 }
 
-export type SortKey = 'file' | 'group' | 'freq' | 'gain' | MetricColumn;
+export type SortKey = 'file' | 'group' | 'freq' | 'gain' | TableColumn;
 export interface SortState {
   key: SortKey;
   dir: 'asc' | 'desc';
@@ -393,7 +445,7 @@ export function sortValue(row: MetricsRow, key: SortKey): number | string | null
     case 'gain':
       return row.gain;
     default:
-      return (row.tilted?.[key] ?? row.cells[key]).value;
+      return shown(row, key).value;
   }
 }
 
@@ -465,7 +517,7 @@ export function clearOfSticky(cell: Box, area: Box, coveredLeft: number, covered
 const FIXED_SORT_KEYS: readonly SortKey[] = ['file', 'group', 'freq', 'gain'];
 
 /** The sort, or null when it orders by a metric column that is not displayed (a sort nobody can see or clear). */
-export function sortIfShown(sort: SortState | null, columns: readonly { key: MetricColumn }[]): SortState | null {
+export function sortIfShown(sort: SortState | null, columns: readonly { key: TableColumn }[]): SortState | null {
   if (!sort) return null;
   if (FIXED_SORT_KEYS.includes(sort.key) || columns.some((c) => c.key === sort.key)) return sort;
   return null;
@@ -488,9 +540,9 @@ export function shouldReveal(
  * Decimals of the columns that need more than the table's one (shown, copied) and the CSV's two: the lower region
  * ratio is a few thousandths of a percent to a few tenths, so the usual format would read 0.0 on almost every file.
  */
-const DECIMALS: Partial<Record<MetricColumn, { shown: number; csv: number }>> = { areLower: { shown: 3, csv: 4 } };
-const shownDecimals = (key: MetricColumn): number => DECIMALS[key]?.shown ?? 1;
-const csvDecimals = (key: MetricColumn): number => DECIMALS[key]?.csv ?? 2;
+const DECIMALS: Partial<Record<TableColumn, { shown: number; csv: number }>> = { areLower: { shown: 3, csv: 4 } };
+const shownDecimals = (key: TableColumn): number => DECIMALS[key]?.shown ?? 1;
+const csvDecimals = (key: TableColumn): number => DECIMALS[key]?.csv ?? 2;
 
 const fmt = (v: number | null, decimals = 2) => (v === null ? '' : fixed(v, decimals));
 /** One CSV field, quoted only where CSV syntax needs it. */
@@ -572,7 +624,7 @@ export function toCsv(
   levelDb = 3,
   deltaVs?: string,
   deltaTilted = false,
-  columns: readonly (typeof METRIC_COLUMNS)[number][] = CSV_DEFAULT_COLUMNS,
+  columns: readonly ColumnSpec[] = CSV_DEFAULT_COLUMNS,
   /** The 3D method the angular-region estimate was computed with; named in the headers of its columns. */
   method3d: Method3d = 'summation',
   /** The simulated values of the horizontal columns are of the cut at the horizon: their headers say so. */
@@ -582,8 +634,11 @@ export function toCsv(
   // The difference view has one column per metric (the difference of the shown values), whatever the simulation.
   const tilted = deltaVs === undefined && (typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim));
   const withSource = rows.some((r) => r.source !== r.file);
+  // The Horizon level is one value per row (a file cut has none), so it has one column where the others have two.
+  const paired = (c: ColumnSpec): boolean => tilted && c.key !== HORIZON_LEVEL_KEY;
   const metricHeader = columns.flatMap((c) => {
     const label = withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d);
+    if (c.key === HORIZON_LEVEL_KEY && deltaVs === undefined) return [`${label} ${HORIZON_TAG} (${c.unit})`];
     return tilted
       ? [`${label} original (${c.unit})`, `${label} tilted${horizonTag(c.key, horizonCut)} (${c.unit})`]
       : [columnHeader(label, c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted))];
@@ -607,8 +662,8 @@ export function toCsv(
       String(r.freq),
       fmt(r.gain),
       ...columns.flatMap((c) =>
-        tilted
-          ? [fmt(r.cells[c.key].value, csvDecimals(c.key)), fmt((r.tilted?.[c.key] ?? r.cells[c.key]).value, csvDecimals(c.key))]
+        paired(c)
+          ? [fmt(cellOf(r, c.key).value, csvDecimals(c.key)), fmt(shown(r, c.key).value, csvDecimals(c.key))]
           : [fmt(shown(r, c.key).value, csvDecimals(c.key))],
       ),
       ...(tilted && simFor
@@ -623,12 +678,13 @@ export function toCsv(
 }
 
 /** The text a table cell shows for a row and column (`original → tilted` under a simulation). */
-export const cellText = (r: MetricsRow, key: MetricColumn): string => rowCell(r, key).text;
+export const cellText = (r: MetricsRow, key: TableColumn): string => rowCell(r, key).text;
 
 /** What a row's cell shows (and its tooltip): the difference in the difference view, else the value (`original → tilted` under a simulation). */
-export function rowCell(r: MetricsRow, key: MetricColumn): { text: string; title?: string } {
-  if (r.isDelta) return { text: signedDecimals(r.cells[key].value, shownDecimals(key)), title: r.cells[key].reason };
-  return formatCell(r.cells[key], r.tilted?.[key], shownDecimals(key));
+export function rowCell(r: MetricsRow, key: TableColumn): { text: string; title?: string } {
+  const cell = cellOf(r, key);
+  if (r.isDelta) return { text: signedDecimals(cell.value, shownDecimals(key)), title: cell.reason };
+  return formatCell(cell, tiltedOf(r, key), shownDecimals(key));
 }
 
 /** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */
@@ -646,7 +702,7 @@ function signedTwoDecimals(v: number): string {
   return rounded === 0 ? '0.00' : rounded > 0 ? `+${rounded.toFixed(2)}` : rounded.toFixed(2);
 }
 
-type CopyColumn = { key: MetricColumn; label: string; unit: string };
+type CopyColumn = { key: TableColumn; label: string; unit: string };
 
 /** The values of one row as shown (file, group, MHz, gain, then the columns), tab-separated, no header. */
 export function rowToTsv(r: MetricsRow, columns: readonly CopyColumn[], withRole = false): string {
@@ -675,7 +731,8 @@ export function toTsv(
   // Without the difference view a cell reads `original → tilted`: the header says which cut the tilted value is of.
   const labelOf = (c: CopyColumn): string => {
     const label = withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d);
-    return deltaVs === undefined && horizonCut && HORIZONTAL_KEYS.has(c.key) ? `${label} [tilted: horizon cut]` : label;
+    // (The Horizon level is a single value, not a pair: its header needs no such note.)
+    return deltaVs === undefined && horizonCut && isHorizontal(c.key) ? `${label} [tilted: horizon cut]` : label;
   };
   const header = [
     'File',

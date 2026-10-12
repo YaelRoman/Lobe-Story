@@ -3,7 +3,7 @@ import type { Tags } from '../core/types';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import { clampFloor, clampSetting, FLOOR_LIMITS } from '../core/analysis/settingLimits';
 import { sanitizeSubBands } from '../core/analysis/subBands';
-import { METRIC_KEYS, type MetricColumn } from './metricKeys';
+import { HORIZON_LEVEL_KEY, METRIC_KEYS, type TableColumn } from './metricKeys';
 import { clampSim, type OffsetState } from './simLimits';
 import { fingerprint, isFingerprint, type PendingFile } from './duplicates';
 import type { CustomGroup, LoadedFile, Selection, SimulationState, StoreData, ViewState } from './store';
@@ -243,9 +243,9 @@ export function sanitizeSettings(raw: unknown): AnalysisSettings {
   return settings;
 }
 
-/** The metric of a stored object, or `fallback` when it is not a metric column. */
-export const sanitizeMetric = (v: unknown, fallback: MetricColumn): MetricColumn =>
-  (METRIC_KEYS as readonly unknown[]).includes(v) ? (v as MetricColumn) : fallback;
+/** The metric of a stored object, or `fallback` when it is neither a metric column nor the Horizon level. */
+export const sanitizeMetric = (v: unknown, fallback: TableColumn): TableColumn =>
+  (METRIC_KEYS as readonly unknown[]).includes(v) || v === HORIZON_LEVEL_KEY ? (v as TableColumn) : fallback;
 
 /** The display part of the view (everything but the theme and the simulation) of a stored object; bad or missing values take `dv`'s. */
 export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewState): Omit<ViewState, 'theme' | 'simulation' | 'freqMetric' | 'tableTickedOnly'> {

@@ -244,8 +244,21 @@ left at the horizon after a down-tilt.
   or not either is tilted, so a horizon cut is never compared with a cut through the beam peak.
 - *Power ratios do not depend on the reference*: SPR, AIR and the D/U apertures are those of the
   cut.
-- The read-out under the horizontal plot (and the caption of its image) says how far the cut's
-  maximum lies below the 3D peak: "Horizon cut: maximum 10.6 dB below the 3D peak". The dashed
+- **Horizon level (dB)**, a column that exists only in this mode, gives for every row how far the
+  strongest point of its horizon cut is below the strongest point of the whole pattern (the 3D
+  peak). 0 dB means the beam peak is on the horizon; 20 dB means a hundredth of the peak power
+  reaches it. It is the headline number of the mode, and it is what tells a main-beam width from a
+  sidelobe width: when the level is large the horizon runs through a sidelobe or a null, and the
+  H-HPBW, H-BW 10 dB and Squint of that row describe that region, not the main beam. The widths
+  are not blanked, because no level separates the two cases: with "Summation" and electrical tilt
+  only the cut is an exact lowered copy of the azimuth beam even 30 dB down, while a "Weighted"
+  cut a few dB down can already have its maximum far off boresight. The column stands after
+  H-HPBW in the Beam group, is one value per row (a file cut has none), sorts, and follows the
+  difference from a reference. It is in the CSV as one comma-free column "Horizon level [horizon
+  cut] (dB)", in Copy table as "Horizon level (dB)", and in the frequency chart's Metric menu. It
+  is not a band-statistics row: that table is the fixed list of BASTA Annex C parameters.
+- The read-out under the horizontal plot (and the caption of its image) says the same for the
+  highlighted file: "Horizon cut: maximum 10.6 dB below the 3D peak". The dashed
   −3 dB ring is drawn 3 dB under the cut's own maximum; the F/B and H-SLS crosses lie on the trace.
 - The band statistics, the frequency chart and the difference from a reference use these tilted
   values as they use any other.

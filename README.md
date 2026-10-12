@@ -30,7 +30,9 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   file cut, and under a tilt the cut a data sheet gives) or the cut at 0° elevation of every file,
   tilted or not, where what each antenna puts on the horizon, the widening under mechanical tilt
   and what is left after a down-tilt are seen. On the horizon cut beamwidths are measured on that cut
-  and levels (F/B, H-SLS, roll-off, tracking) below the 3D peak; the plot title, the folded bar,
+  and levels (F/B, H-SLS, roll-off, tracking) below the 3D peak, and a **Horizon level (dB)** column
+  says for every file how far its horizon cut lies below that peak (table, CSV, copy, Δ vs reference,
+  frequency chart); the plot title, the folded bar,
   image captions and export headers name the choice, and it is saved with the project. Simulated
   values are estimates from the two cuts; see [docs/metrics.md](docs/metrics.md).
 - File panel for hundreds of files: a filter box (name, group or MHz; every word must match) with

@@ -12,7 +12,7 @@ import { chromeOf, openedMessage, projectToState, type ProjectFile } from './pro
 import { isCleanLoad, loadSummary, planLoad, type PendingFile } from './duplicates';
 import { changesSession, markOf, takeSnapshot, type SavedMark, type UndoEntry } from './undo';
 import { uniqueGroupName } from './groupNames';
-import type { MetricColumn } from './metricKeys';
+import type { TableColumn } from './metricKeys';
 import { clampSim, SIM_LIMITS, type OffsetState, type SimulationKey } from './simLimits';
 
 export { clampSim, SIM_LIMITS };
@@ -84,7 +84,7 @@ export interface ViewState {
   /** The 2D difference view: the metrics table shows each value as the difference from the reference file (saved with the project; inactive while no reference is set). */
   deltaVsReference: boolean;
   /** The metric the frequency chart plots (a display preference, like the theme: not saved in projects). */
-  freqMetric: MetricColumn;
+  freqMetric: TableColumn;
   /** The metrics table (and its Copy table and CSV) lists only the ticked files and the reference (a display preference: not saved in projects). */
   tableTickedOnly: boolean;
   simulation: SimulationState;

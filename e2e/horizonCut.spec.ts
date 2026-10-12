@@ -160,6 +160,11 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   await expect(page.getByTestId('sim-badge')).toHaveCount(0);
   await expect(plus.locator('td[data-col="hHpbw"]')).not.toContainText('→');
   await expect(method).toBeDisabled();
+  // The Horizon level column and its chart metric exist only at the horizon.
+  const levelHeader = page.locator('.metrics thead th', { hasText: 'Horizon level (dB)' });
+  const levelOption = page.locator('#freq-metric option[value="hLevel"]');
+  await expect(levelHeader).toHaveCount(0);
+  await expect(levelOption).toHaveCount(0);
   const fileTracking = await plus.locator('td[data-col="tracking"]').innerText();
   const fileVHpbw = await plus.locator('td[data-col="vHpbw"]').innerText();
   // The drawn lines of a plot: the ticked file's trace and the marker lines of the highlighted file.
@@ -186,6 +191,17 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
     await expect(r.locator('td[data-col="tilt"]')).not.toContainText('→');
   }
   await expect(plus.locator('td[data-col="vHpbw"]')).toHaveText(fileVHpbw);
+  // The new column: one number per row (how far the horizon cut is below the 3D peak), explained in its tooltip,
+  // and the same number as the read-out of the highlighted file.
+  await expect(levelHeader).toHaveCount(1);
+  await expect(levelHeader).toHaveAttribute('title', /below the strongest point of the whole pattern \(the 3D peak\).*not the main beam/);
+  const level = plus.locator('td[data-col="hLevel"]');
+  await expect(level).toHaveText(/^\d+\.\d$/);
+  await expect(page.getByTestId('readout-h')).toContainText(`Horizon cut: maximum ${await level.innerText()} dB below the 3D peak`);
+  // It can be plotted against frequency.
+  await expect(levelOption).toHaveCount(1);
+  await page.locator('#freq-metric').selectOption('hLevel');
+  await expect(page.getByRole('heading', { name: /Horizon level vs frequency/ })).toBeVisible();
   await expect(page.getByTestId('plot-v').locator('.gtitle')).not.toContainText('horizon');
   // The horizontal plot has the dashed file cut of the ticked file; the vertical plot has no original (nothing changed).
   await expect(drawnLines('h')).toHaveCount(hLines + 1);
@@ -222,6 +238,11 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   expect(fb).toBeGreaterThan(0);
   expect(partner[fb]).not.toBe(partner[fb - 1]);
   expect(partner[v]).toBe(partner[v - 1]);
+  // One column for the level, right after the tilted horizontal beamwidth; the untilted partner has its own value.
+  const levelAt = lines[0].indexOf('Horizon level [horizon cut] (dB)');
+  expect(levelAt).toBe(lines[0].indexOf('H-HPBW tilted [horizon cut] (°)') + 1);
+  expect(partner[levelAt]).toMatch(/^\d+\.\d\d$/);
+  expect(csv.split('\r\n')[0]).not.toContain('"');
 
   // Back to the cut through the beam peak with the offset cleared: nothing is simulated.
   await page.getByRole('button', { name: 'Clear offsets' }).click();
@@ -229,4 +250,8 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   await expect(page.getByTestId('sim-badge')).toHaveCount(0);
   await expect(plus.locator('td[data-col="hHpbw"]')).not.toContainText('→');
   await expect(hTitle(page)).not.toContainText('·');
+  // The column is gone, and the chart that plotted it shows the beamwidths again.
+  await expect(levelHeader).toHaveCount(0);
+  await expect(levelOption).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /HPBW vs frequency/ })).toBeVisible();
 });

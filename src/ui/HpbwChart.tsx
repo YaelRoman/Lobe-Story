@@ -7,7 +7,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
 import { buildMetricFigure, coincidingNote, metricCaption, noValueNote, noValues, plottedFileIds, type LineSignature, type MetricSeries } from './metricFigure';
-import { cellsOf, columnLabel, COLUMN_GROUPS, followsHCut, METRIC_COLUMNS, withMethod, type MetricColumn } from './table';
+import { chartColumns, columnLabel, COLUMN_GROUPS, followsHCut, HORIZON_LEVEL_COLUMN, METRIC_COLUMNS, metricValue, shownChartMetric, withMethod, type ColumnSpec, type TableColumn } from './table';
 import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
 import { groupLook, PER_FILE_COLOURS } from './colors';
@@ -19,7 +19,7 @@ import { exportName, simulatedCaption } from './simSummary';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 
-const DECLARED: Partial<Record<MetricColumn, (p: Pattern) => number | undefined>> = {
+const DECLARED: Partial<Record<TableColumn, (p: Pattern) => number | undefined>> = {
   vHpbw: (p) => p.declared.vBeamwidth,
   fb180: (p) => p.declared.frontToBack,
 };
@@ -43,16 +43,21 @@ export const HpbwChart = memo(function HpbwChart({
   const levelDb = useStore((s) => s.settings.levelDb);
   const fbWindowDeg = useStore((s) => s.settings.fbWindowDeg);
   const uslsRangeDeg = useStore((s) => s.settings.uslsRangeDeg);
-  const metric = useStore((s) => s.view.freqMetric);
+  // The Horizon level exists only at the horizon: while the cut is another one, the stored choice shows the beamwidths.
+  const horizonCut = sim.hCut === 'horizon';
+  const metric = shownChartMetric(useStore((s) => s.view.freqMetric), horizonCut);
+  const isLevel = metric === HORIZON_LEVEL_COLUMN.key;
   const reference = useStore((s) => s.reference);
   const updateView = useStore((s) => s.updateView);
   const pickFile = useStore((s) => s.pickFile);
   // A metric read from the horizontal cut follows the cut at the horizon for every file, tilted or not; the two-panel
   // beamwidth chart has the horizontal beamwidth in it.
   const followsH = followsHCut(metric);
-  const simulated = sim.tiltActive || (followsH && sim.simActive);
-  const labelOf = (c: (typeof METRIC_COLUMNS)[number]) => columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
-  const column = METRIC_COLUMNS.find((c) => c.key === metric) ?? METRIC_COLUMNS[0];
+  // (The Horizon level has no original to draw: a file cut has none.)
+  const simulated = !isLevel && (sim.tiltActive || (followsH && sim.simActive));
+  const labelOf = (c: ColumnSpec) => columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
+  const menu = chartColumns(horizonCut);
+  const column = menu.find((c) => c.key === metric) ?? METRIC_COLUMNS[0];
   // H-HPBW keeps the two-panel chart of the beamwidths (H above, V below); every other metric has one panel.
   const both = metric === 'hHpbw';
 
@@ -90,9 +95,9 @@ export const HpbwChart = memo(function HpbwChart({
         g.items.filter(({ pattern }) => hasUsableFrequency(pattern.frequencyMHz)).map(({ pattern }) => {
           const m = ms.get(pattern.id);
           const declared = DECLARED[metric]?.(pattern);
-          return { id: pattern.id, freq: pattern.frequencyMHz, value: m ? cellsOf(m)[metric].value : null, ...(declared !== undefined ? { declared } : {}) };
+          return { id: pattern.id, freq: pattern.frequencyMHz, value: m ? metricValue(m, metric).value : null, ...(declared !== undefined ? { declared } : {}) };
         });
-      const ghost = g.items.some((i) => (followsH ? sim.showsSimulatedH(i.pattern.id) : sim.isTiltedId(i.pattern.id)));
+      const ghost = !isLevel && g.items.some((i) => (followsH ? sim.showsSimulatedH(i.pattern.id) : sim.isTiltedId(i.pattern.id)));
       if (both) {
         if (ghost) series.push({ label: g.label, color, ghost: true, points: points(metrics) });
         series.push({ label: g.label, color, symbol, points: points(sim.metrics) });
@@ -112,16 +117,16 @@ export const HpbwChart = memo(function HpbwChart({
       const lines: LineSignature[] = series.filter((s) => !s.ghost).map((s) => ({ label: s.label, points: [...s.points.map((p) => ({ freq: p.freq, value: p.h })), ...s.points.map((p) => ({ freq: -p.freq, value: p.v }))] }));
       return { build: series.length ? () => buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb, ref) : null, empty: null, coincide: coincidingNote(lines) };
     }
-    const ref = refMetrics ? { label: refLabel, point: { id: refItem?.pattern.id, freq, value: cellsOf(refMetrics)[metric].value } } : undefined;
+    const ref = refMetrics ? { label: refLabel, point: { id: refItem?.pattern.id, freq, value: metricValue(refMetrics, metric).value } } : undefined;
     if (!single.length) return { build: null, empty: null, coincide: null };
     // Nothing to draw at a number: say so (with the reasons the table's tooltips give) instead of an empty chart.
     if (noValues(single, ref)) {
       // Only the files the chart tried to draw: not those of hidden groups, nor files without a frequency.
-      const reasons = plottedFileIds(groups, visible).map((id) => { const m = sim.metrics.get(id); return m ? cellsOf(m)[metric].reason : undefined; });
+      const reasons = plottedFileIds(groups, visible).map((id) => { const m = sim.metrics.get(id); return m ? metricValue(m, metric).reason : undefined; });
       return { build: null, empty: noValueNote(label, reasons), coincide: null };
     }
     return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], plotLabel, column.unit, ref), empty: null, coincide: coincidingNote(single.filter((s) => !s.ghost)) };
-  }, [groups, metrics, visible, theme, sim, levelDb, metric, both, followsH, label, plotLabel, column.unit, reference]);
+  }, [groups, metrics, visible, theme, sim, levelDb, metric, both, followsH, isLevel, label, plotLabel, column.unit, reference]);
 
   // The chart plots every file of a group that has a visible file, and the reference's diamond.
   const plottedIds = useMemo(
@@ -156,10 +161,10 @@ export const HpbwChart = memo(function HpbwChart({
         </h2>
         <div className="freq-metric">
           <label htmlFor="freq-metric">Metric</label>
-          <select id="freq-metric" value={metric} onChange={(e) => updateView({ freqMetric: e.target.value as MetricColumn })}>
+          <select id="freq-metric" value={metric} onChange={(e) => updateView({ freqMetric: e.target.value as TableColumn })}>
             {COLUMN_GROUPS.map((g) => (
               <optgroup key={g.key} label={g.label}>
-                {METRIC_COLUMNS.filter((c) => c.group === g.key).map((c) => (
+                {menu.filter((c) => c.group === g.key).map((c) => (
                   <option key={c.key} value={c.key}>
                     {labelOf(c)} ({c.unit}){c.key === 'hHpbw' ? ` with ${labelOf(vColumn)}` : ''}
                   </option>

@@ -4,7 +4,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
   ariaSort, buildRows, COLUMN_GROUPS, csvColumns, columnGroupTitle, columnLabel, columnTitle, nextSort, onlyTicked, tickedCountText, revealScrollTop, simulationLabel,
-  cellText, clearOfSticky, gainText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
+  cellText, clearOfSticky, gainText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, withHorizonLevel, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
@@ -19,7 +19,7 @@ import { copiedRow, copiedRows, copiedValue, copyAndAnnounce } from './clipboard
 import { copyShortcut } from './copyKeys';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
 import { PinMark } from './PinMark';
-import type { MetricColumn } from './table';
+import type { TableColumn } from './table';
 import type { SimulationResult } from './useSimulation';
 
 const FILE_NAME_MAX = 28;
@@ -52,7 +52,8 @@ export const MetricsTable = memo(function MetricsTable({
   const method3d = useStore((s) => s.view.method3d);
   const tableGroups = useStore((s) => s.view.tableGroups);
   const updateView = useStore((s) => s.updateView);
-  const columns = visibleColumns(tableGroups);
+  // At the horizon the Beam group has one more column: how far each row's horizon cut lies below the 3D peak.
+  const columns = withHorizonLevel(visibleColumns(tableGroups), sim.hCut === 'horizon');
   const highlighted = useStore((s) => s.highlighted);
   const pickFile = useStore((s) => s.pickFile);
   const setVisible = useStore((s) => s.setVisible);
@@ -136,7 +137,7 @@ export const MetricsTable = memo(function MetricsTable({
   const copyCell = (id: string, key: string) => {
     const r = rowById.get(id);
     if (r) {
-      const text = cellText(r, key as MetricColumn);
+      const text = cellText(r, key as TableColumn);
       copy(text, copiedValue(text));
     }
   };
@@ -241,7 +242,7 @@ export const MetricsTable = memo(function MetricsTable({
           onClick={() =>
             downloadText(
               exportName('pattern-metrics', sim.simulatedAmong(rows.map((r) => r.id)), '.csv'),
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.simActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, csvColumns(tableGroups), method3d, horizonCut),
+              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.simActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, withHorizonLevel(csvColumns(tableGroups), horizonCut), method3d, horizonCut),
               'text/csv;charset=utf-8',
             )
           }
