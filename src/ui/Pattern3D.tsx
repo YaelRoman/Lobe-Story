@@ -5,7 +5,7 @@ import { useStore } from '../state/store';
 import { gridsFor, type TaggedPattern } from '../core/analysis/metrics';
 import { reconstructTilted3d } from '../core/analysis/tilt';
 import { nameOf } from '../core/names';
-import { buildSurfaceFigure, gridHeightPx, linkedCameraUpdate, maxSurfaces, widthClass, type SurfaceSeries } from './surfaceFigure';
+import { buildSurfaceFigure, gridHeightPx, linkedCameraUpdate, maxSurfaces, viewportClass, type SurfaceSeries } from './surfaceFigure';
 import { capItems, capNotice, surfaceExportCaption } from './viewCaps';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
@@ -17,8 +17,8 @@ const subscribeResize = (cb: () => void) => {
   window.addEventListener('resize', cb);
   return () => window.removeEventListener('resize', cb);
 };
-/** The window's width class (see `widthClass`): changes only when a phone layout starts or ends. */
-const useWidthClass = (): number | undefined => useSyncExternalStore(subscribeResize, () => widthClass(window.innerWidth), () => undefined);
+/** The window's width class (see `viewportClass`): changes only when a phone layout starts or ends or the window crosses a 100 px step. */
+const useWidthClass = (): number | undefined => useSyncExternalStore(subscribeResize, () => viewportClass(window.innerWidth), () => undefined);
 
 export function Pattern3D({
   items,

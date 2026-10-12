@@ -23,7 +23,7 @@ export interface SurfaceFigureOptions {
   layout: Layout3d;
   floorDb: number;
   theme: FigureTheme;
-  /** The window width in px, so a phone gets fewer, larger scenes (see `gridPlan`); undefined: a desktop. */
+  /** The window width class in px (see `viewportClass`), so a phone gets fewer, larger scenes and a narrow desktop shorter titles (see `gridPlan`); undefined: assume a wide desktop. */
   viewportWidth?: number;
 }
 
@@ -71,13 +71,14 @@ const TITLE_CHAR_PX = 6.8;
 
 /**
  * Columns of the side-by-side layout and the longest scene title (in characters) that fits a scene. A phone (760 px or
- * narrower) gets 2 columns, 1 below 420 px: three scenes of 110 px cannot carry a title. A desktop keeps `gridColumns`.
+ * narrower) gets 2 columns, 1 below 420 px: three scenes of 110 px cannot carry a title. A desktop keeps `gridColumns`; its title length follows the plot width (the window less the file panel).
  */
 export function gridPlan(n: number, viewportWidth?: number): { columns: number; titleMax: number; phone: boolean } {
   const phone = viewportWidth !== undefined && viewportWidth <= PHONE_MAX_WIDTH;
   const columns = phone ? Math.min(gridColumns(n), viewportWidth < NARROW_PHONE_WIDTH ? 1 : 2) : gridColumns(n);
   // The plot is about the window less the side margins (phone) or less the file panel (desktop).
-  const plotWidth = viewportWidth === undefined ? 1100 : phone ? viewportWidth - 24 : Math.max(400, viewportWidth - 348);
+  // On a desktop the scenes lose about 80 px to the plot's margins and the colour bar.
+  const plotWidth = viewportWidth === undefined ? 1100 - 80 : phone ? viewportWidth - 24 : viewportWidth - 348 - 80;
   return { columns, titleMax: Math.max(12, Math.floor(plotWidth / columns / TITLE_CHAR_PX) - 2), phone };
 }
 
@@ -222,3 +223,11 @@ export function linkedCameraUpdate(
  * tablet, up to 760 px), or undefined (a desktop). Coarse on purpose: a figure is rebuilt only when it changes.
  */
 export const widthClass = (innerWidth: number): number | undefined => (innerWidth <= PHONE_MAX_WIDTH ? (innerWidth < NARROW_PHONE_WIDTH ? 390 : 600) : undefined);
+
+/**
+ * What `buildSurfaceFigure` is given as `viewportWidth`: the phone classes of `widthClass`, and on a desktop the window
+ * width rounded down to 100 px (800 to 1400), so the titles follow the real plot width. Rounding down errs towards
+ * shorter titles; the figure is rebuilt only when a 100 px step is crossed.
+ */
+export const viewportClass = (innerWidth: number): number =>
+  widthClass(innerWidth) ?? Math.min(1400, Math.max(PHONE_MAX_WIDTH + 40, Math.floor(innerWidth / 100) * 100));

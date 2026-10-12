@@ -4,6 +4,7 @@ import {
   gridColumns,
   gridHeightPx,
   gridPlan,
+  viewportClass,
   widthClass,
   linkedCameraUpdate,
   MAX_3D,
@@ -180,6 +181,21 @@ describe('side-by-side layout on a phone and on a desktop', () => {
     expect([320, 390, 419].map(widthClass)).toEqual([390, 390, 390]);
     expect([420, 600, 760].map(widthClass)).toEqual([600, 600, 600]);
     expect([761, 1440].map(widthClass)).toEqual([undefined, undefined]);
+  });
+
+  it('shortens the titles on a desktop that is narrower than the 1100 px the plot used to be assumed at', () => {
+    expect([761, 800, 899].map(viewportClass)).toEqual([800, 800, 800]);
+    expect([1024, 1099].map(viewportClass)).toEqual([1000, 1000]);
+    expect([1440, 1920].map(viewportClass)).toEqual([1400, 1400]);
+    expect(viewportClass(390)).toBe(390);
+    expect(gridPlan(6, 1000).titleMax).toBeLessThan(gridPlan(6, 1400).titleMax);
+    expect(gridPlan(6, 800).titleMax).toBeLessThan(gridPlan(6, 1000).titleMax);
+    for (const vw of [800, 1000]) {
+      for (const t of titles(buildSurfaceFigure({ series: long(6), layout: 'grid', floorDb: 40, theme, viewportWidth: vw }))) {
+        expect(t.text.length, `${vw}`).toBeLessThanOrEqual(gridPlan(6, vw).titleMax);
+        expect(t.text).toMatch(/_Y2\.MSI$/);
+      }
+    }
   });
 
   it('puts the colour bar under the scenes on a phone and beside them on a desktop', () => {
