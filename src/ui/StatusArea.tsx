@@ -40,10 +40,35 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const spoken = useAnnouncement();
 
   // "Loaded 12 files" needs no action: it goes away by itself. Anything that failed, was skipped or renamed stays.
+  // The line is in the flow, so the page moves up when it goes: not while a pointer is down (a slider dragged in the
+  // first seconds after a load would jump from under the pointer). It then goes at the release, after the click that ends.
   useEffect(() => {
     if (!loadMessage || loadTone !== 'info') return;
-    const timer = window.setTimeout(() => setLoadMessage(null), CLEAN_LOAD_MS);
-    return () => window.clearTimeout(timer);
+    let down = false;
+    let due = false;
+    let afterRelease = 0;
+    const remove = () => setLoadMessage(null);
+    const onDown = () => {
+      down = true;
+    };
+    const onUp = () => {
+      down = false;
+      if (due) afterRelease = window.setTimeout(remove, 0);
+    };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onUp, true);
+    const timer = window.setTimeout(() => {
+      due = true;
+      if (!down) remove();
+    }, CLEAN_LOAD_MS);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(afterRelease);
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onUp, true);
+    };
   }, [loadMessage, loadTone, loadSeq, setLoadMessage]);
 
   // A copy note is for the moment of the copy: the next status line or undo offer replaces it (it never stacks above them).

@@ -281,3 +281,28 @@ test('on a phone the line under the 3D method keeps its size when a tilt puts th
   expect(await placesInBar(page)).toEqual(idle);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 });
+
+test('a slider held while the calm load line runs out does not jump: the line goes when the pointer is released', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  const loaded = Date.now();
+  const line = page.getByTestId('load-status');
+  await expect(line).toBeVisible();
+  await page.getByRole('button', { name: /Simulation/ }).click();
+  const slider = page.getByRole('slider', { name: 'Mechanical tilt (°)', exact: true });
+  const before = (await slider.boundingBox())!;
+  const x = before.x + before.width / 2;
+  const y = before.y + before.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 10, y, { steps: 2 });
+  // Held past the line's six seconds (and a margin): the line is still there and the slider where it was pressed.
+  await page.waitForTimeout(Math.max(0, 7000 - (Date.now() - loaded)));
+  await page.mouse.move(x + 20, y, { steps: 2 });
+  await expect(line).toBeVisible();
+  expect((await slider.boundingBox())!).toEqual(before);
+  await page.mouse.up();
+  await expect(line).toHaveCount(0);
+  expect((await slider.boundingBox())!.y).toBeLessThan(before.y);
+});

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initialState, useStore } from '../state/store';
-import { StatusArea } from './StatusArea';
+import { CLEAN_LOAD_MS, StatusArea } from './StatusArea';
 import { planetText } from '../test/planetText';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -100,5 +100,63 @@ describe('one status bar, and an undo offer that takes no room', () => {
     expect(status()?.textContent).toContain('1 file failed');
     expect(offer()).not.toBeNull();
     expect(bars()).toHaveLength(1);
+  });
+});
+
+describe('the calm load line goes by itself, but not from under a held pointer', () => {
+  const status = () => host.querySelector('[data-testid="load-status"]');
+  const pointer = (type: string) => act(() => void document.body.dispatchEvent(new Event(type, { bubbles: true })));
+  const wait = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
+  beforeEach(() => {
+    vi.useFakeTimers();
+    act(() => useStore.getState().setLoadMessage('Loaded 2 files', 'info'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('goes after its time when no pointer is down', () => {
+    wait(CLEAN_LOAD_MS - 1);
+    expect(status()).not.toBeNull();
+    wait(1);
+    expect(status()).toBeNull();
+  });
+
+  it('stays while a pointer is down (a slider is being dragged: the page must not move under it) and goes at pointer up', () => {
+    wait(CLEAN_LOAD_MS - 1000);
+    pointer('pointerdown');
+    wait(5000);
+    expect(status()).not.toBeNull();
+    pointer('pointerup');
+    // After the click that the release may end (a line removed before it would move the page under that click).
+    wait(0);
+    expect(status()).toBeNull();
+  });
+
+  it('a cancelled pointer lets it go as well', () => {
+    pointer('pointerdown');
+    wait(CLEAN_LOAD_MS + 1);
+    expect(status()).not.toBeNull();
+    pointer('pointercancel');
+    wait(0);
+    expect(status()).toBeNull();
+  });
+
+  it('a press and release before its time changes nothing', () => {
+    pointer('pointerdown');
+    pointer('pointerup');
+    wait(CLEAN_LOAD_MS - 1);
+    expect(status()).not.toBeNull();
+    wait(1);
+    expect(status()).toBeNull();
+  });
+
+  it('a line that came after the release of the held pointer is not taken with the old one', () => {
+    pointer('pointerdown');
+    wait(CLEAN_LOAD_MS + 1);
+    act(() => useStore.getState().setLoadMessage('Loaded 3 files', 'info'));
+    pointer('pointerup');
+    wait(0);
+    expect(status()?.textContent).toContain('Loaded 3 files');
+    wait(CLEAN_LOAD_MS);
+    expect(status()).toBeNull();
   });
 });
