@@ -333,7 +333,7 @@ export const MetricsTable = memo(function MetricsTable({
                   `${deltaOn ? 'Δ ' : ''}${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)} (${c.unit})`,
                   [
                     deltaOn ? `Difference from ${referenceName} (the reference row, first, shows its own values).` : '',
-                    columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg, method3d }) ?? '',
+                    columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg, method3d, horizonCut }) ?? '',
                   ]
                     .filter(Boolean)
                     .join(' ') || undefined,

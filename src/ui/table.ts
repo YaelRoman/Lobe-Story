@@ -1,8 +1,7 @@
 import type { GainUnit, MetricResult } from '../core/types';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import type { GroupView } from '../state/selectors';
-import { isTilted, type HCutMode, type TiltSettings, type SimSettings } from '../core/analysis/tilt';
-import { hCutLabel } from './simSummary';
+import { isTilted, type TiltSettings, type SimSettings } from '../core/analysis/tilt';
 import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
@@ -177,11 +176,43 @@ export function columnLabel(c: { key: TableColumn; label: string }, fbWindowDeg:
 
 const DU_DB: Partial<Record<MetricColumn, number>> = { du16: 15, du64: 20, du256: 25 };
 
+/**
+ * What a column's tooltip adds while the simulated horizontal cut is the one at the horizon: which reference its
+ * "below the peak" uses there. Levels are below the pattern's 3D peak, widths below the cut's own maximum, so the
+ * roll-off and the 10 dB beamwidth, two readings of one curve, differ by the Horizon level.
+ */
+const HORIZON_REFERENCE: Partial<Record<MetricColumn, string>> = {
+  hHpbw: 'below the maximum of that cut, not the 3D peak',
+  hBw10: '10 dB below the maximum of that cut, not the 3D peak',
+  squint: 'of that cut, whose strongest lobe need not be the main beam (see Horizon level)',
+  hPeak: 'of that cut, whose strongest lobe need not be the main beam (see Horizon level)',
+  fb180: 'below the 3D peak of the pattern, not the maximum of the cut',
+  fbWindow: 'below the 3D peak of the pattern, not the maximum of the cut',
+  hSls: 'below the 3D peak of the pattern, not the maximum of the cut',
+  tracking: 'each port against its own 3D peak',
+  rollOff: 'the level at the sector edge below the 3D peak; subtract the Horizon level for the shape of the cut',
+};
+
+interface TitleSettings {
+  sectorEdgeDeg: number;
+  siteSectors: number;
+  uslsRangeDeg?: number;
+  lobeLimitFactor?: number;
+  levelDb?: number;
+  fbWindowDeg?: number;
+  method3d?: Method3d;
+  /** The simulated horizontal cut is the one at the horizon: the columns read from it say which peak they refer to. */
+  horizonCut?: boolean;
+}
+
 /** Header tooltip for a column; the sector columns depend on the sector settings (E, S). */
-export function columnTitle(
-  key: TableColumn,
-  settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number; lobeLimitFactor?: number; levelDb?: number; fbWindowDeg?: number; method3d?: Method3d },
-): string | undefined {
+export function columnTitle(key: TableColumn, settings: TitleSettings): string | undefined {
+  const title = baseTitle(key, settings);
+  const reference = settings.horizonCut && key !== HORIZON_LEVEL_KEY ? HORIZON_REFERENCE[key] : undefined;
+  return title !== undefined && reference ? `${title}. On a horizon cut: ${reference}.` : title;
+}
+
+function baseTitle(key: TableColumn, settings: TitleSettings): string | undefined {
   const e = settings.sectorEdgeDeg;
   const r = settings.uslsRangeDeg ?? 20;
   const f = settings.lobeLimitFactor ?? 1.78;
@@ -595,8 +626,8 @@ export function formatCell(original: MetricResult, tilted?: MetricResult, decima
 
 const signedDeg = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
-export function simulationLabel(t: TiltSettings, offsetCount = 0, groupCount = 0, hCut?: HCutMode): string {
-  const base = `Simulated: Δe ${signedDeg(t.electricalDeg)}°, mech ${signedDeg(t.mechanicalDeg)}°${hCut ? `, ${hCutLabel(hCut)}` : ''}`;
+export function simulationLabel(t: TiltSettings, offsetCount = 0, groupCount = 0): string {
+  const base = `Simulated: Δe ${signedDeg(t.electricalDeg)}°, mech ${signedDeg(t.mechanicalDeg)}°`;
   const parts = [
     offsetCount > 0 ? `${offsetCount} file${offsetCount === 1 ? '' : 's'}` : '',
     groupCount > 0 ? `${groupCount} group${groupCount === 1 ? '' : 's'}` : '',

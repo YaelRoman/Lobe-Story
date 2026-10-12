@@ -353,6 +353,14 @@ describe('metrics of a horizon cut', () => {
     const one = run(1);
     // Both ports are horizon cuts, about as far down as each other.
     for (const m of [none, one]) for (const id of [p0, p1]) expect(m.get(id)!.hCutPeakDb).toBeGreaterThan(9);
+    // The figures of this pair, pinned: level of the cut and its beamwidth, without a tilt and with 1° on the first port.
+    expect(none.get(p0)!.hCutPeakDb).toBeCloseTo(9.87, 2);
+    expect(none.get(p1)!.hCutPeakDb).toBeCloseTo(9.87, 2);
+    expect(one.get(p0)!.hCutPeakDb).toBeCloseTo(13.04, 2);
+    expect(one.get(p1)!.hCutPeakDb).toBeCloseTo(9.87, 2);
+    expect(none.get(p0)!.h.hpbw.value).toBeCloseTo(66.93, 2);
+    expect(one.get(p0)!.h.hpbw.value).toBeCloseTo(73.59, 2);
+    expect(one.get(p1)!.h.hpbw.value).toBeCloseTo(67.5, 2);
     expect(Math.abs(none.get(p0)!.hCutPeakDb! - none.get(p1)!.hCutPeakDb!)).toBeLessThan(1);
     expect(none.get(p0)!.beamTracking.value).toBeCloseTo(0.48, 2);
     expect(one.get(p0)!.beamTracking.value).toBeCloseTo(3.05, 2);

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PlotData } from 'plotly.js';
 import { hCutLabel, simSummary, simulatedCaption, simulationActive, summaryHCut, summaryMethod } from './simSummary';
-import { buildRows, csvColumns, HORIZON_TAG, simulationLabel, toCsv, toTsv, visibleColumns } from './table';
+import { buildRows, columnTitle, csvColumns, HORIZON_TAG, METRIC_COLUMNS, simulationLabel, toCsv, toTsv, visibleColumns } from './table';
 import { bandCsv, bandTsv } from './bandView';
 import { buildCutSeries } from './cutSeries';
 import { buildCutFigure, buildCutOverlay, markerReadout, type CutFigureOptions } from './cutFigure';
@@ -126,8 +126,11 @@ describe('the choice is named in the folded bar, the table note and the image ca
   it('table note', () => {
     expect(hCutLabel('horizon')).toBe('horizontal cut at the horizon');
     expect(hCutLabel('beam')).toBe('horizontal cut through the beam peak');
-    expect(simulationLabel(MECH6, 0, 0, 'horizon')).toBe('Simulated: Δe 0°, mech +6°, horizontal cut at the horizon');
-    expect(simulationLabel(MECH6, 1, 0, 'beam')).toBe('Simulated: Δe 0°, mech +6°, horizontal cut through the beam peak + offsets on 1 file');
+    // The table names the cut in a note of its own after this label (see MetricsTable); the label does not carry it.
+    expect(simulationLabel(MECH6, 0, 0)).toBe('Simulated: Δe 0°, mech +6°');
+    // @ts-expect-error the label takes no horizontal cut (the type check fails here if the parameter comes back)
+    expect(simulationLabel(MECH6, 0, 0, 'horizon')).toBe('Simulated: Δe 0°, mech +6°');
+    expect(simulationLabel(MECH6, 1, 2)).not.toContain('cut');
     expect(simulationLabel(MECH6, 1, 0)).toBe('Simulated: Δe 0°, mech +6° + offsets on 1 file');
   });
 });
@@ -432,5 +435,33 @@ describe('at the horizon every file is simulated, with or without a tilt', () =>
     expect(Math.abs(after - before)).toBeLessThan(5);
     // Against the partner's cut through the beam peak it would be the level of the cut itself (over 7.5 dB).
     expect(metrics.get('minus')!.hCutPeakDb).toBeCloseTo(7.5, 6);
+  });
+});
+
+describe('column tooltips say which peak a level is below while the cut is the one at the horizon', () => {
+  const settings = { sectorEdgeDeg: 60, siteSectors: 3 };
+  const at = (key: Parameters<typeof columnTitle>[0]) => columnTitle(key, { ...settings, horizonCut: true })!;
+
+  it('levels: below the 3D peak', () => {
+    for (const key of ['fb180', 'fbWindow', 'hSls'] as const) expect(at(key), key).toContain('On a horizon cut: below the 3D peak of the pattern, not the maximum of the cut');
+    expect(at('tracking')).toContain('On a horizon cut: each port against its own 3D peak');
+  });
+
+  it('roll-off and the 10 dB beamwidth read the same curve against different references', () => {
+    expect(at('rollOff')).toContain('On a horizon cut: the level at the sector edge below the 3D peak; subtract the Horizon level for the shape of the cut');
+    expect(at('hBw10')).toContain('On a horizon cut: 10 dB below the maximum of that cut, not the 3D peak');
+    expect(at('hHpbw')).toContain('On a horizon cut: below the maximum of that cut, not the 3D peak');
+    for (const key of ['squint', 'hPeak'] as const) expect(at(key), key).toContain('On a horizon cut: of that cut');
+  });
+
+  it('nothing is added to a column that does not follow the cut, or through the beam peak', () => {
+    for (const c of METRIC_COLUMNS) {
+      const plain = columnTitle(c.key, settings);
+      expect(columnTitle(c.key, { ...settings, horizonCut: false }), c.key).toBe(plain);
+      expect(plain, c.key).not.toContain('On a horizon cut');
+    }
+    for (const key of ['vHpbw', 'vBw10', 'tilt', 'usls', 'uslsHorizon', 'nullFill', 'spr', 'air', 'du16', 'dV', 'areSector'] as const) {
+      expect(at(key), key).toBe(columnTitle(key, settings));
+    }
   });
 });

@@ -217,7 +217,16 @@ left at the horizon after a down-tilt.
 - *Electrical tilt only.* The horizon cut is lower than the cut through the beam peak: the beam has
   moved down, and the horizon is now that far above its peak. With "Summation" it is the file's
   azimuth cut lowered by the level of the elevation cut at the horizon (same shape, same
-  beamwidth); with "Weighted" the shape changes as well.
+  beamwidth); with "Weighted" the shape changes as well. That change of shape is an artefact of
+  the "Weighted" interpolation rule, not a property of the antenna: under electrical tilt alone a
+  real panel keeps its azimuth shape. The rule weights the two cuts by each other's level, so as
+  soon as the elevation cut is not at its peak the sides of the azimuth cut are pulled towards
+  the elevation level; for the 8° example file the beamwidth of the horizon cut already reads
+  about 133° instead of 67°, with the maximum near ±47°, and that with no tilt at all. The two
+  rules also disagree behind the antenna: "Summation" adds the elevation level everywhere, so its
+  F/B rises by the Horizon level (28.6 to 38.5 dB for that file with no tilt), while "Weighted"
+  gives 28.4 dB there. Neither is a
+  measurement; read the horizon cut of a tilted beam as an estimate of level, not of shape.
 - *A file with built-in electrical tilt.* The file's own azimuth cut is taken as a cut through its
   beam peak (below the horizon), not as a horizon cut. Its horizon cut lies above its beam, lower
   than the file cut by what the elevation cut has lost at the horizon (several dB to tens of dB for
@@ -239,7 +248,13 @@ left at the horizon after a down-tilt.
   beamwidth of 20° is then a property of the horizon cut.
 - *Levels in dB are below the pattern's 3D peak*, not below the cut's maximum: F/B 180°, F/B ±W°,
   H-SLS and Roll-off. F/B on the horizon cut is therefore "peak gain over the level behind the
-  antenna at the horizon". P2P tracking compares the two ports at the horizon, each referenced to
+  antenna at the horizon". Roll-off and H-BW 10 dB are two readings of the same curve and use
+  different references here: the beamwidth is taken 10 dB below the cut's own maximum, the
+  roll-off is the level at the sector edge below the 3D peak. So a cut that is an exact copy of
+  the file cut 37 dB down ("Summation", electrical tilt +4°, the 8° example file) keeps its H-BW
+  10 dB of 120.2° while its Roll-off goes from 10.2 to 47.3 dB. Roll-off minus the Horizon level is the roll-off of the cut
+  as a shape; the same subtraction gives F/B and H-SLS against the cut's own maximum. The column
+  tooltips say which reference each column uses while this cut is chosen. P2P tracking compares the two ports at the horizon, each referenced to
   its own 3D peak (and to its gain, when both are declared). Both ports are horizon cuts, whether
   or not either is tilted, so a horizon cut is never compared with a cut through the beam peak.
 - *Power ratios do not depend on the reference*: SPR, AIR and the D/U apertures are those of the
