@@ -225,3 +225,31 @@ test.describe('long file names', () => {
     await expect(sub).toBeHidden();
   });
 });
+
+test.describe('3D side by side titles', () => {
+  const titleBoxes = async (page: Page) => {
+    const boxes = await page.getByTestId('plot-3d').locator('.infolayer g.annotation').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }));
+    return boxes.filter((b) => b.w > 0);
+  };
+  const overlap = (a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+  for (const width of [390, 600, 1440]) {
+    test(`at ${width} px wide the six scene titles do not overlap and sit in their own scene's column`, async ({ page }) => {
+      await loadExample(page, width, width < 700 ? 844 : 900);
+      if (width < 700) await page.getByRole('button', { name: /^Files \(/ }).click();
+      await page.getByRole('button', { name: 'Show all', exact: true }).click();
+      if (width < 700) await page.getByRole('button', { name: /^Files \(/ }).click();
+      await page.getByRole('button', { name: '3D', exact: true }).click();
+      const plot = page.getByTestId('plot-3d');
+      await expect(plot.locator('.infolayer g.annotation')).toHaveCount(6);
+      await expect.poll(async () => (await titleBoxes(page)).length).toBe(6);
+      const boxes = await titleBoxes(page);
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(overlap(boxes[i], boxes[j]), `titles ${i} and ${j}`).toBe(false);
+      const columns = new Set(boxes.map((b) => Math.round(b.x / 20))).size;
+      expect(columns).toBe(width < 420 ? 1 : width <= 760 ? 2 : 3);
+      // Each title lies inside the plot's width.
+      const area = (await plot.boundingBox())!;
+      for (const b of boxes) expect(b.x + b.w).toBeLessThanOrEqual(area.x + area.width + 1);
+    });
+  }
+});

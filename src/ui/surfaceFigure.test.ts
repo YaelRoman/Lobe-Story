@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSurfaceFigure,
   gridColumns,
+  gridHeightPx,
+  gridPlan,
+  widthClass,
   linkedCameraUpdate,
   MAX_3D,
   MAX_3D_OVERLAY,
@@ -112,5 +115,86 @@ describe('grid helpers and camera linking', () => {
     expect(linkedCameraUpdate({ 'scene2.camera': cam }, 3)).toEqual({ 'scene.camera': cam, 'scene3.camera': cam });
     expect(linkedCameraUpdate({ 'xaxis.range': [0, 1] }, 3)).toBeNull();
     expect(linkedCameraUpdate({ 'scene.camera': cam }, 1)).toBeNull();
+  });
+});
+
+describe('side-by-side layout on a phone and on a desktop', () => {
+  const theme = FIGURE_THEMES.light;
+  const long = (n: number): SurfaceSeries[] => series(n).map((x, k) => ({ ...x, label: `1710 MHz · ACME_ANT-1_Wideband_Panel_1710_X_CO_P45_0${k}T_Y2.MSI` }));
+  type Domain = { x: number[]; y: number[] };
+  const scenes = (f: { layout: Record<string, unknown> }, n: number): Domain[] =>
+    Array.from({ length: n }, (_, k) => (f.layout[sceneId(k)] as { domain: Domain }).domain);
+  const titles = (f: { layout: Record<string, unknown> }) => (f.layout.annotations as { text: string; x: number; y: number }[]);
+
+  it('uses 2 columns on a phone and 1 below 420 px; a desktop keeps 1, 2 or 3', () => {
+    expect([2, 4, 6].map((n) => gridPlan(n, 390).columns)).toEqual([1, 1, 1]);
+    expect([2, 4, 6].map((n) => gridPlan(n, 600).columns)).toEqual([2, 2, 2]);
+    expect(gridPlan(1, 600).columns).toBe(1);
+    expect([1, 2, 4, 5, 6].map((n) => gridPlan(n, 1440).columns)).toEqual([1, 2, 2, 3, 3]);
+    expect(gridPlan(6, undefined).columns).toBe(3);
+  });
+
+  it('shortens the titles to what a scene is wide enough for, keeping the end of the name', () => {
+    const narrow = titles(buildSurfaceFigure({ series: long(6), layout: 'grid', floorDb: 40, theme, viewportWidth: 600 }));
+    expect(narrow).toHaveLength(6);
+    for (const t of narrow) {
+      expect(t.text.length).toBeLessThanOrEqual(gridPlan(6, 600).titleMax);
+      expect(t.text).toContain('…');
+      expect(t.text).toMatch(/_Y2\.MSI$/);
+    }
+    // A desktop has room for a typical name whole.
+    const typical = series(6).map((x) => ({ ...x, label: '1710 MHz · ACME_ANT-1_1710_P45_02T.msi' }));
+    const wide = titles(buildSurfaceFigure({ series: typical, layout: 'grid', floorDb: 40, theme, viewportWidth: 1440 }));
+    expect(wide[0].text).toBe(typical[0].label);
+  });
+
+  it('gives each title its own scene: a gap above the title band, none of the scenes overlap, and titles sit just over their scene', () => {
+    for (const vw of [390, 600, 1440]) {
+      const f = buildSurfaceFigure({ series: long(6), layout: 'grid', floorDb: 40, theme, viewportWidth: vw });
+      const d = scenes(f, 6);
+      const t = titles(f);
+      d.forEach((a, i) => {
+        // The title is above its own scene's top, and below the scene above it.
+        expect(t[i].y).toBeGreaterThan(a.y[1]);
+        d.forEach((b, j) => {
+          if (i === j) return;
+          const xOverlap = a.x[0] < b.x[1] - 1e-9 && b.x[0] < a.x[1] - 1e-9;
+          const yOverlap = a.y[0] < b.y[1] - 1e-9 && b.y[0] < a.y[1] - 1e-9;
+          expect(xOverlap && yOverlap, `${vw}: scene ${i} and ${j}`).toBe(false);
+          // A title is never inside another scene's box.
+          const inside = t[i].x > b.x[0] && t[i].x < b.x[1] && t[i].y > b.y[0] && t[i].y < b.y[1];
+          expect(inside, `${vw}: title ${i} in scene ${j}`).toBe(false);
+        });
+      });
+      // A title is nearer its own scene than the scene above it: the space above the title is larger than the one under it.
+      const cols = gridPlan(6, vw).columns;
+      for (let k = cols; k < 6; k++) {
+        const above = d[k - cols].y[0] - t[k].y;
+        const below = t[k].y - d[k].y[1];
+        expect(above, `${vw}: title ${k}`).toBeGreaterThan(below);
+      }
+    }
+  });
+
+  it('reduces the window width to a phone class (390, 600) or a desktop (undefined)', () => {
+    expect([320, 390, 419].map(widthClass)).toEqual([390, 390, 390]);
+    expect([420, 600, 760].map(widthClass)).toEqual([600, 600, 600]);
+    expect([761, 1440].map(widthClass)).toEqual([undefined, undefined]);
+  });
+
+  it('puts the colour bar under the scenes on a phone and beside them on a desktop', () => {
+    const bar = (vw?: number) => (buildSurfaceFigure({ series: series(3), layout: 'grid', floorDb: 40, theme, viewportWidth: vw }).data[0] as { colorbar: { orientation?: string } }).colorbar;
+    expect(bar(390).orientation).toBe('h');
+    expect(bar(600).orientation).toBe('h');
+    expect(bar(1440).orientation).toBeUndefined();
+    expect(buildSurfaceFigure({ series: series(3), layout: 'grid', floorDb: 40, theme, viewportWidth: 390 }).layout.margin?.b).toBeGreaterThan(30);
+  });
+
+  it('is taller on a phone, one row of about 300 px per scene row', () => {
+    expect(gridHeightPx(6, 390)).toBe(6 * 300);
+    expect(gridHeightPx(6, 600)).toBe(3 * 300);
+    expect(gridHeightPx(1, 390)).toBe(480);
+    expect(gridHeightPx(6, 1440)).toBeUndefined();
+    expect(gridHeightPx(6, undefined)).toBeUndefined();
   });
 });

@@ -1,17 +1,24 @@
-import { useCallback, useDeferredValue, useMemo, useRef } from 'react';
+import { useCallback, useDeferredValue, useMemo, useRef, useSyncExternalStore } from 'react';
 import Plotly from 'plotly.js-dist-min';
 import type { Layout } from 'plotly.js-dist-min';
 import { useStore } from '../state/store';
 import { gridsFor, type TaggedPattern } from '../core/analysis/metrics';
 import { reconstructTilted3d } from '../core/analysis/tilt';
 import { nameOf } from '../core/names';
-import { buildSurfaceFigure, linkedCameraUpdate, maxSurfaces, type SurfaceSeries } from './surfaceFigure';
+import { buildSurfaceFigure, gridHeightPx, linkedCameraUpdate, maxSurfaces, widthClass, type SurfaceSeries } from './surfaceFigure';
 import { capItems, capNotice, surfaceExportCaption } from './viewCaps';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 import { withSimulated } from './exportFigure';
 import { exportName, simulatedCaption } from './simSummary';
+
+const subscribeResize = (cb: () => void) => {
+  window.addEventListener('resize', cb);
+  return () => window.removeEventListener('resize', cb);
+};
+/** The window's width class (see `widthClass`): changes only when a phone layout starts or ends. */
+const useWidthClass = (): number | undefined => useSyncExternalStore(subscribeResize, () => widthClass(window.innerWidth), () => undefined);
 
 export function Pattern3D({
   items,
@@ -27,6 +34,7 @@ export function Pattern3D({
   const floorDb = useStore((s) => s.view.floorDb);
   const theme = useStore((s) => s.view.theme);
   const { effective } = sim;
+  const viewportWidth = useWidthClass();
 
   // At most `cap` surfaces are ever built or drawn (the highlighted file first, then ticked files in panel order).
   const highlighted = useStore((s) => s.highlighted);
@@ -52,8 +60,8 @@ export function Pattern3D({
   );
 
   const figure = useMemo(
-    () => buildSurfaceFigure({ series, layout, floorDb, theme: FIGURE_THEMES[theme] }),
-    [series, layout, floorDb, theme],
+    () => buildSurfaceFigure({ series, layout, floorDb, theme: FIGURE_THEMES[theme], viewportWidth }),
+    [series, layout, floorDb, theme, viewportWidth],
   );
 
   const notice = capNotice(layout === 'grid' ? 'The side-by-side 3D view draws' : 'The 3D overlay draws', capped.shown.length, capped.total, cap);
@@ -87,7 +95,7 @@ export function Pattern3D({
           {notice}
         </p>
       )}
-      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: withSimulated(exportCaption, simulated ? simulatedCaption(sim, method) : undefined), filename: exportName('antenna-pattern-3d', simulated) }} />
+      <PlotlyChart className="plot plot3d" height={layout === 'grid' ? gridHeightPx(series.length, viewportWidth) : undefined} figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: withSimulated(exportCaption, simulated ? simulatedCaption(sim, method) : undefined), filename: exportName('antenna-pattern-3d', simulated) }} />
     </>
   );
 }

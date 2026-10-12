@@ -21,6 +21,8 @@ type PlotlyElement = HTMLDivElement & {
 interface Props {
   figure: Figure;
   className?: string;
+  /** Height in px when the style sheet's is not right for this figure (the side-by-side 3D view on a phone). */
+  height?: number;
   testId?: string;
   /** The plot's accessible name (a group, not an image: Plotly's modebar buttons inside must stay reachable). */
   ariaLabel?: string;
@@ -90,7 +92,7 @@ export function PlotlyChart(props: Props) {
   );
 }
 
-function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labelledExport, overlay, previewBase, onDrawn }: Props) {
+function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayout, labelledExport, overlay, previewBase, onDrawn }: Props) {
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
   const [error, setError] = useState<string | null>(null);
@@ -316,7 +318,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
   }, []);
 
   return (
-    <div className={className} data-testid={testId} role={ariaLabel ? 'group' : undefined} aria-label={ariaLabel} style={{ position: 'relative' }}>
+    <div className={className} data-testid={testId} role={ariaLabel ? 'group' : undefined} aria-label={ariaLabel} style={{ position: 'relative', ...(height !== undefined ? { height } : {}) }}>
       <div ref={ref} style={{ width: '100%', height: '100%' }} />
       {error && (
         <p className="plot-error" role="status">

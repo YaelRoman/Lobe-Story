@@ -2,6 +2,7 @@ import type { Data, Layout } from 'plotly.js';
 import type { Surface3d } from '../core/analysis/pattern3d';
 import type { Layout3d } from '../state/store';
 import type { Figure, FigureTheme } from './figureTheme';
+import { middleEllipsis } from './legend';
 
 /** Most files the side-by-side layout draws (one WebGL scene per file). */
 export const MAX_3D = 6;
@@ -22,6 +23,8 @@ export interface SurfaceFigureOptions {
   layout: Layout3d;
   floorDb: number;
   theme: FigureTheme;
+  /** The window width in px, so a phone gets fewer, larger scenes (see `gridPlan`); undefined: a desktop. */
+  viewportWidth?: number;
 }
 
 const RAD = Math.PI / 180;
@@ -58,6 +61,31 @@ export function toCartesian(s: Surface3d, floorDb: number) {
 }
 
 export const gridColumns = (n: number): number => (n <= 1 ? 1 : n <= 4 ? 2 : 3);
+
+const PHONE_MAX_WIDTH = 760;
+const NARROW_PHONE_WIDTH = 420;
+/** Height of one row of scenes on a phone, in px. */
+const PHONE_ROW_PX = 300;
+/** Average width of a character of a scene title (12 px text), in px. */
+const TITLE_CHAR_PX = 6.8;
+
+/**
+ * Columns of the side-by-side layout and the longest scene title (in characters) that fits a scene. A phone (760 px or
+ * narrower) gets 2 columns, 1 below 420 px: three scenes of 110 px cannot carry a title. A desktop keeps `gridColumns`.
+ */
+export function gridPlan(n: number, viewportWidth?: number): { columns: number; titleMax: number; phone: boolean } {
+  const phone = viewportWidth !== undefined && viewportWidth <= PHONE_MAX_WIDTH;
+  const columns = phone ? Math.min(gridColumns(n), viewportWidth < NARROW_PHONE_WIDTH ? 1 : 2) : gridColumns(n);
+  // The plot is about the window less the side margins (phone) or less the file panel (desktop).
+  const plotWidth = viewportWidth === undefined ? 1100 : phone ? viewportWidth - 24 : Math.max(400, viewportWidth - 348);
+  return { columns, titleMax: Math.max(12, Math.floor(plotWidth / columns / TITLE_CHAR_PX) - 2), phone };
+}
+
+/** The side-by-side plot's height in px on a phone (a row of scenes needs about 300 px); undefined: the style sheet's. */
+export function gridHeightPx(n: number, viewportWidth?: number): number | undefined {
+  if (viewportWidth === undefined || viewportWidth > PHONE_MAX_WIDTH) return undefined;
+  return Math.max(480, Math.ceil(n / gridPlan(n, viewportWidth).columns) * PHONE_ROW_PX);
+}
 
 export const sceneId = (k: number): string => (k === 0 ? 'scene' : `scene${k + 1}`);
 
@@ -128,7 +156,7 @@ export function buildSurfaceFigure(o: SurfaceFigureOptions): Figure {
     }
     layout.scene = sceneLayout(o.floorDb, o.theme);
   } else {
-    const cols = gridColumns(series.length);
+    const { columns: cols, titleMax, phone } = gridPlan(series.length, o.viewportWidth);
     const rows = Math.max(1, Math.ceil(series.length / cols));
     const annotations: Record<string, unknown>[] = [];
     series.forEach((s, k) => {
@@ -138,16 +166,22 @@ export function buildSurfaceFigure(o: SurfaceFigureOptions): Figure {
       const x1 = (c + 1) / cols;
       const y0 = 1 - (r + 1) / rows;
       const y1 = 1 - r / rows;
+      // Per row of height 1/rows: room above the title (so it does not read as the caption of the scene above) and a title band over its own scene.
+      const gap = 0.14 / rows;
+      const band = 0.07 / rows;
       data.push({
         ...surfaceTrace(s),
         scene: sceneId(k),
         colorscale: 'Viridis',
         showscale: k === 0,
-        colorbar: { title: { text: 'dB' }, len: 0.5 },
+        // A phone has no room beside the scenes: the bar lies under them.
+        colorbar: phone
+          ? { title: { text: 'dB', side: 'right' }, orientation: 'h', thickness: 12, lenmode: 'pixels', len: 200, x: 0.5, xanchor: 'center', y: 0, yanchor: 'top' }
+          : { title: { text: 'dB' }, len: 0.5 },
       });
-      layout[sceneId(k)] = sceneLayout(o.floorDb, o.theme, { x: [x0, x1], y: [y0, y1 - 0.06 / rows] });
+      layout[sceneId(k)] = sceneLayout(o.floorDb, o.theme, { x: [x0, x1], y: [y0 + gap, y1 - band] });
       annotations.push({
-        text: s.label,
+        text: middleEllipsis(s.label, titleMax),
         x: (x0 + x1) / 2,
         y: y1,
         xref: 'paper',
@@ -159,6 +193,7 @@ export function buildSurfaceFigure(o: SurfaceFigureOptions): Figure {
       });
     });
     layout.annotations = annotations;
+    if (phone) layout.margin = { l: 0, r: 0, t: 30, b: 56 };
   }
 
   return { data: data as Data[], layout: layout as Partial<Layout> };
@@ -181,3 +216,9 @@ export function linkedCameraUpdate(
   }
   return null;
 }
+
+/**
+ * The window width reduced to what the side-by-side layout tells apart: 390 (below 420 px), 600 (a phone or small
+ * tablet, up to 760 px), or undefined (a desktop). Coarse on purpose: a figure is rebuilt only when it changes.
+ */
+export const widthClass = (innerWidth: number): number | undefined => (innerWidth <= PHONE_MAX_WIDTH ? (innerWidth < NARROW_PHONE_WIDTH ? 390 : 600) : undefined);
