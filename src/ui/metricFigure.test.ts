@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlotData } from 'plotly.js';
-import { buildMetricFigure, metricAxisTitle, metricCaption, minSpanForUnit, noValueNote, noValues, coincidingNote, plottedFileIds } from './metricFigure';
+import { buildMetricFigure, fitRange, metricAxisTitle, metricCaption, minSpanForUnit, noValueNote, noValues, coincidingNote, plottedFileIds } from './metricFigure';
 import { FIGURE_THEMES } from './figureTheme';
 
 const traces = (f: { data: unknown[] }) => f.data as Partial<PlotData>[];
@@ -150,5 +150,35 @@ describe('plottedFileIds', () => {
     expect(plottedFileIds(groups, { zero: true })).toEqual([]);
     expect(plottedFileIds(groups, { e: true })).toEqual([]);
     expect(plottedFileIds(groups, { e: true, f: true })).toEqual(['f']);
+  });
+});
+
+describe('a metric whose values are tiny against its unit (the lower region ratio)', () => {
+  const tiny = [
+    { label: 'g1', color: '#111', points: [{ freq: 1700, value: 0.0006 }, { freq: 1800, value: 0.0008 }] },
+    { label: 'g2', color: '#222', points: [{ freq: 1700, value: 0.0007 }, { freq: 1800, value: 0.00075 }] },
+  ];
+
+  it('fits the y axis to the data instead of the unit span, and never goes below zero', () => {
+    const usual = buildMetricFigure(tiny, FIGURE_THEMES.light, 'Lower region est.', '%');
+    expect(usual.layout.yaxis?.range).toEqual([0.0007 - 2.5, 0.0007 + 2.5]);
+    const f = buildMetricFigure(tiny, FIGURE_THEMES.light, 'Lower region est.', '%', undefined, { fitToData: true });
+    const [lo, hi] = f.layout.yaxis!.range as [number, number];
+    expect(lo).toBeGreaterThanOrEqual(0);
+    expect(lo).toBeLessThan(0.0006);
+    expect(hi).toBeGreaterThan(0.0008);
+    expect(hi - lo).toBeLessThan(0.001);
+    // Small numbers are written out, not as "600µ".
+    expect(f.layout.yaxis).toMatchObject({ exponentformat: 'none' });
+  });
+
+  it('fitRange: a margin of a quarter of the spread or a tenth of the largest value; one value still gets a readable axis', () => {
+    expect(fitRange([0, 0.4])).toEqual([0, 0.5]);
+    const [lo, hi] = fitRange([0.3, 0.3])!;
+    expect(lo).toBeCloseTo(0.27, 9);
+    expect(hi).toBeCloseTo(0.33, 9);
+    expect(fitRange([0.001, null, undefined])![0]).toBeGreaterThan(0);
+    expect(fitRange([null])).toBeUndefined();
+    expect(fitRange([0, 0])).toBeUndefined();
   });
 });

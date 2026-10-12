@@ -87,8 +87,32 @@ export function coincidingNote(lines: LineSignature[], maxSets = 3): string | nu
   return `${text.join('; ')}.`;
 }
 
+/**
+ * A y range fitted to the values, for a metric whose numbers are tiny against its unit's usual span (a share of a few
+ * thousandths of a percent): a margin of a quarter of the spread, at least a tenth of the largest value, and never
+ * below zero when no value is. Undefined without a number, or when every value is zero.
+ */
+export function fitRange(values: (number | null | undefined)[]): [number, number] | undefined {
+  const v = values.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
+  if (v.length === 0) return undefined;
+  const lo = Math.min(...v);
+  const hi = Math.max(...v);
+  const largest = Math.max(Math.abs(lo), Math.abs(hi));
+  if (largest === 0) return undefined;
+  const pad = Math.max((hi - lo) * 0.25, largest * 0.1);
+  return [lo >= 0 ? Math.max(0, lo - pad) : lo - pad, hi + pad];
+}
+
 /** One y axis: `label (unit)` against frequency, a line per group, gaps where a file has no value. */
-export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, label: string, unit: string, reference?: MetricReference): Figure {
+export function buildMetricFigure(
+  series: MetricSeries[],
+  theme: FigureTheme,
+  label: string,
+  unit: string,
+  reference?: MetricReference,
+  /** `fitToData`: the y axis follows the values (see `fitRange`) instead of keeping the unit's least span. */
+  options: { fitToData?: boolean } = {},
+): Figure {
   // Plotly has `meta` (the export reads it as the full legend name); @types/plotly.js does not declare it.
   const data: (Partial<PlotData> & { meta?: string })[] = [];
   for (const s of series) {
@@ -119,7 +143,8 @@ export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, la
       marker: { color: theme.fg, symbol: 'diamond' as const, size: 13, line: { color: theme.bg, width: 1.5 } } as Partial<PlotData['marker']>,
     });
   }
-  const range = minSpanRange([...series.flatMap((s) => s.points.flatMap((p) => [p.value, p.declared])), ...(reference ? [reference.point.value] : [])], minSpanForUnit(unit));
+  const values = [...series.flatMap((s) => s.points.flatMap((p) => [p.value, p.declared])), ...(reference ? [reference.point.value] : [])];
+  const range = options.fitToData ? fitRange(values) : minSpanRange(values, minSpanForUnit(unit));
   return {
     data: data as Data[],
     layout: {
@@ -129,7 +154,7 @@ export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, la
       margin: { l: 60, r: 20, t: 20, b: 50 },
       legend: LEGEND,
       xaxis: { automargin: true, title: { text: 'Frequency (MHz)', standoff: 8 }, gridcolor: theme.grid },
-      yaxis: { title: { text: metricAxisTitle(label, unit) }, gridcolor: theme.grid, ...(range ? { range } : {}) },
+      yaxis: { title: { text: metricAxisTitle(label, unit) }, gridcolor: theme.grid, ...(range ? { range } : {}), ...(options.fitToData ? { exponentformat: 'none' as const } : {}) },
     },
   };
 }

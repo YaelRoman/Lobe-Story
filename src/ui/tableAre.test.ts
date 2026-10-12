@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildRows, cellText, columnGroupTitle, columnLabel, columnTitle, COLUMN_GROUPS, csvColumns, markReference, METRIC_COLUMNS, needsAngularRegions,
+  buildRows, cellText, chartFitsData, columnGroupTitle, columnLabel, columnTitle, COLUMN_GROUPS, csvColumns, markReference, METRIC_COLUMNS, needsAngularRegions,
   rowCell, toCsv, toTsv, visibleColumns, withMethod,
 } from './table';
 import { DEFAULT_TABLE_GROUPS } from '../state/store';
@@ -143,8 +143,10 @@ describe('the angular-region columns in the table and the exports', () => {
     expect(cellText({ ...row, tilted: { areLower: { value: null, reason: 'no' } } }, 'areLower')).toBe('0.012 → —');
     expect(cellText({ ...lower(0.0031), isDelta: true }, 'areLower')).toBe('+0.003');
     expect(cellText({ ...lower(-0.0127), isDelta: true }, 'areLower')).toBe('-0.013');
-    expect(cellText({ ...lower(0.0002), isDelta: true }, 'areLower')).toBe('0.000');
-    expect(cellText({ ...lower(-0.0002), isDelta: true }, 'areLower')).toBe('0.000');
+    // A difference below the three decimals gets the decimals it needs: two files that differ do not both read 0.000.
+    expect(cellText({ ...lower(0.0002), isDelta: true }, 'areLower')).toBe('+0.0002');
+    expect(cellText({ ...lower(-0.0002), isDelta: true }, 'areLower')).toBe('-0.0002');
+    expect(cellText({ ...lower(0), isDelta: true }, 'areLower')).toBe('0.000');
     // The other columns are as before.
     expect(cellText({ ...row, isDelta: true }, 'areSector')).toMatch(/^[+-]?\d+\.\d$/);
     const columns = visibleColumns(shownGroups);
@@ -247,5 +249,29 @@ describe('the angular-region columns in the table and the exports', () => {
     const t = { electricalDeg: 2, mechanicalDeg: 0 };
     const m = analyzeTilted(tiltTagged(tagged, t, 'summation'), DEFAULT_SETTINGS, t).get('alpha.msi')!;
     expect(m.are.sector).toEqual({ value: null, reason: 'Not computed' });
+  });
+});
+
+describe('the lower region ratio keeps its small numbers readable', () => {
+  const row = (lower: number) => ({ ...buildRows(groups, withAre, 'dBd')[0], isDelta: true as const, cells: { ...buildRows(groups, withAre, 'dBd')[0].cells, areLower: { value: lower }, areSector: { value: 0.04 }, hHpbw: { value: 0.04 } } });
+
+  it('a difference that is not zero does not read 0.000: it gets the decimals it needs', () => {
+    expect(rowCell(row(0.0001), 'areLower').text).toBe('+0.0001');
+    expect(rowCell(row(-0.00002), 'areLower').text).toBe('-0.00002');
+    expect(rowCell(row(0.0012), 'areLower').text).toBe('+0.001');
+    expect(rowCell(row(0), 'areLower').text).toBe('0.000');
+    // Too small to matter (beyond seven decimals) reads as zero.
+    expect(rowCell(row(1e-9), 'areLower').text).toBe('0.000');
+    // The other columns keep their one decimal.
+    expect(rowCell(row(0.0001), 'areSector').text).toBe('0.0');
+    expect(rowCell(row(0.0001), 'hHpbw').text).toBe('0.0');
+  });
+
+  it('the value itself keeps three decimals in the table and is marked for a chart that fits its data', () => {
+    const plain = { ...buildRows(groups, withAre, 'dBd')[0], cells: { ...buildRows(groups, withAre, 'dBd')[0].cells, areLower: { value: 0.00071 } } };
+    expect(rowCell(plain, 'areLower').text).toBe('0.001');
+    expect(chartFitsData('areLower')).toBe(true);
+    expect(chartFitsData('areSector')).toBe(false);
+    expect(chartFitsData('hLevel')).toBe(false);
   });
 });

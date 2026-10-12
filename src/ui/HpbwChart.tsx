@@ -7,7 +7,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
 import { buildMetricFigure, coincidingNote, metricCaption, noValueNote, noValues, plottedFileIds, type LineSignature, type MetricSeries } from './metricFigure';
-import { chartColumns, columnLabel, COLUMN_GROUPS, followsHCut, HORIZON_LEVEL_COLUMN, METRIC_COLUMNS, metricValue, shownChartMetric, withMethod, type ColumnSpec, type TableColumn } from './table';
+import { chartColumns, chartFitsData, columnLabel, COLUMN_GROUPS, followsHCut, HORIZON_LEVEL_COLUMN, METRIC_COLUMNS, metricValue, shownChartMetric, withMethod, type ColumnSpec, type TableColumn } from './table';
 import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
 import { groupLook, PER_FILE_COLOURS } from './colors';
@@ -127,7 +127,7 @@ export const HpbwChart = memo(function HpbwChart({
       const reasons = plottedFileIds(groups, visible).map((id) => { const m = sim.metrics.get(id); return m ? metricValue(m, metric).reason : undefined; });
       return { build: null, empty: noValueNote(label, reasons), coincide: null };
     }
-    return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], plotLabel, column.unit, ref), empty: null, coincide: coincidingNote(single.filter((s) => !s.ghost)) };
+    return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], plotLabel, column.unit, ref, { fitToData: chartFitsData(metric) }), empty: null, coincide: coincidingNote(single.filter((s) => !s.ghost)) };
   }, [groups, metrics, visible, theme, sim, levelDb, metric, both, followsH, isLevel, label, plotLabel, column.unit, reference]);
 
   // The chart plots every file of a group that has a visible file, and the reference's diamond.

@@ -124,7 +124,7 @@ The four regions cover the sphere once.
 |---|---|---|---|
 | Sector eff. est. | % | Power in the service region ÷ power over the whole sphere × 100. | 7.2.4 (estimate) |
 | Spatial eff. est. | % | Power in the service region ÷ power in the service and interference regions × 100. | 7.2.4 (estimate) |
-| Lower region est. | % | Power in the lower region ÷ power over the whole sphere × 100. Shown with three decimals (four in the CSV): it is typically a few thousandths of a percent to a few tenths. | 7.2.4 (estimate) |
+| Lower region est. | % | Power in the lower region ÷ power over the whole sphere × 100. Shown with three decimals (four in the CSV): it is typically a few thousandths of a percent to a few tenths. In the difference view a difference too small for three decimals is written with as many as it needs (+0.00003), so two files that differ never both read 0.000. Its frequency chart fits the y axis to the values (never below zero) instead of keeping the 5-point span of the other percent metrics. | 7.2.4 (estimate) |
 
 **How the power is integrated.** The intensity in a direction is the tool's two-cut 3D reconstruction,
 the same one the 3D view and the tilt simulation use, with the selected 3D method: the azimuth cut

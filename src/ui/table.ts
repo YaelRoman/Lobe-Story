@@ -589,6 +589,23 @@ const DECIMALS: Partial<Record<TableColumn, { shown: number; csv: number }>> = {
 const shownDecimals = (key: TableColumn): number => DECIMALS[key]?.shown ?? 1;
 const csvDecimals = (key: TableColumn): number => DECIMALS[key]?.csv ?? 2;
 
+/** Whether the frequency chart of a column fits its y axis to the data: its values are tiny against the unit's usual span. */
+export const chartFitsData = (key: TableColumn): boolean => DECIMALS[key] !== undefined;
+
+/** The most decimals a small difference is written with. */
+const MAX_DELTA_DECIMALS = 7;
+
+/**
+ * Decimals of a difference in such a column: the column's own, or as many more as it takes for a difference that is
+ * not zero to show a digit (two files that differ must not both read 0.000).
+ */
+function deltaDecimals(key: TableColumn, v: number | null): number {
+  const usual = shownDecimals(key);
+  if (v === null || v === 0 || DECIMALS[key] === undefined || Number(v.toFixed(usual)) !== 0) return usual;
+  for (let d = usual + 1; d <= MAX_DELTA_DECIMALS; d++) if (Number(v.toFixed(d)) !== 0) return d;
+  return usual;
+}
+
 const fmt = (v: number | null, decimals = 2) => (v === null ? '' : fixed(v, decimals));
 /** One CSV field, quoted only where CSV syntax needs it. */
 export const csvCell = (raw: string) => (/[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw);
@@ -748,7 +765,7 @@ export const cellText = (r: MetricsRow, key: TableColumn): string => rowCell(r, 
 /** What a row's cell shows (and its tooltip): the difference in the difference view, else the value (`original → tilted` under a simulation). */
 export function rowCell(r: MetricsRow, key: TableColumn, words: PairWords = TILT_WORDS): { text: string; title?: string; equal?: true } {
   const cell = cellOf(r, key);
-  if (r.isDelta) return { text: signedDecimals(cell.value, shownDecimals(key)), title: cell.reason };
+  if (r.isDelta) return { text: signedDecimals(cell.value, deltaDecimals(key, cell.value)), title: cell.reason };
   return formatCell(cell, tiltedOf(r, key), shownDecimals(key), words);
 }
 

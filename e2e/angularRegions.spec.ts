@@ -101,3 +101,47 @@ test('the 3D method travels with the angular-region estimate: collapsed Simulati
   await toggle.uncheck();
   await expect(summary).not.toContainText('3D method');
 });
+
+test('Lower region est.: the frequency chart fits its axis to the small values, and a difference that is not zero does not read 0.000', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await page.getByLabel('Show Angular regions (est.) columns').check();
+  await page.getByLabel('Metric', { exact: true }).selectOption({ label: 'Lower region est. (%)' });
+  const chart = page.getByTestId('plot-hpbw');
+  await expect(chart.locator('.ytitle')).toContainText('Lower region est. [Summation] (%)');
+
+  // The table keeps three decimals; the values are a few ten-thousandths of a percent.
+  const cells = page.locator('.metrics tbody td[data-col="areLower"]');
+  const shown = (await cells.allTextContents()).map((t) => t.trim());
+  expect(shown).toHaveLength(24);
+  for (const t of shown) expect(t).toMatch(/^\d\.\d{3}$/);
+
+  // The y axis runs over the values (not −2…+2 %), starts at zero or above, and writes its small numbers out.
+  const range = await chart.evaluate((el) => {
+    const plot = (el.matches('.js-plotly-plot') ? el : el.querySelector('.js-plotly-plot')) as unknown as { _fullLayout: { yaxis: { range: [number, number] } } };
+    return plot._fullLayout.yaxis.range;
+  });
+  expect(range[0]).toBeGreaterThanOrEqual(0);
+  expect(range[1]).toBeLessThan(0.01);
+  expect(range[1] - range[0]).toBeGreaterThan(0);
+  const ticks = await chart.locator('.ytick text').allTextContents();
+  expect(ticks.length).toBeGreaterThan(1);
+  for (const t of ticks) expect(t).toMatch(/^0(\.\d+)?$/);
+  // The lines no longer lie flat on one level: their points span a good part of the plot's height.
+  const ys = await chart.locator('.scatterlayer .trace .points path').evaluateAll((points) => points.map((p) => p.getBoundingClientRect().y));
+  expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(60);
+
+  // Difference view: files that differ from the reference show a digit.
+  await page.locator('.panel li').first().getByLabel(/^Actions for /).click();
+  await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+  await page.getByLabel('Δ vs reference').check();
+  await expect(page.getByTestId('reference-note')).toBeVisible();
+  const deltas = (await cells.allTextContents()).map((t) => t.trim());
+  // (The first row is the reference with its own value.)
+  const others = deltas.slice(1);
+  expect(others.some((t) => /^[+-]0\.0{3,}[1-9]/.test(t))).toBe(true);
+  for (const t of others) expect(t).toMatch(/^(0\.000|[+-]0\.\d{3,7})$/);
+});
