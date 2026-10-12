@@ -2,14 +2,39 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { SKIP_TARGETS } from './SkipLinks';
 import { isTextEntry, isUndoShortcut, undoShortcut } from './undoKeys';
+import { MidName } from './MidName';
+import { usePhoneLayout } from './phoneLayout';
 
 /** How long the toast offering an undo stays; the undo itself stays available to Ctrl/Cmd+Z until a later edit withdraws it. */
 export const UNDO_MS = 10_000;
 /** The least time the offer stays after the pointer or the focus leaves it. */
 const RESUME_MIN_MS = 3_000;
 
+/**
+ * What the offer is about. A file or group name in it stays on one line with the words before it and is cut in the
+ * middle when the offer is narrow (its end, which tells files apart, stays whole; see `.undo-label`); words after
+ * the name go to a second line when there is no room. The full text stays in the page.
+ */
+function OfferLabel({ label, name }: { label: string; name?: string }) {
+  const at = name ? label.indexOf(name) : -1;
+  if (!name || at < 0) return <span className="undo-label">{label}.</span>;
+  const after = label.slice(at + name.length);
+  return (
+    <span className="undo-label named">
+      <span className="undo-name">
+        <span>{label.slice(0, at)}</span>
+        <MidName text={name} />
+        {after === '' && <span>.</span>}
+      </span>
+      {after !== '' && <span>{after}.</span>}
+    </span>
+  );
+}
+
 /** One offer; mounted anew for each (keyed by its id), so the timer and the pause state start fresh. */
-function Offer({ label }: { label: string }) {
+function Offer({ label, name }: { label: string; name?: string }) {
+  // A phone has no Ctrl+Z: the button says what it does, and the room goes to the name.
+  const phone = usePhoneLayout();
   const undoLast = useStore((s) => s.undoLast);
   const fadeUndo = useStore((s) => s.fadeUndo);
   const setCopyNote = useStore((s) => s.setCopyNote);
@@ -54,8 +79,8 @@ function Offer({ label }: { label: string }) {
       }}
       onBlur={() => setFocused(false)}
     >
-      <span>{label}.</span>
-      <button onClick={undoLast}>Undo · {undoShortcut()}</button>
+      <OfferLabel label={label} name={name} />
+      <button onClick={undoLast}>{phone ? 'Undo' : `Undo · ${undoShortcut()}`}</button>
       <button aria-label="Hide undo offer" title="Hide (Ctrl/Cmd+Z still undoes)" onClick={hide}>
         ✕
       </button>
@@ -72,7 +97,7 @@ export function UndoToast() {
   const undo = useStore((s) => s.undo);
   useUndoShortcut();
   if (!undo?.shown) return null;
-  return <Offer key={undo.id} label={undo.label} />;
+  return <Offer key={undo.id} label={undo.label} name={undo.name} />;
 }
 
 /** What Ctrl/Cmd+Z announces when there is nothing to take back. */

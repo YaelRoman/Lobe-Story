@@ -373,8 +373,8 @@ const nextGroupName = (groups: CustomGroup[], prefix: string): string => {
 
 let undoSeq = 0;
 /** The `undo` field for an action about to change `s`: its snapshot, labelled for the toast. */
-const undoEntry = (s: StoreData, label: string): { undo: UndoEntry } => ({
-  undo: { id: ++undoSeq, label, snapshot: takeSnapshot(s), shown: true },
+const undoEntry = (s: StoreData, label: string, name?: string): { undo: UndoEntry } => ({
+  undo: { id: ++undoSeq, label, ...(name ? { name } : {}), snapshot: takeSnapshot(s), shown: true },
 });
 
 /** Whether every value of `partial` is already what `current` holds (an update that changes nothing). */
@@ -557,6 +557,7 @@ export const useStore = create<State>()((rawSet, get) => {
       if (!s.copies[id] && !file) return s;
       const isCopy = !!s.copies[id];
       const ids = isCopy ? [id] : [id, ...Object.keys(s.copies).filter((c) => s.copies[c].sourceId === id)];
+      const removedName = s.names[id] ?? baseName(file?.path ?? id);
       const d = draftOf(s);
       for (const x of ids) {
         delete d.copies[x];
@@ -574,7 +575,7 @@ export const useStore = create<State>()((rawSet, get) => {
         selected: s.selected?.kind === 'file' && ids.includes(s.selected.id) ? null : s.selected,
         // The status line may be about the file that just went: do not leave a stale count behind.
         ...(isCopy ? {} : { loadMessage: null, loadFailed: 0 }),
-        ...undoEntry(s, `Removed ${s.names[id] ?? baseName(file?.path ?? id)}${ids.length > 1 ? ' and its copies' : ''}`),
+        ...undoEntry(s, `Removed ${removedName}${ids.length > 1 ? ' and its copies' : ''}`, removedName),
       };
     }),
 
@@ -758,7 +759,7 @@ export const useStore = create<State>()((rawSet, get) => {
       return {
         ...commit(s, d),
         selected: s.selected?.kind === 'group' && s.selected.id === id ? null : s.selected,
-        ...undoEntry(s, `Deleted group ${group.name}`),
+        ...undoEntry(s, `Deleted group ${group.name}`, group.name),
       };
     }),
 

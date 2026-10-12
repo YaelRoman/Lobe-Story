@@ -415,3 +415,28 @@ test('Save project and Open project say what they did in the status line', async
   await page.getByTestId('project-input').setInputFiles(path);
   await expect(status).toHaveText(/^Opened project .*: 2 files/);
 });
+
+test('on a phone the undo offer of a Remove is one line: the button says Undo and the file name keeps its end', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await page.locator('.files-toggle').click();
+  await page.getByLabel('Actions for example_1710_P45_02T.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  const toast = page.getByTestId('undo-toast');
+  await expect(toast).toBeVisible();
+  // No keyboard shortcut is named where there is no keyboard.
+  await expect(toast.getByRole('button', { name: 'Undo', exact: true })).toBeVisible();
+  // The whole name is in the page, on one line with the words before it and the buttons (it was three lines, 73 px).
+  await expect(toast.locator('.undo-label')).toHaveText('Removed example_1710_P45_02T.msi.');
+  const box = (await toast.boundingBox())!;
+  expect(box.height).toBeLessThanOrEqual(52);
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  const lines = await toast.locator('.undo-name > *').evaluateAll((parts) => new Set(parts.map((p) => Math.round(p.getBoundingClientRect().top))).size);
+  expect(lines).toBe(1);
+  // The end of the name, which tells the files apart, is not cut.
+  const tail = toast.locator('.mid-tail');
+  await expect(tail).toHaveText('P45_02T.msi');
+  expect(await tail.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+});
