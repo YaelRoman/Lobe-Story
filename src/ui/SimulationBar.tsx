@@ -7,6 +7,7 @@ import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
 import { H_CUT_HINT, hCutAnnouncement, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
 import type { OpenHelp } from './HelpDialog';
+import { announce } from './announce';
 import { needsAngularRegions } from './table';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
@@ -150,7 +151,6 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
   const updateView = useStore((s) => s.updateView);
   const updateSimulation = useStore((s) => s.updateSimulation);
   const resetSimulation = useStore((s) => s.resetSimulation);
-  const setCopyNote = useStore((s) => s.setCopyNote);
   const collapsed = useStore((s) => s.view.collapsed.simBar);
   const setCollapsed = (simBar: boolean) => updateView({ collapsed: { ...useStore.getState().view.collapsed, simBar } });
 
@@ -229,8 +229,8 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
             onChange={(hCut) => {
               if (hCut === sim.hCut) return;
               updateSimulation({ hCut });
-              // The plot, a table column and most horizontal cells change at once: say so (shown briefly, and read out).
-              setCopyNote(hCutAnnouncement(hCut));
+              // The plot, a table column and most horizontal cells change at once: say so in the status region (read out, not shown: a toast would cover the bar).
+              announce(hCutAnnouncement(hCut));
             }}
           />
           {/* A real button, so the explanation is one Tab or one tap away (a tooltip on the box reaches neither). */}

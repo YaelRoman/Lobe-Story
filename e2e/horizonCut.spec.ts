@@ -380,6 +380,8 @@ for (const width of [1440, 390]) {
     await page.keyboard.press('Space');
     await expect(horizon).toHaveAttribute('aria-pressed', 'true');
     await expect(announcer).toContainText('Horizontal cut at the horizon: every file shows its horizon cut. Horizon level column added.');
+    // Read out only: no toast over the bar's controls.
+    await expect(page.getByTestId('copy-note')).toHaveCount(0);
     await beam.focus();
     await page.keyboard.press('Space');
     await expect(announcer).toContainText('Horizontal cut through the beam peak. Horizon level column removed.');

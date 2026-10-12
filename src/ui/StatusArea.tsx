@@ -3,6 +3,7 @@ import { useStore } from '../state/store';
 import { pendingLabel } from '../state/project';
 import { UndoToast } from './UndoToast';
 import { undoShortcut } from './undoKeys';
+import { useAnnouncement } from './announce';
 
 /** How long the line of a load where every file simply loaded stays. */
 export const CLEAN_LOAD_MS = 6_000;
@@ -33,6 +34,8 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const pendingFiles = useStore((s) => s.pendingFiles);
   const dismissPending = useStore((s) => s.dismissPending);
   const pending = pendingFiles.length > 0 ? pendingLabel(pendingFiles) : null;
+  // A line that is only read out (see `announce`): the change it reports is already visible where it was made.
+  const spoken = useAnnouncement();
 
   // "Loaded 12 files" needs no action: it goes away by itself. Anything that failed, was skipped or renamed stays.
   useEffect(() => {
@@ -86,6 +89,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
         {/* Keyed by the message count: an identical message is a new node and is read again. */}
         {loadMessage && <span key={loadSeq}>{loadMessage} </span>}
         {copyNote && <span key={`copy-${copySeq}`}>{copyNote} </span>}
+        {spoken && <span key={`say-${spoken.seq}`}>{spoken.text} </span>}
         {undoLabel && (
           <span>
             {undoLabel}. Undo: {undoShortcut()}.{' '}
