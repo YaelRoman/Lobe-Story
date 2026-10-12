@@ -1,3 +1,4 @@
+import { anySimulated } from './simSummary';
 import { describe, expect, it } from 'vitest';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import {
@@ -42,6 +43,7 @@ function simFor(
     offsetCount: Object.keys(offsets).length,
     groupOffsetCount: 0,
     effective,
+    simulatedAmong: (ids) => anySimulated(effective, ids),
     isTiltedId,
     patterns: new Map(tilted.map((i) => [i.pattern.id, i.pattern])),
     metrics: tiltActive ? analyzeTilted(tilted, DEFAULT_SETTINGS, effective) : original,

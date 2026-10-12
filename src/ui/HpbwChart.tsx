@@ -15,7 +15,7 @@ import { bwName } from './bwLabel';
 import { nameOf } from '../core/names';
 import { hasUsableFrequency } from '../core/gain';
 import { withSimulated } from './exportFigure';
-import { exportName, simulatedCaption, simulationActive } from './simSummary';
+import { exportName, simulatedCaption } from './simSummary';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 
@@ -107,7 +107,16 @@ export const HpbwChart = memo(function HpbwChart({
   }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, column.unit, reference]);
 
   const method3d = useStore((s) => s.view.method3d);
-  const simulatedLine = simulatedCaption(sim, method3d);
+  // The chart plots every file of a group that has a visible file, and the reference's diamond.
+  const plottedIds = useMemo(
+    () => [
+      ...groups.flatMap((g) => (g.items.some((i) => visible[i.pattern.id] && hasUsableFrequency(i.pattern.frequencyMHz)) ? g.items.map((i) => i.pattern.id) : [])),
+      ...(refDrawn && reference !== null ? [reference] : []),
+    ],
+    [groups, visible, refDrawn, reference],
+  );
+  const exportSimulated = sim.simulatedAmong(plottedIds);
+  const simulatedLine = exportSimulated ? simulatedCaption(sim, method3d) : undefined;
   const exportCaption = useMemo(
     () =>
       withSimulated(
@@ -154,7 +163,7 @@ export const HpbwChart = memo(function HpbwChart({
               : `${label} (${column.unit}) against frequency, one line per group`
           }
           caption={exportCaption}
-          filename={exportName(both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency`, simulationActive(sim))}
+          filename={exportName(both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency`, exportSimulated)}
         />
       </PlotBoundary>
     </section>

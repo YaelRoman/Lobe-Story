@@ -12,6 +12,7 @@ import {
   type SimSettings,
   type TiltSettings,
 } from '../core/analysis/tilt';
+import { anySimulated } from './simSummary';
 
 export interface SimulationResult {
   /** True when any loaded file is tilted (effective Δe or m non-zero). */
@@ -27,6 +28,8 @@ export interface SimulationResult {
   groupOffsetCount: number;
   /** Effective settings of a file (global + its offsets). */
   effective(id: string): SimSettings;
+  /** Whether any of these files (the ones a picture draws or an export lists) is simulated; see `anySimulated`. */
+  simulatedAmong(ids: Iterable<string>): boolean;
   /** Whether a file's effective tilt is non-zero. */
   isTiltedId(id: string): boolean;
   /** Tilted pattern per id (the original pattern for untilted files). */
@@ -79,6 +82,7 @@ export function useSimulation(
   );
   const effective = useCallback((id: string) => effectiveFor(global, offsets[id]), [global, offsets]);
   const isTiltedId = useCallback((id: string) => isTilted(effective(id)), [effective]);
+  const simulatedAmong = useCallback((ids: Iterable<string>) => anySimulated(effective, ids), [effective]);
   const tiltActive = useMemo(() => anyTilted(ids, global, offsets), [ids, global, offsets]);
 
   // A tilt-only view of the per-file settings, stable across an azimuth-only change (global or
@@ -124,6 +128,7 @@ export function useSimulation(
       offsetCount,
       groupOffsetCount,
       effective,
+      simulatedAmong,
       isTiltedId,
       patterns,
       metrics: tiltedMetrics,
@@ -136,6 +141,7 @@ export function useSimulation(
       offsetCount,
       groupOffsetCount,
       effective,
+      simulatedAmong,
       isTiltedId,
       patterns,
       tiltedMetrics,

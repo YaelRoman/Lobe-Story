@@ -11,7 +11,7 @@ import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 import { withSimulated } from './exportFigure';
-import { exportName, simulatedCaption, simulationActive } from './simSummary';
+import { exportName, simulatedCaption } from './simSummary';
 
 export function Pattern3D({
   items,
@@ -57,6 +57,8 @@ export function Pattern3D({
   );
 
   const notice = capNotice(layout === 'grid' ? 'The side-by-side 3D view draws' : 'The 3D overlay draws', capped.shown.length, capped.total, cap);
+  // Only the surfaces drawn count: an offset on a file that is not drawn does not make the picture simulated.
+  const simulated = sim.simulatedAmong(drawn.map((i) => i.pattern.id));
   const exportCaption = useMemo(() => surfaceExportCaption(layout, drawn.length, capped.total), [layout, drawn.length, capped.total]);
   const sceneCount = layout === 'grid' ? series.length : 1;
   // Our own relayout fires plotly_relayout again; skipping a camera we just applied prevents a loop.
@@ -85,7 +87,7 @@ export function Pattern3D({
           {notice}
         </p>
       )}
-      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: withSimulated(exportCaption, simulatedCaption(sim, method)), filename: exportName('antenna-pattern-3d', simulationActive(sim)) }} />
+      <PlotlyChart className="plot plot3d" figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: withSimulated(exportCaption, simulated ? simulatedCaption(sim, method) : undefined), filename: exportName('antenna-pattern-3d', simulated) }} />
     </>
   );
 }

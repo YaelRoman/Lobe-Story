@@ -159,8 +159,9 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
   });
   const target = pending ? settledTarget.current : markerTarget;
   const method3d = useStore((s) => s.view.method3d);
-  const simulatedLine = simulatedCaption(sim, method3d);
-  const simulated = simulationActive(sim);
+  // Only a simulation of what is drawn counts: an offset on an unticked file changes neither picture.
+  const simulated = sim.simulatedAmong(drawnItems.map((i) => i.pattern.id));
+  const simulatedLine = simulated ? simulatedCaption(sim, method3d) : undefined;
 
   // The files' traces: built when the drawn files, their colours or the axes change, never for a highlight or a marker.
   const bases = useMemo(() => {

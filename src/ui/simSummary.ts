@@ -1,3 +1,5 @@
+import type { SimSettings } from '../core/analysis/tilt';
+
 /** A number with a true minus sign (U+2212), as the marker labels write it. */
 const minus = (v: number): string => String(v).replace('-', '−');
 
@@ -27,6 +29,19 @@ export interface SimFacts {
 
 /** Whether any simulation is active: a tilt, an azimuth, or an offset on a file or a group. */
 export const simulationActive = (s: SimFacts): boolean => s.tiltActive || s.azimuthDeg !== 0 || s.offsetCount > 0 || s.groupOffsetCount > 0;
+
+/**
+ * Whether something among the files `ids` (the ones a picture draws or an export lists) is simulated: one of them has
+ * a non-zero effective tilt or azimuth (global values plus its own and its group's offsets). An offset on a file that
+ * is not among them does not count.
+ */
+export function anySimulated(effective: (id: string) => SimSettings, ids: Iterable<string>): boolean {
+  for (const id of ids) {
+    const e = effective(id);
+    if (e.electricalDeg !== 0 || e.mechanicalDeg !== 0 || e.azimuthDeg !== 0) return true;
+  }
+  return false;
+}
 
 /**
  * The caption line of an exported image while a simulation is active, else undefined:

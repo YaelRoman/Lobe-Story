@@ -156,6 +156,37 @@ test('exported images are white whatever the screen theme, named by cut, and say
   expect(freq.name).toBe('beamwidth-vs-frequency-simulated.png');
 });
 
+test('an offset on a file that is not drawn does not make the exports simulated', async ({ page }) => {
+  await loadExample(page);
+  const download = async (testId: string) => {
+    const pending = page.waitForEvent('download');
+    await page.getByTestId(testId).getByRole('button', { name: DOWNLOAD }).click();
+    return (await pending).suggestedFilename();
+  };
+  // The first file is highlighted on load: put a tilt offset on it, then draw only the second file.
+  await page.getByRole('button', { name: 'Show none', exact: true }).click();
+  const offset = page.getByLabel('Mechanical tilt offset (°) value');
+  await offset.fill('3');
+  await offset.press('Enter');
+  await expect(page.getByLabel('Offsets: mech +3°')).toBeVisible();
+  await page.locator('.panel li input[type="checkbox"]').nth(1).check();
+  expect(await download('plot-h')).toBe('horizontal-cut.png');
+  // The frequency chart plots every file of a group with a ticked file, so it does show the offset file.
+  expect(await download('plot-hpbw')).toBe('beamwidth-vs-frequency-simulated.png');
+  // The CSV counts the rows it lists: all files (simulated), or only the ticked ones (not).
+  const csvName = async () => {
+    const pending = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export CSV' }).click();
+    return (await pending).suggestedFilename();
+  };
+  expect(await csvName()).toBe('pattern-metrics-simulated.csv');
+  await page.getByLabel('Ticked files only').check();
+  expect(await csvName()).toBe('pattern-metrics.csv');
+  // Drawing the file with the offset makes the picture simulated.
+  await page.locator('.panel li input[type="checkbox"]').nth(0).check();
+  expect(await download('plot-h')).toBe('horizontal-cut-simulated.png');
+});
+
 test('"Reset view" puts a polar cut back after a drag has zoomed it', async ({ page }) => {
   await loadExample(page);
   const plot = page.getByTestId('plot-h');

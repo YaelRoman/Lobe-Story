@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { exportName, simSummary, simulatedCaption, simulationActive } from './simSummary';
+import { anySimulated, exportName, simSummary, simulatedCaption, simulationActive } from './simSummary';
 
 describe('simSummary', () => {
   it('shows the global values', () => {
@@ -40,5 +40,22 @@ describe('simulatedCaption and exportName', () => {
     expect(exportName('horizontal-cut', true)).toBe('horizontal-cut-simulated');
     expect(exportName('pattern-metrics', true, '.csv')).toBe('pattern-metrics-simulated.csv');
     expect(exportName('pattern-metrics', false, '.csv')).toBe('pattern-metrics.csv');
+  });
+});
+
+describe('anySimulated', () => {
+  const effective = (map: Record<string, [number, number, number]>) => (id: string) => {
+    const [electricalDeg, mechanicalDeg, azimuthDeg] = map[id] ?? [0, 0, 0];
+    return { electricalDeg, mechanicalDeg, azimuthDeg };
+  };
+  it('counts only the files given: an offset on a file that is not drawn does not count', () => {
+    const e = effective({ a: [0, 3, 0], b: [0, 0, 0] });
+    expect(anySimulated(e, ['b'])).toBe(false);
+    expect(anySimulated(e, ['a', 'b'])).toBe(true);
+    expect(anySimulated(e, [])).toBe(false);
+  });
+  it('sees a tilt, a mechanical tilt or an azimuth', () => {
+    const e = effective({ t: [2, 0, 0], m: [0, -1, 0], z: [0, 0, 15] });
+    for (const id of ['t', 'm', 'z']) expect(anySimulated(e, [id])).toBe(true);
   });
 });
