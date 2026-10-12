@@ -5,7 +5,7 @@ import { toGrid, type Grid } from './grid';
 import { elevationSidelobes, FIRST_LOBE_RANGE, horizontalSls, type LobeResult, type WindowResult } from './sidelobes';
 import { DU_LEVELS, duAperture, rollOff, rollOffEdges, sectorPower } from './sector';
 import { beamTracking, edgeTracking } from './tracking';
-import { DBI_OVER_DBD } from '../gain';
+import { DBI_OVER_DBD, hasUsableFrequency } from '../gain';
 
 export interface AnalysisSettings {
   levelDb: number;
@@ -179,6 +179,7 @@ export function findTrackingPartner(
   if (!want) return { reason: 'Polarization is not ±45' };
   if (t.tiltDeg === undefined) return { reason: 'Nominal tilt unknown' };
   const p = item.pattern;
+  if (!hasUsableFrequency(p.frequencyMHz)) return { reason: 'Frequency unknown' };
   const candidates = items.filter(
     (c) =>
       c !== item &&
@@ -186,6 +187,7 @@ export function findTrackingPartner(
       c.tags.polarization === want &&
       c.tags.tiltDeg === t.tiltDeg &&
       c.tags.array === t.array &&
+      hasUsableFrequency(c.pattern.frequencyMHz) &&
       Math.abs(c.pattern.frequencyMHz - p.frequencyMHz) < 0.5 &&
       (c.pattern.make === undefined || p.make === undefined || c.pattern.make === p.make) &&
       portsPair(t.port, c.tags.port),

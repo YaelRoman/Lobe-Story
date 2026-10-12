@@ -97,6 +97,16 @@ describe('findTrackingPartner', () => {
     expect(findTrackingPartner(p, [p, m, other])).toEqual({ partner: m });
   });
 
+  it('does not pair files without a usable frequency (0 MHz would match 0 MHz)', () => {
+    const p = mk('p', { polarization: '+45', tiltDeg: 8 }, { frequencyMHz: 0 });
+    const m = mk('m', { polarization: '-45', tiltDeg: 8 }, { frequencyMHz: 0 });
+    const known = mk('k', { polarization: '-45', tiltDeg: 8 });
+    expect(findTrackingPartner(p, [p, m])).toEqual({ reason: 'Frequency unknown' });
+    expect(findTrackingPartner(m, [p, m])).toEqual({ reason: 'Frequency unknown' });
+    const q = mk('q', { polarization: '+45', tiltDeg: 8 });
+    expect(findTrackingPartner(q, [q, m, known])).toEqual({ partner: known });
+  });
+
   it('requires adjacent odd/even numeric ports', () => {
     const p1 = mk('p1', { polarization: '+45', tiltDeg: 5, port: '1' });
     const m2 = mk('m2', { polarization: '-45', tiltDeg: 5, port: '2' });
