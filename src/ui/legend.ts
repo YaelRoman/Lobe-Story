@@ -16,6 +16,16 @@ export function middleEllipsis(text: string, max: number): string {
 }
 
 /**
+ * Splits a name into its start and its last `tail` characters, for a row whose width is not known in characters: the start
+ * (`head`) is cut off with an ellipsis by the style when the row is narrow, the end stays whole, so names that differ at the
+ * end (polarisation, tilt, extension) can still be told apart. A name that is not much longer than the tail is not split.
+ */
+export function splitTail(text: string, tail = 10): { head: string; tail: string } {
+  if (tail <= 0 || text.length <= tail + 4) return { head: text, tail: '' };
+  return { head: text.slice(0, text.length - tail), tail: text.slice(text.length - tail) };
+}
+
+/**
  * The note under a cut plot that has no legend (more than four traces). "dashed = original" is said only when dashed
  * originals are drawn (a tilt simulation with "Show original"); a pinned reference is the thick dashed line.
  */

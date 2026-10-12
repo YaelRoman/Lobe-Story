@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { openSimulation } from './simulationBar';
+import { planetText } from '../src/test/planetText';
 
 async function loadExample(page: Page, width = 1440, height = 900) {
   await page.setViewportSize({ width, height });
@@ -182,4 +183,45 @@ test('a hidden "Cut plots" heading and the skip links "Skip to plots" / "Skip to
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Metrics', exact: true })).toBeFocused();
   await expect(page.getByTestId('plot-h')).toBeAttached();
+});
+
+test.describe('long file names', () => {
+  const file = (name: string, freq: number) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(planetText({ headers: ['NAME A', `FREQUENCY ${freq}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] })) });
+  const names = ['ACME_ANT-1_Wideband_Panel_1710_X_CO_P45_02T_Y2.MSI', 'ACME_ANT-1_Wideband_Panel_1710_X_CO_P45_05T_Y2.MSI', 'ACME_ANT-1_Wideband_Panel_1710_X_CO_P45_08T_Y2.MSI'];
+
+  test('the file panel and the table cut a long name in the middle: the start gets the ellipsis, the end stays whole', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await page.getByTestId('file-input').setInputFiles(names.map((n) => file(n, 1710)));
+    const tails = await page.locator('.panel .fname .mid-tail').allInnerTexts();
+    expect(tails).toHaveLength(3);
+    expect(new Set(tails).size).toBe(3); // the ends differ (02T, 05T, 08T) and all three are on screen
+    for (const t of tails) expect(t).toMatch(/0[258]T_Y2\.MSI$/);
+    const head = page.locator('.panel .fname .mid-head').first();
+    expect(await head.evaluate((el) => el.scrollWidth > el.clientWidth && getComputedStyle(el).textOverflow === 'ellipsis')).toBe(true);
+    // The tail is inside the panel, not cut off by it.
+    const panel = (await page.locator('.panel').boundingBox())!;
+    const tail = (await page.locator('.panel .fname .mid-tail').first().boundingBox())!;
+    expect(tail.x + tail.width).toBeLessThanOrEqual(panel.x + panel.width);
+    // The full name stays in the title and in the DOM text.
+    const fname = page.locator('.panel .fname').first();
+    expect(names).toContain(await fname.getAttribute('title'));
+    expect(await fname.evaluate((el) => el.textContent)).toBe(await fname.getAttribute('title'));
+  });
+
+  test('on a phone the sticky File column says "MHz · group" under the name and keeps the name end', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.getByTestId('file-input').setInputFiles(names.map((n) => file(n, 1710)));
+    const rows = page.locator('.metrics tbody tr');
+    await expect(rows).toHaveCount(3);
+    const sub = rows.first().locator('.file-sub');
+    await expect(sub).toBeVisible();
+    await expect(sub).toContainText('1710 MHz · ');
+    const tails = await page.locator('.metrics .file-cell .mid-tail').allInnerTexts();
+    expect(new Set(tails).size).toBe(3);
+    // Desktop does not show the sub line.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(sub).toBeHidden();
+  });
 });

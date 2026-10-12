@@ -10,6 +10,7 @@ import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
 import { useTablePreview } from './useTablePreview';
 import { SKIP_TARGETS } from './SkipLinks';
+import { MidName } from './MidName';
 import { cellEndTarget, moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { neighbourOrder } from './undoKeys';
 import { downloadText } from './download';
@@ -368,8 +369,12 @@ export const MetricsTable = memo(function MetricsTable({
                     }
                     {...onSpace(() => toggleRow(r.id))}
                   >
-                    {r.isReference && <PinMark />}
-                    {middleEllipsis(r.file, FILE_NAME_MAX)}
+                    <span className="file-name">
+                      {r.isReference && <PinMark />}
+                      <MidName text={middleEllipsis(r.file, FILE_NAME_MAX)} />
+                    </span>
+                    {/* On a phone the Group and MHz columns scroll away: the sticky name column says them under the name. */}
+                    <span className="file-sub">{r.freq} MHz · {r.group}</span>
                   </button>
                   <button
                     type="button"

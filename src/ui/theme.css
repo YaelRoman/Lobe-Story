@@ -47,7 +47,15 @@ main { flex: 1; min-width: 0; overflow: auto; padding: 12px; display: flex; flex
 .group li button { padding: 0 6px; }
 .count { color: var(--muted); font-weight: 400; }
 .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-.fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.fname { display: block; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--muted); font-size: 12px; }
+/* A name cut in the middle (see MidName): the start takes the ellipsis, the last characters stay whole. Inline boxes, not flex items, so
+   selecting or copying the name gives one line. The head leaves room for the tail (10 characters, about 6em). */
+.mid-head { display: inline-block; max-width: calc(100% - 6em); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.mid-head:only-child { max-width: 100%; }
+.pin-mark + .mid-head { max-width: calc(100% - 6em - 16px); }
+.pin-mark + .mid-head:only-child { max-width: calc(100% - 16px); }
+.file-name { display: block; min-width: 0; overflow: hidden; white-space: nowrap; }
+.file-sub { display: none; }
 .warn { color: var(--warn); }
 .errors header { color: var(--danger); }
 .reason { width: 100%; color: var(--danger); font-size: 12px; }
@@ -158,7 +166,8 @@ h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .metrics td.has-reason { text-decoration: underline dotted; text-underline-offset: 3px; }
 @media (max-width: 760px) {
   .metrics-wrap { max-height: 60vh; }
-  .metrics .file-cell { max-width: 110px; }
+  .metrics .file-cell { max-width: 148px; }
+  .metrics .file-sub { display: block; overflow: hidden; font-size: 11px; font-weight: 400; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 }
 .errors-list { max-height: 200px; overflow: auto; }
 .errors:focus { outline: 2px solid var(--danger); outline-offset: 1px; }

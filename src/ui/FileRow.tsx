@@ -9,6 +9,7 @@ import { onSpace } from './rovingKeys';
 import { FileMenu, NameEditor } from './FilePanelMenus';
 import { swatchBackground, type LineDash } from './colors';
 import { PinMark } from './PinMark';
+import { MidName } from './MidName';
 import { focusPreviews, hoverPreviews, hoverStore, setHoverId } from './hoverPreview';
 
 export const DRAG_TYPE = 'text/x-pattern-id';
@@ -143,7 +144,7 @@ export const FileRow = memo(function FileRow({
           <span>{pattern.frequencyMHz} MHz</span>
           {isReference && <PinMark />}
           <span className="fname" title={pattern.fileName}>
-            {name}
+            <MidName text={name} />
           </span>
         </button>
       )}
