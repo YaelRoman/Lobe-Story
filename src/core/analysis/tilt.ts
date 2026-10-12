@@ -283,12 +283,27 @@ interface SphereInAntenna {
   vFrac: Float32Array;
 }
 
-const SPHERE_CACHE_MAX = 8;
+/**
+ * One table is SPHERE_ROWS × 360 = 65 160 directions of 12 bytes (two Uint16 and two Float32), about 0.78 MB, so 32
+ * tables stay under 25 MB. Least recently used goes first. Files are processed in list order, so a first-in-first-out
+ * cache smaller than the number of distinct tilts would rebuild a table for every file.
+ */
+const SPHERE_CACHE_MAX = 32;
 const sphereCache = new Map<number, SphereInAntenna>();
+let tablesBuilt = 0;
+
+/** How many direction tables have been built so far (a test reads it to see that a table is built once per tilt). */
+export const sphereTablesBuilt = (): number => tablesBuilt;
 
 function sphereInAntenna(mechanicalDeg: number): SphereInAntenna {
   const hit = sphereCache.get(mechanicalDeg);
-  if (hit) return hit;
+  if (hit) {
+    // Map keeps insertion order: re-inserting makes this the most recently used.
+    sphereCache.delete(mechanicalDeg);
+    sphereCache.set(mechanicalDeg, hit);
+    return hit;
+  }
+  tablesBuilt++;
   const n = SPHERE_ROWS * 360;
   const map: SphereInAntenna = { hIndex: new Uint16Array(n), hFrac: new Float32Array(n), vIndex: new Uint16Array(n), vFrac: new Float32Array(n) };
   const split = (angle: number, index: Uint16Array, frac: Float32Array, at: number) => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { exampleFiles } from '../exampleSet';
 import { parsePlanet } from '../parse/planet';
 import { analyzeAll, DEFAULT_SETTINGS, type TaggedPattern } from './metrics';
-import { analyzeTilted, tiltTagged, type TiltSettings } from './tilt';
+import { analyzeTilted, sphereTablesBuilt, tiltEach, tiltTagged, type TiltSettings } from './tilt';
 import { toGrid } from './grid';
 import { beamwidth } from './beamwidth';
 import type { Method3d } from './pattern3d';
@@ -154,9 +154,23 @@ describe('the angular-region estimate under a mechanical tilt', () => {
     expect(asCuts.sector.value!).toBeGreaterThan(first.sector.value! + 1);
   });
 
-  it('still says why there is no number (the tilted beam is outside Type A)', () => {
+  it('still says why there is no number (the tilted elevation peak is below the Type A service region)', () => {
     const a = app(file0, { electricalDeg: 0, mechanicalDeg: 80 }, 'summation');
     expect(a.tilted.sector.value).toBeNull();
-    expect(a.tilted.sector.reason).toBeTruthy();
+    expect(a.tilted.sector.reason).toBe('The elevation peak is below the Type A service region');
+  });
+
+  it('builds each distinct mechanical tilt\'s direction table once, however many distinct tilts the files have', () => {
+    const base = example(0);
+    const items: TaggedPattern[] = Array.from({ length: 192 }, (_, i) => ({ pattern: { ...base, id: `f${i}.msi` }, tags: {} }));
+    // 24 distinct tilts (0.37° apart, so none is cached by an earlier test), files cycling through them.
+    const tiltFor = (id: string): TiltSettings => ({ electricalDeg: 0, mechanicalDeg: 0.37 * (1 + (Number(id.slice(1, -4)) % 24)) });
+    const before = sphereTablesBuilt();
+    const tilted = tiltEach(items, tiltFor, 'summation');
+    analyzeTilted(tilted, DEFAULT_SETTINGS, tiltFor, 'summation');
+    expect(sphereTablesBuilt() - before).toBe(24);
+    // A second pass that recomputes every file (another sector edge) builds none.
+    analyzeTilted(tilted, { ...DEFAULT_SETTINGS, sectorEdgeDeg: 45 }, tiltFor, 'summation');
+    expect(sphereTablesBuilt() - before).toBe(24);
   });
 });
