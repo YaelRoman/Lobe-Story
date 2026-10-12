@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Data } from 'plotly.js';
-import { exportCaptionLines, exportFigure, withSimulated, EXPORT_WIDTH } from './exportFigure';
+import { exportCaptionLines, exportFigure, withSimulated, EXPORT_MAX_HEIGHT, EXPORT_WIDTH, LEGEND_ROW_PX } from './exportFigure';
 import type { Figure } from './figureTheme';
 import { FIGURE_THEMES, LEGEND } from './figureTheme';
 
@@ -173,5 +173,31 @@ describe('export captions: markers and simulation lines', () => {
     expect(lines.length).toBeGreaterThan(1);
     expect(lines.every((l) => l.length <= 110)).toBe(true);
     expect(lines.join(' ')).toBe(long);
+  });
+});
+
+describe('the exported legend is never cut off without a word', () => {
+  const listed = (f: Figure) => (f.data as unknown as T[]).filter((t) => typeof t.meta === 'string' && t.showlegend === true).length;
+  const room = (f: Figure) => (f.layout.height ?? 0) - (f.layout.margin?.t ?? 0) - (f.layout.margin?.b ?? 0);
+
+  it('the plot area is as high as the legend needs: 48 entries, with a caption above, all fit', () => {
+    for (const n of [24, 48, 72, 120]) {
+      const out = exportFigure(figure(n), { file: 'a', items: ['x'], markers: 'Markers of the highlighted file: …', simulated: 'Simulated: …' });
+      expect(listed(out)).toBe(n);
+      expect(room(out)).toBeGreaterThanOrEqual(n * LEGEND_ROW_PX + 20);
+      expect((out.layout.title as { text: string }).text).not.toContain('more');
+    }
+  });
+
+  it('beyond what an image can hold it lists what fits and says "+N more"', () => {
+    const out = exportFigure(figure(500), { file: 'a', items: ['x'] });
+    expect(out.layout.height).toBeLessThanOrEqual(EXPORT_MAX_HEIGHT);
+    const shown = listed(out);
+    expect(shown).toBeGreaterThan(300);
+    expect(shown).toBeLessThan(500);
+    expect(room(out)).toBeGreaterThanOrEqual(shown * LEGEND_ROW_PX + 20);
+    expect((out.layout.title as { text: string }).text).toContain(`Legend: the first ${shown} of 500 traces, +${500 - shown} more are drawn but not listed`);
+    // Every trace is still drawn.
+    expect(out.data).toHaveLength(501);
   });
 });

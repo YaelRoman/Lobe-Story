@@ -3,7 +3,14 @@ import { FIGURE_THEMES, type Figure } from './figureTheme';
 
 export const EXPORT_WIDTH = 1200;
 const EXPORT_MIN_HEIGHT = 700;
-const LEGEND_ROW_PX = 18;
+/** Height of one legend entry at the export's 11 px font (the library draws 19 px rows). */
+export const LEGEND_ROW_PX = 20;
+/** The tallest image written: at the export's scale of 2 a browser canvas ends a little above this. */
+export const EXPORT_MAX_HEIGHT = 8000;
+/** Room the legend needs besides its rows. */
+const LEGEND_PAD_PX = 20;
+/** The bottom margin the library uses when the figure sets none. */
+const DEFAULT_MARGIN_B = 80;
 const LINE_MAX_CHARS = 110;
 
 /** What is printed under the title of the exported image. */
@@ -88,14 +95,27 @@ export function inLightTheme(figure: Figure, from: 'light' | 'dark'): Figure {
 export function exportFigure(figure: Figure, caption?: ExportCaption, screenTheme: 'light' | 'dark' = 'light'): Figure {
   figure = inLightTheme(figure, screenTheme);
   // File traces: legend entry on and no dimming (faint legend swatches are unreadable); the highlighted one keeps its thicker line.
-  const data = (figure.data as unknown as Record<string, unknown>[]).map((t): Record<string, unknown> => {
+  let data = (figure.data as unknown as Record<string, unknown>[]).map((t): Record<string, unknown> => {
     if (typeof t.meta !== 'string') return t;
     const rest: Record<string, unknown> = { ...t, showlegend: true, name: t.meta };
     delete rest.opacity;
     return rest;
   });
-  const files = data.filter((t) => typeof t.meta === 'string').length;
+  const traces = data.filter((t) => typeof t.meta === 'string').length;
   const lines = caption ? exportCaptionLines(caption) : [];
+  // The legend hangs from the top of the plot area: the image is made as high as its rows need. Only beyond the
+  // tallest image that can be written are entries left out, and then a caption line says how many.
+  const fits = (rows: number, captionLines: number) => {
+    const top = (figure.layout.margin?.t ?? 50) + (captionLines > 0 ? 34 * captionLines + 30 + ((figure.layout.annotations?.length ?? 0) > 0 ? 40 : 0) : 0);
+    return top + (figure.layout.margin?.b ?? DEFAULT_MARGIN_B) + rows * LEGEND_ROW_PX + LEGEND_PAD_PX;
+  };
+  let files = traces;
+  if (fits(traces, lines.length) > EXPORT_MAX_HEIGHT) {
+    files = Math.max(0, Math.floor((EXPORT_MAX_HEIGHT - fits(0, lines.length + 1)) / LEGEND_ROW_PX));
+    lines.push(`Legend: the first ${files} of ${traces} traces, +${traces - files} more are drawn but not listed`);
+    let seen = 0;
+    data = data.map((t) => (typeof t.meta === 'string' && ++seen > files ? { ...t, showlegend: false } : t));
+  }
   const titleText = (figure.layout.title as { text?: string } | undefined)?.text ?? caption?.title ?? '';
   const margin = figure.layout.margin ?? {};
   // Labels drawn above the plot area (the histogram's line names) need their own room under the caption.
@@ -126,7 +146,7 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
     },
     autosize: false,
     width: EXPORT_WIDTH,
-    height: Math.max(EXPORT_MIN_HEIGHT, 160 + topExtra + files * LEGEND_ROW_PX),
+    height: Math.max(EXPORT_MIN_HEIGHT, fits(files, lines.length)),
     margin: { ...margin, ...(files > 0 ? { r: legendWidth } : {}), t: (margin.t ?? 50) + topExtra },
   };
   return { data: data as unknown as Data[], layout };
