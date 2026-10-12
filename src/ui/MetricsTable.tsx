@@ -14,6 +14,8 @@ import { MidName } from './MidName';
 import { cellEndTarget, moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { neighbourOrder } from './undoKeys';
 import { downloadText } from './download';
+import { catchUpSimulation } from './simCurrent';
+import { useLatest } from './useLatest';
 import { exportName, hCutLabel, simulatedNote } from './simSummary';
 import { copiedRow, copiedRows, copiedValue, copyAndAnnounce } from './clipboard';
 import { copyShortcut } from './copyKeys';
@@ -273,25 +275,29 @@ export const MetricsTable = memo(function MetricsTable({
     </th>
   );
 
+  // The exports of the whole table are of the sliders as they stand: a simulation that is behind them (a slider is
+  // held and waited for, or the last change is still being worked out) is first brought up, and the export is then
+  // taken from the render that made (see `catchUpSimulation`). It gives what it gives after the value was typed.
+  const exports = useLatest({
+    exportCsv: () =>
+      downloadText(
+        exportName('pattern-metrics', sim.simulatedAmong(rows.map((r) => r.id)), '.csv'),
+        '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.simActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, withHorizonLevel(csvColumns(tableGroups), horizonCut), method3d, horizonCut, sim.tiltActive),
+        'text/csv;charset=utf-8',
+      ),
+    copyTable: () => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted, method3d, horizonCut, sim.tiltActive), copiedRows(rows.length)),
+  });
+  const current = () => {
+    catchUpSimulation();
+    return exports.current;
+  };
+
   return (
     <section>
       <div className="controls">
         <h2 id={SKIP_TARGETS.table} tabIndex={-1}>Metrics</h2>
-        <button
-          onClick={() =>
-            downloadText(
-              exportName('pattern-metrics', sim.simulatedAmong(rows.map((r) => r.id)), '.csv'),
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.simActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, withHorizonLevel(csvColumns(tableGroups), horizonCut), method3d, horizonCut, sim.tiltActive),
-              'text/csv;charset=utf-8',
-            )
-          }
-        >
-          Export CSV
-        </button>
-        <button
-          title="Copy the table as shown (visible columns, current order) to paste into a spreadsheet"
-          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted, method3d, horizonCut, sim.tiltActive), copiedRows(rows.length))}
-        >
+        <button onClick={() => current().exportCsv()}>Export CSV</button>
+        <button title="Copy the table as shown (visible columns, current order) to paste into a spreadsheet" onClick={() => current().copyTable()}>
           Copy table
         </button>
         <label

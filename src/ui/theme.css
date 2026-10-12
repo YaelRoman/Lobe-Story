@@ -132,6 +132,18 @@ h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .plot3d { height: 640px; }
 @media (max-width: 760px) { .plot3d { height: 480px; } }
+/* The sentence about a simulation that is behind the sliders (see SimulationBar) lies on the bar's top edge, as the plots' own line
+   lies on theirs: it takes no room, so nothing moves when it comes under a held pointer. Its anchor has no height and sticks to the
+   top of the scrolled page (inside main's padding, which is the room the sentence needs above it) while any of the bar is in view:
+   the sentence is on the screen wherever the dragged slider is. */
+.sim-bar-wrap { position: relative; }
+.sim-lag-anchor { position: sticky; top: 0; z-index: 3; height: 0; pointer-events: none; }
+.sim-lag { position: absolute; top: -11px; left: 10px; max-width: calc(100% - 20px); margin: 0; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); font-size: 12px; }
+/* The frequency chart, the table and the band statistics while they show an older simulation than the sliders (see App). */
+.follows-sim { display: flex; flex-direction: column; gap: 16px; min-width: 0; flex: none; transition: opacity 0.12s; }
+.follows-sim[aria-busy='true'] { opacity: 0.5; }
+/* An image is not saved meanwhile (see imageExportHeld): its button says so by its look. */
+main[data-sim-behind] .modebar-btn[data-title^='Download plot'] { opacity: 0.35; }
 .sim-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
 .sim-field, .sim-choice { display: inline-flex; gap: 6px; align-items: center; }
 .sim-field input[type='range'] { width: 140px; }

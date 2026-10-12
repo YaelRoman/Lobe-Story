@@ -1,4 +1,5 @@
-import { useCallback, useDeferredValue, useMemo, useRef } from 'react';
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useStore, type SimulationState } from '../state/store';
 import type { Pattern } from '../core/types';
 import type { AnalysisSettings, PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
@@ -16,6 +17,7 @@ import {
 import { anySimulated, offsetCountsAmong } from './simSummary';
 import { useHeldWhile } from './heldValue';
 import { GRIP_PAUSE_MS, useSliderGrip } from './sliderHold';
+import { noteShownSimulation, onCatchUp } from './simCurrent';
 
 export interface SimulationResult {
   /** True when any loaded file is tilted (effective Δe or m non-zero). */
@@ -90,13 +92,35 @@ export interface SettledSimulation {
  * taken once, at release (for the arrow keys a moment after it, so that a run of taps is one) or when the slider has
  * stopped for a moment. Whatever is set without a grip (a number box,
  * Reset, undo, a loaded project) is followed at once, and the end state is the same either way.
+ *
+ * An export does not wait (see `catchUpSimulation`): it takes the store's state at once, in a render of its own that
+ * neither the hold nor the deferral delays, and a hold that goes on starts again from there.
  */
 export function useSettledSimulation(follows: boolean): SettledSimulation {
   const live = useStore((s) => s.view.simulation);
   const grip = useSliderGrip(!follows);
   const held = useHeldWhile(live, grip !== null, grip ? GRIP_PAUSE_MS[grip] : undefined);
   // Deferred so dragging a slider stays smooth while tilting/analysing catches up.
-  const state = useDeferredValue(held.value);
+  const deferred = useDeferredValue(held.value);
+  // The state an export asked for at once: used while it is still the store's.
+  const [caughtUp, setCaughtUp] = useState<SimulationState | null>(null);
+  const state = caughtUp === live ? live : deferred;
+  const { handOn } = held;
+  useEffect(
+    () =>
+      onCatchUp(() =>
+        flushSync(() => {
+          const now = useStore.getState().view.simulation;
+          handOn(now);
+          setCaughtUp(now);
+        }),
+      ),
+    [handOn],
+  );
+  useLayoutEffect(() => {
+    noteShownSimulation(state);
+  }, [state]);
+  useEffect(() => () => noteShownSimulation(null), []);
   return { state, behind: state !== live, waiting: held.waiting };
 }
 
@@ -113,8 +137,10 @@ export function useSimulation(
   const method = useStore((s) => s.view.method3d);
   const membership = useStore((s) => s.membership);
   const customGroups = useStore((s) => s.customGroups);
-  // Deferred so dragging a slider stays smooth while tilting/analysing catches up (a settled state already is: deferring it again adds nothing).
-  const sim = useDeferredValue(settled ?? live);
+  // Deferred so dragging a slider stays smooth while tilting/analysing catches up. A settled state already is, and is
+  // taken as it comes: deferring it again would add nothing, and would delay the one an export asked for at once.
+  const deferred = useDeferredValue(live);
+  const sim = settled ?? deferred;
   const { electricalDeg, mechanicalDeg, azimuthDeg, showOriginal, hCut, offsets: fileOffsets, groupOffsets } = sim;
 
   const ids = useMemo(() => tagged.map((i) => i.pattern.id), [tagged]);

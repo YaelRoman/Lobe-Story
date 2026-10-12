@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
+import { holdSlider, loadMany, MECHANICAL, settled, stopOn, WAITING } from './manyFiles';
 
 const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
 const msi = (freq: number) => planetText({ headers: ['NAME A', `FREQUENCY ${freq}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] });
@@ -335,3 +336,43 @@ test('with two fingers down the calm load line stays until the last one is lifte
   await page.evaluate(() => void window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, pointerType: 'mouse', buttons: 0 })));
   await expect(line).toHaveCount(0);
 });
+
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 1024, height: 768 },
+  { width: 390, height: 844 },
+]) {
+  test(`at ${viewport.width} px the sentence about a held slider comes in the Simulation bar, on the screen, and moves nothing under the pointer`, async ({ page }) => {
+    await loadMany(page, 48, viewport);
+    // The load line goes by itself after a while and takes its room with it: out of the way before anything is measured.
+    await page.getByRole('button', { name: 'Dismiss message' }).click();
+    const slider = page.getByRole('slider', { name: MECHANICAL, exact: true });
+    const note = page.getByTestId('sim-lag');
+    await expect(note).toHaveCount(0);
+    const before = (await slider.boundingBox())!;
+    const idle = await placesInBar(page);
+    await holdSlider(page);
+
+    // Still held: the sentence is there, in the bar's own box and on the screen, and it is not on the slider that is held.
+    await expect(note).toHaveText(WAITING);
+    const said = (await note.boundingBox())!;
+    const bar = (await page.locator('.sim-bar').boundingBox())!;
+    expect(said.y).toBeGreaterThanOrEqual(0);
+    expect(said.y + said.height).toBeLessThanOrEqual(viewport.height);
+    expect(said.x).toBeGreaterThanOrEqual(bar.x);
+    expect(said.x + said.width).toBeLessThanOrEqual(bar.x + bar.width);
+    expect(said.y).toBeLessThan(bar.y + bar.height);
+    expect(said.y + said.height).toBeLessThanOrEqual(before.y);
+    // Nothing has moved: the slider is where it was pressed, and so is every other control of the bar.
+    expect((await slider.boundingBox())!).toEqual(before);
+    expect(await placesInBar(page)).toEqual(idle);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+
+    await stopOn(page, 4);
+    await page.mouse.up();
+    await settled(page);
+    await expect(note).toHaveCount(0);
+    expect((await slider.boundingBox())!).toEqual(before);
+    expect(await placesInBar(page)).toEqual(idle);
+  });
+}

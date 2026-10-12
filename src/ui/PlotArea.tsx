@@ -12,7 +12,7 @@ import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend, traceNote } from './legend';
 import { PlotlyChart, type FigureOverlay } from './PlotlyChart';
 import { PlotBoundary } from './ErrorBoundary';
-import { expectedTraceCount, showsUpdateHint, usePaintFirst, useUpdateCost, WAITING_NOTE, type SimLag, type UpdateCost } from './updateHint';
+import { expectedTraceCount, lagNote, showsUpdateHint, usePaintFirst, useUpdateCost, WAITING_NOTE, type SimLag, type UpdateCost } from './updateHint';
 import { Pattern3D } from './Pattern3D';
 import { SimulationBar } from './SimulationBar';
 import { SKIP_TARGETS } from './SkipLinks';
@@ -30,6 +30,8 @@ interface Props {
   sim: SimulationResult;
   /** How far `sim` is behind the sliders (see `SimLag`). */
   simLag: SimLag;
+  /** The lag is one to tell the user about: the page does not follow a drag (see `followsDrag`), so it lasts. */
+  simStale: boolean;
   onHelp: OpenHelp;
 }
 
@@ -80,6 +82,8 @@ interface CutPlotProps {
   exportNote?: string;
   /** Name of the exported image, without extension. */
   exportBase: string;
+  /** The plot is not yet drawn from the simulation the page has: its image is not exported meanwhile. */
+  exportBehind: boolean;
   /** Under a polar plot with a horizon cut too small to read: which cuts that is (see `farBelowPeakNote`), with the offer of the rectangular view. */
   farBelowNote?: string;
   onShowRectangular?: () => void;
@@ -92,7 +96,7 @@ interface Drawn {
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, fileCut, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportNote, exportBase, farBelowNote, onShowRectangular }: CutPlotProps) {
+function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, fileCut, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportNote, exportBase, exportBehind, farBelowNote, onShowRectangular }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -108,6 +112,7 @@ function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, 
           caption: withSimulated(target ? { file: target, items: readout, ...(markerLine ? { markers: markerLine } : {}) } : undefined, simulatedLine, exportNote),
           filename: exportBase,
           figure: exportFigure,
+          behind: exportBehind,
         }}
         previewBase={emphasised}
       />
@@ -248,6 +253,12 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
   const updating = pending || drawing;
   const drawnTraces = (view.cut !== 'V' ? figures.h.traces : 0) + (view.cut !== 'H' ? figures.v.traces : 0);
   useUpdateCost(cost, updating, drawnTraces);
+  // The simulation the plots have finished drawing: until it is the page's, an image of them would be of the older one.
+  const [simDrawn, setSimDrawn] = useState(sim);
+  useEffect(() => {
+    if (!updating) setSimDrawn(sim);
+  }, [updating, sim]);
+  const exportBehind = simDrawn !== sim;
 
   const byGroup = styles.size > PER_FILE_COLOURS;
   // A horizon cut tens of dB down is a dot at the centre of a polar plot: offer the view that shows it (the drawing is not changed).
@@ -283,15 +294,15 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
           </p>
         )}
         <div className="plots">
-          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={exportName('horizontal-cut', simulatedH)} farBelowNote={farBelow} onShowRectangular={showRectangular} />}
-          {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} simulatedLine={simulatedLineV} exportBase={exportName('vertical-cut', simulatedV)} />}
+          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={exportName('horizontal-cut', simulatedH)} farBelowNote={farBelow} onShowRectangular={showRectangular} />}
+          {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineV} exportBase={exportName('vertical-cut', simulatedV)} />}
         </div>
       </div>
     </>
   );
 }
 
-export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles, sim, simLag, onHelp }: Props) {
+export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles, sim, simLag, simStale, onHelp }: Props) {
   // Only the fields used here: subscribing to the whole view would re-render on every slider tick.
   const view = useStore(
     useShallow((s) => ({
@@ -323,7 +334,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
       <h2 id={SKIP_TARGETS.plots} className="visually-hidden" tabIndex={-1}>
         {is3d ? '3D pattern' : 'Cut plots'}
       </h2>
-      <SimulationBar is3d={is3d} onHelp={onHelp} />
+      <SimulationBar is3d={is3d} lagNote={simStale ? lagNote(simLag, is3d) : null} onHelp={onHelp} />
       <div className="controls">
         <Seg<Dimension>
           label="Dimension"

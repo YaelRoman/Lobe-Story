@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * A held value that has not changed for this long is handed on although the hold goes on: the user has stopped to
@@ -20,6 +20,8 @@ export interface Held<T> {
   value: T;
   /** A newer value is being held back: what is made from `value` is behind. */
   waiting: boolean;
+  /** Hands `value` on now, although the hold goes on (it is the one a later hold starts from). */
+  handOn: (value: T) => void;
 }
 
 /**
@@ -41,6 +43,7 @@ export function useHeldWhile<T>(value: T, hold: boolean, pauseMs = PAUSE_MS): He
     }, Math.max(0, pauseMs - CONFIRM_MS));
     return () => window.clearTimeout(timer);
   }, [value, hold, pauseMs, shown]);
+  const handOn = useCallback((now: T) => setShown(now), []);
   const out = hold ? shown : value;
-  return { value: out, waiting: out !== value };
+  return { value: out, waiting: out !== value, handOn };
 }

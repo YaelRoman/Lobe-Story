@@ -1,33 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { planetText, points } from '../src/test/planetText';
 import { openSimulation } from './simulationBar';
-
-const WAITING = 'The plots and the table follow when the slider stops.';
-const MECHANICAL = 'Mechanical tilt (°)';
-
-/** `count` synthetic files, each its own beam: more ticked files than the page follows a slider drag with. */
-const manyFiles = (count: number) =>
-  Array.from({ length: count }, (_, i) => ({
-    name: `syn_${1700 + 10 * i}.msi`,
-    mimeType: 'text/plain',
-    buffer: Buffer.from(
-      planetText({
-        headers: ['NAME SYN', `FREQUENCY ${1700 + 10 * i}`, 'GAIN 15 dBi', 'TILT ELECTRICAL'],
-        h: points((a) => Math.min(40, 3 * (a / (28 + 0.2 * i)) ** 2)),
-        v: points((a) => Math.min(40, 3 * ((a - 2 - (i % 5)) / (3.5 + 0.02 * i)) ** 2)),
-      }),
-    ),
-  }));
-
-async function loadMany(page: Page, count: number) {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
-  await page.getByTestId('file-input').setInputFiles(manyFiles(count));
-  await expect(page.locator('.panel li')).toHaveCount(count);
-  await page.getByRole('button', { name: 'Show all', exact: true }).click();
-  await openSimulation(page);
-  await settled(page);
-}
+import { loadMany, MECHANICAL, settled, WAITING } from './manyFiles';
 
 /** Notes from now on whether the waiting line was on the page at any moment (it can come and go between two checks). */
 const watchWaiting = (page: Page) =>
@@ -39,24 +12,6 @@ const watchWaiting = (page: Page) =>
     }).observe(document.body, { childList: true, subtree: true, characterData: true });
   }, WAITING);
 const sawWaiting = (page: Page) => page.evaluate(() => (window as unknown as { sawWaiting: boolean }).sawWaiting);
-
-const signed = (n: number) => `${n > 0 ? '+' : ''}${n}`;
-
-/**
- * The page has caught up with the sliders: the table's line names their values (it is made in the same render as the
- * plots' figures; none while both tilts are zero), and no hint is left, also a frame later.
- */
-async function settled(page: Page) {
-  await expect(async () => {
-    const [electrical, mechanical] = await Promise.all(['Electrical tilt Δ (°)', MECHANICAL].map(async (name) => Number(await page.getByRole('slider', { name, exact: true }).inputValue())));
-    const line = page.locator('p.count', { hasText: 'Simulated:' });
-    if (electrical === 0 && mechanical === 0) await expect(line).toHaveCount(0, { timeout: 100 });
-    else await expect(line).toContainText(`Simulated: Δe ${signed(electrical)}°, mech ${signed(mechanical)}°`, { timeout: 100 });
-  }).toPass();
-  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
-}
 
 /** Everything on the page a tilt changes: the table, what the plots draw, the read-outs, the band statistics, the bar. */
 async function shown(page: Page) {

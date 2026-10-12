@@ -38,7 +38,7 @@ function Harness() {
   const sim = useSimulation(tagged, metrics, s.settings);
   const styles = useMemo(() => styleMapByGroup(groups.map((g) => ({ ids: g.items.map((i) => i.pattern.id) })), s.visible), [groups, s.visible]);
   const colors = useMemo(() => new Map([...styles].map(([id, st]) => [id, st.color])), [styles]);
-  return createElement(PlotArea, { groups, metrics, colors, styles, sim, simLag: 'none', onHelp: NO_HELP });
+  return createElement(PlotArea, { groups, metrics, colors, styles, sim, simLag: 'none', simStale: false, onHelp: NO_HELP });
 }
 
 describe('PlotArea: a figure that cannot be built', () => {

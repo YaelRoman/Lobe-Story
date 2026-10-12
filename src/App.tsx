@@ -47,9 +47,13 @@ export default function App() {
   const metrics = useMemo(() => analyzeAll(tagged, settings, { areMethod }), [tagged, settings, areMethod]);
   // With many files a slider is not followed while it is dragged: the simulation is made once, when it stops.
   const tickedCount = useMemo(() => tagged.reduce((n, i) => n + (visible[i.pattern.id] ? 1 : 0), 0), [tagged, visible]);
-  const settled = useSettledSimulation(followsDrag({ files: tagged.length, drawn: tickedCount, angularRegions: withAngularRegions }));
+  const follows = followsDrag({ files: tagged.length, drawn: tickedCount, angularRegions: withAngularRegions });
+  const settled = useSettledSimulation(follows);
   const sim = useSimulation(tagged, metrics, settings, withAngularRegions, settled.state);
   const simLag = settled.waiting ? 'waiting' : settled.behind ? 'behind' : 'none';
+  // Said and shown only where the lag lasts (the page does not follow a drag): where it does, the simulation is a
+  // moment behind at every step and nothing flashes for it, as before.
+  const simStale = simLag !== 'none' && !follows;
   // Colour only the currently-visible files, in panel order (groups, then items), so every
   // checked file gets its own colour and colours don't shift as unrelated files are added/removed.
   // With more than ten visible files the colour is the group's and the files differ by lightness.
@@ -100,20 +104,25 @@ export default function App() {
             <FilePanel groups={groups} errors={errors} warnings={warnings} styles={styles} drawerOpen={filesOpen} />
           </>
         )}
-        <main>
+        <main data-sim-behind={simStale || undefined}>
           {tagged.length === 0 ? (
             <EmptyState onHelp={openHelp} />
           ) : (
             <>
               {/* A figure that cannot be built or drawn fails inside its own box, below the controls (see PlotArea, HpbwChart and PlotlyChart). These are the last line for anything else in the two regions. */}
               <PlotBoundary className="plot">
-                <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} onHelp={openHelp} />
+                <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} simStale={simStale} onHelp={openHelp} />
               </PlotBoundary>
-              <PlotBoundary className="plot wide">
-                <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
-              </PlotBoundary>
-              <MetricsTable groups={groups} metrics={metrics} colors={colors} sim={sim} onHelp={openHelp} />
-              <BandStats tagged={tagged} metrics={metrics} sim={sim} onHelp={openHelp} />
+              {/* What is made from the simulation and is not the cut plots (they have their own line): marked, for the eye
+                  and for a screen reader, while it shows an older simulation than the sliders. One box around the three,
+                  so that none of them renders again for the mark. */}
+              <div className="follows-sim" aria-busy={simStale || undefined}>
+                <PlotBoundary className="plot wide">
+                  <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
+                </PlotBoundary>
+                <MetricsTable groups={groups} metrics={metrics} colors={colors} sim={sim} onHelp={openHelp} />
+                <BandStats tagged={tagged} metrics={metrics} sim={sim} onHelp={openHelp} />
+              </div>
             </>
           )}
         </main>

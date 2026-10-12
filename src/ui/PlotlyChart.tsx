@@ -4,6 +4,7 @@ import Plotly from 'plotly.js-dist-min';
 import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
+import { imageExportHeld } from './simCurrent';
 import { PlotBoundary } from './ErrorBoundary';
 import { CHART_PRIVACY, guardedReset, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
 import { canvasesOf, releaseGlContexts } from './glContexts';
@@ -37,7 +38,14 @@ interface Props {
    * values). `figure` builds the figure to export when it is not the drawn one (the cut plots: the complete figure,
    * with the highlighted file on top).
    */
-  labelledExport?: { caption?: ExportCaption; /** Name of the saved file, without extension. */ filename?: string; figure?: () => Figure };
+  labelledExport?: {
+    caption?: ExportCaption;
+    /** Name of the saved file, without extension. */
+    filename?: string;
+    figure?: () => Figure;
+    /** The picture is still being drawn from the sliders' values: an export now would be of the older one, and is held back (see `imageExportHeld`). */
+    behind?: boolean;
+  };
   /**
    * Traces drawn after the figure's own and layout keys laid over its layout (the highlighted file's markers and
    * title in a cut plot). A new overlay alone is drawn without new traces for the figure: the ones already drawn are
@@ -151,6 +159,8 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
       icon: Plotly.Icons.camera,
       click: () => {
         const cur = exporting.current;
+        // A picture of an older simulation than the sliders show is not saved without a word: the reason is said instead.
+        if (imageExportHeld(cur.labelledExport?.behind)) return;
         // Always light colours on white, whatever the screen theme: the image is rebuilt from a copy, the drawn figure is not touched.
         const out = exportFigure(cur.labelledExport?.figure?.() ?? cur.figure, cur.labelledExport?.caption, useStore.getState().view.theme);
         Plotly.downloadImage(

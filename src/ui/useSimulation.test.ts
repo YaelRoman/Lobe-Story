@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSettledSimulation, useSimulation, type SimulationResult } from './useSimulation';
 import { GRIP_PAUSE_MS, gripByKey, gripByPointer, KEY_RELEASE_MS } from './sliderHold';
+import { catchUpSimulation, simulationBehind } from './simCurrent';
 import { initialState, useStore } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS, type TaggedPattern } from '../core/analysis/metrics';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
@@ -274,6 +275,60 @@ describe('a slider dragged where the page does not follow it (many files)', () =
       wait(GRIP_PAUSE_MS.key);
       expect(probe.latest().tilt.mechanicalDeg).toBe(3);
       expect(probe.flags()).toEqual({ behind: false, waiting: false });
+    });
+  });
+
+  describe('an export does not wait for the slider (catchUpSimulation)', () => {
+    it('the simulation is made from the held value before the call returns, and equals a direct set', () => {
+      const expected = direct(4);
+      probe = mountSettled(false);
+      act(() => gripSlider());
+      for (const m of [1, 2.5, 4]) step(m);
+      expect(simulationBehind()).toBe(true);
+      // Not wrapped in act: what the call itself has done by the time it returns is what an export gets.
+      catchUpSimulation();
+      expect(simulationBehind()).toBe(false);
+      const after = probe.latest();
+      expect(probe.flags()).toEqual({ behind: false, waiting: false });
+      expect(after.tilt).toEqual(expected.tilt);
+      expect([...after.patterns]).toEqual([...expected.patterns]);
+      expect([...after.metrics]).toEqual([...expected.metrics]);
+      expect(probe.passes()).toBe(2);
+      // The release that follows has nothing left to do.
+      release();
+      expect(probe.latest()).toBe(after);
+      expect(probe.passes()).toBe(2);
+    });
+
+    it('the drag goes on from there: the next step is held again, and the page never goes back to the value from before the drag', () => {
+      probe = mountSettled(false);
+      act(() => gripSlider());
+      step(4);
+      act(() => catchUpSimulation());
+      step(6);
+      expect(probe.latest().tilt.mechanicalDeg).toBe(4);
+      expect(probe.flags()).toEqual({ behind: true, waiting: true });
+      release();
+      expect(probe.latest().tilt.mechanicalDeg).toBe(6);
+      expect(probe.passes()).toBe(3);
+    });
+
+    it('does nothing where nothing is behind', () => {
+      probe = mountSettled(false);
+      step(3);
+      const before = probe.latest();
+      catchUpSimulation();
+      expect(probe.latest()).toBe(before);
+      expect(probe.passes()).toBe(2);
+    });
+
+    it('with no page mounted nothing is behind and nothing is done', () => {
+      probe = mountSettled(false);
+      probe.unmount();
+      step(3);
+      expect(simulationBehind()).toBe(false);
+      expect(() => catchUpSimulation()).not.toThrow();
+      probe = mountSettled(false);
     });
   });
 

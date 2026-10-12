@@ -11,11 +11,13 @@ let root: Root;
 /** Every value the hook handed out, in order, without repeats: each new one stands for one pass of the heavy work. */
 let passes: number[];
 let waiting: boolean;
+let handOn: (value: number) => void;
 
 function Probe({ value, hold }: { value: number; hold: boolean }) {
   const held = useHeldWhile(value, hold);
   if (passes[passes.length - 1] !== held.value) passes.push(held.value);
   waiting = held.waiting;
+  handOn = held.handOn;
   return null;
 }
 const render = (value: number, hold: boolean) => act(() => root.render(createElement(Probe, { value, hold })));
@@ -151,6 +153,24 @@ describe('useHeldWhile', () => {
     render(7, true);
     render(8, true);
     expect(passes).toEqual([0, 1, 7]);
+  });
+
+  it('a value can be handed on by hand while the hold goes on (an export does not wait): the hold then goes on from it', () => {
+    render(0, true);
+    render(1, true);
+    render(2, true);
+    expect(passes).toEqual([0]);
+    act(() => handOn(2));
+    expect(passes).toEqual([0, 2]);
+    expect(waiting).toBe(false);
+    // The pause that was running for it has nothing left to hand on.
+    wait(10 * PAUSE_MS);
+    expect(passes).toEqual([0, 2]);
+    render(3, true);
+    expect(passes).toEqual([0, 2]);
+    expect(waiting).toBe(true);
+    render(3, false);
+    expect(passes).toEqual([0, 2, 3]);
   });
 
   it('coming back to the shown value while held ends the wait without a pass', () => {

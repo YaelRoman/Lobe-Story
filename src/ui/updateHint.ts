@@ -13,6 +13,20 @@ export type SimLag = 'none' | 'behind' | 'waiting';
 export const WAITING_NOTE = 'The plots and the table follow when the slider stops.';
 export const WAITING_NOTE_3D = 'The 3D view and the table follow when the slider stops.';
 
+/** Said in the Simulation bar while the simulation of the sliders' values is being worked out (and nothing is waited for). */
+export const BEHIND_NOTE = 'Updating the plots and the table…';
+export const BEHIND_NOTE_3D = 'Updating the 3D view and the table…';
+
+/** What the Simulation bar says about a simulation that is behind the sliders (null: it is not). */
+export function lagNote(lag: SimLag, is3d: boolean): string | null {
+  if (lag === 'none') return null;
+  if (lag === 'waiting') return is3d ? WAITING_NOTE_3D : WAITING_NOTE;
+  return is3d ? BEHIND_NOTE_3D : BEHIND_NOTE;
+}
+
+/** Said when an image export is asked for while the picture is of an older simulation than the sliders show (see `imageExportHeld`). */
+export const IMAGE_BEHIND_NOTE = 'Not saved: the picture is still following the sliders. Save it again once it has caught up.';
+
 /** Cost of a redraw per drawn trace, assumed until one has been timed on this machine. */
 export const ASSUMED_MS_PER_TRACE = 3;
 

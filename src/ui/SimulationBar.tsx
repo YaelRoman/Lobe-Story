@@ -147,7 +147,16 @@ function OffsetsRow() {
 const H_CUT_TITLE =
   'Which horizontal cut the files show. Through the beam peak: the file cut, and under a tilt the cone at the elevation of the tilted beam peak (the cut data sheets give). At the horizon: the cut at 0° elevation of every file, tilted or not, read from the 3D reconstruction: what each antenna puts on the horizon, and how that changes under a tilt; its levels are below the 3D peak.';
 
-export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHelp }) {
+export function SimulationBar({
+  is3d,
+  lagNote,
+  onHelp,
+}: {
+  is3d: boolean;
+  /** Said at the bar while the plots and the table are behind the sliders (see `lagNote`); null while they are not. */
+  lagNote: string | null;
+  onHelp: OpenHelp;
+}) {
   const sim = useStore((s) => s.view.simulation);
   const files = useStore((s) => s.files);
   const copies = useStore((s) => s.copies);
@@ -219,6 +228,17 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
   );
 
   return (
+    <div className="sim-bar-wrap">
+    {/* Where the eye and the hand are during a drag: the line over the plots can be off the screen (it is on a phone),
+        and the table is further down still. The sentence lies on the bar's top edge and takes no room, so nothing
+        moves under the pointer when it comes; its anchor stays in view while any of the bar is (see `.sim-lag-anchor`). */}
+    <div className="sim-lag-anchor">
+      {lagNote && (
+        <p className="count sim-lag" data-testid="sim-lag">
+          {lagNote}
+        </p>
+      )}
+    </div>
     <div className="sim-bar" role="group" aria-label="Simulation">
       <button
         className="fold"
@@ -328,6 +348,7 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
       {!phone && notes}
       <OffsetsRow />
       </div>
+    </div>
     </div>
   );
 }

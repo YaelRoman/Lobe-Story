@@ -10,6 +10,8 @@ import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
 import { withSimulated } from './exportFigure';
 import { exportName, simulatedCaption, weightedHorizonNote } from './simSummary';
+import { catchUpSimulation } from './simCurrent';
+import { useLatest } from './useLatest';
 import { pairWords } from './table';
 import { copyAndAnnounce } from './clipboard';
 import { FIGURE_THEMES } from './figureTheme';
@@ -124,6 +126,30 @@ export const BandStats = memo(function BandStats({
     [histogramCell, pickedSpec, pickedColumn, dataset, settings, histogramTilted, horizonOnly],
   );
 
+  // The simulated values of the horizontal rows are of the cut at the horizon (every file's, tilted or not): the exports and the note say so.
+  const horizonCut = sim.hCut === 'horizon';
+
+  // The exports are of the sliders as they stand: a simulation that is behind them is first brought up, and the export
+  // is taken from the render that made (see `catchUpSimulation`, and the same in the metrics table).
+  const exports = useLatest({
+    exportCsv: () => {
+      const sheets: BandSheet[] = datasets.map((d) => {
+        const bands = subBandsFor(d.items, userSubBands);
+        return {
+          label: d.label,
+          columns: bandTable(d.items, metrics, bands, ctx),
+          ...(sim.simActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx) } : {}),
+        };
+      });
+      downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id))), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut, sim.tiltActive), 'text/csv;charset=utf-8');
+    },
+    copyTable: () => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings, horizonCut, sim.tiltActive), `Copied the band statistics of ${dataset?.label ?? ''}`, setCopyNote),
+  });
+  const current = () => {
+    catchUpSimulation();
+    return exports.current;
+  };
+
   if (!dataset || largest < MIN_SAMPLES) {
     return (
       <section data-testid="band-stats">
@@ -141,21 +167,6 @@ export const BandStats = memo(function BandStats({
   const lobeWarning = lobeLimitWarning(settings);
   // Only the files the histogram is made from count; the CSV lists every dataset.
   const histogramSimulated = marks.simulated;
-
-  // The simulated values of the horizontal rows are of the cut at the horizon (every file's, tilted or not): the exports and the note say so.
-  const horizonCut = sim.hCut === 'horizon';
-
-  const exportCsv = () => {
-    const sheets: BandSheet[] = datasets.map((d) => {
-      const bands = subBandsFor(d.items, userSubBands);
-      return {
-        label: d.label,
-        columns: bandTable(d.items, metrics, bands, ctx),
-        ...(sim.simActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx) } : {}),
-      };
-    });
-    downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id))), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut, sim.tiltActive), 'text/csv;charset=utf-8');
-  };
 
   return (
     <section data-testid="band-stats">
@@ -175,11 +186,8 @@ export const BandStats = memo(function BandStats({
             {dataset.label} ({filesText(dataset.items.length)})
           </span>
         )}
-        <button onClick={exportCsv}>Export band CSV</button>
-        <button
-          title="Copy the table below as shown to paste into a spreadsheet"
-          onClick={() => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings, horizonCut, sim.tiltActive), `Copied the band statistics of ${dataset.label}`, setCopyNote)}
-        >
+        <button onClick={() => current().exportCsv()}>Export band CSV</button>
+        <button title="Copy the table below as shown to paste into a spreadsheet" onClick={() => current().copyTable()}>
           Copy table
         </button>
         <button aria-expanded={open} onClick={() => setOpen(!open)}>
