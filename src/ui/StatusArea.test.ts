@@ -107,6 +107,8 @@ describe('the calm load line goes by itself, but not from under a held pointer',
   const status = () => host.querySelector('[data-testid="load-status"]');
   const pointer = (type: string) => act(() => void document.body.dispatchEvent(new Event(type, { bubbles: true })));
   const wait = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
+  /** An event of the pointer `pointerId`, with `buttons` down. */
+  const pointerOf = (type: string, pointerId: number, buttons = 1) => act(() => void document.body.dispatchEvent(Object.assign(new Event(type, { bubbles: true }), { pointerId, buttons })));
   beforeEach(() => {
     vi.useFakeTimers();
     act(() => useStore.getState().setLoadMessage('Loaded 2 files', 'info'));
@@ -147,6 +149,50 @@ describe('the calm load line goes by itself, but not from under a held pointer',
     expect(status()).not.toBeNull();
     wait(1);
     expect(status()).toBeNull();
+  });
+
+  it('counts the pointers: with two fingers down, lifting one keeps the line under the other', () => {
+    pointerOf('pointerdown', 11);
+    pointerOf('pointerdown', 12);
+    wait(CLEAN_LOAD_MS + 1);
+    pointerOf('pointerup', 12);
+    wait(1000);
+    expect(status()).not.toBeNull();
+    pointerOf('pointerup', 11);
+    wait(0);
+    expect(status()).toBeNull();
+  });
+
+  it('a pointer up that was lost does not keep the line: the pointer moving with no button down counts as the release', () => {
+    pointerOf('pointerdown', 1);
+    wait(CLEAN_LOAD_MS + 1);
+    pointerOf('pointermove', 1, 1);
+    wait(0);
+    expect(status()).not.toBeNull();
+    pointerOf('pointermove', 1, 0);
+    wait(0);
+    expect(status()).toBeNull();
+  });
+
+  it('a pointer up that was lost does not keep the line: neither does a window that lost the focus or a page that was hidden', () => {
+    for (const lost of [() => window.dispatchEvent(new Event('blur')), () => document.dispatchEvent(new Event('visibilitychange'))]) {
+      act(() => useStore.getState().setLoadMessage('Loaded 2 files', 'info'));
+      pointerOf('pointerdown', 1);
+      pointerOf('pointerdown', 2);
+      wait(CLEAN_LOAD_MS + 1);
+      expect(status()).not.toBeNull();
+      act(() => void lost());
+      wait(0);
+      expect(status()).toBeNull();
+    }
+  });
+
+  it('an element that loses the focus is no release (the press on a slider takes the focus from another field)', () => {
+    pointerOf('pointerdown', 1);
+    wait(CLEAN_LOAD_MS + 1);
+    act(() => void document.body.dispatchEvent(new FocusEvent('blur')));
+    wait(0);
+    expect(status()).not.toBeNull();
   });
 
   it('a line that came after the release of the held pointer is not taken with the old one', () => {

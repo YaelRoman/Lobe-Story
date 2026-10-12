@@ -306,3 +306,32 @@ test('a slider held while the calm load line runs out does not jump: the line go
   await expect(line).toHaveCount(0);
   expect((await slider.boundingBox())!.y).toBeLessThan(before.y);
 });
+
+test('with two fingers down the calm load line stays until the last one is lifted, and a lost release does not keep it', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  const loaded = Date.now();
+  const line = page.getByTestId('load-status');
+  await expect(line).toBeVisible();
+  const touch = (type: string, pointerId: number, buttons = 1) =>
+    page.evaluate(([t, id, b]) => void window.dispatchEvent(new PointerEvent(t as string, { pointerId: id as number, pointerType: 'touch', buttons: b as number })), [type, pointerId, buttons]);
+  await touch('pointerdown', 11);
+  await touch('pointerdown', 12);
+  await touch('pointerup', 12);
+  await page.waitForTimeout(Math.max(0, 7000 - (Date.now() - loaded)));
+  await expect(line).toBeVisible();
+  await touch('pointerup', 11);
+  await expect(line).toHaveCount(0);
+
+  // A pointer whose up never came (released outside the window): once it moves with no button down, the line is free to go.
+  await page.reload();
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  const again = Date.now();
+  await expect(line).toBeVisible();
+  await page.evaluate(() => void window.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, pointerType: 'mouse', buttons: 1 })));
+  await page.waitForTimeout(Math.max(0, 7000 - (Date.now() - again)));
+  await expect(line).toBeVisible();
+  await page.evaluate(() => void window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, pointerType: 'mouse', buttons: 0 })));
+  await expect(line).toHaveCount(0);
+});

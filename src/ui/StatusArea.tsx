@@ -44,32 +44,52 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   // "Loaded 12 files" needs no action: it goes away by itself. Anything that failed, was skipped or renamed stays.
   // The line is in the flow, so the page moves up when it goes: not while a pointer is down (a slider dragged in the
   // first seconds after a load would jump from under the pointer). It then goes at the release, after the click that ends.
+  // Every pointer that is down counts (a second finger lifted leaves the first on its slider), and a pointer whose up
+  // was lost does not keep the line: it is taken for released when it moves with no button down, when the window
+  // loses the focus or when the page is hidden.
   useEffect(() => {
     if (!loadMessage || loadTone !== 'info') return;
-    let down = false;
+    const down = new Set<number>();
     let due = false;
     let afterRelease = 0;
     const remove = () => setLoadMessage(null);
-    const onDown = () => {
-      down = true;
+    const released = () => {
+      if (due && down.size === 0) afterRelease = window.setTimeout(remove, 0);
     };
-    const onUp = () => {
-      down = false;
-      if (due) afterRelease = window.setTimeout(remove, 0);
+    const onDown = (e: PointerEvent) => {
+      down.add(e.pointerId);
+      window.clearTimeout(afterRelease);
     };
-    window.addEventListener('pointerdown', onDown, true);
-    window.addEventListener('pointerup', onUp, true);
-    window.addEventListener('pointercancel', onUp, true);
+    const onUp = (e: PointerEvent) => {
+      if (down.delete(e.pointerId)) released();
+    };
+    const onMove = (e: PointerEvent) => {
+      if (e.buttons === 0) onUp(e);
+    };
+    const onLost = (e: Event) => {
+      // The window's own blur only: an element's passes here too.
+      if (e.type === 'blur' && e.target instanceof Node) return;
+      if (down.size === 0) return;
+      down.clear();
+      released();
+    };
+    const listeners: [string, (e: never) => void][] = [
+      ['pointerdown', onDown],
+      ['pointerup', onUp],
+      ['pointercancel', onUp],
+      ['pointermove', onMove],
+      ['blur', onLost],
+      ['visibilitychange', onLost],
+    ];
+    for (const [type, fn] of listeners) window.addEventListener(type, fn as EventListener, true);
     const timer = window.setTimeout(() => {
       due = true;
-      if (!down) remove();
+      if (down.size === 0) remove();
     }, CLEAN_LOAD_MS);
     return () => {
       window.clearTimeout(timer);
       window.clearTimeout(afterRelease);
-      window.removeEventListener('pointerdown', onDown, true);
-      window.removeEventListener('pointerup', onUp, true);
-      window.removeEventListener('pointercancel', onUp, true);
+      for (const [type, fn] of listeners) window.removeEventListener(type, fn as EventListener, true);
     };
   }, [loadMessage, loadTone, loadSeq, setLoadMessage]);
 
