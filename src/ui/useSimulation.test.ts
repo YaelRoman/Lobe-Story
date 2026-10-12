@@ -122,7 +122,7 @@ describe('a slider dragged where the page does not follow it (many files)', () =
     let latest!: SimulationResult;
     let flags!: { behind: boolean; waiting: boolean };
     const passes = new Set<unknown>();
-    function Probe() {
+    function Probe({ follows }: { follows: boolean }) {
       const metrics = useMemo(() => analyzeAll(tagged, DEFAULT_SETTINGS), []);
       const settled = useSettledSimulation(follows);
       latest = useSimulation(tagged, metrics, DEFAULT_SETTINGS, false, settled.state);
@@ -132,9 +132,16 @@ describe('a slider dragged where the page does not follow it (many files)', () =
     }
     act(() => {
       root = createRoot(container);
-      root.render(createElement(Probe));
+      root.render(createElement(Probe, { follows }));
     });
-    return { latest: () => latest, flags: () => flags, passes: () => passes.size, unmount: () => act(() => root.unmount()) };
+    return {
+      latest: () => latest,
+      flags: () => flags,
+      passes: () => passes.size,
+      /** The page comes to follow a drag, or stops following it (files are unticked or added). */
+      setFollows: (next: boolean) => act(() => root.render(createElement(Probe, { follows: next }))),
+      unmount: () => act(() => root.unmount()),
+    };
   }
   const step = (mechanicalDeg: number) => act(() => useStore.getState().updateSimulation({ mechanicalDeg }));
   /** The primary button goes down on a slider, and is let go. */
@@ -329,6 +336,80 @@ describe('a slider dragged where the page does not follow it (many files)', () =
       expect(simulationBehind()).toBe(false);
       expect(() => catchUpSimulation()).not.toThrow();
       probe = mountSettled(false);
+    });
+  });
+
+  it('a pointer up that is lost does not leave the value held: the pointer coming back with no button down hands it on', () => {
+    probe = mountSettled(false);
+    act(() => gripSlider());
+    for (const m of [1, 2, 3]) step(m);
+    expect(probe.flags().waiting).toBe(true);
+    act(() => void window.dispatchEvent(Object.assign(new Event('pointermove'), { pointerId: 1, buttons: 0 })));
+    expect(probe.flags()).toEqual({ behind: false, waiting: false });
+    expect(probe.latest().tilt.mechanicalDeg).toBe(3);
+    expect(probe.passes()).toBe(2);
+    // Nothing grips any more: the next change is followed at once.
+    step(5);
+    expect(probe.latest().tilt.mechanicalDeg).toBe(5);
+  });
+
+  describe('the page crosses the switch while a slider is gripped', () => {
+    it('files are unticked during the hold: the held value is handed on at once and equals a direct set, and the rest of the drag is followed', () => {
+      const expected = direct(3);
+      probe = mountSettled(false);
+      act(() => gripSlider());
+      for (const m of [1, 2, 3]) step(m);
+      expect(probe.flags()).toEqual({ behind: true, waiting: true });
+      probe.setFollows(true);
+      expect(probe.flags()).toEqual({ behind: false, waiting: false });
+      expect(probe.latest().tilt).toEqual(expected.tilt);
+      expect([...probe.latest().patterns]).toEqual([...expected.patterns]);
+      expect([...probe.latest().metrics]).toEqual([...expected.metrics]);
+      // Still gripped, and followed step by step now.
+      step(4);
+      expect(probe.latest().tilt.mechanicalDeg).toBe(4);
+      release();
+      expect(probe.latest().tilt.mechanicalDeg).toBe(4);
+    });
+
+    it('files are added during a drag that was followed: from then on it is waited for, and it ends where a direct set does', () => {
+      const expected = direct(5);
+      probe = mountSettled(true);
+      act(() => gripSlider());
+      step(1);
+      step(2);
+      expect(probe.latest().tilt.mechanicalDeg).toBe(2);
+      probe.setFollows(false);
+      expect(probe.flags()).toEqual({ behind: false, waiting: false });
+      step(4);
+      step(5);
+      expect(probe.latest().tilt.mechanicalDeg).toBe(2);
+      expect(probe.flags()).toEqual({ behind: true, waiting: true });
+      release();
+      expect(probe.flags()).toEqual({ behind: false, waiting: false });
+      expect(probe.latest().tilt).toEqual(expected.tilt);
+      expect([...probe.latest().patterns]).toEqual([...expected.patterns]);
+      expect([...probe.latest().metrics]).toEqual([...expected.metrics]);
+    });
+
+    it('crossing back and forth under one grip never shows a state older than one already shown', () => {
+      probe = mountSettled(false);
+      act(() => gripSlider());
+      const shown: number[] = [];
+      const note = () => shown.push(probe.latest().tilt.mechanicalDeg);
+      step(1);
+      note();
+      probe.setFollows(true);
+      note();
+      step(2);
+      note();
+      probe.setFollows(false);
+      note();
+      step(3);
+      note();
+      release();
+      note();
+      expect(shown).toEqual([0, 1, 2, 2, 2, 3]);
     });
   });
 

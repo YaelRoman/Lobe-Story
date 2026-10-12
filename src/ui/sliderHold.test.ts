@@ -220,6 +220,35 @@ describe('whether the page follows a slider while it is dragged', () => {
 
   it('with nothing loaded there is nothing to wait for', () => {
     expect(followsDrag({ files: 0, drawn: 0, angularRegions: true })).toBe(true);
-    expect(LIVE_DRAG_BUDGET_MS).toBeGreaterThan(0);
+    expect(followsDrag({ files: 0, drawn: 0, angularRegions: false })).toBe(true);
+  });
+
+  it('the switch is at 32 files, all ticked: 32 are followed, 33 are not', () => {
+    expect(followsDrag({ files: 32, drawn: 32, angularRegions: false })).toBe(true);
+    expect(followsDrag({ files: 33, drawn: 33, angularRegions: false })).toBe(false);
+  });
+
+  it('with the angular regions worked out it is at 25 files: 25 are followed, 26 are not', () => {
+    expect(followsDrag({ files: 25, drawn: 25, angularRegions: true })).toBe(true);
+    expect(followsDrag({ files: 26, drawn: 26, angularRegions: true })).toBe(false);
+  });
+
+  it('a loaded file that is not ticked still costs a little: of 33 loaded, 31 ticked are followed and 32 are not', () => {
+    expect(followsDrag({ files: 33, drawn: 31, angularRegions: false })).toBe(true);
+    expect(followsDrag({ files: 33, drawn: 32, angularRegions: false })).toBe(false);
+  });
+
+  it('unticking files, or leaving the angular regions, brings a page back under the switch', () => {
+    expect(followsDrag({ files: 48, drawn: 48, angularRegions: false })).toBe(false);
+    expect(followsDrag({ files: 48, drawn: 30, angularRegions: false })).toBe(true);
+    expect(followsDrag({ files: 26, drawn: 26, angularRegions: true })).toBe(false);
+    expect(followsDrag({ files: 26, drawn: 26, angularRegions: false })).toBe(true);
+  });
+
+  it('the budget is a quarter of a second a step, and the built-in example with the angular regions has little to spare under it', () => {
+    expect(LIVE_DRAG_BUDGET_MS).toBe(250);
+    // 24 files at 0.8 + 2 ms each and 24 drawn at 7 ms: 235 ms. Two more files of the same kind would be over.
+    expect(followsDrag({ files: 24, drawn: 24, angularRegions: true })).toBe(true);
+    expect(followsDrag({ files: 26, drawn: 26, angularRegions: true })).toBe(false);
   });
 });
