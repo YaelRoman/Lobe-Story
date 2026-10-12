@@ -12,6 +12,11 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   (below) and differences from declared header values.
 - Sector metrics: SPR/AIR over the sector edges, roll-off, port-to-port tracking over the sector
   (gain-aware), and the D/U aperture for 16/64/256QAM, with a Sector marker on the horizontal cut.
+- Angular regions (est.), an optional column group that is off by default: sector efficiency, spatial
+  efficiency and lower region ratio after NGMN BASTA 7.2.4 for a macro beam (Type A). They are
+  estimates from the two co-polar cuts, integrated over the 3D reconstruction, and are not
+  BASTA-compliant: the standard needs the measured full sphere and total power. See
+  [docs/metrics.md](docs/metrics.md).
 - −3 dB markers on the plots and a frequency chart per group: HPBW by default, and a Metric menu
   plots any table column against frequency (the choice is remembered in the browser).
 - 3D patterns reconstructed from the two cuts (summation or Gil et al. weighted): the side-by-side

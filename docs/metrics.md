@@ -2,7 +2,7 @@
 
 Every column of the metrics table, as the code computes it, with the NGMN BASTA V13 section it
 corresponds to (section number only) or "tool-defined" when BASTA has no such parameter. Names are
-the table labels. Column groups can be hidden above the table; the CSV always has every column. In both CSV files the text columns taken from user data (metrics CSV: File, Source file, Group; band CSV: Antenna, Sub-band) get a leading `'` when they start with `=`, `+`, `-`, `@`, a tab or a carriage return, so spreadsheets do not run them as a formula. The one exception is the app's own automatic group label such as `+45 · 2°T`, built only from a known polarization, a numeric tilt and a port or array code: it is written as it is. A renamed group, or a label with free text in a tag, is guarded; numbers, headers and the other columns are written as they are.
+the table labels. Column groups can be hidden above the table; the CSV always has every column, except the "Angular regions (est.)" group, which is exported only while it is shown. In both CSV files the text columns taken from user data (metrics CSV: File, Source file, Group; band CSV: Antenna, Sub-band) get a leading `'` when they start with `=`, `+`, `-`, `@`, a tab or a carriage return, so spreadsheets do not run them as a formula. The one exception is the app's own automatic group label such as `+45 · 2°T`, built only from a known polarization, a numeric tilt and a port or array code: it is written as it is. A renamed group, or a label with free text in a tag, is guarded; numbers, headers and the other columns are written as they are.
 
 ## Data and conventions
 
@@ -94,6 +94,58 @@ Computed value minus the value declared in the file header, headed "H-HPBW − d
 and "F/B − decl." (computed F/B 180° minus declared); with Δ vs reference they read "Δ H-HPBW − decl.". Not available when the header lacks the value, and not computed for tilted
 files in a tilt simulation (the declared values describe the measured pattern). Hidden by default.
 Not a BASTA parameter (tool-defined).
+
+## Angular regions (est.)
+
+An optional column group, hidden by default. It follows the angular region efficiency of BASTA 7.2.4
+for beam Type A (macro base-station beam) only; the other beam types are not offered.
+
+**These values are estimates and are not BASTA-compliant.** The standard integrates the measured
+radiation intensity (total power, both polarizations) over the full sphere. A Planet file has two
+co-polar cuts, so the intensity between the cuts is reconstructed, and cross-polar power is missing.
+Use the numbers to compare files with each other, not against a specification value.
+
+**Regions (Table 7-1, Type A).** The standard gives them as a polar angle θ from the zenith; here they
+are converted to this tool's elevation (0° = horizon, positive below, so elevation = θ − 90°) and azimuth
+from boresight. P is the elevation of the beam peak (the Peak tilt column) and B the vertical 3 dB
+beamwidth, both from the file's own elevation cut; S is the "Sector edge" setting (nominal sector
+= 2·S, nominal direction = azimuth 0°).
+
+| Region | Elevation | Azimuth | Table 7-1 |
+|---|---|---|---|
+| Upper | −90° (zenith) to min(0°, P − B) | all | θ < θ1 = min(90°, θpeak − HPBW) |
+| Service | P − B/2 to 75° | within ±S | θ2 = θpeak − HPBW/2 to θ3 = 165°, φ1 to φ2 |
+| Interference | min(0°, P − B) to 75°, without the service region | all | θ1 to θ3 outside the service region |
+| Lower | 75° to 90° (straight down) | all | θ3 = 165° to θ4 = 180° |
+
+The four regions cover the sphere once.
+
+| Label | Unit | Definition | BASTA |
+|---|---|---|---|
+| Sector eff. est. | % | Power in the service region ÷ power over the whole sphere × 100. | 7.2.4 (estimate) |
+| Spatial eff. est. | % | Power in the service region ÷ power in the service and interference regions × 100. | 7.2.4 (estimate) |
+| Lower region est. | % | Power in the lower region ÷ power over the whole sphere × 100. | 7.2.4 (estimate) |
+
+**How the power is integrated.** The intensity in a direction is the tool's two-cut 3D reconstruction,
+the same one the 3D view and the tilt simulation use, with the selected 3D method: the azimuth cut
+at that azimuth combined with the front half of the elevation cut at that elevation (the back half of
+the elevation cut is not used; the azimuth cut supplies the back). With "Summation" this is the
+product of the two cuts in linear power; with "Weighted" it is the cross-weighted combination, which
+puts more power away from the two cut planes and gives a lower sector efficiency (about 7 points
+lower on the built-in example). The 3D method therefore changes these columns; it is chosen in the
+Simulation bar, where the control is enabled while these columns are shown or plotted. The power is integrated in linear terms on the 1° grid,
+taken as linear between samples, with the solid-angle weight cos(elevation). A region boundary at a
+non-integer angle cuts the 1° cell where it falls; nothing is rounded to a whole degree.
+
+**No value.** "—" with the reason in the tooltip when the beam is outside the Type A ranges (vertical
+HPBW 0.5° to 25°, horizontal HPBW 50° to 130°, both at 3 dB whatever the beamwidth level setting), when
+a beamwidth is not defined, or when the elevation peak lies behind the antenna.
+
+**Where it appears.** In the table and in Copy table while the group is shown; in the CSV only while
+the group is shown; in the frequency chart's Metric menu always; in Δ vs reference and under a tilt
+simulation (original → tilted, from the simulated cuts) like every other column. It is not part of
+the band statistics. The values are computed only while the group is shown or the frequency chart
+plots one of them.
 
 ## Difference from a reference
 
@@ -188,13 +240,14 @@ The panel shows each range; the same limits apply to projects and saved preferen
 | F/B window ± (°) | 30 | 1 to 180 | Width of the F/B ±W° search. |
 | USLS window (°) | 20 | 1 to 90 | R in the two windowed USLS columns. |
 | First-lobe limit (× V-HPBW) | 1.78 | 1 to 10 | Distance within which a first sidelobe counts as distinct. |
-| Sector edge (±°) | 60 | 1 to 179 | Sector size for P2P tracking, SPR, AIR, Roll-off, H-SLS. |
+| Sector edge (±°) | 60 | 1 to 179 | Sector size for P2P tracking, SPR, AIR, Roll-off, H-SLS and the service region of the angular-region estimate. |
 | Sectors per site | 3 | 2 to 12, whole | Neighbour spacing for D/U aperture. |
 
 ## Known limits and differences from BASTA
 
 - **Co-polar cuts only.** F/B and AIR/SPR are not total-power values. Cross-polar discrimination,
-  H/V tracking and 3D front-to-back and angular-region parameters are not available.
+  H/V tracking and 3D front-to-back are not available. The angular-region columns are an estimate
+  from the two cuts (see "Angular regions (est.)"), not the measured full-sphere parameter.
 - **1° sampling.** BASTA asks for 0.5° when the beamwidth is below 20°. Sidelobe and null values
   on narrow elevation beams are approximate, and the 1.78 / 1.55 factors were tuned at 0.5°.
 - **First-lobe rule.** With the standard 1.78 × V-HPBW limit, beams with a suppressed upper

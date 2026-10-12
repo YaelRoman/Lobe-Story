@@ -22,6 +22,13 @@ it('the SPR entry says it is outside divided by inside and can exceed 100 %', ()
   expect(spr.text).toContain('exceed 100 %');
 });
 
+it('the angular-region entry says the values are estimates from two cuts and not BASTA-compliant', () => {
+  const are = GLOSSARY.find((g) => g.term === 'Angular regions (est.)')!;
+  for (const text of ['Sector efficiency', 'Spatial efficiency', 'Lower region ratio', 'estimates from the two co-polar cuts', 'not BASTA-compliant', 'off by default', 'Type A']) {
+    expect(are.text).toContain(text);
+  }
+});
+
 it('the help says what the file panel filter, fold and preview do', () => {
   for (const word of ['filter', 'folds', 'previews']) expect(PANEL_HELP).toContain(word);
 });
