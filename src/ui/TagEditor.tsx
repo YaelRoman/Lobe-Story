@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { parseTilt } from './tagEdit';
 import type { Tags } from '../core/types';
 
@@ -10,6 +10,11 @@ export function TagEditor({ tags, onSave, onCancel }: { tags: Tags; onSave: (t: 
 
   const [tiltError, setTiltError] = useState<string | null>(null);
   const tiltRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  // Opened at the bottom of a scrolling panel, the editor is brought fully into view (Save and Cancel included).
+  useEffect(() => {
+    formRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, []);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -30,6 +35,7 @@ export function TagEditor({ tags, onSave, onCancel }: { tags: Tags; onSave: (t: 
 
   return (
     <form
+      ref={formRef}
       className="tag-editor"
       aria-label="Tags"
       onSubmit={submit}

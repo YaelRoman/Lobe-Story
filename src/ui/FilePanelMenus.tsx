@@ -81,7 +81,15 @@ export function FileMenu({
   const setReference = useStore((s) => s.setReference);
 
   return (
-    <details className="menu" onClick={(e) => e.stopPropagation()}>
+    <details
+      className="menu"
+      onClick={(e) => e.stopPropagation()}
+      // An opened menu that reaches past the drawer's edge is scrolled into view, down to its last item.
+      onToggle={(e) => {
+        const menu = e.currentTarget;
+        if (menu.open) menu.querySelector<HTMLElement>('.menu-items')?.scrollIntoView?.({ block: 'nearest' });
+      }}
+    >
       <summary aria-label={`Actions for ${name}`} aria-haspopup="menu" tabIndex={tabIndex} data-focus-target>
         ⋯
       </summary>
@@ -205,7 +213,15 @@ export function GroupMenu({
   const duplicateGroup = useStore((s) => s.duplicateGroup);
   const deleteGroup = useStore((s) => s.deleteGroup);
   return (
-    <details className="menu" onClick={(e) => e.stopPropagation()}>
+    <details
+      className="menu"
+      onClick={(e) => e.stopPropagation()}
+      // An opened menu that reaches past the drawer's edge is scrolled into view, down to its last item.
+      onToggle={(e) => {
+        const menu = e.currentTarget;
+        if (menu.open) menu.querySelector<HTMLElement>('.menu-items')?.scrollIntoView?.({ block: 'nearest' });
+      }}
+    >
       <summary aria-label={`Actions for group ${name}`} aria-haspopup="menu" tabIndex={tabIndex} data-focus-target>
         ⋯
       </summary>

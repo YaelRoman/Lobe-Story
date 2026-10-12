@@ -289,3 +289,37 @@ test('metrics table rows have whole-pixel heights so the sticky File column and 
     }
   }
 });
+
+test.describe('phone file drawer', () => {
+  test.use({ hasTouch: true });
+
+  const inside = (inner: { y: number; height: number }, outer: { y: number; height: number }) => inner.y >= outer.y - 1 && inner.y + inner.height <= outer.y + outer.height + 1;
+
+  test('uses about 70 % of the screen height, and an opened ⋯ menu or tag editor is scrolled fully into view', async ({ page }) => {
+    await loadExample(page, 390, 844);
+    await page.getByRole('button', { name: /^Files \(/ }).click();
+    const panel = page.locator('.panel');
+    await expect(panel).toBeVisible();
+    const panelBox = (await panel.boundingBox())!;
+    expect(panelBox.height).toBeGreaterThan(844 * 0.6);
+    expect(panelBox.height).toBeLessThanOrEqual(844 * 0.7 + 1);
+
+    // The ⋯ menu of a row near the bottom of what the drawer shows: every item, down to Remove, ends up inside it.
+    const rows = panel.locator('.group li');
+    const index = 5;
+    await rows.nth(index).scrollIntoViewIfNeeded();
+    await rows.nth(index).locator('summary').click();
+    const remove = rows.nth(index).getByRole('menuitem', { name: 'Remove' });
+    await expect(remove).toBeVisible();
+    await expect.poll(async () => inside((await remove.boundingBox())!, (await panel.boundingBox())!)).toBe(true);
+    await page.keyboard.press('Escape');
+
+    // The tag editor's Save and Cancel are not cut by the drawer edge.
+    const last = rows.nth(8);
+    await last.scrollIntoViewIfNeeded();
+    await last.getByRole('button', { name: /^Edit tags of / }).click();
+    const save = panel.getByRole('button', { name: 'Save', exact: true });
+    await expect(save).toBeVisible();
+    await expect.poll(async () => inside((await save.boundingBox())!, (await panel.boundingBox())!)).toBe(true);
+  });
+});
