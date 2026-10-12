@@ -148,7 +148,10 @@ h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .band th[scope='row'], .band thead th:first-child { position: sticky; left: 0; z-index: 1; background: var(--bg); }
 /* Metrics table: sticky header row and File column inside a bounded scroll area. */
 .metrics-wrap { max-height: min(70vh, 640px); }
-/* Row lines are inset shadows: collapsed borders do not travel with sticky cells. */
+/* Row lines are inset shadows: collapsed borders do not travel with sticky cells. Whole-pixel line heights keep every row a whole number
+   of pixels high, so the sticky File column and the other cells put their lines on the same pixel row. */
+.metrics td, .metrics th { line-height: 18px; }
+.file-sub { line-height: 14px; }
 .metrics td { border-bottom: 0; box-shadow: inset 0 -1px 0 var(--border); }
 .metrics th { position: sticky; top: 0; z-index: 2; padding: 0; background: var(--panel); border-bottom: 0; box-shadow: inset 0 -1px 0 var(--border); }
 .metrics th:first-child, .metrics td:first-child { position: sticky; left: 0; background: var(--bg); box-shadow: inset 0 -1px 0 var(--border), 1px 0 0 var(--border); }

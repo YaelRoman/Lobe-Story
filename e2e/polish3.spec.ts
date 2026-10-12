@@ -271,3 +271,21 @@ test('on a phone the chart toolbar lies in a strip above each plot, not over its
     expect(btn.x).toBeGreaterThanOrEqual(box.left - 1);
   }
 });
+
+test('metrics table rows have whole-pixel heights so the sticky File column and the other cells draw their row lines at the same place', async ({ page }) => {
+  for (const [w, h] of [[1440, 900], [390, 844]] as const) {
+    await loadExample(page, w, h);
+    const heights = await page.locator('.metrics tbody tr').evaluateAll((rows) =>
+      rows.map((tr) => {
+        const [a, b] = [...tr.children].slice(0, 2).map((c) => c.getBoundingClientRect());
+        return { row: tr.getBoundingClientRect().height, first: a.height, second: b.height, bottomGap: Math.abs(a.bottom - b.bottom) };
+      }),
+    );
+    expect(heights).toHaveLength(24);
+    for (const r of heights) {
+      expect(Math.abs(r.row - Math.round(r.row)), `${w}: row height ${r.row}`).toBeLessThan(0.02);
+      expect(r.first).toBeCloseTo(r.second, 2);
+      expect(r.bottomGap).toBeLessThan(0.02);
+    }
+  }
+});
