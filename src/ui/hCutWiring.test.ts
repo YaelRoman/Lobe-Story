@@ -3,7 +3,7 @@ import { act, createElement, useMemo } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PlotData } from 'plotly.js';
-import { hCutLabel, simSummary, simulatedCaption, summaryHCut } from './simSummary';
+import { hCutLabel, simSummary, simulatedCaption, simulationActive, summaryHCut, summaryMethod } from './simSummary';
 import { buildRows, csvColumns, HORIZON_TAG, simulationLabel, toCsv, toTsv, visibleColumns } from './table';
 import { bandCsv, bandTsv } from './bandView';
 import { buildCutSeries } from './cutSeries';
@@ -34,9 +34,11 @@ function simFor(tilt: TiltSettings, hCut: HCutMode, offsets: Record<string, SimS
   const effective = (id: string) => effectiveFor(global, offsets[id]);
   const isTiltedId = (id: string) => isTilted(effective(id));
   const tiltActive = items.some((i) => isTiltedId(i.pattern.id));
-  const tilted = tiltActive ? tiltEach(items, effective, 'summation', hCut) : items;
+  const simActive = tiltActive || hCut === 'horizon';
+  const tilted = simActive ? tiltEach(items, effective, 'summation', hCut) : items;
   return {
     tiltActive,
+    simActive,
     tilt,
     azimuthDeg: 0,
     showOriginal: true,
@@ -44,11 +46,12 @@ function simFor(tilt: TiltSettings, hCut: HCutMode, offsets: Record<string, SimS
     offsetCount: Object.keys(offsets).length,
     groupOffsetCount: 0,
     effective,
-    simulatedAmong: (ids) => anySimulated(effective, ids),
+    simulatedAmong: (ids, hCutCounts = true) => anySimulated(effective, ids, hCutCounts && hCut === 'horizon'),
     offsetsAmong: () => ({ files: Object.keys(offsets).length, groups: 0 }),
     isTiltedId,
+    showsSimulatedH: (id) => hCut === 'horizon' || isTiltedId(id),
     patterns: new Map(tilted.map((i) => [i.pattern.id, i.pattern])),
-    metrics: tiltActive ? analyzeTilted(tilted, DEFAULT_SETTINGS, effective) : original,
+    metrics: simActive ? analyzeTilted(tilted, DEFAULT_SETTINGS, effective) : original,
   };
 }
 
@@ -73,17 +76,23 @@ const titleOf = (o: CutFigureOptions) => (buildCutOverlay(o).layout.title as { t
 describe('the choice is named in the folded bar, the table note and the image caption', () => {
   const g = { electricalDeg: 0, mechanicalDeg: 6, azimuthDeg: 0 };
 
-  it('folded Simulation bar: after the 3D method, only while a tilt is active', () => {
+  it('folded Simulation bar: after the 3D method, while a tilt is active or the cut is the one at the horizon', () => {
     expect(simSummary(g, 0, 0, 'weighted', 'horizon')).toBe('Tilt Δ 0° · Mech 6° · Az 0° · 3D method: Weighted · H cut: at the horizon');
     expect(simSummary(g, 0, 0, 'weighted', 'beam')).toBe('Tilt Δ 0° · Mech 6° · Az 0° · 3D method: Weighted · H cut: through the beam peak');
     expect(simSummary(g, 0, 0, 'weighted')).toBe('Tilt Δ 0° · Mech 6° · Az 0° · 3D method: Weighted');
     expect(summaryHCut('horizon', true)).toBe('horizon');
     expect(summaryHCut('beam', true)).toBe('beam');
-    // Without a tilted file the choice changes nothing on screen and is not named.
-    expect(summaryHCut('horizon', false)).toBeUndefined();
+    // Without a tilted file the cut through the beam peak is the file cut and is not named; the horizon cut is shown for every file, tilted or not.
+    expect(summaryHCut('beam', false)).toBeUndefined();
+    expect(summaryHCut('horizon', false)).toBe('horizon');
+    expect(simSummary({ electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0 }, 0, 0, summaryMethod('summation', false, false, 'horizon'), summaryHCut('horizon', false))).toBe(
+      'Tilt Δ 0° · Mech 0° · Az 0° · 3D method: Summation · H cut: at the horizon',
+    );
+    expect(summaryMethod('summation', false, false, 'beam')).toBeUndefined();
+    expect(summaryMethod('summation', false, false)).toBeUndefined();
   });
 
-  it('image caption: after the method, only while a tilt is active', () => {
+  it('image caption: after the method, while a tilt is active or the cut is the one at the horizon', () => {
     const facts = { tiltActive: true, tilt: { electricalDeg: 4, mechanicalDeg: -2 }, azimuthDeg: 10, offsetCount: 0, groupOffsetCount: 0 };
     expect(simulatedCaption({ ...facts, hCut: 'horizon' }, 'weighted')).toBe(
       'Simulated: electrical Δ 4°, mechanical −2°, azimuth 10°, weighted method, horizontal cut at the horizon',
@@ -94,10 +103,21 @@ describe('the choice is named in the folded bar, the table note and the image ca
     expect(simulatedCaption({ ...facts, hCut: 'horizon', offsetCount: 2 }, 'summation')).toBe(
       'Simulated: electrical Δ 4°, mechanical −2°, azimuth 10°, summation method, horizontal cut at the horizon; offsets on 2 files',
     );
-    // An azimuth-only simulation tilts nothing: every file shows its file cut.
-    expect(simulatedCaption({ ...facts, tiltActive: false, tilt: { electricalDeg: 0, mechanicalDeg: 0 }, hCut: 'horizon' }, 'summation')).toBe(
-      'Simulated: electrical Δ 0°, mechanical 0°, azimuth 10°',
+    // An azimuth-only simulation tilts nothing: through the beam peak every file shows its file cut, at the horizon every file its horizon cut.
+    const turned = { ...facts, tiltActive: false, tilt: { electricalDeg: 0, mechanicalDeg: 0 } };
+    expect(simulatedCaption({ ...turned, hCut: 'beam' }, 'summation')).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 10°');
+    expect(simulatedCaption({ ...turned, hCut: 'horizon' }, 'summation')).toBe(
+      'Simulated: electrical Δ 0°, mechanical 0°, azimuth 10°, summation method, horizontal cut at the horizon',
     );
+    // The horizon cut alone is a simulation (a reconstructed cut); a picture that does not show it (no cut named) is not.
+    const still = { ...turned, azimuthDeg: 0 };
+    expect(simulationActive({ ...still, hCut: 'horizon' })).toBe(true);
+    expect(simulationActive({ ...still, hCut: 'beam' })).toBe(false);
+    expect(simulationActive(still)).toBe(false);
+    expect(simulatedCaption({ ...still, hCut: 'horizon' }, 'weighted')).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 0°, weighted method, horizontal cut at the horizon');
+    expect(simulatedCaption(still, 'weighted')).toBeUndefined();
+    // The image of the vertical cut does not name the horizontal cut: it does not depend on it.
+    expect(simulatedCaption({ ...facts, hCut: undefined }, 'weighted')).toBe('Simulated: electrical Δ 4°, mechanical −2°, azimuth 10°, weighted method');
     // As the last line of an exported image's caption.
     const lines = exportCaptionLines(withSimulated({ file: 'a.msi', items: [] }, simulatedCaption({ ...facts, hCut: 'horizon' }, 'weighted'))!);
     expect(lines[lines.length - 1]).toContain('horizontal cut at the horizon');
@@ -113,12 +133,28 @@ describe('the choice is named in the folded bar, the table note and the image ca
 });
 
 describe('the horizontal plot of a simulated file', () => {
-  it('flags the horizon cut on the tilted live series of the horizontal cut only', () => {
+  it('flags the horizon cut on every live series of the horizontal cut, tilted or not, and only there', () => {
     const sim = simFor({ electricalDeg: 0, mechanicalDeg: 0 }, 'horizon', { a: { electricalDeg: 2, mechanicalDeg: 0, azimuthDeg: 0 } });
     const h = buildCutSeries(items, sim, original, colors, 'H');
-    // a (electrical tilt only) is a horizon cut; b is untilted and keeps its file cut; a's dashed original is the file cut.
-    expect(h.map((s) => [s.id, !!s.horizonCut, !!s.coneCut])).toEqual([['a', true, false], ['b', false, false], ['a#original', false, false]]);
-    expect(buildCutSeries(items, sim, original, colors, 'V').some((s) => s.horizonCut)).toBe(false);
+    // a (electrical tilt only) and b (no tilt) are both horizon cuts; each has its file cut as the dashed original.
+    expect(h.map((s) => [s.id, !!s.horizonCut, !!s.coneCut])).toEqual([['a', true, false], ['b', true, false], ['a#original', false, false], ['b#original', false, false]]);
+    expect(h[1].cut).toBe(sim.patterns.get('b')!.horizontal);
+    expect(h[1].cut).not.toBe(b.pattern.horizontal);
+    expect(h[3].cut).toBe(b.pattern.horizontal);
+    const v = buildCutSeries(items, sim, original, colors, 'V');
+    expect(v.some((s) => s.horizonCut)).toBe(false);
+    // The vertical cut of the untilted file is the file's own, and has no dashed original: nothing about it changed.
+    expect(v.map((s) => s.id)).toEqual(['a', 'b', 'a#original']);
+    expect(v[1].cut).toBe(b.pattern.vertical);
+    expect(v[1].metrics.v).toEqual(original.get('b')!.v);
+    // No tilt at all: every horizontal series is a horizon cut with its original; the vertical plot is the files'.
+    const none = simFor({ electricalDeg: 0, mechanicalDeg: 0 }, 'horizon');
+    expect(buildCutSeries(items, none, original, colors, 'H').map((s) => [s.id, !!s.horizonCut])).toEqual([['a', true], ['b', true], ['a#original', false], ['b#original', false]]);
+    expect(buildCutSeries(items, none, original, colors, 'V').map((s) => s.id)).toEqual(['a', 'b']);
+    expect(titleOf(figureOptions(none))).toContain(' · cut at the horizon');
+    // Through the beam peak without a tilt nothing is simulated.
+    const beamNone = simFor({ electricalDeg: 0, mechanicalDeg: 0 }, 'beam');
+    expect(buildCutSeries(items, beamNone, original, colors, 'H').map((s) => [s.id, !!s.horizonCut, s.cut === (s.id === 'a' ? a : b).pattern.horizontal])).toEqual([['a', false, true], ['b', false, true]]);
     // The other choice: the cut through the beam peak is flagged for a mechanical tilt, as before.
     const beam = buildCutSeries(items, simFor(MECH6, 'beam'), original, colors, 'H');
     expect(beam.map((s) => [!!s.horizonCut, !!s.coneCut])).toEqual([[false, true], [false, true], [false, false], [false, false]]);
@@ -294,14 +330,37 @@ describe('useSimulation follows the stored choice', () => {
     probe.unmount();
   });
 
-  it('without a tilt the choice changes nothing: the file cuts and the original metrics', () => {
+  it('without a tilt: through the beam peak the file cuts and the original metrics; at the horizon every file\'s horizon cut', () => {
     const probe = mount(false);
     const before = probe.latest();
+    expect(before.simActive).toBe(false);
+    expect(before.patterns.get('a')).toBe(a.pattern);
+    expect(before.showsSimulatedH('a')).toBe(false);
+    expect(before.simulatedAmong(['a'])).toBe(false);
     act(() => useStore.getState().updateSimulation({ hCut: 'horizon' }));
     const after = probe.latest();
     expect(after.tiltActive).toBe(false);
-    expect(after.patterns.get('a')).toBe(a.pattern);
-    expect(after.metrics).toBe(before.metrics);
+    expect(after.simActive).toBe(true);
+    expect(after.metrics).not.toBe(before.metrics);
+    for (const item of items) {
+      const id = item.pattern.id;
+      expect(after.isTiltedId(id)).toBe(false);
+      expect(after.showsSimulatedH(id)).toBe(true);
+      expect(after.patterns.get(id)).not.toBe(item.pattern);
+      expect(after.patterns.get(id)!.vertical).toBe(item.pattern.vertical);
+      // Built-in tilt of 6°: the horizon cut lies 7.5 dB below the 3D peak.
+      expect(after.metrics.get(id)!.hCutPeakDb).toBeCloseTo(7.5, 6);
+      expect(after.metrics.get(id)!.v).toEqual(before.metrics.get(id)!.v);
+      expect(after.metrics.get(id)!.tilt).toEqual(before.metrics.get(id)!.tilt);
+    }
+    // What shows the horizontal cut is simulated; a picture that does not (the vertical cut, the 3D view) is not.
+    expect(after.simulatedAmong(['a'])).toBe(true);
+    expect(after.simulatedAmong(['a'], false)).toBe(false);
+    expect(after.simulatedAmong([])).toBe(false);
+    // Back: the files themselves again.
+    act(() => useStore.getState().updateSimulation({ hCut: 'beam' }));
+    expect(probe.latest().patterns.get('a')).toBe(a.pattern);
+    expect(probe.latest().metrics).toBe(before.metrics);
     probe.unmount();
   });
 
@@ -315,5 +374,63 @@ describe('useSimulation follows the stored choice', () => {
     expect(horizon).not.toBe(beam);
     for (const id of ['a', 'b']) expect(horizon.get(id)!.are).toEqual(beam.get(id)!.are);
     probe.unmount();
+  });
+});
+
+describe('at the horizon every file is simulated, with or without a tilt', () => {
+  const HORIZONTAL_CELLS = ['hHpbw', 'hBw10', 'squint', 'hPeak', 'fb180', 'fbWindow', 'hSls', 'tracking', 'spr', 'air', 'rollOff', 'du16', 'du64', 'du256', 'dH', 'dFb'];
+  const rowsOf = (sim: SimulationResult, list = items, base = original) =>
+    buildRows(groupPatterns(list), base, 'dBd', sim.simActive ? sim.metrics : undefined, sim.isTiltedId, sim.showsSimulatedH);
+
+  it('an untilted file gets arrow cells for what is read from the horizontal cut, and none for the vertical cut', () => {
+    const rows = rowsOf(simFor({ electricalDeg: 0, mechanicalDeg: 0 }, 'horizon'));
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(Object.keys(r.tilted ?? {}).sort()).toEqual([...HORIZONTAL_CELLS].sort());
+      // The file has 6° of built-in tilt: its horizon cut is 7.5 dB below the peak, so F/B at 180° rises by that.
+      expect(r.tilted!.fb180!.value! - r.cells.fb180.value!).toBeCloseTo(7.5, 6);
+      // The declared H beamwidth and F/B describe the file cut, not the horizon cut.
+      expect(r.tilted!.dH).toEqual({ value: null, reason: 'Declared values describe the measured pattern' });
+      expect(r.tilted!.dFb).toEqual({ value: null, reason: 'Declared values describe the measured pattern' });
+      for (const key of ['vHpbw', 'vBw10', 'tilt', 'vPeak', 'tiltError', 'firstUsls', 'usls', 'uslsHorizon', 'uslsMax', 'nullFill', 'firstLsls', 'dV', 'areSector'] as const) {
+        expect(r.tilted![key], key).toBeUndefined();
+      }
+    }
+    // Through the beam peak without a tilt there is no simulated run at all.
+    expect(rowsOf(simFor({ electricalDeg: 0, mechanicalDeg: 0 }, 'beam')).every((r) => r.tilted === undefined)).toBe(true);
+    // A tilted file still compares every cell.
+    const mixed = rowsOf(simFor({ electricalDeg: 0, mechanicalDeg: 0 }, 'horizon', { a: { electricalDeg: 0, mechanicalDeg: 1, azimuthDeg: 0 } }));
+    expect(mixed[0].tilted!.vHpbw).toBeDefined();
+    expect(mixed[1].tilted!.vHpbw).toBeUndefined();
+    expect(mixed[1].tilted!.hHpbw).toBeDefined();
+  });
+
+  it('the CSV has the horizon cut of an untilted port under the horizon-cut header, not its cut through the beam peak', () => {
+    // Two ports of one array with 6° of built-in tilt; one is given 1° of mechanical tilt.
+    const plus: TaggedPattern = { pattern: patternFrom(quadBeam(65), vBeamWithLobes, { id: 'plus', fileName: 'plus.msi' }), tags: { polarization: '+45', tiltDeg: 6 } };
+    const minus: TaggedPattern = { pattern: patternFrom(quadBeam(64), vBeamWithLobes, { id: 'minus', fileName: 'minus.msi' }), tags: { polarization: '-45', tiltDeg: 6 } };
+    const pair = [plus, minus];
+    const base = analyzeAll(pair);
+    const effective = (id: string) => ({ electricalDeg: 0, mechanicalDeg: id === 'plus' ? 1 : 0, azimuthDeg: 0 });
+    const metrics = analyzeTilted(tiltEach(pair, effective, 'summation', 'horizon'), DEFAULT_SETTINGS, effective);
+    const rows = buildRows(groupPatterns(pair), base, 'dBd', metrics, (id) => id === 'plus', () => true);
+    const lines = toCsv(rows, 'dBd', 30, effective, 20, 3, undefined, false, csvColumns(DEFAULT_TABLE_GROUPS), 'summation', true).split('\r\n').map((l) => l.split(','));
+    const col = (name: string) => lines[0].indexOf(name);
+    const untilted = lines.find((l) => l[0] === 'minus.msi')!;
+    const fb = col('F/B 180° tilted [horizon cut] (dB)');
+    expect(fb).toBeGreaterThan(0);
+    // Original: the file cut. Tilted column: the horizon cut, 7.5 dB lower, so the level behind is 7.5 dB further below the 3D peak.
+    expect(Number(untilted[fb]) - Number(untilted[fb - 1])).toBeCloseTo(7.5, 2);
+    expect(Number(untilted[fb])).toBeCloseTo(metrics.get('minus')!.fb180.value!, 2);
+    // The vertical columns of the untilted port repeat the file's value.
+    const v = col('V-HPBW tilted (°)');
+    expect(untilted[v]).toBe(untilted[v - 1]);
+    // Tracking compares horizon cut with horizon cut: a fraction of a dB to a few dB, on both rows the same.
+    const before = base.get('plus')!.beamTracking.value!;
+    const after = metrics.get('plus')!.beamTracking.value!;
+    expect(metrics.get('minus')!.beamTracking.value).toBeCloseTo(after, 9);
+    expect(Math.abs(after - before)).toBeLessThan(5);
+    // Against the partner's cut through the beam peak it would be the level of the cut itself (over 7.5 dB).
+    expect(metrics.get('minus')!.hCutPeakDb).toBeCloseTo(7.5, 6);
   });
 });

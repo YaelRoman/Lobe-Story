@@ -136,7 +136,7 @@ function OffsetsRow() {
 }
 
 const H_CUT_TITLE =
-  'Which horizontal cut a tilted file shows. Through the beam peak: the cone at the elevation of the tilted beam peak (the cut data sheets give). At the horizon: the cut at 0° elevation, where the widening under mechanical tilt and the coverage at the horizon are seen; its levels are below the 3D peak. Available once a file is tilted.';
+  'Which horizontal cut the files show. Through the beam peak: the file cut, and under a tilt the cone at the elevation of the tilted beam peak (the cut data sheets give). At the horizon: the cut at 0° elevation of every file, tilted or not, read from the 3D reconstruction: what each antenna puts on the horizon, and how that changes under a tilt; its levels are below the 3D peak.';
 
 export function SimulationBar({ is3d }: { is3d: boolean }) {
   const sim = useStore((s) => s.view.simulation);
@@ -168,7 +168,9 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
   // The loaded files' effective tilt (global + offset), so a cancelling offset (e.g. +3/-3)
   // is correctly untilted instead of flagged from the raw global/offset fields alone.
   const tiltActive = useMemo(() => anyTilted(okIds, global, combined), [okIds, global, combined]);
-  const anyActive = tiltActive || sim.azimuthDeg !== 0 || fileCount > 0 || groupCount > 0;
+  // The cut at the horizon is a reconstructed cut of every loaded file, with or without a tilt.
+  const horizonActive = sim.hCut === 'horizon' && okIds.length > 0;
+  const anyActive = tiltActive || horizonActive || sim.azimuthDeg !== 0 || fileCount > 0 || groupCount > 0;
 
   return (
     <div className="sim-bar" role="group" aria-label="Simulation">
@@ -187,7 +189,7 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
       )}
       {collapsed && (
         <span className="count" data-testid="sim-summary">
-          {simSummary(global, fileCount, groupCount, summaryMethod(method, tiltActive, withAngularRegions), summaryHCut(sim.hCut, tiltActive))}
+          {simSummary(global, fileCount, groupCount, summaryMethod(method, tiltActive, withAngularRegions, sim.hCut), summaryHCut(sim.hCut, tiltActive))}
         </span>
       )}
       <div id="sim-body" className="sim-body" hidden={collapsed}>
@@ -202,8 +204,8 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
           ['weighted', 'Weighted'],
         ]}
         onChange={(method3d) => updateView({ method3d })}
-        // The method matters in the 3D view, under a tilt, and for the angular-region estimate (integrated over the reconstruction).
-        disabled={!tiltActive && !is3d && !withAngularRegions}
+        // The method matters in the 3D view, under a tilt, for a horizon cut, and for the angular-region estimate (integrated over the reconstruction).
+        disabled={!tiltActive && sim.hCut !== 'horizon' && !is3d && !withAngularRegions}
       />
       <div className="sim-choice" title={H_CUT_TITLE}>
         <span>Horizontal cut</span>
@@ -215,8 +217,6 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
             ['horizon', 'At the horizon'],
           ]}
           onChange={(hCut) => updateSimulation({ hCut })}
-          // The choice only matters for a tilted file: an untilted one shows its file cut either way.
-          disabled={!tiltActive}
         />
       </div>
       <label>

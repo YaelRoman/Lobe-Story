@@ -37,6 +37,7 @@ function simFor(
   const tilted = tiltActive ? tiltEach(items, effective, 'summation') : items;
   return {
     tiltActive,
+    simActive: tiltActive,
     tilt,
     azimuthDeg,
     showOriginal,
@@ -47,6 +48,7 @@ function simFor(
     simulatedAmong: (ids) => anySimulated(effective, ids),
     offsetsAmong: () => ({ files: Object.keys(offsets).length, groups: 0 }),
     isTiltedId,
+    showsSimulatedH: isTiltedId,
     patterns: new Map(tilted.map((i) => [i.pattern.id, i.pattern])),
     metrics: tiltActive ? analyzeTilted(tilted, DEFAULT_SETTINGS, effective) : original,
   };

@@ -183,18 +183,20 @@ the kind of tilt:
 
 ## The simulated horizontal cut
 
-Under a tilt simulation the Simulation bar offers **Horizontal cut: Through the beam peak | At the
-horizon**. The control is available once a file is tilted (an electrical or a mechanical tilt, from
-the sliders or from an offset). Both cuts are read from the same model: the 3D reconstruction of the
+The Simulation bar offers **Horizontal cut: Through the beam peak | At the horizon**. The control
+needs no tilt: "At the horizon" is a view of every loaded file, and it works with the sliders at
+zero. Both cuts are read from the same model: the 3D reconstruction of the
 file's two cuts with the selected 3D method, the elevation cut moved by the electrical tilt, the
 whole pattern turned by the mechanical tilt. Both are drawn against the pattern's 3D peak, so neither
 is ever above 0 dB (or above the file's own offset, for a file whose cut does not start at 0 dB).
 The vertical cut, the vertical metrics, the 3D view and the angular-region estimate do not depend
-on the choice. The choice is saved with the project (not remembered as a preference) and is put
+on the choice: for a file without a tilt they stay exactly the file's own, with no "original →
+tilted" pair in the table and no dashed original in the vertical plot. The choice is saved with the project (not remembered as a preference) and is put
 back to "Through the beam peak" by Reset (with offsets set: by "Reset everything").
 
 **Through the beam peak** (the default). The cut on the ground-frame cone at the elevation of the
-tilted beam peak: the cut a data sheet gives. Electrical tilt leaves it unchanged; mechanical tilt
+tilted beam peak: the cut a data sheet gives. A file without a tilt is not simulated here and shows
+its file cut, which is read as exactly this cut. Electrical tilt leaves it unchanged; mechanical tilt
 distorts it, and by how much depends on the 3D method. On that cone the sides are about m (the
 mechanical tilt) away from the antenna's own peak cone and the back about 2·m, so under mechanical
 tilt "Summation" narrows the cut slightly and raises F/B, while "Weighted" widens it slightly and
@@ -204,18 +206,25 @@ leaves F/B almost unchanged.
 in every azimuth. This is where the widening known from mechanical tilt is seen, and how much is
 left at the horizon after a down-tilt.
 
-- *Which files.* Every file with a non-zero tilt (sliders plus its own and its group's offsets). A
-  file without one is not simulated and keeps its file cut, in either mode.
+- *Which files.* Every file, with or without a tilt. The horizon cut is a reconstruction (an
+  estimate from the two cuts), so in this mode every file counts as simulated: the "Simulated"
+  badge is shown, the table gives "file cut → horizon cut" for the columns read from the
+  horizontal cut, the plot draws the file cut as the dashed original, exported images carry the
+  "Simulated:" line and export names end in `-simulated`, and the 3D method control is enabled
+  because the method changes the cut. For a file without a tilt the columns "H-HPBW − decl." and
+  "F/B − decl." are blank (the header describes the file cut, not the horizon cut); "V-HPBW −
+  decl." stays.
 - *Electrical tilt only.* The horizon cut is lower than the cut through the beam peak: the beam has
   moved down, and the horizon is now that far above its peak. With "Summation" it is the file's
   azimuth cut lowered by the level of the elevation cut at the horizon (same shape, same
   beamwidth); with "Weighted" the shape changes as well.
 - *A file with built-in electrical tilt.* The file's own azimuth cut is taken as a cut through its
-  beam peak (below the horizon), not as a horizon cut. So with no offset such a file shows its file
-  cut, and from the smallest offset on it shows the horizon cut, which lies above its beam: the
-  trace drops at once by what the elevation cut has lost at the horizon (several dB to tens of dB
-  for a narrow beam with several degrees of tilt). Only for a file whose beam peak is at 0°
-  elevation does the horizon cut start from the file cut. The dashed original stays the file cut.
+  beam peak (below the horizon), not as a horizon cut. Its horizon cut lies above its beam, lower
+  than the file cut by what the elevation cut has lost at the horizon (several dB to tens of dB for
+  a narrow beam with several degrees of tilt). It is shown as soon as "At the horizon" is chosen,
+  so the trace does not jump at the first slider step. For a file whose beam peak is at 0°
+  elevation the horizon cut without a tilt is the file cut, value for value. The dashed original
+  is always the file cut.
 - *What the cut can look like.* When the horizon passes through the upper side of the main beam the
   cut is a wider, lower copy of the azimuth beam. With more tilt the horizon reaches the first
   upper null and sidelobes at boresight while the sides of the panel, which a mechanical tilt
@@ -231,8 +240,8 @@ left at the horizon after a down-tilt.
 - *Levels in dB are below the pattern's 3D peak*, not below the cut's maximum: F/B 180°, F/B ±W°,
   H-SLS and Roll-off. F/B on the horizon cut is therefore "peak gain over the level behind the
   antenna at the horizon". P2P tracking compares the two ports at the horizon, each referenced to
-  its own 3D peak (and to its gain, when both are declared); a tilted file is compared with the
-  cut its partner shows.
+  its own 3D peak (and to its gain, when both are declared). Both ports are horizon cuts, whether
+  or not either is tilted, so a horizon cut is never compared with a cut through the beam peak.
 - *Power ratios do not depend on the reference*: SPR, AIR and the D/U apertures are those of the
   cut.
 - The read-out under the horizontal plot (and the caption of its image) says how far the cut's
@@ -251,7 +260,7 @@ of a dB).
 "· cut through the tilted beam peak"), the folded Simulation bar ("H cut: at the horizon"), the
 note above the metrics table and in the band statistics, and the caption of every exported image
 ("…, summation method, horizontal cut at the horizon"). In the exports only the horizon cut is
-marked, with a comma-free tag: the metrics CSV has "H-HPBW tilted [horizon cut] (°)" on the tilted
+marked (with or without a tilt), with a comma-free tag: the metrics CSV has "H-HPBW tilted [horizon cut] (°)" on the tilted
 column of every horizontal metric (in the difference view "…, tilted values [horizon cut]"), Copy
 table has "H-HPBW [tilted: horizon cut] (°)", the band statistics CSV has the State
 "tilted [H cut at the horizon]" and its copied table starts with "Parameter [tilted: H cut at the

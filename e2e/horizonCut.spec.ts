@@ -47,10 +47,10 @@ test('the simulated horizontal cut can be taken at the horizon: plot, table, sum
   const choice = page.getByRole('group', { name: 'Horizontal cut' });
   const beam = choice.getByRole('button', { name: 'Through the beam peak' });
   const horizon = choice.getByRole('button', { name: 'At the horizon' });
-  // The default is the cut through the beam peak; without a tilted file the choice changes nothing and is not offered.
+  // The default is the cut through the beam peak; the other choice is offered without a tilt (it is a view of every file).
   await expect(beam).toHaveAttribute('aria-pressed', 'true');
   await expect(horizon).toHaveAttribute('aria-pressed', 'false');
-  await expect(horizon).toBeDisabled();
+  await expect(horizon).toBeEnabled();
 
   await setMechanical(page, '6');
   await expect(horizon).toBeEnabled();
@@ -143,4 +143,90 @@ test('with electrical tilt only, the horizon cut is lower than the cut through t
   await expect(readout).toContainText(/Horizon cut: maximum \d+\.\d dB below the 3D peak/);
   const below = Number((await readout.innerText()).match(/maximum (\d+\.\d) dB below/)![1]);
   expect(below).toBeGreaterThan(1);
+});
+
+test('at the horizon every file shows its horizon cut without any tilt, and a port given 1° is compared with its partner\'s horizon cut', async ({ page }) => {
+  await loadExample(page);
+  await openSimulation(page);
+  const choice = page.getByRole('group', { name: 'Horizontal cut' });
+  const horizon = choice.getByRole('button', { name: 'At the horizon' });
+  const method = page.getByRole('group', { name: '3D method' }).getByRole('button', { name: 'Weighted' });
+  const row = (id: string) => page.locator(`.metrics tbody tr[data-row-id="${id}"]`);
+  const plus = row('example_1710_P45_02T.msi');
+  const minus = row('example_1710_M45_02T.msi');
+  const other = row('example_1795_P45_02T.msi');
+
+  // Nothing is simulated yet: no badge, single values, the 3D method changes nothing in 2D.
+  await expect(page.getByTestId('sim-badge')).toHaveCount(0);
+  await expect(plus.locator('td[data-col="hHpbw"]')).not.toContainText('→');
+  await expect(method).toBeDisabled();
+  const fileTracking = await plus.locator('td[data-col="tracking"]').innerText();
+  const fileVHpbw = await plus.locator('td[data-col="vHpbw"]').innerText();
+  // The drawn lines of a plot: the ticked file's trace and the marker lines of the highlighted file.
+  const drawnLines = (id: 'h' | 'v') => page.getByTestId(`plot-${id}`).locator('.scatterlayer .trace .lines path');
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+  const hLines = await drawnLines('h').count();
+  const vLines = await drawnLines('v').count();
+  expect(hLines).toBeGreaterThan(0);
+
+  await horizon.click();
+  await expect(horizon).toHaveAttribute('aria-pressed', 'true');
+  // A reconstructed cut is an estimate: the view is marked, and the method that makes it can be chosen.
+  await expect(page.getByTestId('sim-badge')).toBeVisible();
+  await expect(method).toBeEnabled();
+  await expect(hTitle(page)).toContainText('cut at the horizon');
+  await expect(page.getByTestId('readout-h')).toContainText(/Horizon cut: maximum \d+\.\d dB below the 3D peak/);
+  await expect(page.getByTestId('sim-hcut-note')).toContainText('horizontal cut at the horizon');
+  await expect(page.getByText('Simulated: Δe 0°, mech 0°')).toBeVisible();
+  // Every file: horizontal cells read "file cut → horizon cut"; the vertical cells are the file's own, without an arrow.
+  for (const r of [plus, minus, other]) {
+    await expect(r.locator('td[data-col="hHpbw"]')).toContainText('→');
+    await expect(r.locator('td[data-col="fb180"]')).toContainText('→');
+    await expect(r.locator('td[data-col="vHpbw"]')).not.toContainText('→');
+    await expect(r.locator('td[data-col="tilt"]')).not.toContainText('→');
+  }
+  await expect(plus.locator('td[data-col="vHpbw"]')).toHaveText(fileVHpbw);
+  await expect(page.getByTestId('plot-v').locator('.gtitle')).not.toContainText('horizon');
+  // The horizontal plot has the dashed file cut of the ticked file; the vertical plot has no original (nothing changed).
+  await expect(drawnLines('h')).toHaveCount(hLines + 1);
+  await expect(drawnLines('v')).toHaveCount(vLines);
+  const trackingOf = async (r: typeof plus) => Number((await r.locator('td[data-col="tracking"]').innerText()).split('→').pop()!.trim());
+  const untilted = await trackingOf(plus);
+  expect(Math.abs(untilted - Number(fileTracking))).toBeLessThan(1);
+
+  // One port gets 1° of mechanical tilt: its tracking is taken against the partner's horizon cut, so it moves by a
+  // fraction of a dB (not by the level of the cut), and both rows of the pair say the same.
+  // (The first file is the selected one after Load example.)
+  await expect(page.getByRole('group', { name: 'Per-file and group offsets' })).toContainText('example_1710_P45_02T');
+  const offset = page.getByLabel('Mechanical tilt offset (°) value');
+  await offset.fill('1');
+  await offset.press('Enter');
+  await expect(page.getByLabel('Offsets: mech +1°')).toBeVisible();
+  await expect(plus.locator('td[data-col="vHpbw"]')).toContainText('→');
+  await expect(minus.locator('td[data-col="vHpbw"]')).not.toContainText('→');
+  await expect(minus.locator('td[data-col="hHpbw"]')).toContainText('→');
+  await expect.poll(() => trackingOf(plus)).not.toBe(untilted);
+  const tilted = await trackingOf(plus);
+  expect(await trackingOf(minus)).toBe(tilted);
+  expect(Math.abs(tilted - untilted)).toBeLessThan(2);
+
+  // The CSV: the untilted partner's tilted horizontal column holds its horizon cut, not its file cut.
+  const [csvFile] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
+  expect(csvFile.suggestedFilename()).toBe('pattern-metrics-simulated.csv');
+  let csv = '';
+  for await (const chunk of (await csvFile.createReadStream())!) csv += chunk.toString();
+  const lines = csv.split('\r\n').map((l) => l.split(','));
+  const fb = lines[0].indexOf('F/B 180° tilted [horizon cut] (dB)');
+  const v = lines[0].indexOf('V-HPBW tilted (°)');
+  const partner = lines.find((l) => l[0].includes('1710_M45_02T'))!;
+  expect(fb).toBeGreaterThan(0);
+  expect(partner[fb]).not.toBe(partner[fb - 1]);
+  expect(partner[v]).toBe(partner[v - 1]);
+
+  // Back to the cut through the beam peak with the offset cleared: nothing is simulated.
+  await page.getByRole('button', { name: 'Clear offsets' }).click();
+  await choice.getByRole('button', { name: 'Through the beam peak' }).click();
+  await expect(page.getByTestId('sim-badge')).toHaveCount(0);
+  await expect(plus.locator('td[data-col="hHpbw"]')).not.toContainText('→');
+  await expect(hTitle(page)).not.toContainText('·');
 });

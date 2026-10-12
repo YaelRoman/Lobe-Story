@@ -23,7 +23,12 @@ export interface SimulationResult {
   /** Global azimuth slider. */
   azimuthDeg: number;
   showOriginal: boolean;
-  /** Which horizontal cut the tilted files show (`patterns` and `metrics` are made with it). */
+  /**
+   * True when `patterns` and `metrics` are a simulated run: a file is tilted, or the horizontal cut is the one at the
+   * horizon (every file then shows its horizon cut, tilted or not).
+   */
+  simActive: boolean;
+  /** Which horizontal cut the simulated files show (`patterns` and `metrics` are made with it). */
   hCut: HCutMode;
   /** Number of files with offsets. */
   offsetCount: number;
@@ -31,15 +36,21 @@ export interface SimulationResult {
   groupOffsetCount: number;
   /** Effective settings of a file (global + its offsets). */
   effective(id: string): SimSettings;
-  /** Whether any of these files (the ones a picture draws or an export lists) is simulated; see `anySimulated`. */
-  simulatedAmong(ids: Iterable<string>): boolean;
+  /**
+   * Whether any of these files (the ones a picture draws or an export lists) is simulated; see `anySimulated`. The
+   * horizon cut makes every file simulated, except with `hCutCounts` false: for a picture that does not show the
+   * horizontal cut (the vertical cut, the 3D view).
+   */
+  simulatedAmong(ids: Iterable<string>, hCutCounts?: boolean): boolean;
   /** The per-file and per-group offsets among these files (what a picture shows, see `offsetCountsAmong`). */
   offsetsAmong(ids: Iterable<string>): { files: number; groups: number };
   /** Whether a file's effective tilt is non-zero. */
   isTiltedId(id: string): boolean;
-  /** Tilted pattern per id (the original pattern for untilted files). */
+  /** Whether a file shows a simulated horizontal cut: it is tilted, or the cut is the one at the horizon. */
+  showsSimulatedH(id: string): boolean;
+  /** Simulated pattern per id (the original pattern for a file that is not simulated). */
   patterns: Map<string, Pattern>;
-  /** Metrics of the tilted run (the original metrics when no file is tilted). */
+  /** Metrics of the simulated run (the original metrics when there is none, see `simActive`). */
   metrics: Map<string, PatternMetrics>;
 }
 
@@ -89,9 +100,14 @@ export function useSimulation(
   );
   const effective = useCallback((id: string) => effectiveFor(global, offsets[id]), [global, offsets]);
   const isTiltedId = useCallback((id: string) => isTilted(effective(id)), [effective]);
-  const simulatedAmong = useCallback((ids: Iterable<string>) => anySimulated(effective, ids), [effective]);
+  const showsSimulatedH = useCallback((id: string) => hCut === 'horizon' || isTilted(effective(id)), [hCut, effective]);
+  const simulatedAmong = useCallback(
+    (ids: Iterable<string>, hCutCounts = true) => anySimulated(effective, ids, hCutCounts && hCut === 'horizon'),
+    [effective, hCut],
+  );
   const offsetsAmong = useCallback((ids: Iterable<string>) => offsetCountsAmong(ids, fileOffsets, groupOffsets, membership), [fileOffsets, groupOffsets, membership]);
   const tiltActive = useMemo(() => anyTilted(ids, global, offsets), [ids, global, offsets]);
+  const simActive = tiltActive || hCut === 'horizon';
 
   // A tilt-only view of the per-file settings, stable across an azimuth-only change (global or
   // per-file): used for tiltEach/analyzeTilted so `patterns`/`metrics` keep their Map identity
@@ -115,12 +131,12 @@ export function useSimulation(
   );
 
   const tiltedItems = useMemo(
-    () => (tiltActive ? tiltEach(tagged, tiltFor, method, hCut) : tagged),
-    [tiltActive, tagged, tiltFor, method, hCut],
+    () => (simActive ? tiltEach(tagged, tiltFor, method, hCut) : tagged),
+    [simActive, tagged, tiltFor, method, hCut],
   );
   const tiltedMetrics = useMemo(
-    () => (tiltActive ? analyzeTilted(tiltedItems, settings, tiltFor, withAngularRegions ? method : undefined) : metrics),
-    [tiltActive, tiltedItems, settings, tiltFor, metrics, withAngularRegions, method],
+    () => (simActive ? analyzeTilted(tiltedItems, settings, tiltFor, withAngularRegions ? method : undefined) : metrics),
+    [simActive, tiltedItems, settings, tiltFor, metrics, withAngularRegions, method],
   );
   const patterns = useMemo(() => new Map(tiltedItems.map((i) => [i.pattern.id, i.pattern])), [tiltedItems]);
   const offsetCount = tagged.reduce((n, i) => n + (fileOffsets[i.pattern.id] ? 1 : 0), 0);
@@ -130,6 +146,7 @@ export function useSimulation(
   return useMemo(
     () => ({
       tiltActive,
+      simActive,
       tilt,
       azimuthDeg,
       showOriginal,
@@ -140,11 +157,13 @@ export function useSimulation(
       simulatedAmong,
       offsetsAmong,
       isTiltedId,
+      showsSimulatedH,
       patterns,
       metrics: tiltedMetrics,
     }),
     [
       tiltActive,
+      simActive,
       tilt,
       azimuthDeg,
       showOriginal,
@@ -155,6 +174,7 @@ export function useSimulation(
       simulatedAmong,
       offsetsAmong,
       isTiltedId,
+      showsSimulatedH,
       patterns,
       tiltedMetrics,
     ],

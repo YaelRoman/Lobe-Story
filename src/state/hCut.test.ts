@@ -46,8 +46,22 @@ describe('the horizontal cut of the tilt simulation, in the store', () => {
     expect(st()).toBe(before);
   });
 
-  it('alone is not an active simulation: it changes nothing until a file is tilted', () => {
-    expect(simulationSet({ ...st().view.simulation, hCut: 'horizon' })).toBe(false);
+  it('at the horizon alone is an active simulation (every file then shows a reconstructed cut); through the beam peak alone is not', () => {
+    expect(simulationSet({ ...st().view.simulation, hCut: 'horizon' })).toBe(true);
+    expect(simulationSet({ ...st().view.simulation, hCut: 'beam' })).toBe(false);
+  });
+
+  it('a project saved with the horizon cut and no tilt opens with the Simulation bar unfolded', () => {
+    st().addFiles([input('a.MSI', msi(1800))]);
+    st().updateSimulation({ hCut: 'horizon' });
+    st().updateView({ collapsed: { ...st().view.collapsed, simBar: true } });
+    const json = serializeProject(st(), true);
+    st().clear();
+    st().resetSimulation('all');
+    expect(st().view.collapsed.simBar).toBe(true);
+    open(json);
+    expect(st().view.simulation.hCut).toBe('horizon');
+    expect(st().view.collapsed.simBar).toBe(false);
   });
 });
 

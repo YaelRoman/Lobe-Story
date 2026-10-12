@@ -367,9 +367,9 @@ export function projectToState(
   };
 }
 
-/** True when any slider is off zero or any file or group has an offset. */
+/** True when any slider is off zero, any file or group has an offset, or the horizontal cut is the one at the horizon (every file then shows a reconstructed cut). */
 export const simulationSet = (s: SimulationState): boolean =>
-  s.electricalDeg !== 0 || s.mechanicalDeg !== 0 || s.azimuthDeg !== 0 || Object.keys(s.offsets).length > 0 || Object.keys(s.groupOffsets).length > 0;
+  s.electricalDeg !== 0 || s.mechanicalDeg !== 0 || s.azimuthDeg !== 0 || Object.keys(s.offsets).length > 0 || Object.keys(s.groupOffsets).length > 0 || s.hCut === 'horizon';
 
 const fileNameOf = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 

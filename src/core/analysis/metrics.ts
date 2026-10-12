@@ -42,6 +42,8 @@ export interface AnalyzeOptions {
   nominalOffsetDeg?: number | ((id: string) => number);
   /** When set (or returning a reason), the Δ-declared metrics are null with this reason; a function gives a per-pattern value. */
   declaredReason?: string | ((id: string) => string | undefined);
+  /** As `declaredReason`, for the two Δ-declared metrics read from the H cut only (H beamwidth, F/B): a pattern whose H cut is not the file's while its V cut is. */
+  declaredHReason?: (pattern: Pattern) => string | undefined;
   /**
    * When set, the angular-region estimate (`are`) is computed, with this 3D reconstruction method. It is left out
    * otherwise ("Not computed"): it is the one metric that integrates over the sphere, and its columns are optional.
@@ -206,6 +208,7 @@ function analyze(
   const declared = item.pattern.declared;
   const declaredReason =
     typeof opts.declaredReason === 'function' ? opts.declaredReason(item.pattern.id) : opts.declaredReason;
+  const declaredHReason = declaredReason ?? opts.declaredHReason?.(item.pattern);
   return {
     h,
     v,
@@ -227,17 +230,11 @@ function analyze(
     rollOff: lift(rollOff(grids.h, s.sectorEdgeDeg)),
     rollOffEdges: below === undefined ? edges : [edges[0] + below, edges[1] + below],
     du,
-    delta: declaredReason
-      ? {
-          hHpbw: missing(declaredReason),
-          vHpbw: missing(declaredReason),
-          fb: missing(declaredReason),
-        }
-      : {
-          hHpbw: delta(h.hpbw, declared.hBeamwidth),
-          vHpbw: delta(v.hpbw, declared.vBeamwidth),
-          fb: delta(fb.fb180, declared.frontToBack),
-        },
+    delta: {
+      hHpbw: declaredHReason ? missing(declaredHReason) : delta(h.hpbw, declared.hBeamwidth),
+      vHpbw: declaredReason ? missing(declaredReason) : delta(v.hpbw, declared.vBeamwidth),
+      fb: declaredHReason ? missing(declaredHReason) : delta(fb.fb180, declared.frontToBack),
+    },
     are: opts.areMethod ? areOf(item.pattern, grids, s.sectorEdgeDeg, opts.areMethod, ownGrids, opts.areModel) : ARE_NOT_COMPUTED,
     ...(below === undefined ? {} : { hCutPeakDb: below }),
   };

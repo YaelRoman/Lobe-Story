@@ -25,10 +25,11 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   are ticked, a note under the plot says which are drawn (the highlighted file first, then the
   others in panel order); untick files or use "Only matches" to choose.
 - Tilt simulation: electrical tilt, mechanical tilt and azimuth for all files, with offsets per file
-  or group; the table shows original → tilted. Under a tilt the Simulation bar offers **Horizontal
-  cut: Through the beam peak | At the horizon**: the cut through the tilted beam peak (the default,
-  the cut a data sheet gives) or the cut at 0° elevation, where the widening under mechanical tilt
-  and what is left at the horizon are seen. On the horizon cut beamwidths are measured on that cut
+  or group; the table shows original → tilted. The Simulation bar offers **Horizontal
+  cut: Through the beam peak | At the horizon**: the cut through the beam peak (the default: the
+  file cut, and under a tilt the cut a data sheet gives) or the cut at 0° elevation of every file,
+  tilted or not, where what each antenna puts on the horizon, the widening under mechanical tilt
+  and what is left after a down-tilt are seen. On the horizon cut beamwidths are measured on that cut
   and levels (F/B, H-SLS, roll-off, tracking) below the 3D peak; the plot title, the folded bar,
   image captions and export headers name the choice, and it is saved with the project. Simulated
   values are estimates from the two cuts; see [docs/metrics.md](docs/metrics.md).
@@ -67,7 +68,7 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - CSV export of the metrics table and PNG export of any plot. Images are always drawn in the light colours on
   white, whatever the screen theme, with a legend of every file, the highlighted file's values, a line saying
   what the markers that are on mean and, while a simulation is active, a line "Simulated: electrical Δ …,
-  mechanical …, azimuth …" (with the 3D method and the horizontal cut while a tilt is active). File names say what they are: `horizontal-cut.png`, `vertical-cut.png`,
+  mechanical …, azimuth …" (with the 3D method and the horizontal cut while a tilt is active or the cut is the one at the horizon; the image of the vertical cut does not name the horizontal cut). File names say what they are: `horizontal-cut.png`, `vertical-cut.png`,
   `pattern-metrics.csv` and so on, with `-simulated` added while a simulation is active.
 - Undo: Remove, Delete group, Clear, Show all / none and opening a project over a session can be taken back
   with the Undo button for a few seconds and then with Ctrl/Cmd+Z until the next change you make (one step; a

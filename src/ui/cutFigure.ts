@@ -26,7 +26,7 @@ export interface PlotSeries {
   reference?: boolean;
   /** A simulated horizontal cut of a mechanically tilted file (the cut through the tilted beam peak). */
   coneCut?: boolean;
-  /** A simulated horizontal cut at the horizon (ground elevation 0°) of a tilted file; its maximum may lie far below the 3D peak. */
+  /** A simulated horizontal cut at the horizon (ground elevation 0°), of a tilted file or not; its maximum may lie far below the 3D peak. */
   horizonCut?: boolean;
 }
 

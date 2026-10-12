@@ -76,7 +76,7 @@ export const MetricsTable = memo(function MetricsTable({
   const revealed = useRef<{ id: string | null; sort: SortState | null } | null>(null);
 
   const baseRows = useMemo(
-    () => buildRows(groups, metrics, gainUnit, sim.tiltActive ? sim.metrics : undefined, sim.isTiltedId),
+    () => buildRows(groups, metrics, gainUnit, sim.simActive ? sim.metrics : undefined, sim.isTiltedId, sim.showsSimulatedH),
     [groups, metrics, gainUnit, sim],
   );
   // The reference file's row (it may be missing: no metrics, or the file is not loaded yet).
@@ -90,10 +90,10 @@ export const MetricsTable = memo(function MetricsTable({
   // With "Ticked files only" the highlighted file may be unticked: its row is then not listed.
   const highlightedRowHidden = tickedOnly && highlighted !== null && baseRows.some((r) => r.id === highlighted) && !listedRows.some((r) => r.id === highlighted);
   const deltaVs = deltaOn ? (referenceName ?? undefined) : undefined;
-  // In the difference view under a tilt simulation the differences are of the tilted values: the exports say so.
-  const deltaTilted = deltaOn && sim.tiltActive;
-  // The tilted values of the horizontal columns are of the cut at the horizon: the exports and the note say so.
-  const horizonCut = sim.tiltActive && sim.hCut === 'horizon';
+  // In the difference view under a simulation the differences are of the simulated values: the exports say so.
+  const deltaTilted = deltaOn && sim.simActive;
+  // The simulated values of the horizontal columns are of the cut at the horizon (every file's, tilted or not): the exports and the note say so.
+  const horizonCut = sim.hCut === 'horizon';
   // The cell that has focus shows the one copy button (a row id and a column key).
   const [focusedCell, setFocusedCell] = useState<{ id: string; col: string } | null>(null);
 
@@ -241,7 +241,7 @@ export const MetricsTable = memo(function MetricsTable({
           onClick={() =>
             downloadText(
               exportName('pattern-metrics', sim.simulatedAmong(rows.map((r) => r.id)), '.csv'),
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, csvColumns(tableGroups), method3d, horizonCut),
+              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.simActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, csvColumns(tableGroups), method3d, horizonCut),
               'text/csv;charset=utf-8',
             )
           }
@@ -309,7 +309,7 @@ export const MetricsTable = memo(function MetricsTable({
             {label}
           </label>
         ))}
-        {sim.tiltActive && (
+        {sim.simActive && (
           <p className="count">
             {simulationLabel(sim.tilt, sim.offsetCount, sim.groupOffsetCount)}
             <span data-testid="sim-hcut-note"> · {hCutLabel(sim.hCut)}{horizonCut ? `: ${HORIZON_CUT_NOTE}` : ''}</span>

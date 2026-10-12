@@ -193,17 +193,19 @@ const tiltedFrom = new WeakMap<Pattern, { source: Pattern; tilt: TiltSettings; m
  * H, `hCut` = 'horizon': the ground-frame cut at elevation 0° of the same rotated reconstruction, with the same
  * offset (so its values are levels below the 3D peak). Its maximum lies below the file's H peak by what the V cut
  * has lost at the horizon; a file whose beam peak is at 0° gives its own H cut as the tilt goes to zero.
- * Returns `p` itself when there is no tilt (in either mode: an untilted file keeps its file cut).
+ * Without a tilt, `beam` returns `p` itself (the file's H cut is taken as the cut through its beam peak), and
+ * `horizon` a copy with the file's own V cut (the same object) and the horizon cut of the untilted reconstruction:
+ * the file's H cut exactly when the beam peak is at 0° elevation, lower for a file with built-in tilt.
  */
 export function tiltPattern(p: Pattern, t: TiltSettings, method: Method3d, hCut: HCutMode = 'beam'): Pattern {
-  if (!isTilted(t)) return p;
+  const tilted = isTilted(t);
+  if (!tilted && hCut === 'beam') return p;
   const key = `${method}|${t.electricalDeg}|${t.mechanicalDeg}`;
   let entry = tiltedCache.get(p);
   const hit = entry?.[hCut];
   if (hit && hit.key === key) return hit.result;
   const { V, hN, vN, hOff, peakTheta } = baseGrids(p);
   const ve = t.electricalDeg === 0 ? V : electricalShift(V, t.electricalDeg);
-  const vTilted = shiftCircle(ve, t.mechanicalDeg);
   // Antenna-frame elevations on the cone are in the front half of the V cut, where the electrical
   // tilt is a plain shift: Ve(θ) = V(θ − Δe). Reading V directly (not a pre-shifted 1° grid)
   // interpolates once, so a half-degree tilt still finds the exact peak sample.
@@ -212,7 +214,8 @@ export function tiltPattern(p: Pattern, t: TiltSettings, method: Method3d, hCut:
   const result: Pattern = {
     ...p,
     horizontal: { angles: [...DEG360], atten: hTilted },
-    vertical: { angles: [...DEG360], atten: vTilted },
+    // Nothing about the vertical cut changes without a tilt: the copy keeps the file's own.
+    vertical: tilted ? { angles: [...DEG360], atten: shiftCircle(ve, t.mechanicalDeg) } : p.vertical,
   };
   if (!entry) tiltedCache.set(p, (entry = {}));
   entry[hCut] = { key, result };
@@ -230,17 +233,21 @@ export function horizonCutPeakDb(pattern: Pattern): number | undefined {
   return Math.min(...pattern.horizontal.atten) - baseGrids(origin.source).hOff;
 }
 
-/** Tilt each item with its own settings. Returns `items` itself when no item is tilted; untilted items keep their object. */
+/**
+ * Tilt each item with its own settings. Through the beam peak: returns `items` itself when no item is tilted, and
+ * untilted items keep their object. At the horizon every item gets a copy, tilted or not (see `tiltPattern`).
+ */
 export function tiltEach(
   items: TaggedPattern[],
   tiltFor: (id: string) => TiltSettings,
   method: Method3d,
   hCut: HCutMode = 'beam',
 ): TaggedPattern[] {
-  if (!items.some((i) => isTilted(tiltFor(i.pattern.id)))) return items;
+  const everyFile = hCut === 'horizon';
+  if (!everyFile && !items.some((i) => isTilted(tiltFor(i.pattern.id)))) return items;
   return items.map((i) => {
     const t = tiltFor(i.pattern.id);
-    return isTilted(t) ? { ...i, pattern: tiltPattern(i.pattern, t, method, hCut) } : i;
+    return everyFile || isTilted(t) ? { ...i, pattern: tiltPattern(i.pattern, t, method, hCut) } : i;
   });
 }
 
@@ -423,7 +430,8 @@ export const DECLARED_REASON = 'Declared values describe the measured pattern';
 
 /**
  * Metrics of patterns already tilted with `tiltEach(…)`: the nominal tilt follows the sliders and
- * the Δ-declared values of tilted files are null (they describe the measured pattern). With `areMethod` the
+ * the Δ-declared values of tilted files are null (they describe the measured pattern), as are the horizontal ones of
+ * a horizon-cut copy, tilted or not. With `areMethod` the
  * angular-region estimate is computed too: from the tilted cuts for an electrical tilt, as for the originals, and
  * from the rotated 3D reconstruction for a file with a mechanical tilt (`tiltedAngularRegions`). The estimate does
  * not depend on the horizontal cut shown: for a horizon-cut copy it is taken from the copy cut through the beam peak.
@@ -444,6 +452,8 @@ export function analyzeTilted(
     // Only tilted files lose their Δ-declared values; an untilted file in a mixed batch
     // keeps comparing its measured pattern against its declared ones.
     declaredReason: (id) => (isTilted(tiltFor(id)) ? DECLARED_REASON : undefined),
+    // A horizon cut is not the cut the header describes, tilted or not; the V cut of an untilted copy still is.
+    declaredHReason: (pattern) => (tiltedFrom.get(pattern)?.hCut === 'horizon' ? DECLARED_REASON : undefined),
     areMethod,
     areModel: (pattern, grids, sectorEdgeDeg, method) => {
       const origin = tiltedFrom.get(pattern);

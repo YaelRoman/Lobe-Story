@@ -7,16 +7,17 @@ import type { SimulationResult } from './useSimulation';
 /** The non-solid line pattern of a file's style, if any. */
 const lineDashOf = (style: FileStyle | undefined) => (style && style.dash !== 'solid' ? style.dash : undefined);
 
-/** Which simulated horizontal cut a live series is, if any: the horizon cut of a tilted file, else the cone cut of a mechanically tilted one. */
+/** Which simulated horizontal cut a live series is, if any: the horizon cut (every file, tilted or not), else the cone cut of a mechanically tilted one. */
 function simulatedCutFlag(sim: SimulationResult, id: string): { horizonCut?: true; coneCut?: true } {
-  if (sim.hCut === 'horizon') return sim.isTiltedId(id) ? { horizonCut: true } : {};
+  if (sim.hCut === 'horizon') return { horizonCut: true };
   return sim.effective(id).mechanicalDeg !== 0 ? { coneCut: true } : {};
 }
 
 /**
- * The 2D series of one cut: the (tilted) series of every item, then — only for files that are
- * tilted, when "Show original" is on — the dashed original series, so the legend lists live
- * traces first. Items without metrics are skipped.
+ * The 2D series of one cut: the (simulated) series of every item, then — only for files whose cut
+ * is simulated, when "Show original" is on — the dashed original series, so the legend lists live
+ * traces first. A horizon cut is simulated for every file; the vertical cut only for a tilted one.
+ * Items without metrics are skipped.
  */
 export function buildCutSeries(
   items: TaggedPattern[],
@@ -29,9 +30,10 @@ export function buildCutSeries(
   referenceId?: string | null,
 ): PlotSeries[] {
   const rotation = (id: string) => (cut === 'H' ? sim.effective(id).azimuthDeg : 0);
+  const changed = (id: string) => (cut === 'H' ? sim.showsSimulatedH(id) : sim.isTiltedId(id));
   const series = (original: boolean): PlotSeries[] =>
     items.flatMap(({ pattern: orig }) => {
-      if (original && (!sim.isTiltedId(orig.id) || orig.id === referenceId)) return [];
+      if (original && (!changed(orig.id) || orig.id === referenceId)) return [];
       const m = (original ? originalMetrics : sim.metrics).get(orig.id);
       if (!m) return [];
       const p = original ? orig : (sim.patterns.get(orig.id) ?? orig);

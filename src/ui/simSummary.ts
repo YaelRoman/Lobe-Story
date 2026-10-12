@@ -10,7 +10,7 @@ export function simSummary(
   groupOffsets: number,
   /** The 3D method, given only while it changes a number on screen (see `summaryMethod`). */
   method?: 'summation' | 'weighted',
-  /** Which horizontal cut the tilted files show, given only while a file is tilted (see `summaryHCut`). */
+  /** Which horizontal cut the simulated files show, given only while it is not simply the file cut (see `summaryHCut`). */
   hCut?: HCutMode,
 ): string {
   const parts = [`Tilt Δ ${minus(g.electricalDeg)}°`, `Mech ${minus(g.mechanicalDeg)}°`, `Az ${minus(g.azimuthDeg)}°`];
@@ -26,15 +26,19 @@ const H_CUT_WHERE: Record<HCutMode, string> = { beam: 'through the beam peak', h
 /** The choice of the simulated horizontal cut in words, as captions and notes name it. */
 export const hCutLabel = (hCut: HCutMode): string => `horizontal cut ${H_CUT_WHERE[hCut]}`;
 
-/** The horizontal-cut choice for the collapsed bar's summary, or undefined while no file is tilted (it then changes nothing). */
-export const summaryHCut = (hCut: HCutMode, tiltActive: boolean): HCutMode | undefined => (tiltActive ? hCut : undefined);
+/**
+ * The horizontal-cut choice for the collapsed bar's summary: the cut at the horizon always (every file shows it, tilted
+ * or not), the cut through the beam peak only while a file is tilted (without a tilt it is the file cut).
+ */
+export const summaryHCut = (hCut: HCutMode, tiltActive: boolean): HCutMode | undefined => (tiltActive || hCut === 'horizon' ? hCut : undefined);
 
 /**
  * The 3D method for the collapsed bar's summary, or undefined while it changes nothing on screen: it matters under a
- * tilt, and while the angular-region estimate (integrated over the reconstruction) is shown or plotted.
+ * tilt, for a horizon cut (read from the reconstruction, tilted or not), and while the angular-region estimate
+ * (integrated over the reconstruction) is shown or plotted.
  */
-export const summaryMethod = <M extends 'summation' | 'weighted'>(method: M, tiltActive: boolean, angularRegions: boolean): M | undefined =>
-  tiltActive || angularRegions ? method : undefined;
+export const summaryMethod = <M extends 'summation' | 'weighted'>(method: M, tiltActive: boolean, angularRegions: boolean, hCut: HCutMode = 'beam'): M | undefined =>
+  tiltActive || angularRegions || hCut === 'horizon' ? method : undefined;
 
 /** The simulation facts a caption or a file name needs (the parts of `SimulationResult` used, so it can be tested without hooks). */
 export interface SimFacts {
@@ -43,20 +47,27 @@ export interface SimFacts {
   azimuthDeg: number;
   offsetCount: number;
   groupOffsetCount: number;
-  /** Which horizontal cut the tilted files show; named in a caption while a tilt is active. */
+  /**
+   * Which horizontal cut the simulated files show: named in a caption while a tilt is active, and the cut at the
+   * horizon also without one. Left out for a picture that does not depend on it (the vertical cut, the 3D view).
+   */
   hCut?: HCutMode;
 }
 
-/** Whether any simulation is active: a tilt, an azimuth, or an offset on a file or a group. */
-export const simulationActive = (s: SimFacts): boolean => s.tiltActive || s.azimuthDeg !== 0 || s.offsetCount > 0 || s.groupOffsetCount > 0;
+/** Whether the picture's files show a reconstructed cut: one is tilted, or the horizontal cut is the one at the horizon. */
+const modelled = (s: SimFacts): boolean => s.tiltActive || s.hCut === 'horizon';
+
+/** Whether any simulation is active: a tilt, an azimuth, an offset on a file or a group, or the horizontal cut at the horizon. */
+export const simulationActive = (s: SimFacts): boolean => modelled(s) || s.azimuthDeg !== 0 || s.offsetCount > 0 || s.groupOffsetCount > 0;
 
 /**
  * Whether something among the files `ids` (the ones a picture draws or an export lists) is simulated: one of them has
  * a non-zero effective tilt or azimuth (global values plus its own and its group's offsets). An offset on a file that
- * is not among them does not count.
+ * is not among them does not count. With `everyFile` (the horizontal cut at the horizon, in what shows it) any file is.
  */
-export function anySimulated(effective: (id: string) => SimSettings, ids: Iterable<string>): boolean {
+export function anySimulated(effective: (id: string) => SimSettings, ids: Iterable<string>, everyFile = false): boolean {
   for (const id of ids) {
+    if (everyFile) return true;
     const e = effective(id);
     if (e.electricalDeg !== 0 || e.mechanicalDeg !== 0 || e.azimuthDeg !== 0) return true;
   }
@@ -86,14 +97,14 @@ export function offsetCountsAmong(
 /**
  * The caption line of an exported image while a simulation is active, else undefined:
  * "Simulated: electrical Δ 4°, mechanical 0°, azimuth 0°, summation method, horizontal cut at the horizon" (the method
- * and the horizontal cut only while a tilt is active, as they change the result then), plus the number of per-file and per-group offsets (those among the files the picture
+ * and the horizontal cut only while they change the result: under a tilt, or for the cut at the horizon), plus the number of per-file and per-group offsets (those among the files the picture
  * shows when `counts` is given, see `offsetCountsAmong`; else all of the project's).
  */
 export function simulatedCaption(s: SimFacts, method: 'summation' | 'weighted', counts?: { files: number; groups: number }): string | undefined {
   if (!simulationActive(s)) return undefined;
   const parts = [`electrical Δ ${minus(s.tilt.electricalDeg)}°`, `mechanical ${minus(s.tilt.mechanicalDeg)}°`, `azimuth ${minus(s.azimuthDeg)}°`];
-  if (s.tiltActive) parts.push(`${method} method`);
-  if (s.tiltActive && s.hCut) parts.push(hCutLabel(s.hCut));
+  if (modelled(s)) parts.push(`${method} method`);
+  if (modelled(s) && s.hCut) parts.push(hCutLabel(s.hCut));
   const files = counts?.files ?? s.offsetCount;
   const groups = counts?.groups ?? s.groupOffsetCount;
   const offsets = [

@@ -104,6 +104,15 @@ const HORIZONTAL_KEYS: ReadonlySet<MetricColumn> = new Set<MetricColumn>([
   'hHpbw', 'hBw10', 'squint', 'hPeak', 'fb180', 'fbWindow', 'hSls', 'tracking', 'spr', 'air', 'rollOff', 'du16', 'du64', 'du256',
 ]);
 
+/**
+ * The cells of an untilted file that follow its simulated horizontal cut (a horizon cut): the horizontal columns, and
+ * the two Δ-declared ones read from the horizontal cut (blank then: the header describes the file cut).
+ */
+const FOLLOWS_H_CUT: ReadonlySet<MetricColumn> = new Set<MetricColumn>([...HORIZONTAL_KEYS, 'dH', 'dFb']);
+
+/** Whether a column is read from the horizontal cut, so that its values follow the simulated horizontal cut of an untilted file too. */
+export const followsHCut = (key: MetricColumn): boolean => FOLLOWS_H_CUT.has(key);
+
 /** What an export header adds to the tilted values of a horizontal column while the simulated cut is the one at the horizon (comma-free, like the 3D method). */
 export const HORIZON_TAG = '[horizon cut]';
 
@@ -267,6 +276,8 @@ export function buildRows(
   gainUnit: GainUnit,
   tiltedMetrics?: Map<string, PatternMetrics>,
   isTiltedId?: (id: string) => boolean,
+  /** Whether an untilted file shows a simulated horizontal cut all the same (the cut at the horizon). */
+  showsSimulatedH?: (id: string) => boolean,
 ): MetricsRow[] {
   const rows: MetricsRow[] = [];
   for (const g of groups) {
@@ -279,6 +290,11 @@ export function buildRows(
         if (isTiltedId?.(pattern.id) ?? true) {
           // The file itself is tilted: every cell compares original vs. tilted.
           tilted = cellsOf(tm);
+        } else if (showsSimulatedH?.(pattern.id)) {
+          // An untilted file shown as a horizon cut: what is read from the horizontal cut changes, nothing else does.
+          const all = cellsOf(tm);
+          tilted = {};
+          for (const key of FOLLOWS_H_CUT) tilted[key] = all[key];
         } else if (tm.beamTracking.value !== m.beamTracking.value) {
           // An untilted file whose tracking partner is tilted: only its tracking cell changes.
           tilted = { tracking: tm.beamTracking };
@@ -559,7 +575,7 @@ export function toCsv(
   columns: readonly (typeof METRIC_COLUMNS)[number][] = CSV_DEFAULT_COLUMNS,
   /** The 3D method the angular-region estimate was computed with; named in the headers of its columns. */
   method3d: Method3d = 'summation',
-  /** The tilted values of the horizontal columns are of the cut at the horizon: their headers say so. */
+  /** The simulated values of the horizontal columns are of the cut at the horizon: their headers say so. */
   horizonCut = false,
 ): string {
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;

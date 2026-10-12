@@ -7,7 +7,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
 import { buildMetricFigure, coincidingNote, metricCaption, noValueNote, noValues, plottedFileIds, type LineSignature, type MetricSeries } from './metricFigure';
-import { cellsOf, columnLabel, COLUMN_GROUPS, METRIC_COLUMNS, withMethod, type MetricColumn } from './table';
+import { cellsOf, columnLabel, COLUMN_GROUPS, followsHCut, METRIC_COLUMNS, withMethod, type MetricColumn } from './table';
 import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
 import { groupLook, PER_FILE_COLOURS } from './colors';
@@ -47,7 +47,10 @@ export const HpbwChart = memo(function HpbwChart({
   const reference = useStore((s) => s.reference);
   const updateView = useStore((s) => s.updateView);
   const pickFile = useStore((s) => s.pickFile);
-  const simulated = sim.tiltActive;
+  // A metric read from the horizontal cut follows the cut at the horizon for every file, tilted or not; the two-panel
+  // beamwidth chart has the horizontal beamwidth in it.
+  const followsH = followsHCut(metric);
+  const simulated = sim.tiltActive || (followsH && sim.simActive);
   const labelOf = (c: (typeof METRIC_COLUMNS)[number]) => columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
   const column = METRIC_COLUMNS.find((c) => c.key === metric) ?? METRIC_COLUMNS[0];
   // H-HPBW keeps the two-panel chart of the beamwidths (H above, V below); every other metric has one panel.
@@ -89,7 +92,7 @@ export const HpbwChart = memo(function HpbwChart({
           const declared = DECLARED[metric]?.(pattern);
           return { id: pattern.id, freq: pattern.frequencyMHz, value: m ? cellsOf(m)[metric].value : null, ...(declared !== undefined ? { declared } : {}) };
         });
-      const ghost = g.items.some((i) => sim.isTiltedId(i.pattern.id));
+      const ghost = g.items.some((i) => (followsH ? sim.showsSimulatedH(i.pattern.id) : sim.isTiltedId(i.pattern.id)));
       if (both) {
         if (ghost) series.push({ label: g.label, color, ghost: true, points: points(metrics) });
         series.push({ label: g.label, color, symbol, points: points(sim.metrics) });
@@ -118,7 +121,7 @@ export const HpbwChart = memo(function HpbwChart({
       return { build: null, empty: noValueNote(label, reasons), coincide: null };
     }
     return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], plotLabel, column.unit, ref), empty: null, coincide: coincidingNote(single.filter((s) => !s.ghost)) };
-  }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, plotLabel, column.unit, reference]);
+  }, [groups, metrics, visible, theme, sim, levelDb, metric, both, followsH, label, plotLabel, column.unit, reference]);
 
   // The chart plots every file of a group that has a visible file, and the reference's diamond.
   const plottedIds = useMemo(
@@ -128,8 +131,9 @@ export const HpbwChart = memo(function HpbwChart({
     ],
     [groups, visible, refDrawn, reference],
   );
-  const exportSimulated = sim.simulatedAmong(plottedIds);
-  const simulatedLine = exportSimulated ? simulatedCaption(sim, method3d, sim.offsetsAmong(plottedIds)) : undefined;
+  // A metric of the vertical cut does not depend on the horizontal cut chosen, and its picture does not name it.
+  const exportSimulated = sim.simulatedAmong(plottedIds, followsH);
+  const simulatedLine = exportSimulated ? simulatedCaption(followsH ? sim : { ...sim, hCut: undefined }, method3d, sim.offsetsAmong(plottedIds)) : undefined;
   const exportCaption = useMemo(
     () =>
       withSimulated(
@@ -147,7 +151,7 @@ export const HpbwChart = memo(function HpbwChart({
       <div className="freq-head">
         <h2>
           {heading} vs frequency (groups with a visible file{both || DECLARED[metric] ? '; hollow markers = declared' : ''})
-          {sim.tiltActive ? ' — faint lines = original' : ''}
+          {simulated ? ' — faint lines = original' : ''}
           {refDrawn ? ' — diamond = reference' : ''}
         </h2>
         <div className="freq-metric">

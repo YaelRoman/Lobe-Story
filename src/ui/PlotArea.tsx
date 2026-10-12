@@ -162,8 +162,12 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
   const target = pending ? settledTarget.current : markerTarget;
   const method3d = useStore((s) => s.view.method3d);
   // Only a simulation of what is drawn counts: an offset on an unticked file changes neither picture.
-  const simulated = sim.simulatedAmong(drawnItems.map((i) => i.pattern.id));
-  const simulatedLine = simulated ? simulatedCaption(sim, method3d, sim.offsetsAmong(drawnItems.map((i) => i.pattern.id))) : undefined;
+  const drawnIds = drawnItems.map((i) => i.pattern.id);
+  const simulatedH = sim.simulatedAmong(drawnIds);
+  const simulatedLineH = simulatedH ? simulatedCaption(sim, method3d, sim.offsetsAmong(drawnIds)) : undefined;
+  // The vertical cut does not depend on the horizontal cut chosen: it neither counts as simulated for it nor names it.
+  const simulatedV = sim.simulatedAmong(drawnIds, false);
+  const simulatedLineV = simulatedV ? simulatedCaption({ ...sim, hCut: undefined }, method3d, sim.offsetsAmong(drawnIds)) : undefined;
 
   // The files' traces: built when the drawn files, their colours or the axes change, never for a highlight or a marker.
   const bases = useMemo(() => {
@@ -237,8 +241,8 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
           </p>
         )}
         <div className="plots">
-          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} simulatedLine={simulatedLine} exportBase={exportName('horizontal-cut', simulated)} />}
-          {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} simulatedLine={simulatedLine} exportBase={exportName('vertical-cut', simulated)} />}
+          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} simulatedLine={simulatedLineH} exportBase={exportName('horizontal-cut', simulatedH)} />}
+          {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} simulatedLine={simulatedLineV} exportBase={exportName('vertical-cut', simulatedV)} />}
         </div>
       </div>
     </>

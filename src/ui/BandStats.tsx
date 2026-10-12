@@ -70,8 +70,8 @@ export const BandStats = memo(function BandStats({
     [dataset, metrics, subBands, ctx],
   );
   const tiltedColumns = useMemo(
-    () => (dataset && sim.tiltActive ? bandTable(dataset.items, sim.metrics, subBands, ctx) : null),
-    [dataset, sim.tiltActive, sim.metrics, subBands, ctx],
+    () => (dataset && sim.simActive ? bandTable(dataset.items, sim.metrics, subBands, ctx) : null),
+    [dataset, sim.simActive, sim.metrics, subBands, ctx],
   );
 
   const pickedColumn =
@@ -134,8 +134,8 @@ export const BandStats = memo(function BandStats({
   // Only the files the histogram is made from count; the CSV lists every dataset.
   const histogramSimulated = sim.simulatedAmong(dataset.items.map((i) => i.pattern.id));
 
-  // The tilted values of the horizontal rows are of the cut at the horizon: the exports and the note say so.
-  const horizonCut = sim.tiltActive && sim.hCut === 'horizon';
+  // The simulated values of the horizontal rows are of the cut at the horizon (every file's, tilted or not): the exports and the note say so.
+  const horizonCut = sim.hCut === 'horizon';
 
   const exportCsv = () => {
     const sheets: BandSheet[] = datasets.map((d) => {
@@ -143,7 +143,7 @@ export const BandStats = memo(function BandStats({
       return {
         label: d.label,
         columns: bandTable(d.items, metrics, bands, ctx),
-        ...(sim.tiltActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx) } : {}),
+        ...(sim.simActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx) } : {}),
       };
     });
     downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id))), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut), 'text/csv;charset=utf-8');
@@ -190,7 +190,7 @@ export const BandStats = memo(function BandStats({
         excluded; co-polar cuts).
         {noFrequency > 0 && ` ${noFrequency} loaded file${noFrequency === 1 ? ' has' : 's have'} no frequency above 0 MHz and ${noFrequency === 1 ? 'is' : 'are'} left out.`}
         {userSubBands.length === 0 && ' Sub-bands are automatic.'}
-        {sim.tiltActive && ` Simulation active: cells show original → tilted where they differ (${hCutLabel(sim.hCut)}).`}
+        {sim.simActive && ` Simulation active: cells show original → tilted where they differ (${hCutLabel(sim.hCut)}).`}
         {settings.levelDb !== 3 &&
           ` Beamwidth level is ${settings.levelDb} dB: the beamwidth, squint and tilt rows are not half-power values.`}
         {lobeWarning && ` ${lobeWarning}`}
