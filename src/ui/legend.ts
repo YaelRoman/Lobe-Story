@@ -14,3 +14,14 @@ export function middleEllipsis(text: string, max: number): string {
   const head = max - 1 - tail;
   return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
 }
+
+/**
+ * The note under a cut plot that has no legend (more than four traces). "dashed = original" is said only when dashed
+ * originals are drawn (a tilt simulation with "Show original"); a pinned reference is the thick dashed line.
+ */
+export function traceNote(o: { traces: number; byGroup: boolean; originals: boolean; referenceLabel: string | null }): string {
+  const colours = `${o.traces} traces: colours as in the file panel${o.originals ? ' (dashed = original)' : ''}`;
+  const groups = o.byGroup ? '; more than 10 files: one colour per group, a shade per file' : '';
+  const reference = o.referenceLabel !== null ? ` The thick dashed line in the text colour is the reference: ${o.referenceLabel}.` : '';
+  return `${colours}${groups}; hover a trace for its name.${reference}`;
+}

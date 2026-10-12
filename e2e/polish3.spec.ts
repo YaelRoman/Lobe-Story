@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openSimulation } from './simulationBar';
 
 async function loadExample(page: Page, width = 1440, height = 900) {
   await page.setViewportSize({ width, height });
@@ -34,4 +35,22 @@ test('lines of the frequency chart that lie exactly on top of each other are nam
   await page.getByRole('button', { name: 'Show none', exact: true }).click();
   await page.locator('.panel li input[type="checkbox"]').first().check();
   await expect(note).toHaveCount(0);
+});
+
+test('the trace note says "dashed = original" only while a simulation draws originals', async ({ page }) => {
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  const note = page.getByTestId('readout-h').locator('p.count');
+  await expect(note).toContainText('24 traces: colours as in the file panel');
+  await expect(note).not.toContainText('dashed = original');
+  await openSimulation(page);
+  await page.getByLabel('Mechanical tilt (°) value').fill('4');
+  await page.getByLabel('Mechanical tilt (°) value').press('Enter');
+  await expect(note).toContainText('(dashed = original)');
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await expect(note).not.toContainText('dashed = original');
+  // A pinned reference is the thick dashed line.
+  await page.getByLabel(/^Actions for /).first().click();
+  await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+  await expect(note).toContainText('The thick dashed line in the text colour is the reference');
 });

@@ -9,7 +9,7 @@ import { withSimulated } from './exportFigure';
 import { bwMarkerLabel } from './bwLabel';
 import { buildCutSeries, withReference } from './cutSeries';
 import { FIGURE_THEMES, type Figure } from './figureTheme';
-import { showFileLegend } from './legend';
+import { showFileLegend, traceNote } from './legend';
 import { PlotlyChart, type FigureOverlay } from './PlotlyChart';
 import { PlotBoundary } from './ErrorBoundary';
 import { showsUpdateHint, usePaintFirst, useUpdateCost, type UpdateCost } from './updateHint';
@@ -56,6 +56,8 @@ interface CutPlotProps {
   readout: string[];
   target: string;
   traces: number;
+  /** Dashed originals of tilted files are among the traces. */
+  originals: boolean;
   /** The file the figure emphasises (see `PlotlyChart` `previewBase`). */
   emphasised: string | null;
   /** More than ten files are shown: colours go by group, a shade per file. */
@@ -78,7 +80,7 @@ interface Drawn {
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportBase }: CutPlotProps) {
+function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportBase }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -105,8 +107,7 @@ function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, 
         )}
         {noLegend && (
           <p className="count">
-            {traces} traces: colours as in the file panel (dashed = original){byGroup ? '; more than 10 files: one colour per group, a shade per file' : ''}; hover a trace for its name.
-            {referenceLabel !== null && ` The thick dashed line in the text colour is the reference: ${referenceLabel}.`}
+            {traceNote({ traces, byGroup, originals, referenceLabel })}
           </p>
         )}
       </div>
@@ -198,6 +199,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
         readout: markerReadout(options),
         target: shown?.label ?? '',
         traces: options.series.length,
+        originals: options.series.some((x) => x.dash),
         emphasised: shown ? target : null,
       };
     };
