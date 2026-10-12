@@ -17,8 +17,9 @@ test('the line above the metrics table says what the focused cell\'s column mean
   await expect(live).toHaveAttribute('aria-live', 'polite');
   await expect(live).toHaveText('');
   await expect(line).toContainText('Select a cell');
-  // (Measured from the line's own top: the page scrolls when a cell takes the focus.)
-  const gap = async () => (await page.locator('.metrics-wrap').boundingBox())!.y - (await line.boundingBox())!.y;
+  // (Measured from the line's own top: the page scrolls when a cell takes the focus. To a hundredth of a pixel: Firefox
+  // gives the difference of two scrolled positions with a noise of 0.0001 px.)
+  const gap = async () => Math.round(((await page.locator('.metrics-wrap').boundingBox())!.y - (await line.boundingBox())!.y) * 100) / 100;
   const before = await gap();
 
   // Arrow right from the file name moves into the cells: the line follows the cell.

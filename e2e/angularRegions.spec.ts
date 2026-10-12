@@ -177,14 +177,14 @@ test('the 3D method is named where it matters: a labelled control with the reaso
   for (const width of [1024, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 });
     const sliders = bar.getByRole('slider');
-    // (Places inside the bar: the page itself may scroll.)
-    const before = await sliders.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); const b = e.closest('.sim-bar')!.getBoundingClientRect(); return [r.x - b.x, r.y - b.y]; }));
+    // (Places inside the bar: the page itself may scroll. To a hundredth of a pixel: Firefox gives the difference of two scrolled positions with a noise of 0.0001 px.)
+    const before = await sliders.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); const b = e.closest('.sim-bar')!.getBoundingClientRect(); return [Math.round((r.x - b.x) * 100) / 100, Math.round((r.y - b.y) * 100) / 100]; }));
     const mech = page.getByLabel('Mechanical tilt (°) value');
     await mech.fill('3');
     await mech.press('Enter');
     await expect(page.getByTestId('sim-badge')).toBeVisible();
     await expect(reason).toBeHidden();
-    expect(await sliders.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); const b = e.closest('.sim-bar')!.getBoundingClientRect(); return [r.x - b.x, r.y - b.y]; }))).toEqual(before);
+    expect(await sliders.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); const b = e.closest('.sim-bar')!.getBoundingClientRect(); return [Math.round((r.x - b.x) * 100) / 100, Math.round((r.y - b.y) * 100) / 100]; }))).toEqual(before);
     await mech.fill('0');
     await mech.press('Enter');
     await expect(reason).toBeVisible();
