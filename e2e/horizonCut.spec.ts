@@ -255,3 +255,27 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   await expect(levelOption).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /HPBW vs frequency/ })).toBeVisible();
 });
+
+test('the band statistics histogram is marked tilted at the horizon with no tilt only for a parameter of the horizontal cut', async ({ page }) => {
+  await loadExample(page);
+  await openSimulation(page);
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  const band = page.getByTestId('band-stats');
+  await band.scrollIntoViewIfNeeded();
+  const histogram = page.getByTestId('plot-band');
+  const download = async () => {
+    const pending = page.waitForEvent('download');
+    await histogram.getByRole('button', { name: 'Download plot as a png (with legend and values)' }).click();
+    return (await pending).suggestedFilename();
+  };
+  // A parameter of the vertical cut is the files' own: no "(tilted)", no simulated file name.
+  await band.getByRole('row', { name: /^Elevation beamwidth/ }).getByRole('button').first().click();
+  await expect(histogram.locator('.main-svg').first()).toBeVisible();
+  await expect(band.getByText(/^Elevation beamwidth — .* N = \d+$/)).toBeVisible();
+  await expect(band.getByText(/^Elevation beamwidth — .*\(tilted\)/)).toHaveCount(0);
+  expect(await download()).toBe('band-statistics-histogram.png');
+  // A parameter of the horizontal cut is of the cut at the horizon.
+  await band.getByRole('row', { name: /^Azimuth beamwidth/ }).getByRole('button').first().click();
+  await expect(band.getByText(/^Azimuth beamwidth — .*\(tilted\)$/)).toBeVisible();
+  await expect(async () => expect(await download()).toBe('band-statistics-histogram-simulated.png')).toPass();
+});

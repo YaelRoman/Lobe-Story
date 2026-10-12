@@ -285,7 +285,9 @@ describe('exports name the horizon cut on the tilted horizontal columns', () => 
     const sheets = [{ label: 'Array Y1', columns, tilted: columns }];
     const lines = bandCsv(sheets, DEFAULT_SETTINGS, true).split('\r\n');
     expect(lines[1].startsWith('Array Y1,original,')).toBe(true);
-    expect(lines[2].startsWith('Array Y1,tilted [H cut at the horizon],')).toBe(true);
+    // The first parameter (gain) is not read from the horizontal cut: its tilted line is plain "tilted"; the azimuth beamwidth's names the cut.
+    expect(lines[2].startsWith('Array Y1,tilted,')).toBe(true);
+    expect(lines.filter((l) => l.includes(',Azimuth beamwidth,'))[1].startsWith('Array Y1,tilted [H cut at the horizon],')).toBe(true);
     expect(bandCsv(sheets, DEFAULT_SETTINGS, false)).toBe(bandCsv(sheets, DEFAULT_SETTINGS));
     expect(bandCsv(sheets, DEFAULT_SETTINGS)).not.toContain('at the horizon');
     // No tilted run: no State column, nothing to name.

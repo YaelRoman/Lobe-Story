@@ -3,7 +3,7 @@ import { BAND_PARAMS, bandTable, type BandCell, type BandColumn } from '../core/
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import type { SubBand } from '../core/analysis/subBands';
 import { bandItems } from '../test/bandFixture';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandTsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandFollowsHCut, bandHistogramMarks, bandTsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands } from './bandView';
 
 const items = bandItems();
 const metrics = analyzeAll(items, DEFAULT_SETTINGS);
@@ -244,5 +244,34 @@ describe('bandTsv', () => {
     expect(line[0].split('\t')[1]).toBe("'-odd name (4 files)");
     expect(line[1].split('\t')[1]).toBe('-0.4° ± 0.6°');
     expect(bandTsv([column('a', 'x\ty')], null, settings).split('\r\n')[1].split('\t')).toHaveLength(2);
+  });
+});
+
+describe('band histogram marks at the horizon with no tilt', () => {
+  // Only the horizontal cut at the horizon is simulated: `simulatedAmong(hCutCounts)` is true only when the cut counts.
+  const horizonOnly = (hCutCounts: boolean) => hCutCounts;
+  const tiltedFile = () => true;
+  const nothing = () => false;
+  it('marks a parameter read from the horizontal cut and names the cut', () => {
+    for (const key of ['hHpbw', 'squint', 'fbWindow', 'hSls', 'tracking', 'rollOff', 'air'] as const) {
+      expect(bandFollowsHCut(key)).toBe(true);
+      expect(bandHistogramMarks(key, horizonOnly)).toEqual({ simulated: true, namesHCut: true });
+    }
+  });
+  it('does not mark a parameter of the vertical cut or a declared one, and does not name the cut', () => {
+    for (const key of ['vHpbw', 'gainAll', 'gainMinTilt', 'tiltRange', 'tiltDeviation', 'firstUsls', 'usls', 'uslsHorizon', 'uslsMax', 'nullFill', 'firstLsls'] as const) {
+      expect(bandFollowsHCut(key)).toBe(false);
+      expect(bandHistogramMarks(key, horizonOnly)).toEqual({ simulated: false, namesHCut: false });
+    }
+  });
+  it('marks a vertical parameter when a file is tilted, without naming the horizontal cut', () => {
+    expect(bandHistogramMarks('vHpbw', tiltedFile)).toEqual({ simulated: true, namesHCut: false });
+    expect(bandHistogramMarks('hHpbw', nothing)).toEqual({ simulated: false, namesHCut: true });
+  });
+  it('leaves the State of a vertical parameter as "tilted" in the CSV and marks only the horizontal ones', () => {
+    const lines = bandCsv([{ label: 'Array Y1', columns, tilted: columns }], DEFAULT_SETTINGS, true).split('\r\n');
+    const state = (label: string) => lines.filter((l) => l.includes(`,${label},`)).map((l) => l.split(',')[1]);
+    expect(state('Azimuth beamwidth')).toEqual(['original', 'tilted [H cut at the horizon]']);
+    expect(state('Elevation beamwidth')).toEqual(['original', 'tilted']);
   });
 });

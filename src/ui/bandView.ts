@@ -1,10 +1,24 @@
-import { BAND_PARAMS, bandParamLabel, tiltText, type BandCell, type BandColumn } from '../core/analysis/bandParams';
+import { BAND_PARAMS, bandParamLabel, tiltText, type BandCell, type BandColumn, type BandParamKey } from '../core/analysis/bandParams';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import type { AnalysisSettings } from '../core/analysis/metrics';
 import { sanitizeSubBands, subBandName, type BandDataset, type SubBand } from '../core/analysis/subBands';
 import { FIRST_LOBE_RANGE } from '../core/analysis/sidelobes';
 import { fixed } from './fixed';
 import { csvCell, csvText, tabSafe, tsvText } from './table';
+
+/** The band parameters read from the horizontal cut: the ones the horizontal cut at the horizon changes. The rest are read from the vertical cut or declared, and are the file's own with no tilt. */
+const BAND_FOLLOWS_H_CUT: ReadonlySet<BandParamKey> = new Set<BandParamKey>(['hHpbw', 'squint', 'fbWindow', 'hSls', 'tracking', 'rollOff', 'air']);
+export const bandFollowsHCut = (key: BandParamKey): boolean => BAND_FOLLOWS_H_CUT.has(key);
+
+/**
+ * How the histogram of a band parameter is marked: simulated (the "(tilted)" on screen, the `-simulated` file name, the
+ * caption line) when a file is tilted or the parameter follows the horizontal cut and that cut is at the horizon; and
+ * whether the caption line names the horizontal cut (only for a parameter that follows it).
+ */
+export function bandHistogramMarks(key: BandParamKey | undefined, simulatedAmong: (hCutCounts: boolean) => boolean): { simulated: boolean; namesHCut: boolean } {
+  const namesHCut = key !== undefined && bandFollowsHCut(key);
+  return { simulated: simulatedAmong(namesHCut), namesHCut };
+}
 
 /** What a table cell shows: `original → tilted` only where the two texts differ. */
 export function cellDisplay(original: BandCell, tilted?: BandCell): { text: string; title: string; muted: boolean } {
@@ -136,7 +150,8 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
         } else {
           const tilted = (sheet.tilted ?? sheet.columns)[i];
           lines.push(csvLine(sheet.label, 'original', column, p, column.cells[p.key], settings));
-          lines.push(csvLine(sheet.label, horizonCut ? TILTED_AT_HORIZON : 'tilted', tilted, p, tilted.cells[p.key], settings));
+          // Only a parameter read from the horizontal cut is of the cut at the horizon; the others are tilted as in any mode.
+          lines.push(csvLine(sheet.label, horizonCut && bandFollowsHCut(p.key) ? TILTED_AT_HORIZON : 'tilted', tilted, p, tilted.cells[p.key], settings));
         }
       }
     });

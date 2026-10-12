@@ -4,7 +4,7 @@ import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandHistogramMarks, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
 import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
 import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
@@ -100,6 +100,9 @@ export const BandStats = memo(function BandStats({
     [histogramCell, pickedSpec, settings, theme],
   );
 
+  const marks = bandHistogramMarks(picked?.key, (hCutCounts) => sim.simulatedAmong((dataset?.items ?? []).map((i) => i.pattern.id), hCutCounts));
+  const histogramTilted = tiltedColumns !== null && marks.simulated;
+
   const exportCaption = useMemo(
     () =>
       histogramCell && pickedSpec && pickedColumn && dataset
@@ -110,10 +113,10 @@ export const BandStats = memo(function BandStats({
             stat: histogramCell.stat,
             unit: histogramCell.unit,
             n: histogramCell.n,
-            tilted: tiltedColumns !== null,
+            tilted: histogramTilted,
           })
         : null,
-    [histogramCell, pickedSpec, pickedColumn, dataset, settings, tiltedColumns],
+    [histogramCell, pickedSpec, pickedColumn, dataset, settings, histogramTilted],
   );
 
   if (!dataset || largest < MIN_SAMPLES) {
@@ -132,7 +135,7 @@ export const BandStats = memo(function BandStats({
 
   const lobeWarning = lobeLimitWarning(settings);
   // Only the files the histogram is made from count; the CSV lists every dataset.
-  const histogramSimulated = sim.simulatedAmong(dataset.items.map((i) => i.pattern.id));
+  const histogramSimulated = marks.simulated;
 
   // The simulated values of the horizontal rows are of the cut at the horizon (every file's, tilted or not): the exports and the note say so.
   const horizonCut = sim.hCut === 'horizon';
@@ -239,7 +242,7 @@ export const BandStats = memo(function BandStats({
       {pickedCell && pickedSpec && pickedColumn && (
         <p className="count">
           {bandParamLabel(pickedSpec, settings)} — {pickedColumn.subBand.name} — N = {pickedCell.n}
-          {tiltedColumns ? ' (tilted)' : ''}
+          {histogramTilted ? ' (tilted)' : ''}
         </p>
       )}
       <p className="count band-detail" data-testid="band-detail" aria-live="polite">
@@ -252,7 +255,7 @@ export const BandStats = memo(function BandStats({
           testId="plot-band"
           toolbar="xy"
           ariaLabel="Band statistics plot"
-          labelledExport={{ caption: withSimulated(exportCaption ?? undefined, histogramSimulated ? simulatedCaption(sim, method3d, sim.offsetsAmong(dataset.items.map((i) => i.pattern.id))) : undefined), filename: exportName('band-statistics-histogram', histogramSimulated) }}
+          labelledExport={{ caption: withSimulated(exportCaption ?? undefined, histogramSimulated ? simulatedCaption(marks.namesHCut ? sim : { ...sim, hCut: undefined }, method3d, sim.offsetsAmong(dataset.items.map((i) => i.pattern.id))) : undefined), filename: exportName('band-statistics-histogram', histogramSimulated) }}
         />
       )}
       {anyAdjusted(columns, tiltedColumns) && (
