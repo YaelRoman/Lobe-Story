@@ -502,11 +502,34 @@ describe('vertical polar angle labels', () => {
     const hf = buildCutFigure(opts({ cut: 'H', series: [h] }));
     expect(hf.layout.polar?.angularaxis?.ticktext).toBeUndefined();
     expect(hf.layout.annotations ?? []).toEqual([]);
-    // Room under the vertical circle for the "+90°" label (the legend sits at the bottom).
-    expect(vf.layout.margin?.b).toBeGreaterThan(hf.layout.margin?.b ?? 0);
+    // Room under the vertical circle for the "+90°" label (the legend sits at the bottom); the horizontal circle gets
+    // the same room, so the two circles are the same size (see the next test).
+    expect(vf.layout.margin?.b).toBeGreaterThanOrEqual(66);
     const rf = buildCutFigure(opts({ cut: 'V', series: [v], mode: 'rect' }));
     expect(rf.layout.annotations ?? []).toEqual([]);
     expect(rf.layout.xaxis?.ticktext).toBeUndefined();
+  });
+
+  it('give the horizontal and the vertical polar plot the same bottom margin, and room for the legend rows under the circle', () => {
+    const [h, v] = series('a');
+    const [h2, v2] = series('b');
+    const [h3, v3] = series('c');
+    const [h4, v4] = series('d');
+    const hs = [h, h2, h3, h4];
+    const vs = [v, v2, v3, v4];
+    const bottoms = [1, 2, 3, 4].map((n) => [
+      buildCutFigure(opts({ cut: 'H', series: hs.slice(0, n) })).layout.margin?.b ?? 0,
+      buildCutFigure(opts({ cut: 'V', series: vs.slice(0, n) })).layout.margin?.b ?? 0,
+    ]);
+    for (const [hb, vb] of bottoms) expect(hb).toBe(vb);
+    // More legend rows: more room, so the circle never covers the "180°" and "0 dB" labels above the legend.
+    const hb = bottoms.map(([b]) => b);
+    expect(hb[1]).toBeGreaterThan(hb[0]);
+    expect(hb[3]).toBeGreaterThan(hb[2]);
+    expect(hb[2]).toBeGreaterThan(hb[1]);
+    // No legend (more than four traces): the margin of the single-trace case or less.
+    const many = Array.from({ length: 6 }, (_, k) => ({ ...h, id: `m${k}` }));
+    expect(buildCutFigure(opts({ cut: 'H', series: many })).layout.margin?.b).toBeLessThanOrEqual(hb[0]);
   });
 
   it('agree with the data: the traces and the hover text carry the same signed angle (positive below)', () => {

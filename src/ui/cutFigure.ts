@@ -438,8 +438,10 @@ function baseLayout(o: CutBaseOptions, top: number): Partial<Layout> {
   if (o.mode === 'polar') {
     return {
       ...base,
-      // The vertical plot names +90° below the circle: room for it above the legend.
-      ...(o.cut === 'V' ? { annotations: horizonHints(o), margin: { ...base.margin, b: 66 } } : {}),
+      // Both circles get the same room under them (the vertical plot names +90° there; the horizontal one 180° and the
+      // radial axis end), above the legend rows, so the two circles are the same size and the legend covers no label.
+      margin: { ...base.margin, b: Math.max(66, 30 + 22 * (showFileLegend(o.series.length) ? o.series.length : 0)) },
+      ...(o.cut === 'V' ? { annotations: horizonHints(o) } : {}),
       polar: {
         bgcolor: 'rgba(0,0,0,0)',
         angularaxis: {
