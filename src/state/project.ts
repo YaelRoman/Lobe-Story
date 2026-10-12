@@ -353,9 +353,21 @@ export function projectToState(
     reference,
     settings,
     loadMessage: floorRaised ? `Plot floor raised to ${floorDb} dB: it must lie at least 1 dB beyond the ${settings.levelDb} dB beamwidth level.` : null,
-    view: { ...display, floorDb, deltaVsReference: reference !== null && display.deltaVsReference, ...chrome, simulation },
+    view: {
+      ...display,
+      floorDb,
+      deltaVsReference: reference !== null && display.deltaVsReference,
+      ...chrome,
+      // A project whose simulation is active opens with the bar unfolded, so what is simulated is in view.
+      ...(simulationSet(simulation) ? { collapsed: { ...chrome.collapsed, simBar: false } } : {}),
+      simulation,
+    },
   };
 }
+
+/** True when any slider is off zero or any file or group has an offset. */
+export const simulationSet = (s: SimulationState): boolean =>
+  s.electricalDeg !== 0 || s.mechanicalDeg !== 0 || s.azimuthDeg !== 0 || Object.keys(s.offsets).length > 0 || Object.keys(s.groupOffsets).length > 0;
 
 const fileNameOf = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 

@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
+import { openSimulation } from './simulationBar';
 
 const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
 const msi = (freq: number) =>
@@ -90,6 +91,11 @@ test('keyboard only: load, highlight the second file, set an offset, export CSV'
   await page.keyboard.press('Enter');
   await expect(panel.locator('li.hl')).toContainText('b.msi');
 
+  // The Simulation bar starts folded: reach its fold button and open it from the keyboard.
+  const fold = page.getByRole('button', { name: /Simulation/ });
+  await tabTo(page, fold);
+  await page.keyboard.press('Enter');
+  await expect(fold).toHaveAttribute('aria-expanded', 'true');
   const azimuth = page.getByLabel('Azimuth offset (°) value');
   await tabTo(page, azimuth);
   await page.keyboard.type('15');
@@ -149,6 +155,7 @@ test('a custom group header is selectable from the keyboard', async ({ page }) =
   const header = panel.getByRole('button', { name: 'North', exact: true });
   await expect(header).toBeVisible();
 
+  await openSimulation(page); // the bar starts folded; open it first so the focus stays on the header
   await header.focus();
   await page.keyboard.press('Enter');
   await expect(header).toHaveAttribute('aria-current', 'true');
@@ -182,6 +189,7 @@ test('a dialog traps Tab, closes on Esc and gives the focus back to its opener',
   await expect(menu).toBeFocused();
 
   // A confirm opened from the toolbar (Clear asks once a name or an offset was changed) returns to its button.
+  await openSimulation(page);
   await page.getByLabel('Azimuth offset (°) value').fill('10');
   await page.getByLabel('Azimuth offset (°) value').press('Enter');
   await clear.focus();

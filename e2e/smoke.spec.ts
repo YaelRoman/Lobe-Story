@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { planetText, points } from '../src/test/planetText';
+import { openSimulation } from './simulationBar';
 
 const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
 const msi = (freq: number) =>
@@ -76,6 +77,7 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await expect(page.getByTestId('plot-h')).toBeVisible();
 
   await expect(page.getByTestId('sim-badge')).toHaveCount(0);
+  await openSimulation(page);
   const mech = page.getByLabel('Mechanical tilt (°) value');
   await mech.fill('4');
   await mech.press('Enter');
@@ -204,6 +206,7 @@ test('builds a three-sector site from one pattern', async ({ page }) => {
   await expect(plot3d.locator('.legend .traces')).toHaveCount(3);
 
   await panel.getByText('Site 1', { exact: true }).click();
+  await openSimulation(page);
   await expect(page.getByText('Offsets for group Site 1')).toBeVisible();
   const az = page.getByLabel('Azimuth offset (°) value');
   await az.fill('30');
@@ -412,6 +415,7 @@ test('metrics table: sorting, sticky header and file column, scroll sync and bla
 
   // The blank-cell note appears with a simulation.
   await expect(page.getByTestId('sim-blank-note')).toHaveCount(0);
+  await openSimulation(page);
   await page.getByLabel('Mechanical tilt (°) value').fill('2.5');
   await page.getByLabel('Mechanical tilt (°) value').press('Enter');
   await expect(page.getByTestId('sim-blank-note')).toContainText('not defined');

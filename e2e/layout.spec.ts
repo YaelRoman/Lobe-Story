@@ -11,7 +11,11 @@ test('the simulation bar folds to one line that keeps the badge and summary, and
   await page.goto('/');
   await page.getByTestId('file-input').setInputFiles(files());
   const fold = page.getByRole('button', { name: /Simulation/ });
-  await expect(fold).toHaveAttribute('aria-expanded', 'true'); // desktop default: unchanged
+  // Folded by default (nothing simulated, nothing stored): the plots start higher; the one-line summary says what is set.
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('sim-summary')).toBeVisible();
+  await fold.click();
+  await expect(fold).toHaveAttribute('aria-expanded', 'true');
   await page.getByLabel('Electrical tilt Δ (°) value').fill('3');
   await page.getByLabel('Electrical tilt Δ (°) value').press('Enter');
   await expect(page.getByTestId('sim-badge')).toBeVisible();

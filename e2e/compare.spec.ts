@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openSimulation } from './simulationBar';
 
 async function loadExample(page: Page) {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -218,6 +219,7 @@ test.describe('reference file', () => {
     await page.getByRole('menuitem', { name: 'Use as reference' }).click();
     await expect(page.getByTestId('delta-tilted-note')).toHaveCount(0);
     await page.getByLabel('Δ vs reference').check();
+    await openSimulation(page);
     await page.getByLabel('Electrical tilt Δ (°) value').fill('3');
     await page.getByLabel('Electrical tilt Δ (°) value').press('Enter');
     await expect(page.getByTestId('delta-tilted-note')).toHaveText(/Δ of tilted values/);

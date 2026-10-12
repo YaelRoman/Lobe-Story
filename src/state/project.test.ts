@@ -276,7 +276,8 @@ describe('damaged values', () => {
     const raw = JSON.parse(serializeProject(buildSession(), true));
     expect(raw.state.view.collapsed).toBeUndefined();
     raw.state.view.collapsed = { simBar: false, markers: true };
-    expect(restore(JSON.stringify(raw), 'light', folded).view.collapsed).toEqual(folded);
+    // The session has an active simulation, so the simulation bar opens; the marker fold stays as it was and the saved values are ignored.
+    expect(restore(JSON.stringify(raw), 'light', folded).view.collapsed).toEqual({ ...folded, simBar: false });
   });
 
   it('round-trips the table column groups', () => {
@@ -408,8 +409,29 @@ describe('store.loadProject', () => {
     open(json);
     expect(snapshot(st())).toEqual(before);
     expect(st().view.theme).toBe('dark');
-    expect(st().view.collapsed).toEqual({ simBar: true, markers: true });
+    // The project's simulation is active, so the bar opens; the marker fold stays as it was.
+    expect(st().view.collapsed).toEqual({ simBar: false, markers: true });
     expect(st().files.some((f) => f.id === 'other.MSI')).toBe(false);
+  });
+
+  it('unfolds the simulation bar for a project with an active simulation, and leaves the folds alone otherwise', () => {
+    st().addFiles([input('site/a.MSI', msi(1800))]);
+    const plain = serializeProject(st(), true);
+    st().updateSimulation({ mechanicalDeg: 4 });
+    const simulated = serializeProject(st(), true);
+    st().clear();
+    st().updateView({ collapsed: { simBar: true, markers: true } });
+    open(plain);
+    expect(st().view.collapsed).toEqual({ simBar: true, markers: true });
+    open(simulated);
+    expect(st().view.collapsed).toEqual({ simBar: false, markers: true });
+    // A single file offset counts as an active simulation too.
+    st().resetSimulation('all');
+    st().setOffset('site/a.MSI', { electricalDeg: 1 });
+    const offset = serializeProject(st(), true);
+    st().updateView({ collapsed: { simBar: true, markers: false } });
+    open(offset);
+    expect(st().view.collapsed).toEqual({ simBar: false, markers: false });
   });
 
   it('attaches re-opened files of a layout-only project under their saved paths', () => {

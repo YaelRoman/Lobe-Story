@@ -245,6 +245,19 @@ describe('startPrefs', () => {
     stop();
   });
 
+  it('a stored unfolded simulation bar wins over the folded default; with nothing stored the bar starts folded', () => {
+    const none = new FakeStorage();
+    const stop0 = startPrefs({ storage: none, delayMs: 10 });
+    expect(useStore.getState().view.collapsed.simBar).toBe(true);
+    stop0();
+    useStore.setState(initialState());
+    const stored = new FakeStorage();
+    stored.setItem(PREFS_KEY, JSON.stringify({ version: PREFS_VERSION, view: { collapsed: { simBar: false } } }));
+    const stop = startPrefs({ storage: stored, delayMs: 10 });
+    expect(useStore.getState().view.collapsed.simBar).toBe(false);
+    stop();
+  });
+
   it('stores only the keys of markers, table columns and folded controls that the user changed', () => {
     const storage = new FakeStorage();
     const stop = startPrefs({ storage, delayMs: 10 });

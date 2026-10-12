@@ -58,7 +58,7 @@ export interface CollapsedBars {
   markers: boolean;
 }
 
-/** Phone-width screens start with the secondary controls folded so the plots come first. */
+/** Phone-width screens start with the marker options folded so the plots come first. */
 function narrowScreen(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 760px)').matches;
 }
@@ -248,7 +248,8 @@ export function initialState(): StoreData {
       dimension: '2d',
       method3d: 'summation',
       layout3d: 'grid',
-      collapsed: { simBar: narrowScreen(), markers: narrowScreen() },
+      // The simulation bar starts folded everywhere (its one-line summary says what is set); it opens by itself with a project whose simulation is active.
+      collapsed: { simBar: true, markers: narrowScreen() },
       freqMetric: 'hHpbw',
       tableTickedOnly: false,
       deltaVsReference: false,

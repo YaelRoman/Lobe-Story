@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
+import { openSimulation } from './simulationBar';
 
 const DOWNLOAD = 'Download plot as a png (with legend and values)';
 /** Nothing in a chart toolbar may offer to share or upload the chart, or link to the charting library's site. */
@@ -148,6 +149,7 @@ test('exported images are white whatever the screen theme, named by cut, and say
   expect(v.name).toBe('vertical-cut.png');
 
   // While a simulation is active the names say so.
+  await openSimulation(page);
   await page.getByLabel('Electrical tilt Δ (°) value').fill('3');
   await page.getByLabel('Electrical tilt Δ (°) value').press('Enter');
   const simulated = await download('plot-v');
@@ -165,6 +167,7 @@ test('an offset on a file that is not drawn does not make the exports simulated'
   };
   // The first file is highlighted on load: put a tilt offset on it, then draw only the second file.
   await page.getByRole('button', { name: 'Show none', exact: true }).click();
+  await openSimulation(page);
   const offset = page.getByLabel('Mechanical tilt offset (°) value');
   await offset.fill('3');
   await offset.press('Enter');

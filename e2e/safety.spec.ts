@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
+import { openSimulation } from './simulationBar';
 
 const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
 const msi = (freq: number) =>
@@ -238,6 +239,7 @@ test('Clear asks first, then Undo and Ctrl+Z bring the whole session back', asyn
   await page.getByRole('menuitem', { name: 'Remove' }).click();
   await expect(toast).toContainText('Removed b.msi');
   await expect(panel.getByText('1900 MHz')).toHaveCount(0);
+  await openSimulation(page);
   await page.getByLabel('Mechanical tilt (°) value').focus();
   await page.keyboard.press('Control+z');
   await expect(panel.getByText('1900 MHz')).toHaveCount(0);
@@ -295,6 +297,7 @@ test('the page asks before unloading only while there is unsaved work', async ({
 test('Reset offers sliders only or everything', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800))]);
+  await openSimulation(page);
   const mech = page.getByLabel('Mechanical tilt (°) value');
   await mech.fill('4');
   await mech.press('Enter');
