@@ -64,3 +64,13 @@ export function moveFocus(e: KeyboardEvent, items: HTMLElement[], from: HTMLElem
 export function tabStopAfterFold(active: string | null, groupKey: string, groupFileKeys: string[]): string | null {
   return active !== null && groupFileKeys.includes(active) ? `group:${groupKey}` : active;
 }
+
+/**
+ * Where Home/End move the focus among the data cells of a table: without Ctrl/Cmd to the first/last cell of the
+ * row, with it to the same column of the first/last row. `row` and `col` are indexes; null for any other key.
+ */
+export function cellEndTarget(key: string, ctrl: boolean, at: { row: number; col: number }, size: { rows: number; cols: number }): { row: number; col: number } | null {
+  if ((key !== 'Home' && key !== 'End') || size.rows <= 0 || size.cols <= 0) return null;
+  const end = key === 'End';
+  return ctrl ? { row: end ? size.rows - 1 : 0, col: Math.min(at.col, size.cols - 1) } : { row: at.row, col: end ? size.cols - 1 : 0 };
+}

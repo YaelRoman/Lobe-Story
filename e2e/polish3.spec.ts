@@ -137,3 +137,24 @@ test('Help: Tab wraps from Close to the first control and Shift+Tab back, never 
   await page.keyboard.press('Shift+Tab');
   await expect(close).toBeFocused();
 });
+
+test('table cells: Home/End go to the first/last cell of the row, Ctrl+Home/End to the first/last row', async ({ page }) => {
+  await loadExample(page);
+  const rows = page.locator('.metrics tbody tr');
+  const cellsOf = (n: number) => rows.nth(n).locator('td[data-col]');
+  await rows.nth(2).locator('[data-nav]').first().focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect(cellsOf(2).nth(2)).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(cellsOf(2).last()).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(cellsOf(2).first()).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Control+End');
+  await expect(cellsOf(23).nth(2)).toBeFocused();
+  await page.keyboard.press('Control+Home');
+  await expect(cellsOf(0).nth(2)).toBeFocused();
+});

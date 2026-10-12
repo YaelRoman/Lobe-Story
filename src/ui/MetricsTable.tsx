@@ -9,7 +9,7 @@ import {
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
 import { useTablePreview } from './useTablePreview';
-import { moveFocus, onSpace, tabStopKey } from './rovingKeys';
+import { cellEndTarget, moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { neighbourOrder } from './undoKeys';
 import { downloadText } from './download';
 import { exportName } from './simSummary';
@@ -164,6 +164,11 @@ export const MetricsTable = memo(function MetricsTable({
         e.preventDefault();
         copyCell(tr.dataset.rowId ?? '', target.dataset.col ?? '');
         return;
+      } else if (e.key === 'Home' || e.key === 'End') {
+        // Home/End: the row's first/last cell; with Ctrl/Cmd the first/last row, same column.
+        const rows = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('tr'));
+        const goal = cellEndTarget(e.key, e.ctrlKey || e.metaKey, { row: rows.indexOf(tr), col: at }, { rows: rows.length, cols: cells.length });
+        to = goal ? rows[goal.row]?.querySelectorAll<HTMLElement>('td[data-col]')[goal.col] : null;
       } else if (e.key === 'ArrowRight') to = cells[at + 1];
       else if (e.key === 'ArrowLeft') to = at === 0 ? tr.querySelector<HTMLElement>('[data-nav]') : cells[at - 1];
       else if (e.key === 'ArrowDown') to = adjacent('nextElementSibling');
