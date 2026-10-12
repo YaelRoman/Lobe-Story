@@ -68,6 +68,10 @@ const NARROW_PHONE_WIDTH = 420;
 const PHONE_ROW_PX = 300;
 /** Average width of a character of a scene title (12 px text), in px. */
 const TITLE_CHAR_PX = 6.8;
+/** Width of the file panel next to the plot on a desktop, in px. */
+const FILE_PANEL_WIDTH_PX = 348;
+/** What the scenes lose to the plot's margins and the colour bar, in px. */
+const SCENE_MARGIN_PX = 80;
 
 /**
  * Columns of the side-by-side layout and the longest scene title (in characters) that fits a scene. A phone (760 px or
@@ -77,8 +81,12 @@ export function gridPlan(n: number, viewportWidth?: number): { columns: number; 
   const phone = viewportWidth !== undefined && viewportWidth <= PHONE_MAX_WIDTH;
   const columns = phone ? Math.min(gridColumns(n), viewportWidth < NARROW_PHONE_WIDTH ? 1 : 2) : gridColumns(n);
   // The plot is about the window less the side margins (phone) or less the file panel (desktop).
-  // On a desktop the scenes lose about 80 px to the plot's margins and the colour bar.
-  const plotWidth = viewportWidth === undefined ? 1100 - 80 : phone ? viewportWidth - 24 : viewportWidth - 348 - 80;
+  const plotWidth =
+    viewportWidth === undefined
+      ? 1100 - SCENE_MARGIN_PX
+      : phone
+        ? viewportWidth - 24
+        : viewportWidth - FILE_PANEL_WIDTH_PX - SCENE_MARGIN_PX;
   return { columns, titleMax: Math.max(12, Math.floor(plotWidth / columns / TITLE_CHAR_PX) - 2), phone };
 }
 
