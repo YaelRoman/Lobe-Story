@@ -82,6 +82,20 @@ describe('useHeldWhile', () => {
     expect(waiting).toBe(false);
   });
 
+  it('a hand that slows down for 0.4 s in a drag is not taken for a pause (a pass would block the thumb when it moves on)', () => {
+    render(0, true);
+    render(1, true);
+    wait(400);
+    expect(passes).toEqual([0]);
+    expect(waiting).toBe(true);
+    render(2, true);
+    wait(400);
+    expect(passes).toEqual([0]);
+    // Half a second without a step is a pause.
+    wait(100);
+    expect(passes).toEqual([0, 2]);
+  });
+
   it('a pause is confirmed by a second timer: after a blocked page the waiting slider steps are handled first', () => {
     render(0, true);
     render(1, true);

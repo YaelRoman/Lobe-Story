@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 
-/** A held value that has not changed for this long is handed on although the hold goes on: the user has stopped to look. */
-export const PAUSE_MS = 300;
+/**
+ * A held value that has not changed for this long is handed on although the hold goes on: the user has stopped to
+ * look. Long enough that a hand slowing down in a drag, or a page that stalls for a moment, is not taken for a pause
+ * (the pass that follows cannot be interrupted, and the thumb stands still under a hand that moves on).
+ */
+export const PAUSE_MS = 475;
 
 /**
  * The last part of the pause is a timer of its own. A timer that comes due while the page is busy fires as soon as
