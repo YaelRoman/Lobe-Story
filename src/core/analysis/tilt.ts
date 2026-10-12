@@ -270,12 +270,14 @@ export const DECLARED_REASON = 'Declared values describe the measured pattern';
 
 /**
  * Metrics of patterns already tilted with `tiltEach(…)`: the nominal tilt follows the sliders and
- * the Δ-declared values of tilted files are null (they describe the measured pattern).
+ * the Δ-declared values of tilted files are null (they describe the measured pattern). With `areMethod` the
+ * angular-region estimate is computed from the tilted cuts, as for the originals.
  */
 export function analyzeTilted(
   tiltedItems: TaggedPattern[],
   s: AnalysisSettings,
   t: TiltSettings | ((id: string) => TiltSettings),
+  areMethod?: Method3d,
 ): Map<string, PatternMetrics> {
   const tiltFor = typeof t === 'function' ? t : () => t;
   return analyzeAll(tiltedItems, s, {
@@ -286,5 +288,6 @@ export function analyzeTilted(
     // Only tilted files lose their Δ-declared values; an untilted file in a mixed batch
     // keeps comparing its measured pattern against its declared ones.
     declaredReason: (id) => (isTilted(tiltFor(id)) ? DECLARED_REASON : undefined),
+    areMethod,
   });
 }

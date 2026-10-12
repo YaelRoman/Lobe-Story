@@ -4,6 +4,7 @@ export const METRIC_KEYS = [
   'fb180', 'fbWindow', 'firstUsls', 'usls', 'uslsHorizon', 'uslsMax', 'nullFill', 'firstLsls', 'hSls',
   'tracking', 'spr', 'air', 'rollOff', 'du16', 'du64', 'du256',
   'dH', 'dV', 'dFb',
+  'areSector', 'areSpatial', 'areLower',
 ] as const;
 
 export type MetricColumn = (typeof METRIC_KEYS)[number];

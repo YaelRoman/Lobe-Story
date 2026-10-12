@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
-  ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, nextSort, onlyTicked, tickedCountText, revealScrollTop, simulationLabel,
+  ariaSort, buildRows, COLUMN_GROUPS, csvColumns, columnLabel, columnTitle, nextSort, onlyTicked, tickedCountText, revealScrollTop, simulationLabel,
   cellText, clearOfSticky, gainText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
@@ -45,6 +45,7 @@ export const MetricsTable = memo(function MetricsTable({
   const uslsRangeDeg = useStore((s) => s.settings.uslsRangeDeg);
   const lobeLimitFactor = useStore((s) => s.settings.lobeLimitFactor);
   const levelDb = useStore((s) => s.settings.levelDb);
+  const method3d = useStore((s) => s.view.method3d);
   const tableGroups = useStore((s) => s.view.tableGroups);
   const updateView = useStore((s) => s.updateView);
   const columns = visibleColumns(tableGroups);
@@ -234,7 +235,7 @@ export const MetricsTable = memo(function MetricsTable({
           onClick={() =>
             downloadText(
               exportName('pattern-metrics', sim.simulatedAmong(rows.map((r) => r.id)), '.csv'),
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted),
+              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, csvColumns(tableGroups)),
               'text/csv;charset=utf-8',
             )
           }
@@ -323,7 +324,7 @@ export const MetricsTable = memo(function MetricsTable({
                   `${deltaOn ? 'Δ ' : ''}${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)} (${c.unit})`,
                   [
                     deltaOn ? `Difference from ${referenceName} (the reference row, first, shows its own values).` : '',
-                    columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg }) ?? '',
+                    columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg, method3d }) ?? '',
                   ]
                     .filter(Boolean)
                     .join(' ') || undefined,

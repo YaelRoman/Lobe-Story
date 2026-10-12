@@ -5,6 +5,7 @@ import { isTilted, type TiltSettings, type SimSettings } from '../core/analysis/
 import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
+import type { Method3d } from '../core/analysis/pattern3d';
 import { bwName } from './bwLabel';
 import { fixed } from './fixed';
 import { METRIC_KEYS, type MetricColumn } from '../state/metricKeys';
@@ -17,6 +18,7 @@ export const COLUMN_GROUPS: { key: ColumnGroupKey; label: string }[] = [
   { key: 'sidelobes', label: 'Sidelobes' },
   { key: 'sector', label: 'Sector' },
   { key: 'declared', label: 'Declared Δ' },
+  { key: 'are', label: 'Angular regions (est.)' },
 ];
 
 /** What the table says about each metric column; `Record` makes a key without an entry (or an entry without a key) a compile error. */
@@ -49,6 +51,9 @@ const COLUMN_INFO: Record<MetricColumn, { label: string; unit: string; group: Co
   dH: { label: 'H-HPBW − decl.', unit: '°', group: 'declared' },
   dV: { label: 'V-HPBW − decl.', unit: '°', group: 'declared' },
   dFb: { label: 'F/B − decl.', unit: 'dB', group: 'declared' },
+  areSector: { label: 'Sector eff. est.', unit: '%', group: 'are' },
+  areSpatial: { label: 'Spatial eff. est.', unit: '%', group: 'are' },
+  areLower: { label: 'Lower region est.', unit: '%', group: 'are' },
 };
 
 /** The metric columns, in the order of `METRIC_KEYS` (the one list of keys; see state/metricKeys.ts). */
@@ -57,6 +62,30 @@ export const METRIC_COLUMNS: { key: MetricColumn; label: string; unit: string; g
 export function visibleColumns(groups: Record<ColumnGroupKey, boolean>): typeof METRIC_COLUMNS {
   return METRIC_COLUMNS.filter((c) => groups[c.group]);
 }
+
+/** The group whose values are only computed while they are wanted (see `needsAngularRegions`). */
+const ON_DEMAND_GROUP: ColumnGroupKey = 'are';
+
+/**
+ * The columns of the CSV: every column whether its group is shown or not, except the angular-region estimate,
+ * which is exported only while its group is shown (it is not computed otherwise).
+ */
+export function csvColumns(groups: Record<ColumnGroupKey, boolean>): typeof METRIC_COLUMNS {
+  return METRIC_COLUMNS.filter((c) => c.group !== ON_DEMAND_GROUP || groups[ON_DEMAND_GROUP]);
+}
+
+const CSV_DEFAULT_COLUMNS = METRIC_COLUMNS.filter((c) => c.group !== ON_DEMAND_GROUP);
+
+/** Whether the angular-region estimate has to be computed: its group is shown, or the frequency chart plots one of its columns. */
+export function needsAngularRegions(groups: Record<ColumnGroupKey, boolean>, freqMetric: MetricColumn): boolean {
+  return groups[ON_DEMAND_GROUP] || COLUMN_INFO[freqMetric].group === ON_DEMAND_GROUP;
+}
+
+const METHOD_NAME: Record<Method3d, string> = { summation: 'Summation', weighted: 'Weighted' };
+
+/** The second half of the three angular-region tooltips: what kind of number this is. */
+const areNote = (method: Method3d): string =>
+  `Estimate from the two co-polar cuts, integrated over the 3D reconstruction (3D method: ${METHOD_NAME[method]}, chosen in the Simulation bar); not BASTA-compliant, which needs the measured full sphere and total power. Beam Type A (macro) only: — when V-HPBW is outside 0.5–25° or H-HPBW outside 50–130°`;
 
 /** Header text for a column; the beamwidth, F/B window and USLS window labels depend on the current settings. */
 export function columnLabel(c: { key: MetricColumn; label: string }, fbWindowDeg: number, uslsRangeDeg = 20, levelDb = 3): string {
@@ -75,13 +104,14 @@ const DU_DB: Partial<Record<MetricColumn, number>> = { du16: 15, du64: 20, du256
 /** Header tooltip for a column; the sector columns depend on the sector settings (E, S). */
 export function columnTitle(
   key: MetricColumn,
-  settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number; lobeLimitFactor?: number; levelDb?: number; fbWindowDeg?: number },
+  settings: { sectorEdgeDeg: number; siteSectors: number; uslsRangeDeg?: number; lobeLimitFactor?: number; levelDb?: number; fbWindowDeg?: number; method3d?: Method3d },
 ): string | undefined {
   const e = settings.sectorEdgeDeg;
   const r = settings.uslsRangeDeg ?? 20;
   const f = settings.lobeLimitFactor ?? 1.78;
   const level = settings.levelDb ?? 3;
   const w = settings.fbWindowDeg ?? 30;
+  const method = settings.method3d ?? 'summation';
   switch (key) {
     case 'hHpbw':
       return `Horizontal ${level === 3 ? 'half-power ' : ''}beamwidth (BASTA 6.1.6): distance between the two points ${level} dB below the peak of the azimuth cut`;
@@ -137,6 +167,12 @@ export function columnTitle(
     case 'du64':
     case 'du256':
       return `Width around boresight where this pattern is ≥ ${DU_DB[key]} dB above the neighbouring sectors (${settings.siteSectors}-sector site)`;
+    case 'areSector':
+      return `Sector efficiency (after BASTA 7.2.4): power in the service region (within ±${e}° of boresight, from half a V-HPBW above the beam peak down to 75° below the horizon) as a share of the power over the whole sphere. ${areNote(method)}`;
+    case 'areSpatial':
+      return `Spatial efficiency (after BASTA 7.2.4): power in the service region (within ±${e}° of boresight) as a share of the power in the service and interference regions together (all azimuths, from one V-HPBW above the beam peak, at most the horizon, down to 75° below the horizon). ${areNote(method)}`;
+    case 'areLower':
+      return `Lower region ratio (after BASTA 7.2.4): power from 75° below the horizon to straight down, all azimuths, as a share of the power over the whole sphere. ${areNote(method)}`;
     default:
       return undefined;
   }
@@ -192,6 +228,9 @@ export function cellsOf(m: PatternMetrics): Record<MetricColumn, MetricResult> {
     dH: m.delta.hHpbw,
     dV: m.delta.vHpbw,
     dFb: m.delta.fb,
+    areSector: m.are.sector,
+    areSpatial: m.are.spatial,
+    areLower: m.are.lower,
   };
 }
 
@@ -478,12 +517,13 @@ export function toCsv(
   levelDb = 3,
   deltaVs?: string,
   deltaTilted = false,
+  columns: readonly (typeof METRIC_COLUMNS)[number][] = CSV_DEFAULT_COLUMNS,
 ): string {
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
   // The difference view has one column per metric (the difference of the shown values), whatever the simulation.
   const tilted = deltaVs === undefined && (typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim));
   const withSource = rows.some((r) => r.source !== r.file);
-  const metricHeader = METRIC_COLUMNS.flatMap((c) => {
+  const metricHeader = columns.flatMap((c) => {
     const label = columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
     return tilted ? [`${label} original (${c.unit})`, `${label} tilted (${c.unit})`] : [columnHeader(label, c.unit, deltaVs, deltaTilted)];
   });
@@ -505,7 +545,7 @@ export function toCsv(
       ...(deltaVs !== undefined ? [rowRole(r)] : []),
       String(r.freq),
       fmt(r.gain),
-      ...METRIC_COLUMNS.flatMap((c) =>
+      ...columns.flatMap((c) =>
         tilted
           ? [fmt(r.cells[c.key].value), fmt((r.tilted?.[c.key] ?? r.cells[c.key]).value)]
           : [fmt(shown(r, c.key).value)],

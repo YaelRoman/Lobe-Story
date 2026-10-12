@@ -9,6 +9,7 @@ import { useWindowDrop } from './ui/useWindowDrop';
 import { PlotArea } from './ui/PlotArea';
 import { HpbwChart } from './ui/HpbwChart';
 import { MetricsTable } from './ui/MetricsTable';
+import { needsAngularRegions } from './ui/table';
 import { BandStats } from './ui/BandStats';
 import { Dialog } from './ui/Dialog';
 import { useSimulation } from './ui/useSimulation';
@@ -38,8 +39,12 @@ export default function App() {
   const groups = useMemo(() => buildPanelGroups(tagged, customGroups), [tagged, customGroups]);
   const errors = useMemo(() => selectErrors(files), [files]);
   const warnings = useMemo(() => selectWarnings(files), [files]);
-  const metrics = useMemo(() => analyzeAll(tagged, settings), [tagged, settings]);
-  const sim = useSimulation(tagged, metrics, settings);
+  // The angular-region estimate integrates over the sphere: it is computed only while its columns are shown or plotted.
+  const withAngularRegions = useStore((s) => needsAngularRegions(s.view.tableGroups, s.view.freqMetric));
+  const method3d = useStore((s) => s.view.method3d);
+  const areMethod = withAngularRegions ? method3d : undefined;
+  const metrics = useMemo(() => analyzeAll(tagged, settings, { areMethod }), [tagged, settings, areMethod]);
+  const sim = useSimulation(tagged, metrics, settings, withAngularRegions);
   // Colour only the currently-visible files, in panel order (groups, then items), so every
   // checked file gets its own colour and colours don't shift as unrelated files are added/removed.
   // With more than ten visible files the colour is the group's and the files differ by lightness.

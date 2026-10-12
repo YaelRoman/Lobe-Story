@@ -6,6 +6,7 @@ import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
 import { simSummary } from './simSummary';
+import { needsAngularRegions } from './table';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
   { key: 'electricalDeg', label: 'Electrical tilt Δ (°)' },
@@ -141,6 +142,7 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
   const membership = useStore((s) => s.membership);
   const customGroups = useStore((s) => s.customGroups);
   const method = useStore((s) => s.view.method3d);
+  const withAngularRegions = useStore((s) => needsAngularRegions(s.view.tableGroups, s.view.freqMetric));
   const updateView = useStore((s) => s.updateView);
   const updateSimulation = useStore((s) => s.updateSimulation);
   const resetSimulation = useStore((s) => s.resetSimulation);
@@ -197,7 +199,8 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
           ['weighted', 'Weighted'],
         ]}
         onChange={(method3d) => updateView({ method3d })}
-        disabled={!tiltActive && !is3d}
+        // The method matters in the 3D view, under a tilt, and for the angular-region estimate (integrated over the reconstruction).
+        disabled={!tiltActive && !is3d && !withAngularRegions}
       />
       <label>
         <input

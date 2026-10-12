@@ -6,6 +6,8 @@ import { elevationSidelobes, FIRST_LOBE_RANGE, horizontalSls, type LobeResult, t
 import { DU_LEVELS, duAperture, rollOff, rollOffEdges, sectorPower } from './sector';
 import { beamTracking, edgeTracking } from './tracking';
 import { DBI_OVER_DBD, hasUsableFrequency } from '../gain';
+import { angularRegionEfficiency, type AngularRegionEfficiency } from './are';
+import type { Method3d } from './pattern3d';
 
 export interface AnalysisSettings {
   levelDb: number;
@@ -40,6 +42,11 @@ export interface AnalyzeOptions {
   nominalOffsetDeg?: number | ((id: string) => number);
   /** When set (or returning a reason), the Δ-declared metrics are null with this reason; a function gives a per-pattern value. */
   declaredReason?: string | ((id: string) => string | undefined);
+  /**
+   * When set, the angular-region estimate (`are`) is computed, with this 3D reconstruction method. It is left out
+   * otherwise ("Not computed"): it is the one metric that integrates over the sphere, and its columns are optional.
+   */
+  areMethod?: Method3d;
 }
 
 export interface PatternMetrics {
@@ -82,6 +89,8 @@ export interface PatternMetrics {
   trackingEdges?: { partnerId: string; values: [number, number] };
   du: Record<'qam16' | 'qam64' | 'qam256', MetricResult & { edges?: [number, number] }>;
   delta: { hHpbw: MetricResult; vHpbw: MetricResult; fb: MetricResult };
+  /** Angular region efficiency, Type A, estimated from the two cuts (after BASTA 7.2.4; see `are.ts`). */
+  are: AngularRegionEfficiency;
 }
 
 const missing = (reason: string): MetricResult => ({ value: null, reason });
@@ -96,11 +105,42 @@ export function gridsFor(p: Pattern): { h: Grid; v: Grid } {
   return { h: toGrid(p.horizontal), v: toGrid(p.vertical) };
 }
 
+const ARE_NOT_COMPUTED: AngularRegionEfficiency = (() => {
+  const m = missing('Not computed');
+  return { sector: m, spatial: m, lower: m };
+})();
+
+// The last angular-region estimate per pattern object. Patterns are immutable and keep their object across renders
+// (tilted copies too, see `tiltPattern`), so a settings change that does not touch the estimate, or another file's
+// tilt, does not integrate an unchanged file again.
+const areCache = new WeakMap<Pattern, { key: string; value: AngularRegionEfficiency }>();
+
+function areOf(pattern: Pattern, grids: { h: Grid; v: Grid }, edgeDeg: number, method: Method3d, remember: boolean): AngularRegionEfficiency {
+  if (!remember) return angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  const key = `${method}|${edgeDeg}`;
+  const hit = areCache.get(pattern);
+  if (hit && hit.key === key) return hit.value;
+  const value = angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  areCache.set(pattern, { key, value });
+  return value;
+}
+
 export function analyzePattern(
   item: TaggedPattern,
   s: AnalysisSettings = DEFAULT_SETTINGS,
-  grids = gridsFor(item.pattern),
+  grids?: { h: Grid; v: Grid },
   opts: AnalyzeOptions = {},
+): PatternMetrics {
+  // Grids handed in by a caller need not be the pattern's own, so only the pattern's own grids use the per-pattern memo.
+  return analyze(item, s, grids ?? gridsFor(item.pattern), opts, grids === undefined);
+}
+
+function analyze(
+  item: TaggedPattern,
+  s: AnalysisSettings,
+  grids: { h: Grid; v: Grid },
+  opts: AnalyzeOptions,
+  ownGrids: boolean,
 ): PatternMetrics {
   const h = beamwidth(grids.h, s.levelDb);
   const v = beamwidth(grids.v, s.levelDb);
@@ -158,6 +198,7 @@ export function analyzePattern(
           vHpbw: delta(v.hpbw, declared.vBeamwidth),
           fb: delta(fb.fb180, declared.frontToBack),
         },
+    are: opts.areMethod ? areOf(item.pattern, grids, s.sectorEdgeDeg, opts.areMethod, ownGrids) : ARE_NOT_COMPUTED,
   };
 }
 
@@ -214,7 +255,7 @@ export function analyzeAll(
   const out = new Map<string, PatternMetrics>();
   for (const item of items) {
     const own = grids.get(item.pattern.id)!;
-    const metrics = analyzePattern(item, s, own, opts);
+    const metrics = analyze(item, s, own, opts, true);
     const found = findTrackingPartner(item, items);
     if ('partner' in found) {
       const partnerGrid = grids.get(found.partner.pattern.id)!.h;

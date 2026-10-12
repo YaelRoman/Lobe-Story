@@ -49,9 +49,9 @@ export interface LoadedFile {
   result: ParseResult;
 }
 
-export type ColumnGroupKey = 'beam' | 'fb' | 'sidelobes' | 'sector' | 'declared';
+export type ColumnGroupKey = 'beam' | 'fb' | 'sidelobes' | 'sector' | 'declared' | 'are';
 export const DEFAULT_TABLE_GROUPS: Record<ColumnGroupKey, boolean> =
-  { beam: true, fb: true, sidelobes: true, sector: true, declared: false };
+  { beam: true, fb: true, sidelobes: true, sector: true, declared: false, are: false };
 
 export interface CollapsedBars {
   simBar: boolean;

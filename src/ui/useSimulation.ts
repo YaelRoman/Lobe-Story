@@ -62,6 +62,8 @@ export function useSimulation(
   tagged: TaggedPattern[],
   metrics: Map<string, PatternMetrics>,
   settings: AnalysisSettings,
+  /** Compute the angular-region estimate for the tilted files too (see `needsAngularRegions`). */
+  withAngularRegions = false,
 ): SimulationResult {
   const live = useStore((s) => s.view.simulation);
   const method = useStore((s) => s.view.method3d);
@@ -114,8 +116,8 @@ export function useSimulation(
     [tiltActive, tagged, tiltFor, method],
   );
   const tiltedMetrics = useMemo(
-    () => (tiltActive ? analyzeTilted(tiltedItems, settings, tiltFor) : metrics),
-    [tiltActive, tiltedItems, settings, tiltFor, metrics],
+    () => (tiltActive ? analyzeTilted(tiltedItems, settings, tiltFor, withAngularRegions ? method : undefined) : metrics),
+    [tiltActive, tiltedItems, settings, tiltFor, metrics, withAngularRegions, method],
   );
   const patterns = useMemo(() => new Map(tiltedItems.map((i) => [i.pattern.id, i.pattern])), [tiltedItems]);
   const offsetCount = tagged.reduce((n, i) => n + (fileOffsets[i.pattern.id] ? 1 : 0), 0);

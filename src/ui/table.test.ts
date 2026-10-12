@@ -332,7 +332,7 @@ describe('sidelobe columns', () => {
       ['hSls', 'H-SLS', 'dB'],
     ]);
     expect(visibleColumns(DEFAULT_TABLE_GROUPS)).toHaveLength(25);
-    expect(METRIC_COLUMNS).toHaveLength(28);
+    expect(METRIC_COLUMNS).toHaveLength(31);
   });
 
   it('maps the cells to the metrics fields', () => {
@@ -624,6 +624,9 @@ const PINNED_KEYS = [
   'dH',
   'dV',
   'dFb',
+  'areSector',
+  'areSpatial',
+  'areLower',
 ];
 const PINNED_HEADER =
   'File,Group,Frequency (MHz),Gain (dBi),H-HPBW (°),V-HPBW (°),H-BW 10 dB (°),V-BW 10 dB (°),Squint (°),Peak az (°),Tilt (°),Peak tilt (°),Tilt error (°),F/B 180° (dB),F/B ±30° (dB),First USLS (dB),USLS peak to 20° (dB),USLS horizon to 20° (dB),USLS max (dB),Null fill (dB),First LSLS (dB),H-SLS (dB),P2P tracking (dB),SPR (%),AIR (dB),Roll-off (dB),D/U 16QAM (°),D/U 64QAM (°),D/U 256QAM (°),H-HPBW − decl. (°),V-HPBW − decl. (°),F/B − decl. (dB)';

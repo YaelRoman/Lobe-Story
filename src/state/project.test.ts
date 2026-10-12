@@ -268,7 +268,8 @@ describe('damaged values', () => {
   it('restores the table column groups', () => {
     expect(restore(withState({})).view.tableGroups).toEqual(DEFAULT_TABLE_GROUPS);
     const s = restore(withState({ view: { tableGroups: { sector: false, declared: 'yes', bogus: true } } }));
-    expect(s.view.tableGroups).toEqual({ beam: true, fb: true, sidelobes: true, sector: false, declared: false });
+    expect(s.view.tableGroups).toEqual({ beam: true, fb: true, sidelobes: true, sector: false, declared: false, are: false });
+    expect(restore(withState({ view: { tableGroups: { are: true } } })).view.tableGroups).toEqual({ ...DEFAULT_TABLE_GROUPS, are: true });
   });
 
   it('keeps the current fold state: a saved one is ignored, and none is written', () => {
