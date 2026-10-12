@@ -42,7 +42,7 @@ function Offer({ label }: { label: string }) {
 
   return (
     <div
-      className="load-message undo-toast"
+      className="undo-toast"
       data-testid="undo-toast"
       data-paused={paused || undefined}
       onMouseEnter={() => setHovered(true)}
@@ -64,7 +64,8 @@ function Offer({ label }: { label: string }) {
 }
 
 /**
- * The "Undo" bar for the last Remove / Delete group / Clear / project replace, and Ctrl/Cmd+Z.
+ * The "Undo" offer for the last Remove / Delete group / Clear / Reset / project replace, and Ctrl/Cmd+Z.
+ * It floats at the foot of the screen (see theme.css) and takes no room: nothing on the page moves when it comes or goes.
  * It is announced through the status region in StatusArea, not by itself.
  */
 export function UndoToast() {

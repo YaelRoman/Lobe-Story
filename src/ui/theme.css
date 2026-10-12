@@ -98,7 +98,11 @@ th[scope='row'] { text-align: left; white-space: nowrap; }
 .load-message { display: flex; gap: 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--panel); color: var(--warn); font-size: 13px; }
 .load-message button { padding: 0 6px; }
 .load-message button:last-child { margin-left: auto; }
-.load-message.info, .undo-toast { color: var(--fg); }
+.load-message.info { color: var(--fg); }
+/* The undo offer lies over the foot of the screen and takes no room: it comes and goes with a click or a slider step, and a bar in
+   the flow moved the page under the pointer that made it. Above the plots, the menus and the phone's copy pill; below dialogs (50). */
+.undo-toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 40; display: flex; gap: 10px; align-items: center; width: max-content; max-width: calc(100vw - 24px); padding: 8px 8px 8px 14px; font-size: 13px; color: var(--fg); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgb(0 0 0 / 28%); overflow-wrap: anywhere; }
+.undo-toast button { flex: none; padding: 2px 8px; }
 .panel:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: -2px; }
 .drop-overlay { position: fixed; inset: 0; display: grid; place-items: center; font-size: 20px; background: rgb(9 105 218 / 15%); border: 3px dashed var(--accent); pointer-events: none; }
 .settings { position: absolute; right: 12px; top: 100%; z-index: 10; display: grid; grid-template-columns: auto 90px; gap: 6px 12px; align-items: center; padding: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
@@ -214,7 +218,9 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
   /* Touch targets of at least 32 x 32 px: padding on labels and buttons, the boxes themselves keep their size. */
   .hit { min-width: 32px; min-height: 32px; }
   .controls label, .sim-bar label, .delta-toggle, .metrics label { min-height: 32px; }
-  .load-message button { min-width: 32px; min-height: 32px; }
+  .load-message button, .undo-toast button { min-width: 32px; min-height: 32px; }
+  /* Clear of the copy pill at the foot of the screen (40 px high from 12 px up). */
+  .undo-toast { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 48px); }
   .sort-btn { min-height: 32px; }
   /* The library's own rules are as specific as a short selector: this one is longer so it wins. */
   /* The chart toolbar sits in a strip above the plot, not on it: on a narrow plot it covered the title and the histogram labels. */
@@ -301,7 +307,7 @@ tr.hl .copy-cell { background: var(--hl); }
   .copy-row { min-width: 28px; min-height: 28px; }
   /* On a phone the one copy button is a pill fixed to the bottom of the screen with the value in its label, so it never lies over a cell:
      nothing in the table changes size or position when a cell gains focus. Above the plots and menus (z 10-20), below dialogs (50);
-     the undo toast and the status lines sit in the page flow at the top, so they never meet it. `main` keeps room below the last row,
+     the status lines sit in the page flow at the top and the undo offer floats above the pill, so they never meet it. `main` keeps room below the last row,
      and a focused cell is scrolled clear of the pill. */
   .copy-cell { position: fixed; top: auto; left: 50%; right: auto; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30; width: auto; height: auto; min-height: 40px; max-width: calc(100vw - 32px); padding: 0 18px; font-size: 14px; font-weight: 600; color: var(--fg); background: var(--panel); border-color: var(--border); border-radius: 999px; box-shadow: 0 4px 16px rgb(0 0 0 / 28%); }
   .copy-cell::before { content: none; }

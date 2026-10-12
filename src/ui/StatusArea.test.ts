@@ -54,13 +54,13 @@ describe('the copy note', () => {
   });
 });
 
-describe('one status bar, not two stacked', () => {
+describe('one status bar, and an undo offer that takes no room', () => {
   const bars = () => Array.from(host.querySelectorAll('.load-message'));
   const status = () => host.querySelector('[data-testid="load-status"]');
   const offer = () => host.querySelector('[data-testid="undo-toast"]');
   const said = () => host.querySelector('[data-testid="announcer"]')?.textContent ?? '';
 
-  it('an undo offer takes the place of a calm load line instead of stacking under it', () => {
+  it('an undo offer is not a bar in the flow: it neither stacks under a calm load line nor removes it', () => {
     act(() => useStore.getState().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
     act(() => useStore.getState().setLoadMessage('Loaded 2 files', 'info'));
     expect(status()).not.toBeNull();
@@ -68,16 +68,29 @@ describe('one status bar, not two stacked', () => {
     // "Show all" keeps the load line in the store: the two bars used to stack.
     act(() => useStore.getState().setVisibleOnly(['a.MSI', 'b.MSI'], 'Showed all files'));
     expect(offer()).not.toBeNull();
-    expect(status()).toBeNull();
+    expect(offer()?.classList.contains('load-message')).toBe(false);
+    // The line stays where it is (taking it away would move the page under the pointer that made the offer).
+    expect(status()?.textContent).toContain('Loaded 2 files');
     expect(bars()).toHaveLength(1);
     // Both are still read out.
     expect(said()).toContain('Loaded 2 files');
     expect(said()).toContain('Showed all files');
-    // The offer hidden: the line is back if it has not run out.
+    // The offer hidden: the line is as it was, neither removed nor brought back.
     act(() => useStore.getState().fadeUndo());
     expect(offer()).toBeNull();
     expect(status()?.textContent).toContain('Loaded 2 files');
     expect(bars()).toHaveLength(1);
+  });
+
+  it('hiding an offer does not bring back a load line that has run out', () => {
+    act(() => useStore.getState().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => useStore.getState().setLoadMessage('Loaded 2 files', 'info'));
+    act(() => useStore.getState().setVisibleOnly(['a.MSI', 'b.MSI'], 'Showed all files'));
+    act(() => useStore.getState().setLoadMessage(null));
+    expect(status()).toBeNull();
+    act(() => useStore.getState().fadeUndo());
+    expect(status()).toBeNull();
+    expect(bars()).toHaveLength(0);
   });
 
   it('a warning stays: it needs to be read and may carry Show errors', () => {
@@ -86,6 +99,6 @@ describe('one status bar, not two stacked', () => {
     act(() => useStore.getState().setVisibleOnly(['a.MSI', 'b.MSI'], 'Showed all files'));
     expect(status()?.textContent).toContain('1 file failed');
     expect(offer()).not.toBeNull();
-    expect(bars()).toHaveLength(2);
+    expect(bars()).toHaveLength(1);
   });
 });

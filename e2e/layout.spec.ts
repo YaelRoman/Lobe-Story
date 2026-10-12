@@ -128,3 +128,77 @@ test('the folded Simulation bar is one line on a phone: no room is kept for the 
   // The summary sits beside the fold button, not under it.
   expect(Math.abs((await summary.boundingBox())!.y - (await fold.boundingBox())!.y)).toBeLessThan(16);
 });
+
+test('an undo offer does not move the page: Reset stays under the pointer, and a slider dragged right after it does not jump', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  await page.getByRole('button', { name: 'Dismiss message' }).click();
+  await page.getByRole('button', { name: /Simulation/ }).click();
+  const value = page.getByLabel('Mechanical tilt (°) value');
+  await value.fill('4');
+  await value.press('Enter');
+  await expect(page.getByTestId('sim-badge')).toBeVisible();
+
+  const reset = page.getByRole('button', { name: 'Reset', exact: true });
+  const offer = page.getByTestId('undo-toast');
+  const resetBefore = (await reset.boundingBox())!;
+  await reset.click();
+  await expect(offer).toContainText('Reset the simulation.');
+  expect((await reset.boundingBox())!).toEqual(resetBefore);
+  // The offer lies over the page, clear of the bar it was made from.
+  const offerBox = (await offer.boundingBox())!;
+  const bar = (await page.locator('.sim-bar').boundingBox())!;
+  expect(offerBox.y).toBeGreaterThan(bar.y + bar.height);
+
+  // The first step of the drag withdraws the offer (the session changed) while the button is held.
+  const slider = page.getByRole('slider', { name: 'Mechanical tilt (°)', exact: true });
+  await expect(slider).toHaveValue('0');
+  const before = (await slider.boundingBox())!;
+  const [min, max] = [Number(await slider.getAttribute('min')), Number(await slider.getAttribute('max'))];
+  const thumb = 16;
+  const perDegree = (before.width - thumb) / (max - min);
+  const x = before.x + thumb / 2 + (0 - min) * perDegree;
+  const y = before.y + before.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 6, y, { steps: 2 });
+  await expect(offer).toHaveCount(0);
+  expect((await slider.boundingBox())!).toEqual(before);
+  await page.mouse.move(x + 28, y, { steps: 4 });
+  expect((await slider.boundingBox())!).toEqual(before);
+  await page.mouse.up();
+  expect(Math.abs(Number(await slider.inputValue()) - 28 / perDegree)).toBeLessThanOrEqual(1);
+  expect((await slider.boundingBox())!).toEqual(before);
+});
+
+for (const [width, height] of [[1440, 900], [390, 844]]) {
+  test(`at ${width} px an undo offer that comes while the load line shows moves nothing, and hiding it brings no line back`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto('/');
+    await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+    await expect(page.getByTestId('load-status')).toBeVisible();
+    if (width < 760) await page.getByRole('button', { name: 'Files (24)' }).click();
+    await expect(page.locator('.panel li')).toHaveCount(24);
+    const showAll = page.getByRole('button', { name: 'Show all', exact: true });
+    const at = (await showAll.boundingBox())!;
+    await showAll.click();
+    const offer = page.getByTestId('undo-toast');
+    await expect(offer).toContainText('Showed all files');
+    expect((await showAll.boundingBox())!).toEqual(at);
+    // It covers neither the toolbar nor the status line, and stays inside the screen.
+    const box = (await offer.boundingBox())!;
+    expect(box.y).toBeGreaterThan(height / 2);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(box.y + box.height).toBeLessThanOrEqual(height);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    // Hidden by its cross: nothing moves, and the load line is neither removed nor put back by it.
+    const lines = await page.getByTestId('load-status').count();
+    await offer.getByRole('button', { name: 'Hide undo offer' }).click();
+    await expect(offer).toHaveCount(0);
+    expect((await showAll.boundingBox())!).toEqual(at);
+    expect(await page.getByTestId('load-status').count()).toBe(lines);
+  });
+}

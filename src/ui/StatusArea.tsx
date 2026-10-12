@@ -16,9 +16,11 @@ function showErrors() {
 }
 
 /**
- * The bars under the toolbar: the load status line, the undo offer and the files a project still
- * needs. Screen readers hear about all three through ONE status region that is always in the
- * page and starts empty — a region that is inserted together with its text is often not announced.
+ * The bars under the toolbar (the load status line and the files a project still needs) and the undo
+ * offer, which floats at the foot of the screen: it comes and goes with a click or a slider step, and
+ * a bar in the flow would move the page under the pointer that made it. Screen readers hear about all
+ * three through ONE status region that is always in the page and starts empty — a region that is
+ * inserted together with its text is often not announced.
  */
 export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean; beforeShowErrors?: () => void }) {
   const loadMessage = useStore((s) => s.loadMessage);
@@ -34,9 +36,6 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const pendingFiles = useStore((s) => s.pendingFiles);
   const dismissPending = useStore((s) => s.dismissPending);
   const pending = pendingFiles.length > 0 ? pendingLabel(pendingFiles) : null;
-  // One bar, not two stacked: an undo offer takes the place of a calm load line ("Loaded 24 files", which needs no
-  // action and goes by itself). A warning stays above the offer: it has to be read and may carry "Show errors".
-  const replacedByOffer = undoLabel !== undefined && loadTone === 'info';
   // A line that is only read out (see `announce`): the change it reports is already visible where it was made.
   const spoken = useAnnouncement();
 
@@ -57,7 +56,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
 
   return (
     <div className="status-area">
-      {loadMessage && !replacedByOffer && (
+      {loadMessage && (
         <div className={loadTone === 'info' ? 'load-message info' : 'load-message'} data-testid="load-status">
           <span>{loadMessage}</span>
           {loadFailed > 0 && hasErrors && (
