@@ -23,8 +23,11 @@ function axis(from: number, to: number, step: number): number[] {
  */
 export function combine(aH: number, aV: number, method: Method3d): number {
   if (method === 'summation') return aH + aV;
-  const h = 10 ** (-aH / 10);
-  const v = 10 ** (-aV / 10);
+  return combineWeighted(aH, aV, 10 ** (-aH / 10), 10 ** (-aV / 10));
+}
+
+/** The weighted combination, for a caller that already has the linear powers `h`, `v` of the two attenuations. */
+export function combineWeighted(aH: number, aV: number, h: number, v: number): number {
   const w1 = v * (1 - h);
   const w2 = h * (1 - v);
   const sum = w1 + w2;
