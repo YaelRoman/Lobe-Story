@@ -16,6 +16,7 @@ import {
 } from './bandStats';
 import type { AnalysisSettings, PatternMetrics, TaggedPattern } from './metrics';
 import { inSubBand, type SubBand } from './subBands';
+import { fixed } from '../fixed';
 
 export type BandParamKey =
   | 'gainAll' | 'gainMinTilt' | 'gainMidTilt' | 'gainMaxTilt' | 'tiltRange'
@@ -312,7 +313,7 @@ export function bandCell(
   let text = formatStat(stat, unit, toleranceUnit) + (adjusted ? '*' : '');
   if (stat.kind === 'mean') text += ` @ ${tiltText(s.tiltDeg!)}°`;
 
-  const f2 = (x: number) => x.toFixed(2);
+  const f2 = (x: number) => fixed(x, 2);
   const lines: string[] = [];
   switch (stat.kind) {
     case 'double':

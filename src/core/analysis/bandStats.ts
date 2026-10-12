@@ -1,4 +1,5 @@
 import { SLS_NOT_AVAILABLE_DB } from './sidelobes';
+import { fixed } from '../fixed';
 
 /** Distribution statistics of NGMN BASTA V13 Annex C, applied to the values of one antenna in one sub-band. */
 export const P_LOWER = 6.7; // double-sided lower threshold (percent)
@@ -125,10 +126,8 @@ export function substituteNotAvailable(
   return { applicable: true, values: values.map((v) => v ?? substitute), substituted: na };
 }
 
-export function fix1(v: number): string {
-  const s = v.toFixed(1);
-  return s === '-0.0' ? '0.0' : s;
-}
+/** One decimal, without the sign of a zero (the shared `fixed`). */
+export const fix1 = (v: number): string => fixed(v, 1);
 
 export function withUnit(v: number, unit: string): string {
   return fix1(v) + (unit === '°' ? '' : ' ') + unit;

@@ -394,3 +394,16 @@ describe('tracking pairs (G4)', () => {
     expect(c.values).not.toContain(9);
   });
 });
+
+describe('no negative zero in a band cell or its tooltip', () => {
+  it('rounds first, then drops the sign of a zero', () => {
+    const tiny = withMetrics((m) => {
+      for (const [id, v] of m) m.set(id, { ...v, squint: { value: -0.004 } as PatternMetrics['squint'] });
+    });
+    const cell = cellWith(tiny, 'squint');
+    expect(cell.state).toBe('ok');
+    expect(`${cell.text}\n${cell.title}`).not.toMatch(/-0\.0+(?![0-9])/);
+    expect(cell.text).toBe('0.0° ± 0.0°');
+    expect(cell.title).toContain('min 0.00 · max 0.00 · mean 0.00');
+  });
+});
