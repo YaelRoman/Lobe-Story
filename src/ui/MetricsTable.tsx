@@ -54,7 +54,8 @@ export const MetricsTable = memo(function MetricsTable({
   const tableGroups = useStore((s) => s.view.tableGroups);
   const updateView = useStore((s) => s.updateView);
   // At the horizon the Beam group has one more column: how far each row's horizon cut lies below the 3D peak.
-  const columns = withHorizonLevel(visibleColumns(tableGroups), sim.hCut === 'horizon');
+  const atHorizon = sim.hCut === 'horizon';
+  const columns = useMemo(() => withHorizonLevel(visibleColumns(tableGroups), atHorizon), [tableGroups, atHorizon]);
   const highlighted = useStore((s) => s.highlighted);
   const pickFile = useStore((s) => s.pickFile);
   const setVisible = useStore((s) => s.setVisible);

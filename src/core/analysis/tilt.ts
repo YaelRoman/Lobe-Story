@@ -1,8 +1,8 @@
 import type { Pattern } from '../types';
-import { analyzeAll, gridsFor, type AnalysisSettings, type PatternMetrics, type TaggedPattern } from './metrics';
+import { analyzeAll, angularRegionsOfCuts, gridsFor, type AnalysisSettings, type PatternMetrics, type TaggedPattern } from './metrics';
 import { mod360, peakCentre, peakIndex, rawGrid, signed, type Grid } from './grid';
 import { combine, combineWeighted, reconstruct3d, STEP_3D, type Method3d, type Surface3d } from './pattern3d';
-import { angularRegionEfficiency, DB_TO_NEPER, efficiencyOf, noAngularRegions, sampledRegionPowers, SPHERE_ROWS, typeABeam, type AngularRegionEfficiency } from './are';
+import { DB_TO_NEPER, efficiencyOf, noAngularRegions, sampledRegionPowers, SPHERE_ROWS, typeABeam, type AngularRegionEfficiency } from './are';
 
 export interface TiltSettings {
   /** Extra electrical downtilt added to the measured pattern (degrees, positive = down). */
@@ -459,11 +459,12 @@ export function analyzeTilted(
       const origin = tiltedFrom.get(pattern);
       if (!origin) return undefined;
       if (origin.hCut === 'horizon') {
-        // The regions follow the beam (its θpeak and HPBW): they are those of the cut through the beam peak.
-        const beam = gridsFor(tiltPattern(origin.source, origin.tilt, origin.method, 'beam'));
+        // The regions follow the beam (its θpeak and HPBW): they are those of the cut through the beam peak, which
+        // for an untilted file is the file itself. Its two-cut estimate is shared with the pass that analysed it.
+        const beam = tiltPattern(origin.source, origin.tilt, origin.method, 'beam');
         return origin.tilt.mechanicalDeg !== 0
-          ? tiltedAngularRegions(origin.source, origin.tilt, beam, sectorEdgeDeg, method)
-          : angularRegionEfficiency(beam.h, beam.v, sectorEdgeDeg, method);
+          ? tiltedAngularRegions(origin.source, origin.tilt, gridsFor(beam), sectorEdgeDeg, method)
+          : angularRegionsOfCuts(beam, sectorEdgeDeg, method);
       }
       return origin.tilt.mechanicalDeg !== 0
         ? tiltedAngularRegions(origin.source, origin.tilt, grids, sectorEdgeDeg, method)

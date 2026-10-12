@@ -162,6 +162,20 @@ function areOf(
   return value;
 }
 
+/**
+ * The two-cut estimate of a pattern's own cuts, from the per-pattern memo `analyzeAll` uses (so a pattern already
+ * analysed with this method and sector edge is not integrated again).
+ */
+export function angularRegionsOfCuts(pattern: Pattern, edgeDeg: number, method: Method3d): AngularRegionEfficiency {
+  const key = `${method}|${edgeDeg}|cuts`;
+  const hit = areCache.get(pattern);
+  if (hit?.key === key) return hit.value;
+  const grids = gridsFor(pattern);
+  const value = angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  areCache.set(pattern, { key, value });
+  return value;
+}
+
 export function analyzePattern(
   item: TaggedPattern,
   s: AnalysisSettings = DEFAULT_SETTINGS,

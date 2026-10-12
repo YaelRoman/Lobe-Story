@@ -380,6 +380,9 @@ describe('metrics of a horizon cut', () => {
         expect(m[key], key).toEqual(file[key]);
       }
       // The declared V beamwidth still describes the cut shown; the declared H beamwidth and F/B do not describe a horizon cut.
+      // The estimate of an untilted file is not integrated a second time for its horizon copy: it is the file's own result.
+      expect(file.are.sector.value).not.toBeNull();
+      expect(m.are).toBe(file.are);
       expect(file.delta.vHpbw.value).not.toBeNull();
       expect(m.delta.vHpbw).toEqual(file.delta.vHpbw);
       expect(m.delta.hHpbw).toEqual({ value: null, reason: DECLARED_REASON });
