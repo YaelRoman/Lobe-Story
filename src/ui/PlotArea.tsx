@@ -15,6 +15,7 @@ import { PlotBoundary } from './ErrorBoundary';
 import { showsUpdateHint, usePaintFirst, useUpdateCost, type UpdateCost } from './updateHint';
 import { Pattern3D } from './Pattern3D';
 import { SimulationBar } from './SimulationBar';
+import { SKIP_TARGETS } from './SkipLinks';
 import { Seg } from './Seg';
 import { PER_FILE_COLOURS, type FileStyle } from './colors';
 import type { SimulationResult } from './useSimulation';
@@ -272,7 +273,10 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
   const is3d = view.dimension === '3d';
   const labels = markerLabels(settings.levelDb);
   return (
-    <section>
+    <section aria-labelledby={SKIP_TARGETS.plots}>
+      <h2 id={SKIP_TARGETS.plots} className="visually-hidden" tabIndex={-1}>
+        {is3d ? '3D pattern' : 'Cut plots'}
+      </h2>
       <SimulationBar is3d={is3d} />
       <div className="controls">
         <Seg<Dimension>

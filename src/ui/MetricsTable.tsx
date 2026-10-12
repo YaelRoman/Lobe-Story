@@ -9,6 +9,7 @@ import {
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
 import { useTablePreview } from './useTablePreview';
+import { SKIP_TARGETS } from './SkipLinks';
 import { cellEndTarget, moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { neighbourOrder } from './undoKeys';
 import { downloadText } from './download';
@@ -227,7 +228,7 @@ export const MetricsTable = memo(function MetricsTable({
   return (
     <section>
       <div className="controls">
-        <h2>Metrics</h2>
+        <h2 id={SKIP_TARGETS.table} tabIndex={-1}>Metrics</h2>
         <button
           onClick={() =>
             downloadText(

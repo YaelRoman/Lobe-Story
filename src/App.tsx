@@ -18,6 +18,7 @@ import { EmptyState } from './ui/EmptyState';
 import { HelpDialog, type OpenHelp } from './ui/HelpDialog';
 import { useEscapeClear } from './ui/useEscapeClear';
 import { PlotBoundary } from './ui/ErrorBoundary';
+import { SkipLinks } from './ui/SkipLinks';
 
 export default function App() {
   const files = useStore((s) => s.files);
@@ -67,6 +68,7 @@ export default function App() {
 
   return (
     <div className="app">
+      {tagged.length > 0 && <SkipLinks />}
       <Toolbar onHelp={openHelp} />
       <StatusArea hasErrors={errors.length > 0} beforeShowErrors={() => setFilesOpen(true)} />
       <div className="body">
