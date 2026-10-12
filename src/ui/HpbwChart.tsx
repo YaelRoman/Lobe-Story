@@ -6,7 +6,7 @@ import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
-import { buildMetricFigure, metricCaption, type MetricSeries } from './metricFigure';
+import { buildMetricFigure, metricCaption, noValueNote, noValues, type MetricSeries } from './metricFigure';
 import { cellsOf, columnLabel, COLUMN_GROUPS, METRIC_COLUMNS, type MetricColumn } from './table';
 import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
@@ -59,7 +59,7 @@ export const HpbwChart = memo(function HpbwChart({
   const leftOut = useMemo(() => groups.reduce((n, g) => n + g.items.filter((i) => visible[i.pattern.id] && !hasUsableFrequency(i.pattern.frequencyMHz)).length, 0), [groups, visible]);
 
   // The series are put together here; the figure itself is built inside the chart's error boundary (see `FrequencyPlot`).
-  const build = useMemo<(() => Figure) | null>(() => {
+  const { build, empty } = useMemo<{ build: (() => Figure) | null; empty: string | null }>(() => {
     const series: HpbwSeries[] = [];
     const single: MetricSeries[] = [];
     // Above ten visible files the files are coloured by group: the group's line takes the colour of its place among all groups (see colors.ts).
@@ -100,10 +100,16 @@ export const HpbwChart = memo(function HpbwChart({
     const freq = refItem?.pattern.frequencyMHz ?? 0;
     if (both) {
       const ref = refMetrics ? { label: refLabel, point: { freq, h: refMetrics.h.hpbw.value, v: refMetrics.v.hpbw.value } } : undefined;
-      return series.length ? () => buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb, ref) : null;
+      return { build: series.length ? () => buildHpbwFigure(series, FIGURE_THEMES[theme], levelDb, ref) : null, empty: null };
     }
     const ref = refMetrics ? { label: refLabel, point: { freq, value: cellsOf(refMetrics)[metric].value } } : undefined;
-    return single.length ? () => buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref) : null;
+    if (!single.length) return { build: null, empty: null };
+    // Nothing to draw at a number: say so (with the reasons the table's tooltips give) instead of an empty chart.
+    if (noValues(single, ref)) {
+      const reasons = groups.flatMap((g) => g.items.map((i) => { const m = sim.metrics.get(i.pattern.id); return m ? cellsOf(m)[metric].reason : undefined; }));
+      return { build: null, empty: noValueNote(label, reasons) };
+    }
+    return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref), empty: null };
   }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, column.unit, reference]);
 
   const method3d = useStore((s) => s.view.method3d);
@@ -127,7 +133,7 @@ export const HpbwChart = memo(function HpbwChart({
   );
 
   const note = leftOut > 0 ? <p className="count" data-testid="freq-left-out">{leftOutText(leftOut)}</p> : null;
-  if (!build) return note && <section>{note}</section>;
+  if (!build && !empty) return note && <section>{note}</section>;
   const heading = both ? bwName(levelDb) : label;
   return (
     <section>
@@ -154,6 +160,9 @@ export const HpbwChart = memo(function HpbwChart({
       </div>
       {note}
       {/* A figure that cannot be built or drawn fails in the chart's place: the heading and the Metric menu stay, and another metric or other files clear it. */}
+      {build === null ? (
+        <p className="count" role="status" data-testid="freq-no-value">{empty}</p>
+      ) : (
       <PlotBoundary className="plot wide" resetKeys={[build]}>
         <FrequencyPlot
           build={build}
@@ -166,6 +175,7 @@ export const HpbwChart = memo(function HpbwChart({
           filename={exportName(both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency`, exportSimulated)}
         />
       </PlotBoundary>
+      )}
     </section>
   );
 });

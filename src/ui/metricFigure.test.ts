@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlotData } from 'plotly.js';
-import { buildMetricFigure, metricAxisTitle, metricCaption, minSpanForUnit } from './metricFigure';
+import { buildMetricFigure, metricAxisTitle, metricCaption, minSpanForUnit, noValueNote, noValues } from './metricFigure';
 import { FIGURE_THEMES } from './figureTheme';
 
 const traces = (f: { data: unknown[] }) => f.data as Partial<PlotData>[];
@@ -72,5 +72,26 @@ describe('the reference point', () => {
     // 20 and 30 span more than the minimum: automatic range.
     expect(f.layout.yaxis?.range).toBeUndefined();
     expect(metricCaption('F/B 180°', 'dB', false, true).items).toEqual(['Diamond: the reference file']);
+  });
+});
+
+describe('no value for the metric', () => {
+  const pt = (value: number | null, declared?: number) => ({ freq: 1800, value, ...(declared !== undefined ? { declared } : {}) });
+
+  it('is true only when no point, declared value or reference point has a number', () => {
+    expect(noValues([{ label: 'g', color: '#1', points: [pt(null), pt(null)] }])).toBe(true);
+    expect(noValues([])).toBe(true);
+    expect(noValues([{ label: 'g', color: '#1', points: [pt(null), pt(3)] }])).toBe(false);
+    expect(noValues([{ label: 'g', color: '#1', points: [pt(null, 12)] }])).toBe(false);
+    expect(noValues([{ label: 'g', color: '#1', points: [pt(null)] }], { label: 'r', point: pt(4) })).toBe(false);
+    expect(noValues([{ label: 'g', color: '#1', points: [pt(null)] }], { label: 'r', point: pt(null) })).toBe(true);
+  });
+
+  it('says which metric has no value and why, each reason once', () => {
+    expect(noValueNote('H-SLS', ['no sidelobe above the main beam', undefined, 'no sidelobe above the main beam'])).toBe(
+      'No file has a value for H-SLS: no sidelobe above the main beam.',
+    );
+    expect(noValueNote('SPR', [undefined])).toBe('No file has a value for SPR.');
+    expect(noValueNote('F/B', ['a', 'b'])).toBe('No file has a value for F/B: a; b.');
   });
 });

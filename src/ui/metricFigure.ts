@@ -46,6 +46,18 @@ export interface MetricReference {
   point: MetricPoint;
 }
 
+/** True when nothing would be drawn at a number: no point, declared value or reference point has one. */
+export function noValues(series: MetricSeries[], reference?: MetricReference): boolean {
+  const some = (v: number | null | undefined) => typeof v === 'number' && Number.isFinite(v);
+  return !series.some((s) => s.points.some((p) => some(p.value) || some(p.declared))) && !(reference && some(reference.point.value));
+}
+
+/** What the frequency chart says in place of an empty chart: the metric, and the reasons the table's tooltips give (each once). */
+export function noValueNote(label: string, reasons: (string | undefined)[]): string {
+  const why = [...new Set(reasons.filter((r): r is string => Boolean(r)))];
+  return `No file has a value for ${label}${why.length ? `: ${why.join('; ')}` : ''}.`;
+}
+
 /** One y axis: `label (unit)` against frequency, a line per group, gaps where a file has no value. */
 export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, label: string, unit: string, reference?: MetricReference): Figure {
   // Plotly has `meta` (the export reads it as the full legend name); @types/plotly.js does not declare it.
