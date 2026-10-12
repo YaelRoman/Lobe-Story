@@ -438,3 +438,35 @@ test('Weighted with the cut at the horizon is allowed but flagged: a visible not
   await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'Through the beam peak' }).click();
   await expect(note).toHaveCount(0);
 });
+
+test('a horizon cut far below the peak in the polar plot offers the rectangular view', async ({ page }) => {
+  await loadExample(page);
+  await openSimulation(page);
+  const note = page.getByTestId('far-below-note');
+  const polar = page.getByRole('group', { name: 'Plot type' }).getByRole('button', { name: 'Polar' });
+  const rect = page.getByRole('group', { name: 'Plot type' }).getByRole('button', { name: 'Rectangular' });
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  // The ticked file's horizon cut is 0.6 dB down: readable, no note.
+  await expect(page.locator('.metrics tbody tr').first().locator('td[data-col="hLevel"]')).toHaveText('0.6');
+  await expect(note).toHaveCount(0);
+  // Electrical tilt +10°: well over 15 dB down, a dot at the centre of the polar plot.
+  const elec = page.getByLabel('Electrical tilt Δ (°) value');
+  await elec.fill('10');
+  await elec.press('Enter');
+  await expect.poll(async () => Number(await page.locator('.metrics tbody tr').first().locator('td[data-col="hLevel"]').innerText())).toBeGreaterThan(15);
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('This cut is far below the peak; the rectangular view shows it better');
+  await expect(polar).toHaveAttribute('aria-pressed', 'true');
+  // By keyboard: the button switches the view, and the note goes with the polar plot.
+  const button = note.getByRole('button', { name: 'Show rectangular' });
+  await button.focus();
+  await page.keyboard.press('Enter');
+  await expect(rect).toHaveAttribute('aria-pressed', 'true');
+  await expect(note).toHaveCount(0);
+  await expect(page.getByTestId('plot-h').getByText('Angle (°)').first()).toBeVisible();
+  // Polar again: the note is back; on the cut through the beam peak it is not offered.
+  await polar.click();
+  await expect(note).toBeVisible();
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'Through the beam peak' }).click();
+  await expect(note).toHaveCount(0);
+});

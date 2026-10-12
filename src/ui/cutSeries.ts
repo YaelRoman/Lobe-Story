@@ -4,6 +4,15 @@ import type { PlotSeries } from './cutFigure';
 import type { FileStyle } from './colors';
 import type { SimulationResult } from './useSimulation';
 
+/** A horizon cut whose maximum is more than this far below the 3D peak is a dot or a small circle at the centre of a polar plot. */
+export const FAR_BELOW_PEAK_DB = 15;
+export const FAR_BELOW_PEAK_NOTE = 'This cut is far below the peak; the rectangular view shows it better';
+
+/** Whether one of the drawn files has a horizon cut whose maximum lies more than `FAR_BELOW_PEAK_DB` below its 3D peak. */
+export function horizonCutFarBelowPeak(drawnIds: readonly string[], metrics: ReadonlyMap<string, { hCutPeakDb?: number }>): boolean {
+  return drawnIds.some((id) => (metrics.get(id)?.hCutPeakDb ?? 0) > FAR_BELOW_PEAK_DB);
+}
+
 /** The non-solid line pattern of a file's style, if any. */
 const lineDashOf = (style: FileStyle | undefined) => (style && style.dash !== 'solid' ? style.dash : undefined);
 

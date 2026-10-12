@@ -6,6 +6,7 @@ import type { PlotData } from 'plotly.js';
 import { hCutLabel, simSummary, simulatedCaption, simulationActive, summaryHCut, summaryMethod } from './simSummary';
 import { buildRows, columnTitle, csvColumns, HORIZON_TAG, METRIC_COLUMNS, simulationLabel, toCsv, toTsv, visibleColumns } from './table';
 import { bandCsv, bandTsv } from './bandView';
+import { FAR_BELOW_PEAK_DB, FAR_BELOW_PEAK_NOTE, horizonCutFarBelowPeak } from './cutSeries';
 import { buildCutSeries } from './cutSeries';
 import { buildCutFigure, buildCutOverlay, markerReadout, type CutFigureOptions } from './cutFigure';
 import { exportCaptionLines, withSimulated } from './exportFigure';
@@ -476,5 +477,20 @@ describe('the Horizon level tooltip', () => {
     expect(tip).toContain('(the 3D peak), in dB');
     expect(tip).toMatch(/sidelobe or a null.*H-HPBW.*Squint.*not the main beam/);
     expect(tip).not.toContain('a tenth');
+  });
+});
+
+describe('a horizon cut far below the peak in the polar plot', () => {
+  const level = (db: number | undefined) => ({ hCutPeakDb: db });
+  it('is flagged when a drawn horizon cut has its maximum more than 15 dB below the 3D peak', () => {
+    const metrics = new Map([['a', level(0.6)], ['b', level(15.1)], ['c', level(37)], ['d', level(undefined)]]);
+    expect(horizonCutFarBelowPeak(['a'], metrics)).toBe(false);
+    expect(horizonCutFarBelowPeak(['a', 'd'], metrics)).toBe(false);
+    expect(horizonCutFarBelowPeak(['a', 'b'], metrics)).toBe(true);
+    expect(horizonCutFarBelowPeak(['c'], metrics)).toBe(true);
+    // Exactly 15 dB is not "more than"; a file that is not drawn does not count.
+    expect(horizonCutFarBelowPeak(['x'], new Map([['x', level(15)], ['c', level(37)]]))).toBe(false);
+    expect(FAR_BELOW_PEAK_DB).toBe(15);
+    expect(FAR_BELOW_PEAK_NOTE).toBe('This cut is far below the peak; the rectangular view shows it better');
   });
 });
