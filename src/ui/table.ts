@@ -456,7 +456,15 @@ export function shouldReveal(
   return prev.id !== cur.id || prev.sort?.key !== cur.sort?.key || prev.sort?.dir !== cur.sort?.dir;
 }
 
-const fmt = (v: number | null) => (v === null ? '' : fixed(v, 2));
+/**
+ * Decimals of the columns that need more than the table's one (shown, copied) and the CSV's two: the lower region
+ * ratio is a few thousandths of a percent to a few tenths, so the usual format would read 0.0 on almost every file.
+ */
+const DECIMALS: Partial<Record<MetricColumn, { shown: number; csv: number }>> = { areLower: { shown: 3, csv: 4 } };
+const shownDecimals = (key: MetricColumn): number => DECIMALS[key]?.shown ?? 1;
+const csvDecimals = (key: MetricColumn): number => DECIMALS[key]?.csv ?? 2;
+
+const fmt = (v: number | null, decimals = 2) => (v === null ? '' : fixed(v, decimals));
 /** One CSV field, quoted only where CSV syntax needs it. */
 export const csvCell = (raw: string) => (/[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw);
 
@@ -480,23 +488,27 @@ export const tabSafe = (raw: string): string => raw.replace(/[\t\r\n]+/g, ' ');
 /** One tab-separated field of user-influenced text: formula-guarded as in the CSV, and a tab or line break becomes a space so it cannot split the cell. */
 export const tsvText = (raw: string): string => tabSafe(formulaSafe(raw));
 
-const oneDecimal = (r: MetricResult) => (r.value === null ? '—' : fixed(r.value, 1));
+const shownValue = (r: MetricResult, decimals: number) => (r.value === null ? '—' : fixed(r.value, decimals));
 
 /** A difference as shown: signed, one decimal ("+1.2", "−0.4" as "-0.4", "0.0" when it rounds to zero). */
-export function signedOneDecimal(v: number | null): string {
+export const signedOneDecimal = (v: number | null): string => signedDecimals(v, 1);
+
+/** A difference as shown, with the column's decimals: signed, and without a sign when it rounds to zero. */
+function signedDecimals(v: number | null, decimals: number): string {
   if (v === null) return '—';
-  const rounded = Number(v.toFixed(1));
-  return rounded === 0 ? '0.0' : rounded > 0 ? `+${rounded.toFixed(1)}` : rounded.toFixed(1);
+  const rounded = Number(v.toFixed(decimals));
+  return rounded === 0 ? (0).toFixed(decimals) : rounded > 0 ? `+${rounded.toFixed(decimals)}` : rounded.toFixed(decimals);
 }
 
-export function formatCell(original: MetricResult, tilted?: MetricResult): { text: string; title?: string } {
-  if (!tilted) return { text: oneDecimal(original), title: original.reason };
+/** What a cell shows: the value, or `original → tilted`; one decimal unless the column has its own (`decimals`). */
+export function formatCell(original: MetricResult, tilted?: MetricResult, decimals = 1): { text: string; title?: string } {
+  if (!tilted) return { text: shownValue(original, decimals), title: original.reason };
   const reasons = [
     original.reason ? `original: ${original.reason}` : '',
     tilted.reason ? `tilted: ${tilted.reason}` : '',
   ].filter(Boolean);
   return {
-    text: `${oneDecimal(original)} → ${oneDecimal(tilted)}`,
+    text: `${shownValue(original, decimals)} → ${shownValue(tilted, decimals)}`,
     ...(reasons.length ? { title: reasons.join('\n') } : {}),
   };
 }
@@ -564,8 +576,8 @@ export function toCsv(
       fmt(r.gain),
       ...columns.flatMap((c) =>
         tilted
-          ? [fmt(r.cells[c.key].value), fmt((r.tilted?.[c.key] ?? r.cells[c.key]).value)]
-          : [fmt(shown(r, c.key).value)],
+          ? [fmt(r.cells[c.key].value, csvDecimals(c.key)), fmt((r.tilted?.[c.key] ?? r.cells[c.key]).value, csvDecimals(c.key))]
+          : [fmt(shown(r, c.key).value, csvDecimals(c.key))],
       ),
       ...(tilted && simFor
         ? (() => {
@@ -583,8 +595,8 @@ export const cellText = (r: MetricsRow, key: MetricColumn): string => rowCell(r,
 
 /** What a row's cell shows (and its tooltip): the difference in the difference view, else the value (`original → tilted` under a simulation). */
 export function rowCell(r: MetricsRow, key: MetricColumn): { text: string; title?: string } {
-  if (r.isDelta) return { text: signedOneDecimal(r.cells[key].value), title: r.cells[key].reason };
-  return formatCell(r.cells[key], r.tilted?.[key]);
+  if (r.isDelta) return { text: signedDecimals(r.cells[key].value, shownDecimals(key)), title: r.cells[key].reason };
+  return formatCell(r.cells[key], r.tilted?.[key], shownDecimals(key));
 }
 
 /** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */

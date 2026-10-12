@@ -126,10 +126,33 @@ describe('the angular-region column group', () => {
 describe('the angular-region columns in the table and the exports', () => {
   const rows = buildRows(groups, withAre, 'dBi');
 
-  it('shows the three values with one decimal', () => {
+  it('shows the two efficiencies with one decimal and the lower region ratio with three', () => {
     expect(cellText(rows[0], 'areSector')).toBe(fixed(expectedA.sector.value!, 1));
     expect(cellText(rows[0], 'areSpatial')).toBe(fixed(expectedA.spatial.value!, 1));
-    expect(cellText(rows[1], 'areLower')).toBe(fixed(expectedB.lower.value!, 1));
+    // A panel radiates a few thousandths of a percent to a few tenths straight down: one decimal would read "0.0".
+    expect(cellText(rows[1], 'areLower')).toBe(fixed(expectedB.lower.value!, 3));
+    expect(cellText(rows[1], 'areLower')).toMatch(/^0\.\d{3}$/);
+  });
+
+  it('keeps the three decimals of the lower region ratio in Δ mode, under a tilt and in Copy table; the CSV has four', () => {
+    // Made-up values, so the digits are known.
+    const lower = (value: number) => ({ ...rows[0], cells: { ...rows[0].cells, areLower: { value } } });
+    const row = lower(0.01234);
+    expect(cellText(row, 'areLower')).toBe('0.012');
+    expect(cellText({ ...row, tilted: { areLower: { value: 0.0456 } } }, 'areLower')).toBe('0.012 → 0.046');
+    expect(cellText({ ...row, tilted: { areLower: { value: null, reason: 'no' } } }, 'areLower')).toBe('0.012 → —');
+    expect(cellText({ ...lower(0.0031), isDelta: true }, 'areLower')).toBe('+0.003');
+    expect(cellText({ ...lower(-0.0127), isDelta: true }, 'areLower')).toBe('-0.013');
+    expect(cellText({ ...lower(0.0002), isDelta: true }, 'areLower')).toBe('0.000');
+    expect(cellText({ ...lower(-0.0002), isDelta: true }, 'areLower')).toBe('0.000');
+    // The other columns are as before.
+    expect(cellText({ ...row, isDelta: true }, 'areSector')).toMatch(/^[+-]?\d+\.\d$/);
+    const columns = visibleColumns(shownGroups);
+    expect(toTsv([row], columns, 'dBi', 30).trimEnd().split('\r\n')[1].split('\t').pop()).toBe('0.012');
+    const csv = toCsv([row], 'dBi', 30, undefined, 20, 3, undefined, false, csvColumns(shownGroups)).trimEnd().split('\r\n');
+    expect(csv[1].split(',').pop()).toBe('0.0123');
+    const tiltedCsv = toCsv([{ ...row, tilted: { areLower: { value: 0.04567 } } }], 'dBi', 30, { electricalDeg: 1, mechanicalDeg: 0, azimuthDeg: 0 }, 20, 3, undefined, false, csvColumns(shownGroups)).trimEnd().split('\r\n');
+    expect(tiltedCsv[1].split(',').slice(-5, -3)).toEqual(['0.0123', '0.0457']);
   });
 
   it('shows — with the reason for a beam outside Type A', () => {
@@ -160,8 +183,8 @@ describe('the angular-region columns in the table and the exports', () => {
     expect(weightedHeader.endsWith('"Sector eff. est., Weighted (%)","Spatial eff. est., Weighted (%)","Lower region est., Weighted (%)"')).toBe(true);
     // No other header changes with the method.
     expect(weightedHeader.split('Weighted').join('Summation')).toBe(lines[0]);
-    expect(lines[1].split(',').slice(-3)).toEqual([expectedA.sector, expectedA.spatial, expectedA.lower].map((r) => fixed(r.value!, 2)));
-    expect(lines[2].split(',').slice(-3)).toEqual([expectedB.sector, expectedB.spatial, expectedB.lower].map((r) => fixed(r.value!, 2)));
+    expect(lines[1].split(',').slice(-3)).toEqual([fixed(expectedA.sector.value!, 2), fixed(expectedA.spatial.value!, 2), fixed(expectedA.lower.value!, 4)]);
+    expect(lines[2].split(',').slice(-3)).toEqual([fixed(expectedB.sector.value!, 2), fixed(expectedB.spatial.value!, 2), fixed(expectedB.lower.value!, 4)]);
     expect(lines[0].split(',')).toHaveLength(lines[1].split(',').length + 3);
   });
 
@@ -172,7 +195,7 @@ describe('the angular-region columns in the table and the exports', () => {
     const weightedHeader = toTsv(rows, columns, 'dBi', 30, 20, 3, undefined, false, 'weighted').split('\r\n')[0];
     expect(weightedHeader.split('\t').slice(-3)).toEqual(['Sector eff. est., Weighted (%)', 'Spatial eff. est., Weighted (%)', 'Lower region est., Weighted (%)']);
     expect(weightedHeader.split('\t').slice(0, -3)).toEqual(header.split('\t').slice(0, -3));
-    expect(first.split('\t').slice(-3)).toEqual([expectedA.sector, expectedA.spatial, expectedA.lower].map((r) => fixed(r.value!, 1)));
+    expect(first.split('\t').slice(-3)).toEqual([fixed(expectedA.sector.value!, 1), fixed(expectedA.spatial.value!, 1), fixed(expectedA.lower.value!, 3)]);
     expect(toTsv(rows, visibleColumns(DEFAULT_TABLE_GROUPS), 'dBi', 30)).not.toContain('est.');
   });
 
