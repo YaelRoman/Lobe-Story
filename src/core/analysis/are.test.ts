@@ -194,6 +194,24 @@ describe('angularRegionEfficiency', () => {
     expect(wideH.lower.reason).toMatch(/H-HPBW 150\.0° is outside 50–130°/);
   });
 
+  it('never prints a rejected beamwidth as the limit it is outside of', () => {
+    // 25.04° rounds to "25.0": the message must not read "25.0° is outside 0.5–25°".
+    const justWideV = angularRegionEfficiency(h65, gridFrom(quadBeam(25.04, 6, 30)), 60, 'summation');
+    expect(justWideV.sector.value).toBeNull();
+    const [, shown] = /V-HPBW ([\d.]+)° is outside 0\.5–25°/.exec(justWideV.sector.reason!)!;
+    expect(Number(shown)).toBeGreaterThan(25);
+    expect(Number(shown)).toBeCloseTo(25.04, 1);
+    expect(shown).toMatch(/^25\.0\d*[1-9]$/);
+    const justWideH = angularRegionEfficiency(gridFrom(quadBeam(130.03, 0, 30)), v8, 60, 'summation');
+    const [, shownH] = /H-HPBW ([\d.]+)° is outside 50–130°/.exec(justWideH.sector.reason!)!;
+    expect(Number(shownH)).toBeGreaterThan(130);
+    const justNarrowH = angularRegionEfficiency(gridFrom(quadBeam(49.97, 0, 30)), v8, 60, 'summation');
+    const [, shownN] = /H-HPBW ([\d.]+)° is outside 50–130°/.exec(justNarrowH.sector.reason!)!;
+    expect(Number(shownN)).toBeLessThan(50);
+    // A value clearly outside keeps its one decimal.
+    expect(angularRegionEfficiency(h65, gridFrom(quadBeam(30, 6, 30)), 60, 'summation').sector.reason).toContain('V-HPBW 30.0° is outside');
+  });
+
   it('accepts the ends of the Type A ranges', () => {
     expect(angularRegionEfficiency(gridFrom(quadBeam(130, 0, 30)), gridFrom(quadBeam(25, 6, 30)), 60, 'summation').sector.value).not.toBeNull();
     expect(angularRegionEfficiency(gridFrom(quadBeam(50, 0, 30)), v8, 60, 'summation').sector.value).not.toBeNull();

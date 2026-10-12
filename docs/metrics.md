@@ -137,9 +137,19 @@ Simulation bar, where the control is enabled while these columns are shown or pl
 taken as linear between samples, with the solid-angle weight cos(elevation). A region boundary at a
 non-integer angle cuts the 1° cell where it falls; nothing is rounded to a whole degree.
 
+**The lower region is the weakest of the three.** Straight down (and straight up) every azimuth is
+the same direction, and the true level there is the elevation cut's alone. "Summation" still
+multiplies it by the azimuth cut, so close to the poles it understates the power by up to the azimuth
+average of the azimuth cut; "Weighted" tends to the elevation cut there and gives three to four times
+more. "Lower region est." (and the part of the upper region near the zenith) is therefore biased low
+with "Summation". Sector and spatial efficiency are hardly affected: the power near the poles is a
+small part of the whole.
+
 **No value.** "—" with the reason in the tooltip when the beam is outside the Type A ranges (vertical
 HPBW 0.5° to 25°, horizontal HPBW 50° to 130°, both at 3 dB whatever the beamwidth level setting), when
-a beamwidth is not defined, or when the elevation peak lies behind the antenna.
+a beamwidth is not defined, or when the elevation peak lies behind the antenna. Under a tilt
+simulation the ranges are checked on the simulated cuts. The lower end of the vertical range is out of
+reach in practice: on the 1° grid a beam narrower than about 1° is not resolved.
 
 **Where it appears.** In the table and in Copy table while the group is shown; in the CSV only while
 the group is shown; in the frequency chart's Metric menu always; in Δ vs reference and under a tilt

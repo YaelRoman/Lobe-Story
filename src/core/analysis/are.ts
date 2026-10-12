@@ -19,6 +19,11 @@ import { combineWeighted, type Method3d } from './pattern3d';
  * boundaries at non-integer angles cut the 1° cells where they fall: nothing is snapped to a whole degree,
  * and the sum over the regions does not depend on where the boundaries are.
  *
+ * Known weakness: straight up and straight down every azimuth is the same direction, and the true level there is
+ * the elevation cut's alone. "Summation" still multiplies it by H(az), so near the poles it understates the power
+ * by up to the azimuth average of H; "Weighted" tends to the elevation cut there. The lower region (and the cap of
+ * the upper region) is therefore the least reliable of the estimates, and too low with "Summation".
+ *
  * Tilt simulation. An electrical tilt moves the elevation cut and leaves the pattern the product of its two
  * cuts, so the tilted cuts are integrated as above. A mechanical tilt rotates the whole pattern, and a rotated
  * pattern is NOT the reconstruction of its own two cuts (off boresight the beam is tilted less). For a
@@ -219,8 +224,17 @@ export const noAngularRegions = (reason: string): AngularRegionEfficiency => {
   return { sector: m, spatial: m, lower: m };
 };
 
+/** A value outside lo…hi with one decimal, or with as many more as it takes not to print the limit itself ("25.04", not "25.0"). */
+function outsideText(value: number, lo: number, hi: number): string {
+  for (let decimals = 1; decimals <= 6; decimals++) {
+    const text = value.toFixed(decimals);
+    if (Number(text) < lo || Number(text) > hi) return text;
+  }
+  return String(value);
+}
+
 const outside = (name: string, value: number, [lo, hi]: readonly [number, number]): string | null =>
-  value < lo || value > hi ? `Not a Type A (macro) beam: ${name} ${value.toFixed(1)}° is outside ${lo}–${hi}°` : null;
+  value < lo || value > hi ? `Not a Type A (macro) beam: ${name} ${outsideText(value, lo, hi)}° is outside ${lo}–${hi}°` : null;
 
 /**
  * The Type A regions of a beam from its two cuts: θpeak and the vertical HPBW from the elevation cut (3 dB,

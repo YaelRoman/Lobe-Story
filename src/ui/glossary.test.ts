@@ -78,3 +78,9 @@ it('the angular-region entry says the numbers follow the 3D method and what a me
   expect(are.text).toMatch(/mechanical tilt/i);
   expect(are.text).toMatch(/exported|CSV/);
 });
+
+it('the angular-region entry says the lower region ratio is the weakest of the three', () => {
+  const are = GLOSSARY.find((g) => g.term === 'Angular regions (est.)')!;
+  expect(are.text).toMatch(/Lower region ratio is the least reliable/);
+  expect(are.text).toMatch(/too low/);
+});

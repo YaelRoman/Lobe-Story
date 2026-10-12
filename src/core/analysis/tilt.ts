@@ -309,8 +309,8 @@ function sphereInAntenna(mechanicalDeg: number): SphereInAntenna {
   return map;
 }
 
-/** One buffer for the sampled intensity: it is filled and reduced within one call. */
-const sphereIntensity = new Float64Array(SPHERE_ROWS * 360);
+/** One buffer for the sampled intensity (made on first use): it is filled and reduced within one call. */
+let sphereIntensity: Float64Array | null = null;
 
 /** A 1° circle with its first sample repeated at the end, so the sample after 359° needs no wrap. */
 const closed = (g: number[]): Float64Array => {
@@ -354,7 +354,7 @@ export function tiltedAngularRegions(
   const h = closed(hN);
   const v = closed(t.electricalDeg === 0 ? vN : electricalShift(vN, t.electricalDeg));
   const { hIndex, hFrac, vIndex, vFrac } = sphereInAntenna(t.mechanicalDeg);
-  const out = sphereIntensity;
+  const out = (sphereIntensity ??= new Float64Array(SPHERE_ROWS * 360));
   const table = powerSteps();
   // Linear power of a level in dB; a level that is not a finite number carries none (as in `are.ts`).
   const powerOf = (att: number): number => {
