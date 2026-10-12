@@ -50,9 +50,9 @@ main { flex: 1; min-width: 0; overflow: auto; padding: 12px; display: flex; flex
 .fname { display: block; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--muted); font-size: 12px; }
 /* A name cut in the middle (see MidName): the start takes the ellipsis, the last characters stay whole. Inline boxes, not flex items, so
    selecting or copying the name gives one line. The head leaves room for the tail (10 characters, about 6em). */
-.mid-head { display: inline-block; max-width: calc(100% - 6em); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.mid-head { display: inline-block; max-width: calc(100% - 8.5em); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .mid-head:only-child { max-width: 100%; }
-.pin-mark + .mid-head { max-width: calc(100% - 6em - 16px); }
+.pin-mark + .mid-head { max-width: calc(100% - 8.5em - 16px); }
 .pin-mark + .mid-head:only-child { max-width: calc(100% - 16px); }
 .file-name { display: block; min-width: 0; overflow: hidden; white-space: nowrap; }
 .file-sub { display: none; }

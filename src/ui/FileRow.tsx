@@ -132,6 +132,8 @@ export const FileRow = memo(function FileRow({
           data-nav
           tabIndex={tabStop ? 0 : -1}
           aria-current={highlighted || undefined}
+          // The name is drawn in two pieces (see MidName), which would put a space inside it: say it whole.
+          aria-label={`${pattern.frequencyMHz} MHz ${isReference ? 'Reference file ' : ''}${name}`}
           aria-description={isReference ? `Reference file: drawn in the 2D cuts as a thick dashed line${shown ? '' : ', although it is not ticked'}` : undefined}
           title={
             (isReference

@@ -363,6 +363,8 @@ export const MetricsTable = memo(function MetricsTable({
                     data-nav
                     tabIndex={stop === r.id ? 0 : -1}
                     aria-current={r.id === highlighted || undefined}
+                    // The name is drawn in two pieces (see MidName), which would put a space inside it: say it whole.
+                    aria-label={(r.isReference ? 'Reference file ' : '') + r.file}
                     title={
                       (r.file.length > FILE_NAME_MAX ? `${r.file}\n${r.id}` : r.id) +
                       (r.isReference ? '\nReference file' : '') + '\nEnter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row'

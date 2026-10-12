@@ -209,6 +209,14 @@ test.describe('long file names', () => {
     expect(await fname.evaluate((el) => el.textContent)).toBe(await fname.getAttribute('title'));
   });
 
+  test('the file buttons of the panel and of the table have the whole file name as their accessible name', async ({ page }) => {
+    await loadExample(page);
+    const name = 'example_1710_P45_02T.msi';
+    // No space inside the name, although it is drawn in two pieces.
+    await expect(page.locator('.panel').getByRole('button', { name: `1710 MHz ${name}`, exact: true })).toBeVisible();
+    await expect(page.locator('.metrics').getByRole('button', { name, exact: true })).toBeVisible();
+  });
+
   test('on a phone the sticky File column says "MHz · group" under the name and keeps the name end', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
