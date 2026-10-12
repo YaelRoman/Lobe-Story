@@ -221,6 +221,10 @@ distorts it, and by how much depends on the 3D method. On that cone the sides ar
 mechanical tilt) away from the antenna's own peak cone and the back about 2·m, so under mechanical
 tilt "Summation" narrows the cut slightly and raises F/B, while "Weighted" widens it slightly and
 leaves F/B almost unchanged.
+While a file shown is tipped mechanically on this cut, the tooltips of the two F/B headers and the
+note above the table say so: "Under a mechanical tilt, F/B on this cut is a rough estimate (the back
+is read off a tilted cone)". A rise of F/B by ten or more dB under a few degrees of mechanical tilt
+is this artefact, not an improvement of the antenna.
 
 **At the horizon.** The cut at ground elevation 0°: what the antenna radiates towards the horizon
 in every azimuth. This is where the widening known from mechanical tilt is seen, and how much is

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PlotData } from 'plotly.js';
 import { hCutLabel, simSummary, simulatedCaption, simulationActive, summaryHCut, summaryMethod } from './simSummary';
-import { buildRows, columnTitle, csvColumns, HORIZON_TAG, markReference, METRIC_COLUMNS, simulationLabel, toCsv, toTsv, visibleColumns, withHorizonLevel } from './table';
+import { buildRows, columnTitle, csvColumns, FB_CONE_NOTE, HORIZON_TAG, markReference, mechConeCut, METRIC_COLUMNS, simulationLabel, toCsv, toTsv, visibleColumns, withHorizonLevel } from './table';
 import { bandCsv, bandTsv } from './bandView';
 import { FAR_BELOW_PEAK_DB, FAR_BELOW_PEAK_NOTE, farBelowPeakNote, horizonCutFarBelowPeak } from './cutSeries';
 import { buildCutSeries } from './cutSeries';
@@ -522,6 +522,30 @@ describe('column tooltips say which peak a level is below while the cut is the o
     for (const key of ['vHpbw', 'vBw10', 'tilt', 'usls', 'uslsHorizon', 'nullFill', 'spr', 'air', 'du16', 'dV', 'areSector'] as const) {
       expect(at(key), key).toBe(columnTitle(key, settings));
     }
+  });
+});
+
+describe('F/B under a mechanical tilt on the cut through the beam peak is flagged as a rough estimate', () => {
+  const settings = { sectorEdgeDeg: 60, siteSectors: 3 };
+  it('the two F/B header tooltips carry the clause, after the definition; no other column does', () => {
+    for (const key of ['fb180', 'fbWindow'] as const) {
+      const plain = columnTitle(key, settings)!;
+      const tip = columnTitle(key, { ...settings, mechConeCut: true })!;
+      expect(tip, key).toBe(`${plain}. ${FB_CONE_NOTE}.`);
+    }
+    expect(FB_CONE_NOTE).toBe('Under a mechanical tilt, F/B on this cut is a rough estimate (the back is read off a tilted cone); see Definitions');
+    for (const c of METRIC_COLUMNS) {
+      if (c.key === 'fb180' || c.key === 'fbWindow') continue;
+      expect(columnTitle(c.key, { ...settings, mechConeCut: true }), c.key).toBe(columnTitle(c.key, settings));
+    }
+  });
+  it('is on only while a file shown is tipped mechanically and the cut is the one through the beam peak', () => {
+    const eff = (m: Record<string, number>) => (id: string) => ({ electricalDeg: 3, mechanicalDeg: m[id] ?? 0, azimuthDeg: 0 });
+    expect(mechConeCut('beam', ['a', 'b'], eff({ b: 4 }))).toBe(true);
+    expect(mechConeCut('beam', ['a'], eff({ b: 4 }))).toBe(false);
+    expect(mechConeCut('beam', ['a', 'b'], eff({}))).toBe(false);
+    expect(mechConeCut('horizon', ['a', 'b'], eff({ b: 4 }))).toBe(false);
+    expect(mechConeCut('beam', [], eff({ b: 4 }))).toBe(false);
   });
 });
 

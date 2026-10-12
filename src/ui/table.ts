@@ -1,7 +1,7 @@
 import type { GainUnit, MetricResult } from '../core/types';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import type { GroupView } from '../state/selectors';
-import { isTilted, type TiltSettings, type SimSettings } from '../core/analysis/tilt';
+import { isTilted, type HCutMode, type TiltSettings, type SimSettings } from '../core/analysis/tilt';
 import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
@@ -273,12 +273,29 @@ interface TitleSettings {
   method3d?: Method3d;
   /** The simulated horizontal cut is the one at the horizon: the columns read from it say which peak they refer to. */
   horizonCut?: boolean;
+  /** A file shown is tipped mechanically and its horizontal cut is the cone through the tilted beam peak (see `mechConeCut`): the F/B columns say what that does to them. */
+  mechConeCut?: boolean;
+}
+
+/**
+ * Said at the F/B columns and in the note above the table while `mechConeCut`: on the cone through the tilted beam
+ * peak the back of the pattern is read about twice the tilt off the antenna's own cut, where the reconstruction is
+ * weakest, so a mechanical tilt can seem to change F/B by many dB (see docs/metrics.md).
+ */
+export const FB_CONE_NOTE = 'Under a mechanical tilt, F/B on this cut is a rough estimate (the back is read off a tilted cone); see Definitions';
+
+/** Whether one of the files `ids` has a mechanical tilt (the slider plus its offsets) while the horizontal cut shown is the one through the beam peak. */
+export function mechConeCut(hCut: HCutMode, ids: Iterable<string>, effective: (id: string) => SimSettings): boolean {
+  if (hCut !== 'beam') return false;
+  for (const id of ids) if (effective(id).mechanicalDeg !== 0) return true;
+  return false;
 }
 
 /** Header tooltip for a column; the sector columns depend on the sector settings (E, S). */
 export function columnTitle(key: TableColumn, settings: TitleSettings): string | undefined {
   const title = baseTitle(key, settings);
   const reference = settings.horizonCut && key !== HORIZON_LEVEL_KEY ? HORIZON_REFERENCE[key] : undefined;
+  if (title !== undefined && settings.mechConeCut && (key === 'fb180' || key === 'fbWindow')) return `${title}. ${FB_CONE_NOTE}.`;
   return title !== undefined && reference ? `${title}. On a horizon cut: ${reference}.` : title;
 }
 

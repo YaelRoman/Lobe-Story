@@ -649,3 +649,33 @@ test('while the cut is at the horizon the vertical plot marks the horizon, in bo
   await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'Through the beam peak' }).click();
   await expect(mark).toHaveCount(0);
 });
+
+test('under a mechanical tilt on the cut through the beam peak, the F/B headers and the table note say that F/B is a rough estimate', async ({ page }) => {
+  await loadExample(page);
+  await openSimulation(page);
+  const fb = (name: string) => page.locator('.metrics thead th', { hasText: name }).first();
+  const clause = /Under a mechanical tilt, F\/B on this cut is a rough estimate \(the back is read off a tilted cone\); see Definitions/;
+  // An electrical tilt alone moves no back lobe onto a cone: nothing is said.
+  const elec = page.getByLabel('Electrical tilt Δ (°) value');
+  await elec.fill('3');
+  await elec.press('Enter');
+  await expect(page.getByTestId('sim-hcut-note')).toBeVisible();
+  await expect(page.getByTestId('sim-fb-note')).toHaveCount(0);
+  await expect(fb('F/B 180°')).not.toHaveAttribute('title', clause);
+  await elec.fill('0');
+  await elec.press('Enter');
+
+  const mech = page.getByLabel('Mechanical tilt (°) value');
+  await mech.fill('4');
+  await mech.press('Enter');
+  await expect(page.getByTestId('sim-fb-note')).toHaveText(clause);
+  await expect(fb('F/B 180°')).toHaveAttribute('title', clause);
+  await expect(fb('F/B ±30°')).toHaveAttribute('title', clause);
+  await expect(fb('H-HPBW')).not.toHaveAttribute('title', clause);
+
+  // At the horizon the cut is another one, with its own note.
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  await expect(page.getByTestId('sim-fb-note')).toHaveCount(0);
+  await expect(fb('F/B 180°')).not.toHaveAttribute('title', clause);
+  await expect(fb('F/B 180°')).toHaveAttribute('title', /On a horizon cut/);
+});

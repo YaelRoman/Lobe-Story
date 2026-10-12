@@ -4,7 +4,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
   ariaSort, buildRows, COLUMN_GROUPS, csvColumns, columnGroupTitle, columnLabel, columnTitle, nextSort, onlyTicked, tickedCountText, revealScrollTop, simulationLabel,
-  cellText, clearOfSticky, gainText, markReference, methodTag, pairWords, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, withHorizonLevel, type SortKey, type SortState,
+  cellText, clearOfSticky, FB_CONE_NOTE, gainText, markReference, mechConeCut, methodTag, pairWords, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, withHorizonLevel, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
@@ -104,6 +104,8 @@ export const MetricsTable = memo(function MetricsTable({
   // With no tilt on any file nothing is "tilted": a pair is file cut → horizon cut, on screen and in the exports.
   const words = pairWords(horizonCut, sim.tiltActive);
   const pairNote = simulatedNote(horizonCut, sim.tiltActive);
+  // On the cone through a mechanically tilted beam peak the F/B columns are a rough estimate: said at their headers and in the note.
+  const fbRough = useMemo(() => mechConeCut(sim.hCut, rows.map((r) => r.id), sim.effective), [sim.hCut, sim.effective, rows]);
   // The cell that has focus shows the one copy button (a row id and a column key).
   const [focusedCell, setFocusedCell] = useState<{ id: string; col: string } | null>(null);
 
@@ -260,7 +262,7 @@ export const MetricsTable = memo(function MetricsTable({
       text: cell.text,
       reason: cell.title,
       note: cell.equal,
-      definition: columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg, method3d, horizonCut }),
+      definition: columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg, method3d, horizonCut, mechConeCut: fbRough }),
     });
   };
 
@@ -361,6 +363,7 @@ export const MetricsTable = memo(function MetricsTable({
             {simulationLabel(sim.tilt, sim.offsetCount, sim.groupOffsetCount)}
             <span data-testid="sim-hcut-note"> · {hCutLabel(sim.hCut)}{horizonCut ? `: ${HORIZON_CUT_NOTE}` : ''}</span>
             {pairNote && <span data-testid="sim-pair-note"> · {pairNote}</span>}
+            {fbRough && <span data-testid="sim-fb-note"> · {FB_CONE_NOTE}</span>}
             <span data-testid="sim-blank-note"> · {SIMULATION_BLANK_NOTE}</span>
           </p>
         )}
@@ -380,7 +383,7 @@ export const MetricsTable = memo(function MetricsTable({
                   headerText(c),
                   [
                     deltaOn ? `Difference from ${referenceName} (the reference row, first, shows its own values).` : '',
-                    columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg, method3d, horizonCut }) ?? '',
+                    columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg, method3d, horizonCut, mechConeCut: fbRough }) ?? '',
                   ]
                     .filter(Boolean)
                     .join(' ') || undefined,
