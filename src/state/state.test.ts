@@ -210,6 +210,7 @@ describe('store', () => {
       mechanicalDeg: 0,
       azimuthDeg: 0,
       showOriginal: true,
+      hCut: 'beam',
       offsets: {},
       groupOffsets: {},
     });
@@ -237,6 +238,7 @@ describe('store', () => {
       mechanicalDeg: 0,
       azimuthDeg: 0,
       showOriginal: false,
+      hCut: 'beam',
       offsets: {},
       groupOffsets: {},
     });
@@ -950,6 +952,7 @@ describe('unsaved work covers everything a project file stores (B4)', () => {
     ['markers', () => st().updateView({ markers: { ...st().view.markers, fb: true } })],
     ['a simulation slider', () => st().updateSimulation({ electricalDeg: 2 })],
     ['"show original"', () => st().updateSimulation({ showOriginal: false })],
+    ['the horizontal cut of the simulation', () => st().updateSimulation({ hCut: 'horizon' })],
     ['a file offset', () => st().setOffset('a.MSI', { azimuthDeg: 10 })],
     ['another file', () => st().addFiles([input('c.MSI', msi(2000))])],
     ['a removed file', () => st().removeFile('b.MSI')],

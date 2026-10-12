@@ -321,6 +321,8 @@ export function projectToState(
     mechanicalDeg: clampSim('mechanicalDeg', num(rawSim.mechanicalDeg, 0)),
     azimuthDeg: clampSim('azimuthDeg', num(rawSim.azimuthDeg, 0)),
     showOriginal: typeof rawSim.showOriginal === 'boolean' ? rawSim.showOriginal : true,
+    // A project saved before the choice existed has no such field: it shows the cut through the beam peak, as it did.
+    hCut: oneOf(rawSim.hCut, ['beam', 'horizon'] as const, 'beam'),
     offsets: cleanOffsets(rawSim.offsets, () => true),
     groupOffsets: cleanOffsets(rawSim.groupOffsets, (id) => groupIds.has(id)),
   };

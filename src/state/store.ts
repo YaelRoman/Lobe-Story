@@ -3,6 +3,7 @@ import type { GainUnit, ParseResult, Tags } from '../core/types';
 import { parsePlanet } from '../core/parse/planet';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import type { Method3d } from '../core/analysis/pattern3d';
+import type { HCutMode } from '../core/analysis/tilt';
 import type { SubBand } from '../core/analysis/subBands';
 import { clampFloor } from '../core/analysis/settingLimits';
 import { decodeText } from './decode';
@@ -28,6 +29,8 @@ export interface SimulationState {
   mechanicalDeg: number;
   azimuthDeg: number;
   showOriginal: boolean;
+  /** Which horizontal cut a tilted file shows: through the tilted beam peak (the default), or at the horizon. */
+  hCut: HCutMode;
   /** Per-file offsets (file id → offsets); an entry exists only while a value is non-zero. */
   offsets: Record<string, OffsetState>;
   /** Per-custom-group offsets; entry only while non-zero. */
@@ -258,6 +261,7 @@ export function initialState(): StoreData {
         mechanicalDeg: 0,
         azimuthDeg: 0,
         showOriginal: true,
+        hCut: 'beam',
         offsets: {},
         groupOffsets: {},
       },
@@ -673,7 +677,7 @@ export const useStore = create<State>()((rawSet, get) => {
     set((state) => {
       const sim = state.view.simulation;
       const hasOffsets = Object.keys(sim.offsets).length > 0 || Object.keys(sim.groupOffsets).length > 0;
-      if (isZeroOffset(sim) && !(scope === 'all' && hasOffsets)) return state;
+      if (isZeroOffset(sim) && !(scope === 'all' && (hasOffsets || sim.hCut !== 'beam'))) return state;
       return {
         view: {
           ...state.view,
@@ -682,7 +686,8 @@ export const useStore = create<State>()((rawSet, get) => {
             electricalDeg: 0,
             mechanicalDeg: 0,
             azimuthDeg: 0,
-            ...(scope === 'all' ? { offsets: {}, groupOffsets: {} } : {}),
+            // "Reset everything" also puts the horizontal cut back to the one through the beam peak.
+            ...(scope === 'all' ? { offsets: {}, groupOffsets: {}, hCut: 'beam' as const } : {}),
           },
         },
       };

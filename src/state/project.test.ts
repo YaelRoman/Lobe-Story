@@ -148,6 +148,7 @@ describe('serializeProject / parseProject / projectToState', () => {
       mechanicalDeg: 0,
       azimuthDeg: 0,
       showOriginal: true,
+      hCut: 'beam',
       offsets: { 'a.MSI': { electricalDeg: 0, mechanicalDeg: 2.5, azimuthDeg: 0 } },
       groupOffsets: { g1: { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 180 } },
     });
