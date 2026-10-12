@@ -301,7 +301,9 @@ horizon]". Without a tag the tilted values are those of the cut through the beam
 while no loaded file has a tilt the pair of values is named for what it is, file cut → horizon cut:
 the note above the table says "a → b: file cut → horizon cut", the cell tooltips say "file cut" and
 "horizon cut", the frequency chart and the note under a cut plot call the faint or dashed lines "the
-file's own cut", the band statistics say "(horizon cut)" and "cells show file cut → horizon cut".
+file's own cut", the legend of the horizontal plot (and of its image) lists the dashed line as
+"… (file cut)" instead of "… (original)", the band statistics say "(horizon cut)" and "cells show
+file cut → horizon cut".
 The exports keep exactly the same columns and lines and change only the words: the metrics CSV has
 "H-HPBW original (°)" and "H-HPBW [H cut at the horizon] (°)" for a horizontal metric and "V-HPBW
 original (°)" and "V-HPBW simulated (°)" (two equal numbers) for the others, with the three tilt

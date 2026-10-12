@@ -65,6 +65,17 @@ describe('buildCutSeries', () => {
     expect(s[2].metrics).toBe(original.get('a'));
   });
 
+  it('names the dashed line "file cut" under a horizon cut with no tilt: nothing is tilted, so there is no "original"', () => {
+    const none = simFor({ electricalDeg: 0, mechanicalDeg: 0 });
+    const atHorizon: SimulationResult = { ...none, hCut: 'horizon', showsSimulatedH: () => true };
+    const h = buildCutSeries(items, atHorizon, original, colors, 'H');
+    expect(h.map((x) => x.id)).toEqual(['a', 'b', 'a#original', 'b#original']);
+    expect(h[2].label).toBe('1800 MHz · a.MSI (file cut)');
+    // With a tilt on any file the pair is original and tilted again, for every file.
+    const tilted: SimulationResult = { ...simFor({ electricalDeg: 0, mechanicalDeg: 4 }), hCut: 'horizon', showsSimulatedH: () => true };
+    expect(buildCutSeries(items, tilted, original, colors, 'H')[2].label).toBe('1800 MHz · a.MSI (original)');
+  });
+
   it('omits the original series when Show original is off', () => {
     const s = buildCutSeries(items, simFor({ electricalDeg: 2, mechanicalDeg: 0 }, 0, false), original, colors, 'H');
     expect(s.map((x) => x.id)).toEqual(['a', 'b']);

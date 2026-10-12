@@ -62,6 +62,8 @@ export function buildCutSeries(
 ): PlotSeries[] {
   const rotation = (id: string) => (cut === 'H' ? sim.effective(id).azimuthDeg : 0);
   const changed = (id: string) => (cut === 'H' ? sim.showsSimulatedH(id) : sim.isTiltedId(id));
+  // Under a horizon cut with no tilt the dashed line is the file's own cut (as the notes call it): nothing is tilted, so nothing is an "original".
+  const dashedTag = cut === 'H' && sim.hCut === 'horizon' && !sim.tiltActive ? ' (file cut)' : ' (original)';
   const series = (original: boolean): PlotSeries[] =>
     items.flatMap(({ pattern: orig }) => {
       if (original && (!changed(orig.id) || orig.id === referenceId)) return [];
@@ -71,7 +73,7 @@ export function buildCutSeries(
       return [
         {
           id: original ? `${orig.id}#original` : orig.id,
-          label: `${orig.frequencyMHz} MHz · ${nameOf(orig)}${original ? ' (original)' : orig.id === referenceId ? ' (reference)' : ''}`,
+          label: `${orig.frequencyMHz} MHz · ${nameOf(orig)}${original ? dashedTag : orig.id === referenceId ? ' (reference)' : ''}`,
           color: colors.get(orig.id) ?? '#888888',
           cut: cut === 'H' ? p.horizontal : p.vertical,
           metrics: m,

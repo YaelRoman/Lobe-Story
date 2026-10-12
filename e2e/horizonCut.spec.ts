@@ -214,6 +214,8 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   await expect(page.getByTestId('plot-v').locator('.gtitle')).not.toContainText('horizon');
   // The horizontal plot has the dashed file cut of the ticked file; the vertical plot has no original (nothing changed).
   await expect(drawnLines('h')).toHaveCount(hLines + 1);
+  // No file is tilted: the legend calls the dashed line the file cut, not an "original".
+  await expect(page.getByTestId('plot-h').locator('.legend .legendtext')).toHaveText([/_1710_P45_02T\.msi$/, /\(file cut\)$/]);
   // (Its one new line is the horizon mark: where the cut on the left is taken.)
   await expect(drawnLines('v')).toHaveCount(vLines + 1);
   const vNames = await page.getByTestId('plot-v').evaluate((el) => {
