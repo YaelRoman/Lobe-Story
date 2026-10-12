@@ -239,6 +239,15 @@ export function onlyTicked(rows: MetricsRow[], visible: Record<string, boolean>,
   return rows.filter((r) => visible[r.id] || r.id === referenceId);
 }
 
+/**
+ * The count beside "Ticked files only": "2 of 24 files", and when the highlighted file's row is among the hidden ones
+ * (it is not ticked) a note saying so, so a highlight that seems to point at nothing is explained.
+ */
+export function tickedCountText(shownRows: number, totalRows: number, highlightedRowHidden: boolean): string {
+  const count = `${shownRows} of ${totalRows} files`;
+  return highlightedRowHidden ? `${count} · the highlighted file is not ticked, so its row is hidden` : count;
+}
+
 const shown = (r: MetricsRow, key: MetricColumn): MetricResult => r.tilted?.[key] ?? r.cells[key];
 
 /**

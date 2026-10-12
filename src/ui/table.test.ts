@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRows, columnLabel, columnTitle, convertGain, formatCell, METRIC_COLUMNS, COLUMN_GROUPS, visibleColumns,
-  simulationLabel, toCsv, toTsv, onlyTicked, rowToTsv, markReference, cellText, offsetLabel, csvCell, csvText, clearOfSticky, METRIC_KEYS,
+  simulationLabel, toCsv, toTsv, onlyTicked, tickedCountText, rowToTsv, markReference, cellText, offsetLabel, csvCell, csvText, clearOfSticky, METRIC_KEYS,
   nextSort, revealScrollTop, sortIfShown, shouldReveal, sortRows, sortValue, ariaSort, type MetricsRow, type SortState,
 } from './table';
 import { DEFAULT_TABLE_GROUPS, type ColumnGroupKey } from '../state/store';
@@ -633,6 +633,13 @@ it('pins the order of the metric columns and of the CSV header', () => {
   const tagged = [{ pattern: p, tags: { polarization: '+45', tiltDeg: 6 } }];
   const fixtureRows = buildRows(groupPatterns(tagged), analyzeAll(tagged), 'dBi');
   expect(toCsv(fixtureRows, 'dBi', 30).split('\r\n')[0]).toBe(PINNED_HEADER);
+});
+
+describe('tickedCountText', () => {
+  it('gives the count, and says when the highlighted file\'s row is hidden', () => {
+    expect(tickedCountText(2, 24, false)).toBe('2 of 24 files');
+    expect(tickedCountText(2, 24, true)).toBe('2 of 24 files · the highlighted file is not ticked, so its row is hidden');
+  });
 });
 
 describe('onlyTicked', () => {

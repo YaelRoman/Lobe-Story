@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
-  ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, nextSort, onlyTicked, revealScrollTop, simulationLabel,
+  ariaSort, buildRows, COLUMN_GROUPS, columnLabel, columnTitle, nextSort, onlyTicked, tickedCountText, revealScrollTop, simulationLabel,
   cellText, clearOfSticky, gainText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
@@ -80,6 +80,8 @@ export const MetricsTable = memo(function MetricsTable({
     () => sortRows(markReference(listedRows, reference, deltaOn), sort),
     [listedRows, reference, deltaOn, sort],
   );
+  // With "Ticked files only" the highlighted file may be unticked: its row is then not listed.
+  const highlightedRowHidden = tickedOnly && highlighted !== null && baseRows.some((r) => r.id === highlighted) && !listedRows.some((r) => r.id === highlighted);
   const deltaVs = deltaOn ? (referenceName ?? undefined) : undefined;
   // In the difference view under a tilt simulation the differences are of the tilted values: the exports say so.
   const deltaTilted = deltaOn && sim.tiltActive;
@@ -259,8 +261,8 @@ export const MetricsTable = memo(function MetricsTable({
           Ticked files only
         </label>
         {tickedOnly && (
-          <span className="count" data-testid="table-count">
-            {rows.length} of {baseRows.length} files
+          <span className="count" data-testid="table-count" role="status">
+            {tickedCountText(rows.length, baseRows.length, highlightedRowHidden)}
           </span>
         )}
         {referenceName !== null && (

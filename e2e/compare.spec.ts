@@ -302,6 +302,26 @@ test.describe('reference file', () => {
   });
 });
 
+test('Ticked files only says when the highlighted file is unticked and its row is hidden', async ({ page }) => {
+  await loadExample(page);
+  const rows = page.locator('.metrics tbody tr');
+  await page.getByRole('button', { name: 'Show none', exact: true }).click();
+  const boxes = page.locator('.panel li input[type="checkbox"]');
+  await boxes.nth(0).check();
+  await boxes.nth(1).check();
+  await page.getByLabel('Ticked files only').check();
+  const count = page.getByTestId('table-count');
+  await expect(count).toHaveAttribute('role', 'status');
+  await page.locator('.panel li').nth(1).locator('.row-main').click();
+  await expect(page.locator('.metrics tbody tr.hl')).toHaveCount(1);
+  await expect(count).toHaveText('2 of 24 files');
+  await boxes.nth(1).uncheck();
+  await expect(rows).toHaveCount(1);
+  await expect(count).toHaveText(/^1 of 24 files · the highlighted file is not ticked, so its row is hidden$/);
+  await boxes.nth(1).check();
+  await expect(count).toHaveText('2 of 24 files');
+});
+
 test('an unticked reference is still drawn, with a legend entry saying so, and the file menu is keyboard operable', async ({ page }) => {
   await page.goto('/');
   const { planetText } = await import('../src/test/planetText');
