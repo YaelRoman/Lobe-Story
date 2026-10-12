@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initialState, useStore } from '../state/store';
 import { NOTHING_TO_UNDO, UndoToast } from './UndoToast';
 import { planetText } from '../test/planetText';
+import { PHONE_QUERY, TOUCH_ONLY_QUERY } from './phoneLayout';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -108,8 +109,10 @@ describe('the offer on a phone, and a long file name in it', () => {
   const st = useStore.getState;
   const toast = () => host.querySelector<HTMLElement>('[data-testid="undo-toast"]');
   const undoButton = () => Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.startsWith('Undo'));
-  /** The page as laid out for a phone (the stylesheet's width), or not. */
-  const layout = (phone: boolean) => vi.stubGlobal('matchMedia', () => ({ matches: phone, addEventListener: () => {}, removeEventListener: () => {} }));
+  /** A phone (touch only, laid out narrow) or a desktop; `device` sets the two apart. */
+  const device = ({ touch, narrow }: { touch: boolean; narrow: boolean }) =>
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === TOUCH_ONLY_QUERY ? touch : query === PHONE_QUERY ? narrow : false, addEventListener: () => {}, removeEventListener: () => {} }));
+  const layout = (phone: boolean) => device({ touch: phone, narrow: phone });
   afterEach(() => vi.unstubAllGlobals());
 
   it('names the keyboard shortcut on the button on a wide screen', () => {
@@ -161,6 +164,28 @@ describe('the offer on a phone, and a long file name in it', () => {
     act(() => st().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
     act(() => st().removeFile('a.MSI'));
     act(() => host.querySelector<HTMLButtonElement>('button[aria-label="Hide undo offer"]')!.click());
+    expect(st().copyNote).toMatch(/^Undo offer hidden\. (Ctrl\+Z|⌘Z) still undoes\.$/);
+  });
+
+  it('on a wide touch screen (a tablet) no key is named either: not on the button, the cross or its note', () => {
+    device({ touch: true, narrow: false });
+    act(() => st().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => st().removeFile('a.MSI'));
+    expect(undoButton()?.textContent).toBe('Undo');
+    const cross = host.querySelector<HTMLButtonElement>('button[aria-label="Hide undo offer"]')!;
+    expect(cross.title).toBe('Hide');
+    act(() => cross.click());
+    expect(st().copyNote).toBe('Undo offer hidden.');
+  });
+
+  it('in a narrow window with a keyboard the button is short, and the cross and its note still say that the shortcut undoes', () => {
+    device({ touch: false, narrow: true });
+    act(() => st().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => st().removeFile('a.MSI'));
+    expect(undoButton()?.textContent).toBe('Undo');
+    const cross = host.querySelector<HTMLButtonElement>('button[aria-label="Hide undo offer"]')!;
+    expect(cross.title).toBe('Hide (Ctrl/Cmd+Z still undoes)');
+    act(() => cross.click());
     expect(st().copyNote).toMatch(/^Undo offer hidden\. (Ctrl\+Z|⌘Z) still undoes\.$/);
   });
 

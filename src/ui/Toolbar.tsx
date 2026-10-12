@@ -9,7 +9,7 @@ import { confirmDialog, saveProjectDialog } from './dialogs';
 import { downloadText } from './download';
 import type { OpenHelp } from './HelpDialog';
 import { undoWording } from './undoKeys';
-import { isPhoneLayout } from './phoneLayout';
+import { isTouchOnly } from './phoneLayout';
 
 export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
   const clear = useStore((s) => s.clear);
@@ -41,7 +41,7 @@ export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
     if (clearNeedsConfirm(state)) {
       const n = state.files.length;
       const what = n === 0 ? 'Clear the session with all its groups' : `Clear ${n} file${n === 1 ? '' : 's'} and all groups`;
-      const ok = await confirmDialog(`${what}, names and offsets? ${undoWording(isPhoneLayout()).beforeClear}`, 'Clear');
+      const ok = await confirmDialog(`${what}, names and offsets? ${undoWording({ keys: !isTouchOnly(), narrow: false }).beforeClear}`, 'Clear');
       if (!ok) return;
     }
     clear();

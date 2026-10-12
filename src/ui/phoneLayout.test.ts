@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PHONE_QUERY, isPhoneLayout, usePhoneLayout } from './phoneLayout';
+import { PHONE_QUERY, TOUCH_ONLY_QUERY, isPhoneLayout, isTouchOnly, usePhoneLayout, useTouchOnly } from './phoneLayout';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -50,6 +50,50 @@ describe('the phone layout (the width at which the stylesheet switches to one co
     expect(seen[seen.length - 1]).toBe(false);
     act(() => media.set(true));
     expect(seen[seen.length - 1]).toBe(true);
+    act(() => root.unmount());
+    expect(media.listeners.size).toBe(0);
+  });
+});
+
+describe('a device with touch only (no keyboard is likely): asked of the input, not of the width', () => {
+  /** A `matchMedia` that answers each query by itself. */
+  const stubQueries = (answers: Record<string, boolean>) => vi.stubGlobal('matchMedia', (query: string) => ({ matches: answers[query] ?? false, addEventListener: () => {}, removeEventListener: () => {} }));
+
+  it('is a primary pointer that is coarse and cannot hover', () => {
+    expect(TOUCH_ONLY_QUERY).toBe('(hover: none) and (pointer: coarse)');
+  });
+
+  it('a wide touch screen is touch only and not laid out for a phone', () => {
+    stubQueries({ [TOUCH_ONLY_QUERY]: true, [PHONE_QUERY]: false });
+    expect(isTouchOnly()).toBe(true);
+    expect(isPhoneLayout()).toBe(false);
+  });
+
+  it('a narrow window on a desktop is laid out for a phone and not touch only', () => {
+    stubQueries({ [TOUCH_ONLY_QUERY]: false, [PHONE_QUERY]: true });
+    expect(isTouchOnly()).toBe(false);
+    expect(isPhoneLayout()).toBe(true);
+  });
+
+  it('is not assumed where the browser cannot say', () => {
+    vi.stubGlobal('matchMedia', undefined);
+    expect(isTouchOnly()).toBe(false);
+  });
+
+  it('the hook follows a change (a keyboard or a mouse attached), and stops listening when unmounted', () => {
+    const media = stubMatchMedia(true);
+    const seen: boolean[] = [];
+    function Probe() {
+      seen.push(useTouchOnly());
+      return null;
+    }
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    act(() => root.render(createElement(Probe)));
+    expect(seen[seen.length - 1]).toBe(true);
+    expect(media.matchMedia).toHaveBeenCalledWith(TOUCH_ONLY_QUERY);
+    act(() => media.set(false));
+    expect(seen[seen.length - 1]).toBe(false);
     act(() => root.unmount());
     expect(media.listeners.size).toBe(0);
   });

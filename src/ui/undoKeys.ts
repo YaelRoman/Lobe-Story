@@ -51,15 +51,25 @@ export interface UndoWording {
   beforeClear: string;
 }
 
+/** What the words about undoing go by. */
+export interface UndoDevice {
+  /** A keyboard is likely (the device is not used by touch alone, see `TOUCH_ONLY_QUERY`): Ctrl/Cmd+Z can be named. */
+  keys: boolean;
+  /** The page is laid out for a phone (see `PHONE_QUERY`): the offer's button is short, the room goes to the file name. */
+  narrow: boolean;
+}
+
 /**
- * The words about undoing for a page laid out for a phone or not. A phone has no Ctrl+Z: no key is named there, and
- * nothing is promised for after the offer has gone (the offer's button is then the only way to undo).
+ * The words about undoing. Whether a key is named goes by the input, not by the width: a touch device of any width
+ * has no Ctrl+Z, so no key is named there and nothing is promised for after the offer has gone (its button is then
+ * the only way to undo); a narrow window on a desktop has one, and is told so. Only the button's length is a matter
+ * of room.
  */
-export function undoWording(phone: boolean, platform: string = typeof navigator === 'undefined' ? '' : navigator.platform): UndoWording {
-  if (phone) return { button: 'Undo', hideTitle: 'Hide', hidden: 'Undo offer hidden.', spoken: '', beforeClear: 'You can undo this right afterwards.' };
+export function undoWording({ keys, narrow }: UndoDevice, platform: string = typeof navigator === 'undefined' ? '' : navigator.platform): UndoWording {
+  if (!keys) return { button: 'Undo', hideTitle: 'Hide', hidden: 'Undo offer hidden.', spoken: '', beforeClear: 'You can undo this right afterwards.' };
   const key = undoShortcutLabel(platform);
   return {
-    button: `Undo · ${key}`,
+    button: narrow ? 'Undo' : `Undo · ${key}`,
     hideTitle: 'Hide (Ctrl/Cmd+Z still undoes)',
     hidden: `Undo offer hidden. ${key} still undoes.`,
     spoken: ` Undo: ${key}.`,

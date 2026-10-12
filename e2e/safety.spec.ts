@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
 import { openSimulation } from './simulationBar';
 
@@ -469,32 +469,80 @@ test('pressing Undo in the offer by keyboard does not drop the focus to the page
   expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
 });
 
-test('on a phone nothing says that Ctrl+Z undoes: not the offer, its cross, the note after hiding, the status region or the Clear question', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+/** What the page says about the undo key after a Remove: on the offer's button, its cross, the note after hiding and in the status region. */
+async function undoWordsAfterRemove(page: Page) {
   await page.goto('/');
   await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900)), file('c.msi', msi(2000))]);
-  await page.locator('.files-toggle').click();
+  const drawer = page.locator('.files-toggle');
+  if (await drawer.isVisible()) await drawer.click();
   await page.getByLabel('Actions for b.msi').click();
   await page.getByRole('menuitem', { name: 'Remove' }).click();
   const toast = page.getByTestId('undo-toast');
   await expect(toast).toBeVisible();
-  const key = /Ctrl|Cmd|⌘/;
-  expect(await toast.innerText()).not.toMatch(key);
-  const hide = toast.getByRole('button', { name: 'Hide undo offer' });
-  await expect(hide).toHaveAttribute('title', 'Hide');
   await expect(page.getByTestId('announcer')).toContainText('Removed b.msi.');
-  expect(await page.getByTestId('announcer').innerText()).not.toMatch(key);
+  const hide = toast.getByRole('button', { name: 'Hide undo offer' });
+  const words = {
+    button: await toast.getByRole('button', { name: /^Undo/ }).innerText(),
+    offer: await toast.innerText(),
+    hideTitle: await hide.getAttribute('title'),
+    spoken: await page.getByTestId('announcer').innerText(),
+    note: '',
+  };
   await hide.click();
-  await expect(page.getByTestId('copy-note')).toHaveText('Undo offer hidden.');
-  expect(await page.getByTestId('announcer').innerText()).not.toMatch(key);
+  words.note = await page.getByTestId('copy-note').innerText();
+  return words;
+}
 
-  // The question before a Clear (asked once an offset was set) promises the offer, not a key.
+const KEY = /Ctrl|Cmd|⌘/;
+
+for (const [device, viewport] of [
+  ['a phone', { width: 390, height: 844 }],
+  ['a phone on its side', { width: 844, height: 390 }],
+  ['a tablet', { width: 1024, height: 768 }],
+] as const) {
+  test(`on ${device} (touch only, ${viewport.width} px wide) nothing says that Ctrl+Z undoes: not the offer, its cross, the note after hiding, the status region or the Clear question`, async ({ browser, browserName }) => {
+    test.skip(browserName !== 'chromium', 'a device with touch only is emulated in Chromium');
+    const context = await browser.newContext({ viewport, hasTouch: true, isMobile: true });
+    const page = await context.newPage();
+    // The device, not the width, is what the wording goes by.
+    expect(await page.evaluate(() => window.matchMedia('(hover: none) and (pointer: coarse)').matches)).toBe(true);
+    const words = await undoWordsAfterRemove(page);
+    expect(words.button).toBe('Undo');
+    expect(words.offer).not.toMatch(KEY);
+    expect(words.hideTitle).toBe('Hide');
+    expect(words.spoken).not.toMatch(KEY);
+    expect(words.note).toBe('Undo offer hidden.');
+    expect(await page.getByTestId('announcer').innerText()).not.toMatch(KEY);
+
+    // The question before a Clear (asked once an offset was set) promises the offer, not a key.
+    await openSimulation(page);
+    const azimuth = page.getByLabel('Azimuth (°) value');
+    await azimuth.fill('10');
+    await azimuth.press('Enter');
+    await page.getByRole('button', { name: 'Clear', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('You can undo this right afterwards.');
+    expect(await dialog.innerText()).not.toMatch(KEY);
+    await context.close();
+  });
+}
+
+test('in a narrow window on a desktop the button is short, and the cross, its note and the status region still say that Ctrl+Z undoes (it does)', async ({ page }) => {
+  await page.setViewportSize({ width: 700, height: 800 });
+  const words = await undoWordsAfterRemove(page);
+  // The layout is the phone's (the room goes to the name); the keyboard is still there.
+  expect(words.button).toBe('Undo');
+  expect(words.hideTitle).toBe('Hide (Ctrl/Cmd+Z still undoes)');
+  expect(words.spoken).toMatch(/Removed b\.msi\. Undo: (Ctrl\+Z|⌘Z)\./);
+  expect(words.note).toMatch(/^Undo offer hidden\. (Ctrl\+Z|⌘Z) still undoes\.$/);
+  await page.locator('h1').click();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('button', { name: 'Files (3)' })).toBeVisible();
+
   await openSimulation(page);
   const azimuth = page.getByLabel('Azimuth (°) value');
   await azimuth.fill('10');
   await azimuth.press('Enter');
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('You can undo this right afterwards.');
-  expect(await dialog.innerText()).not.toMatch(key);
+  await expect(page.getByRole('dialog')).toContainText('You can undo this with Ctrl/Cmd+Z until your next change.');
 });

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initialState, useStore } from '../state/store';
 import { CLEAN_LOAD_MS, StatusArea } from './StatusArea';
 import { planetText } from '../test/planetText';
+import { PHONE_QUERY, TOUCH_ONLY_QUERY } from './phoneLayout';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -209,7 +210,9 @@ describe('the calm load line goes by itself, but not from under a held pointer',
 
 describe('what is read out with an undo offer', () => {
   const said = () => host.querySelector('[data-testid="announcer"]')?.textContent ?? '';
-  const layout = (phone: boolean) => vi.stubGlobal('matchMedia', () => ({ matches: phone, addEventListener: () => {}, removeEventListener: () => {} }));
+  const device = ({ touch, narrow }: { touch: boolean; narrow: boolean }) =>
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === TOUCH_ONLY_QUERY ? touch : query === PHONE_QUERY ? narrow : false, addEventListener: () => {}, removeEventListener: () => {} }));
+  const layout = (phone: boolean) => device({ touch: phone, narrow: phone });
   afterEach(() => vi.unstubAllGlobals());
 
   it('names the shortcut on a wide screen', () => {
@@ -227,5 +230,19 @@ describe('what is read out with an undo offer', () => {
     act(() => useStore.getState().removeFile('a.MSI'));
     expect(said()).toContain('Removed a.MSI.');
     expect(said()).not.toMatch(/Ctrl|⌘|Undo:/);
+  });
+
+  it('names no key on a wide touch screen, and names it in a narrow window with a keyboard', () => {
+    device({ touch: true, narrow: false });
+    act(() => root.render(createElement(StatusArea, { hasErrors: false, key: 'tablet' })));
+    act(() => useStore.getState().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => useStore.getState().removeFile('a.MSI'));
+    expect(said()).toContain('Removed a.MSI.');
+    expect(said()).not.toMatch(/Ctrl|⌘|Undo:/);
+
+    device({ touch: false, narrow: true });
+    act(() => root.render(createElement(StatusArea, { hasErrors: false, key: 'narrow' })));
+    act(() => useStore.getState().removeFile('b.MSI'));
+    expect(said()).toMatch(/Removed b\.MSI\. Undo: (Ctrl\+Z|⌘Z)\./);
   });
 });

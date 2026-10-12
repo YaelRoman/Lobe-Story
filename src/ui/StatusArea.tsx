@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import { pendingLabel } from '../state/project';
 import { UndoToast } from './UndoToast';
 import { undoWording } from './undoKeys';
-import { usePhoneLayout } from './phoneLayout';
+import { useTouchOnly } from './phoneLayout';
 import { useAnnouncement } from './announce';
 
 /** How long the line of a load where every file simply loaded stays. */
@@ -39,7 +39,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const pending = pendingFiles.length > 0 ? pendingLabel(pendingFiles) : null;
   // A line that is only read out (see `announce`): the change it reports is already visible where it was made.
   const spoken = useAnnouncement();
-  const undoSpoken = undoWording(usePhoneLayout()).spoken;
+  const undoSpoken = undoWording({ keys: !useTouchOnly(), narrow: false }).spoken;
 
   // "Loaded 12 files" needs no action: it goes away by itself. Anything that failed, was skipped or renamed stays.
   // The line is in the flow, so the page moves up when it goes: not while a pointer is down (a slider dragged in the

@@ -59,20 +59,22 @@ describe('neighbourOrder', () => {
   });
 });
 
-describe('what is said about undoing, where there is a keyboard and where there is none', () => {
-  it('names the shortcut on a wide screen', () => {
-    expect(undoWording(false, 'Win32')).toEqual({
+describe('what is said about undoing: the key by whether there is a keyboard, the short button by the room', () => {
+  const key = /Ctrl|Cmd|⌘|still undoes/;
+
+  it('names the shortcut on a wide screen with a keyboard', () => {
+    expect(undoWording({ keys: true, narrow: false }, 'Win32')).toEqual({
       button: 'Undo · Ctrl+Z',
       hideTitle: 'Hide (Ctrl/Cmd+Z still undoes)',
       hidden: 'Undo offer hidden. Ctrl+Z still undoes.',
       spoken: ' Undo: Ctrl+Z.',
       beforeClear: 'You can undo this with Ctrl/Cmd+Z until your next change.',
     });
-    expect(undoWording(false, 'MacIntel').button).toBe('Undo · ⌘Z');
+    expect(undoWording({ keys: true, narrow: false }, 'MacIntel').button).toBe('Undo · ⌘Z');
   });
 
   it('names no key on a phone, and promises no undo after the offer has gone', () => {
-    const phone = undoWording(true, 'iPhone');
+    const phone = undoWording({ keys: false, narrow: true }, 'iPhone');
     expect(phone).toEqual({
       button: 'Undo',
       hideTitle: 'Hide',
@@ -80,6 +82,22 @@ describe('what is said about undoing, where there is a keyboard and where there 
       spoken: '',
       beforeClear: 'You can undo this right afterwards.',
     });
-    for (const text of Object.values(phone)) expect(text).not.toMatch(/Ctrl|Cmd|⌘|still undoes/);
+    for (const text of Object.values(phone)) expect(text).not.toMatch(key);
+  });
+
+  it('names no key on a touch device however wide (a tablet, a phone on its side)', () => {
+    const tablet = undoWording({ keys: false, narrow: false }, 'Linux armv8l');
+    expect(tablet).toEqual(undoWording({ keys: false, narrow: true }, 'Linux armv8l'));
+    for (const text of Object.values(tablet)) expect(text).not.toMatch(key);
+  });
+
+  it('in a narrow window with a keyboard only the button is short: the key still undoes, and the page says so', () => {
+    expect(undoWording({ keys: true, narrow: true }, 'Win32')).toEqual({
+      button: 'Undo',
+      hideTitle: 'Hide (Ctrl/Cmd+Z still undoes)',
+      hidden: 'Undo offer hidden. Ctrl+Z still undoes.',
+      spoken: ' Undo: Ctrl+Z.',
+      beforeClear: 'You can undo this with Ctrl/Cmd+Z until your next change.',
+    });
   });
 });

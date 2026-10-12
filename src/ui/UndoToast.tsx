@@ -4,7 +4,7 @@ import { useStore } from '../state/store';
 import { SKIP_TARGETS } from './SkipLinks';
 import { isTextEntry, isUndoShortcut, undoWording } from './undoKeys';
 import { MidName } from './MidName';
-import { usePhoneLayout } from './phoneLayout';
+import { usePhoneLayout, useTouchOnly } from './phoneLayout';
 
 /** How long the toast offering an undo stays; the undo itself stays available to Ctrl/Cmd+Z until a later edit withdraws it. */
 export const UNDO_MS = 10_000;
@@ -34,8 +34,8 @@ function OfferLabel({ label, name }: { label: string; name?: string }) {
 
 /** One offer; mounted anew for each (keyed by its id), so the timer and the pause state start fresh. */
 function Offer({ label, name }: { label: string; name?: string }) {
-  // A phone has no Ctrl+Z: the button says what it does (and the room goes to the name), and no note or tooltip names the key.
-  const words = undoWording(usePhoneLayout());
+  // A touch device has no Ctrl+Z: no button, note or tooltip names the key there. In a narrow layout the button is short (the room goes to the name).
+  const words = undoWording({ keys: !useTouchOnly(), narrow: usePhoneLayout() });
   const undoLast = useStore((s) => s.undoLast);
   const fadeUndo = useStore((s) => s.fadeUndo);
   const setCopyNote = useStore((s) => s.setCopyNote);
