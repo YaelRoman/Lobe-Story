@@ -40,6 +40,7 @@ function simFor(
     tilt,
     azimuthDeg,
     showOriginal,
+    hCut: 'beam',
     offsetCount: Object.keys(offsets).length,
     groupOffsetCount: 0,
     effective,

@@ -9,7 +9,7 @@ import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
 import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
 import { withSimulated } from './exportFigure';
-import { exportName, simulatedCaption } from './simSummary';
+import { exportName, hCutLabel, simulatedCaption } from './simSummary';
 import { copyAndAnnounce } from './clipboard';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
@@ -134,6 +134,9 @@ export const BandStats = memo(function BandStats({
   // Only the files the histogram is made from count; the CSV lists every dataset.
   const histogramSimulated = sim.simulatedAmong(dataset.items.map((i) => i.pattern.id));
 
+  // The tilted values of the horizontal rows are of the cut at the horizon: the exports and the note say so.
+  const horizonCut = sim.tiltActive && sim.hCut === 'horizon';
+
   const exportCsv = () => {
     const sheets: BandSheet[] = datasets.map((d) => {
       const bands = subBandsFor(d.items, userSubBands);
@@ -143,7 +146,7 @@ export const BandStats = memo(function BandStats({
         ...(sim.tiltActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx) } : {}),
       };
     });
-    downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id))), '.csv'), '﻿' + bandCsv(sheets, settings), 'text/csv;charset=utf-8');
+    downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id))), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut), 'text/csv;charset=utf-8');
   };
 
   return (
@@ -167,7 +170,7 @@ export const BandStats = memo(function BandStats({
         <button onClick={exportCsv}>Export band CSV</button>
         <button
           title="Copy the table below as shown to paste into a spreadsheet"
-          onClick={() => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings), `Copied the band statistics of ${dataset.label}`, setCopyNote)}
+          onClick={() => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings, horizonCut), `Copied the band statistics of ${dataset.label}`, setCopyNote)}
         >
           Copy table
         </button>
@@ -187,7 +190,7 @@ export const BandStats = memo(function BandStats({
         excluded; co-polar cuts).
         {noFrequency > 0 && ` ${noFrequency} loaded file${noFrequency === 1 ? ' has' : 's have'} no frequency above 0 MHz and ${noFrequency === 1 ? 'is' : 'are'} left out.`}
         {userSubBands.length === 0 && ' Sub-bands are automatic.'}
-        {sim.tiltActive && ' Simulation active: cells show original → tilted where they differ.'}
+        {sim.tiltActive && ` Simulation active: cells show original → tilted where they differ (${hCutLabel(sim.hCut)}).`}
         {settings.levelDb !== 3 &&
           ` Beamwidth level is ${settings.levelDb} dB: the beamwidth, squint and tilt rows are not half-power values.`}
         {lobeWarning && ` ${lobeWarning}`}

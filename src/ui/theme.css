@@ -118,7 +118,7 @@ h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .plot3d { height: 640px; }
 @media (max-width: 760px) { .plot3d { height: 480px; } }
 .sim-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 8px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
-.sim-field { display: inline-flex; gap: 6px; align-items: center; }
+.sim-field, .sim-choice { display: inline-flex; gap: 6px; align-items: center; }
 .sim-field input[type='range'] { width: 140px; }
 .sim-field input[type='number'] { width: 70px; }
 .badge { padding: 2px 8px; border-radius: 999px; background: var(--accent-fill); color: #fff; font-size: 12px; }
@@ -217,7 +217,7 @@ h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .group li .row-main { justify-content: flex-start; }
   .group li input[type='checkbox'] { width: 20px; height: 20px; }
   .fold { min-height: 32px; }
-  .sim-field { flex-wrap: wrap; }
+  .sim-field, .sim-choice { flex-wrap: wrap; }
   .sim-field input[type='range'] { width: 110px; }
   .toolbar { padding: 6px 8px; }
   .subband-row input[type='text'] { width: 120px; }

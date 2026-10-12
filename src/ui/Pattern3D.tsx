@@ -95,7 +95,7 @@ export function Pattern3D({
           {notice}
         </p>
       )}
-      <PlotlyChart className="plot plot3d" height={layout === 'grid' ? gridHeightPx(series.length, viewportWidth) : undefined} figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: withSimulated(exportCaption, simulated ? simulatedCaption(sim, method, sim.offsetsAmong(drawn.map((i) => i.pattern.id))) : undefined), filename: exportName('antenna-pattern-3d', simulated) }} />
+      <PlotlyChart className="plot plot3d" height={layout === 'grid' ? gridHeightPx(series.length, viewportWidth) : undefined} figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: withSimulated(exportCaption, simulated ? simulatedCaption({ ...sim, hCut: undefined }, method, sim.offsetsAmong(drawn.map((i) => i.pattern.id))) : undefined), filename: exportName('antenna-pattern-3d', simulated) }} />
     </>
   );
 }

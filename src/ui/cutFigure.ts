@@ -26,6 +26,8 @@ export interface PlotSeries {
   reference?: boolean;
   /** A simulated horizontal cut of a mechanically tilted file (the cut through the tilted beam peak). */
   coneCut?: boolean;
+  /** A simulated horizontal cut at the horizon (ground elevation 0°) of a tilted file; its maximum may lie far below the 3D peak. */
+  horizonCut?: boolean;
 }
 
 export interface CutFigureOptions {
@@ -78,11 +80,17 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
   const beam = o.cut === 'H' ? m.h : m.v;
   const offset = Math.min(...target.cut.atten);
   const rot = target.rotationDeg ?? o.rotationDeg ?? 0;
+  // The levels of a horizon cut are below the 3D peak, not below the cut's own maximum (see `PatternMetrics.hCutPeakDb`):
+  // a level is drawn from where the 3D peak is, so its cross lies on the trace.
+  const below = o.cut === 'H' ? m.hCutPeakDb : undefined;
+  const levelOffset = offset - (below ?? 0);
   const point = (r: { value: number | null; angle?: number }, label: (v: number) => string) => {
     if (r.value !== null && r.angle !== undefined) {
-      spec.points.push({ angle: signed(r.angle + rot), db: -(offset + r.value), label: label(r.value) });
+      spec.points.push({ angle: signed(r.angle + rot), db: -((o.cut === 'H' ? levelOffset : offset) + r.value), label: label(r.value) });
     }
   };
+  // So that a cut far down the scale is not taken for an error.
+  if (below !== undefined) spec.notes.push(`Horizon cut: maximum ${below.toFixed(1)} dB below the 3D peak`);
 
   if (o.markers.hpbw && beam.edges && beam.hpbw.value !== null) {
     spec.rings.push({ db: -(offset + o.levelDb), label: `−${o.levelDb} dB` });
@@ -395,7 +403,8 @@ export function buildCutOverlay(o: CutFigureOptions): CutOverlay {
   const target = o.series.find((s) => s.id === o.markerTarget);
   const spec = target ? markerSpec(target, o) : NO_MARKERS;
   const hpbw = target ? (o.cut === 'H' ? target.metrics.h : target.metrics.v).hpbw.value : null;
-  const cone = o.cut === 'H' && o.series.some((s) => s.coneCut) ? ' · cut through the tilted beam peak' : '';
+  const cone =
+    o.cut !== 'H' ? '' : o.series.some((s) => s.horizonCut) ? ' · cut at the horizon' : o.series.some((s) => s.coneCut) ? ' · cut through the tilted beam peak' : '';
   const text = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — ${bwName(o.levelDb)} ${hpbw.toFixed(1)}°` : ''}${cone}`;
   const title = { text, font: { size: 14 } };
   if (o.mode === 'polar') return { data: polarMarkers(spec, o) as Data[], layout: { title } };

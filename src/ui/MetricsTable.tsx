@@ -14,7 +14,7 @@ import { MidName } from './MidName';
 import { cellEndTarget, moveFocus, onSpace, tabStopKey } from './rovingKeys';
 import { neighbourOrder } from './undoKeys';
 import { downloadText } from './download';
-import { exportName } from './simSummary';
+import { exportName, hCutLabel } from './simSummary';
 import { copiedRow, copiedRows, copiedValue, copyAndAnnounce } from './clipboard';
 import { copyShortcut } from './copyKeys';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
@@ -25,6 +25,10 @@ import type { SimulationResult } from './useSimulation';
 const FILE_NAME_MAX = 28;
 export const SIMULATION_BLANK_NOTE =
   '— = not defined (e.g. the horizon cut leaves the main beam); hover a dotted cell for the reason.';
+
+/** What the tilted horizontal cells mean while the simulated cut is the one at the horizon (see docs/metrics.md). */
+export const HORIZON_CUT_NOTE =
+  'beamwidths and directions are those of that cut (against its own maximum); F/B, H-SLS, roll-off and tracking are levels below the 3D peak';
 
 export const MetricsTable = memo(function MetricsTable({
   groups,
@@ -88,6 +92,8 @@ export const MetricsTable = memo(function MetricsTable({
   const deltaVs = deltaOn ? (referenceName ?? undefined) : undefined;
   // In the difference view under a tilt simulation the differences are of the tilted values: the exports say so.
   const deltaTilted = deltaOn && sim.tiltActive;
+  // The tilted values of the horizontal columns are of the cut at the horizon: the exports and the note say so.
+  const horizonCut = sim.tiltActive && sim.hCut === 'horizon';
   // The cell that has focus shows the one copy button (a row id and a column key).
   const [focusedCell, setFocusedCell] = useState<{ id: string; col: string } | null>(null);
 
@@ -235,7 +241,7 @@ export const MetricsTable = memo(function MetricsTable({
           onClick={() =>
             downloadText(
               exportName('pattern-metrics', sim.simulatedAmong(rows.map((r) => r.id)), '.csv'),
-              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, csvColumns(tableGroups), method3d),
+              '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.tiltActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, csvColumns(tableGroups), method3d, horizonCut),
               'text/csv;charset=utf-8',
             )
           }
@@ -244,7 +250,7 @@ export const MetricsTable = memo(function MetricsTable({
         </button>
         <button
           title="Copy the table as shown (visible columns, current order) to paste into a spreadsheet"
-          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted, method3d), copiedRows(rows.length))}
+          onClick={() => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted, method3d, horizonCut), copiedRows(rows.length))}
         >
           Copy table
         </button>
@@ -306,6 +312,7 @@ export const MetricsTable = memo(function MetricsTable({
         {sim.tiltActive && (
           <p className="count">
             {simulationLabel(sim.tilt, sim.offsetCount, sim.groupOffsetCount)}
+            <span data-testid="sim-hcut-note"> · {hCutLabel(sim.hCut)}{horizonCut ? `: ${HORIZON_CUT_NOTE}` : ''}</span>
             <span data-testid="sim-blank-note"> · {SIMULATION_BLANK_NOTE}</span>
           </p>
         )}

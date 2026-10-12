@@ -7,6 +7,12 @@ import type { SimulationResult } from './useSimulation';
 /** The non-solid line pattern of a file's style, if any. */
 const lineDashOf = (style: FileStyle | undefined) => (style && style.dash !== 'solid' ? style.dash : undefined);
 
+/** Which simulated horizontal cut a live series is, if any: the horizon cut of a tilted file, else the cone cut of a mechanically tilted one. */
+function simulatedCutFlag(sim: SimulationResult, id: string): { horizonCut?: true; coneCut?: true } {
+  if (sim.hCut === 'horizon') return sim.isTiltedId(id) ? { horizonCut: true } : {};
+  return sim.effective(id).mechanicalDeg !== 0 ? { coneCut: true } : {};
+}
+
 /**
  * The 2D series of one cut: the (tilted) series of every item, then — only for files that are
  * tilted, when "Show original" is on — the dashed original series, so the legend lists live
@@ -40,7 +46,7 @@ export function buildCutSeries(
           ...(!original && orig.id === referenceId ? { reference: true } : {}),
           ...(!original && lineDashOf(styles?.get(orig.id)) ? { lineDash: lineDashOf(styles?.get(orig.id)) } : {}),
           rotationDeg: rotation(orig.id),
-          ...(cut === 'H' && !original && sim.effective(orig.id).mechanicalDeg !== 0 ? { coneCut: true } : {}),
+          ...(cut === 'H' && !original ? simulatedCutFlag(sim, orig.id) : {}),
         },
       ];
     });

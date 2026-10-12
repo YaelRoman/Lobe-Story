@@ -9,6 +9,7 @@ import {
   effectiveFor,
   isTilted,
   tiltEach,
+  type HCutMode,
   type SimSettings,
   type TiltSettings,
 } from '../core/analysis/tilt';
@@ -22,6 +23,8 @@ export interface SimulationResult {
   /** Global azimuth slider. */
   azimuthDeg: number;
   showOriginal: boolean;
+  /** Which horizontal cut the tilted files show (`patterns` and `metrics` are made with it). */
+  hCut: HCutMode;
   /** Number of files with offsets. */
   offsetCount: number;
   /** Number of custom groups with offsets. */
@@ -71,7 +74,7 @@ export function useSimulation(
   const customGroups = useStore((s) => s.customGroups);
   // Deferred so dragging a slider stays smooth while tilting/analysing catches up.
   const sim = useDeferredValue(live);
-  const { electricalDeg, mechanicalDeg, azimuthDeg, showOriginal, offsets: fileOffsets, groupOffsets } = sim;
+  const { electricalDeg, mechanicalDeg, azimuthDeg, showOriginal, hCut, offsets: fileOffsets, groupOffsets } = sim;
 
   const ids = useMemo(() => tagged.map((i) => i.pattern.id), [tagged]);
   const offsets = useMemo(
@@ -112,8 +115,8 @@ export function useSimulation(
   );
 
   const tiltedItems = useMemo(
-    () => (tiltActive ? tiltEach(tagged, tiltFor, method) : tagged),
-    [tiltActive, tagged, tiltFor, method],
+    () => (tiltActive ? tiltEach(tagged, tiltFor, method, hCut) : tagged),
+    [tiltActive, tagged, tiltFor, method, hCut],
   );
   const tiltedMetrics = useMemo(
     () => (tiltActive ? analyzeTilted(tiltedItems, settings, tiltFor, withAngularRegions ? method : undefined) : metrics),
@@ -130,6 +133,7 @@ export function useSimulation(
       tilt,
       azimuthDeg,
       showOriginal,
+      hCut,
       offsetCount,
       groupOffsetCount,
       effective,
@@ -144,6 +148,7 @@ export function useSimulation(
       tilt,
       azimuthDeg,
       showOriginal,
+      hCut,
       offsetCount,
       groupOffsetCount,
       effective,

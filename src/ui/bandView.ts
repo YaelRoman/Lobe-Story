@@ -120,8 +120,11 @@ function csvLine(label: string, state: string | null, column: BandColumn, p: (ty
   ].map((f, i) => (i === 0 || i === nameIndex ? f : csvCell(f)));
 }
 
+/** The State of a tilted line while the simulated horizontal cut is the one at the horizon (comma-free). */
+const TILTED_AT_HORIZON = 'tilted [H cut at the horizon]';
+
 /** The band statistics in long form: one line per antenna × sub-band × parameter (× state with a tilt simulation). */
-export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings): string {
+export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings, horizonCut = false): string {
   const withState = sheets.some((s) => s.tilted);
   const header = (withState ? [HEADER[0], 'State', ...HEADER.slice(1)] : HEADER).map(csvCell);
   const lines: string[][] = [header];
@@ -133,7 +136,7 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
         } else {
           const tilted = (sheet.tilted ?? sheet.columns)[i];
           lines.push(csvLine(sheet.label, 'original', column, p, column.cells[p.key], settings));
-          lines.push(csvLine(sheet.label, 'tilted', tilted, p, tilted.cells[p.key], settings));
+          lines.push(csvLine(sheet.label, horizonCut ? TILTED_AT_HORIZON : 'tilted', tilted, p, tilted.cells[p.key], settings));
         }
       }
     });
@@ -145,9 +148,9 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
  * The band statistics table as shown, for a spreadsheet: a header row (Parameter, then each sub-band with its file
  * count) and a line per parameter with the cell text (`original → tilted` under a simulation). Tab-separated.
  */
-export function bandTsv(columns: readonly BandColumn[], tilted: readonly BandColumn[] | null, settings: AnalysisSettings): string {
+export function bandTsv(columns: readonly BandColumn[], tilted: readonly BandColumn[] | null, settings: AnalysisSettings, horizonCut = false): string {
   // Only the sub-band names are user text (formula-guarded); the labels and cells are computed, so they only lose tabs and line breaks.
-  const header = ['Parameter', ...columns.map((c) => `${tsvText(c.subBand.name)} (${filesText(c.files)})`)];
+  const header = [tilted && horizonCut ? 'Parameter [tilted: H cut at the horizon]' : 'Parameter', ...columns.map((c) => `${tsvText(c.subBand.name)} (${filesText(c.files)})`)];
   const lines = BAND_PARAMS.map((p) => [
     tabSafe(bandParamLabel(p, settings)),
     ...columns.map((c, i) => tabSafe(cellDisplay(c.cells[p.key], tilted?.[i].cells[p.key]).text)),

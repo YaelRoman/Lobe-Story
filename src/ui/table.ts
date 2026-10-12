@@ -1,7 +1,8 @@
 import type { GainUnit, MetricResult } from '../core/types';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import type { GroupView } from '../state/selectors';
-import { isTilted, type TiltSettings, type SimSettings } from '../core/analysis/tilt';
+import { isTilted, type HCutMode, type TiltSettings, type SimSettings } from '../core/analysis/tilt';
+import { hCutLabel } from './simSummary';
 import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
@@ -97,6 +98,17 @@ const METHOD_NAME: Record<Method3d, string> = { summation: 'Summation', weighted
 export function withMethod(key: MetricColumn, label: string, method: Method3d): string {
   return COLUMN_INFO[key].group === ON_DEMAND_GROUP ? `${label} [${METHOD_NAME[method]}]` : label;
 }
+
+/** The metric columns read from the horizontal cut: the ones that follow the choice of the simulated horizontal cut. */
+const HORIZONTAL_KEYS: ReadonlySet<MetricColumn> = new Set<MetricColumn>([
+  'hHpbw', 'hBw10', 'squint', 'hPeak', 'fb180', 'fbWindow', 'hSls', 'tracking', 'spr', 'air', 'rollOff', 'du16', 'du64', 'du256',
+]);
+
+/** What an export header adds to the tilted values of a horizontal column while the simulated cut is the one at the horizon (comma-free, like the 3D method). */
+export const HORIZON_TAG = '[horizon cut]';
+
+/** The tag for column `key`, with a leading space, or nothing: only horizontal columns, only when `horizonCut`. */
+const horizonTag = (key: MetricColumn, horizonCut: boolean): string => (horizonCut && HORIZONTAL_KEYS.has(key) ? ` ${HORIZON_TAG}` : '');
 
 /** The second half of the three angular-region tooltips: what kind of number this is. */
 const areNote = (method: Method3d): string =>
@@ -515,8 +527,8 @@ export function formatCell(original: MetricResult, tilted?: MetricResult, decima
 
 const signedDeg = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
-export function simulationLabel(t: TiltSettings, offsetCount = 0, groupCount = 0): string {
-  const base = `Simulated: Δe ${signedDeg(t.electricalDeg)}°, mech ${signedDeg(t.mechanicalDeg)}°`;
+export function simulationLabel(t: TiltSettings, offsetCount = 0, groupCount = 0, hCut?: HCutMode): string {
+  const base = `Simulated: Δe ${signedDeg(t.electricalDeg)}°, mech ${signedDeg(t.mechanicalDeg)}°${hCut ? `, ${hCutLabel(hCut)}` : ''}`;
   const parts = [
     offsetCount > 0 ? `${offsetCount} file${offsetCount === 1 ? '' : 's'}` : '',
     groupCount > 0 ? `${groupCount} group${groupCount === 1 ? '' : 's'}` : '',
@@ -547,6 +559,8 @@ export function toCsv(
   columns: readonly (typeof METRIC_COLUMNS)[number][] = CSV_DEFAULT_COLUMNS,
   /** The 3D method the angular-region estimate was computed with; named in the headers of its columns. */
   method3d: Method3d = 'summation',
+  /** The tilted values of the horizontal columns are of the cut at the horizon: their headers say so. */
+  horizonCut = false,
 ): string {
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
   // The difference view has one column per metric (the difference of the shown values), whatever the simulation.
@@ -554,7 +568,9 @@ export function toCsv(
   const withSource = rows.some((r) => r.source !== r.file);
   const metricHeader = columns.flatMap((c) => {
     const label = withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d);
-    return tilted ? [`${label} original (${c.unit})`, `${label} tilted (${c.unit})`] : [columnHeader(label, c.unit, deltaVs, deltaTilted)];
+    return tilted
+      ? [`${label} original (${c.unit})`, `${label} tilted${horizonTag(c.key, horizonCut)} (${c.unit})`]
+      : [columnHeader(label, c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted))];
   });
   const header = [
     'File',
@@ -600,8 +616,8 @@ export function rowCell(r: MetricsRow, key: MetricColumn): { text: string; title
 }
 
 /** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */
-const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false): string =>
-  deltaVs === undefined ? `${label} (${unit})` : `${label} Δ vs ${deltaVs}${tilted && label !== 'Gain' ? ', tilted values' : ''} (${unit})`;
+const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false, tag = ''): string =>
+  deltaVs === undefined ? `${label} (${unit})` : `${label} Δ vs ${deltaVs}${tilted && label !== 'Gain' ? `, tilted values${tag}` : ''} (${unit})`;
 
 /** The "Row" column of the difference view's exports: which row is the baseline, so a "Δ vs …" column can be filtered. */
 const rowRole = (r: MetricsRow): string => (r.isReference ? 'reference' : 'difference');
@@ -636,15 +652,22 @@ export function toTsv(
   deltaTilted = false,
   /** The 3D method the angular-region estimate was computed with; named in the headers of its columns. */
   method3d: Method3d = 'summation',
+  /** Tilted values are shown and those of the horizontal columns are of the cut at the horizon: their headers say so. */
+  horizonCut = false,
 ): string {
   const withRole = deltaVs !== undefined;
+  // Without the difference view a cell reads `original → tilted`: the header says which cut the tilted value is of.
+  const labelOf = (c: CopyColumn): string => {
+    const label = withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d);
+    return deltaVs === undefined && horizonCut && HORIZONTAL_KEYS.has(c.key) ? `${label} [tilted: horizon cut]` : label;
+  };
   const header = [
     'File',
     'Group',
     ...(withRole ? ['Row'] : []),
     'MHz',
     columnHeader('Gain', gainUnit, deltaVs, deltaTilted),
-    ...columns.map((c) => columnHeader(withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d), c.unit, deltaVs, deltaTilted)),
+    ...columns.map((c) => columnHeader(labelOf(c), c.unit, deltaVs, deltaTilted, horizonTag(c.key, horizonCut && deltaTilted))),
   ];
   return [header.map(tsvText).join('\t'), ...rows.map((r) => rowToTsv(r, columns, withRole))].join('\r\n') + '\r\n';
 }

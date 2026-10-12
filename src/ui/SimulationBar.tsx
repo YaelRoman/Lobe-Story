@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { clampSim, SIM_LIMITS, useStore, type SimulationKey } from '../state/store';
 import type { Method3d } from '../core/analysis/pattern3d';
-import { anyTilted, combineOffsets } from '../core/analysis/tilt';
+import { anyTilted, combineOffsets, type HCutMode } from '../core/analysis/tilt';
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { simSummary, summaryMethod } from './simSummary';
+import { simSummary, summaryHCut, summaryMethod } from './simSummary';
 import { needsAngularRegions } from './table';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
@@ -135,6 +135,9 @@ function OffsetsRow() {
   );
 }
 
+const H_CUT_TITLE =
+  'Which horizontal cut a tilted file shows. Through the beam peak: the cone at the elevation of the tilted beam peak (the cut data sheets give). At the horizon: the cut at 0° elevation, where the widening under mechanical tilt and the coverage at the horizon are seen; its levels are below the 3D peak. Available once a file is tilted.';
+
 export function SimulationBar({ is3d }: { is3d: boolean }) {
   const sim = useStore((s) => s.view.simulation);
   const files = useStore((s) => s.files);
@@ -184,7 +187,7 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
       )}
       {collapsed && (
         <span className="count" data-testid="sim-summary">
-          {simSummary(global, fileCount, groupCount, summaryMethod(method, tiltActive, withAngularRegions))}
+          {simSummary(global, fileCount, groupCount, summaryMethod(method, tiltActive, withAngularRegions), summaryHCut(sim.hCut, tiltActive))}
         </span>
       )}
       <div id="sim-body" className="sim-body" hidden={collapsed}>
@@ -202,6 +205,20 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
         // The method matters in the 3D view, under a tilt, and for the angular-region estimate (integrated over the reconstruction).
         disabled={!tiltActive && !is3d && !withAngularRegions}
       />
+      <div className="sim-choice" title={H_CUT_TITLE}>
+        <span>Horizontal cut</span>
+        <Seg<HCutMode>
+          label="Horizontal cut"
+          value={sim.hCut}
+          options={[
+            ['beam', 'Through the beam peak'],
+            ['horizon', 'At the horizon'],
+          ]}
+          onChange={(hCut) => updateSimulation({ hCut })}
+          // The choice only matters for a tilted file: an untilted one shows its file cut either way.
+          disabled={!tiltActive}
+        />
+      </div>
       <label>
         <input
           type="checkbox"

@@ -1,4 +1,4 @@
-import type { SimSettings } from '../core/analysis/tilt';
+import type { HCutMode, SimSettings } from '../core/analysis/tilt';
 
 /** A number with a true minus sign (U+2212), as the marker labels write it. */
 const minus = (v: number): string => String(v).replace('-', '−');
@@ -10,13 +10,24 @@ export function simSummary(
   groupOffsets: number,
   /** The 3D method, given only while it changes a number on screen (see `summaryMethod`). */
   method?: 'summation' | 'weighted',
+  /** Which horizontal cut the tilted files show, given only while a file is tilted (see `summaryHCut`). */
+  hCut?: HCutMode,
 ): string {
   const parts = [`Tilt Δ ${minus(g.electricalDeg)}°`, `Mech ${minus(g.mechanicalDeg)}°`, `Az ${minus(g.azimuthDeg)}°`];
   if (fileOffsets > 0) parts.push(`${fileOffsets} file offset${fileOffsets === 1 ? '' : 's'}`);
   if (groupOffsets > 0) parts.push(`${groupOffsets} group offset${groupOffsets === 1 ? '' : 's'}`);
   if (method) parts.push(`3D method: ${method === 'weighted' ? 'Weighted' : 'Summation'}`);
+  if (hCut) parts.push(`H cut: ${H_CUT_WHERE[hCut]}`);
   return parts.join(' · ');
 }
+
+const H_CUT_WHERE: Record<HCutMode, string> = { beam: 'through the beam peak', horizon: 'at the horizon' };
+
+/** The choice of the simulated horizontal cut in words, as captions and notes name it. */
+export const hCutLabel = (hCut: HCutMode): string => `horizontal cut ${H_CUT_WHERE[hCut]}`;
+
+/** The horizontal-cut choice for the collapsed bar's summary, or undefined while no file is tilted (it then changes nothing). */
+export const summaryHCut = (hCut: HCutMode, tiltActive: boolean): HCutMode | undefined => (tiltActive ? hCut : undefined);
 
 /**
  * The 3D method for the collapsed bar's summary, or undefined while it changes nothing on screen: it matters under a
@@ -32,6 +43,8 @@ export interface SimFacts {
   azimuthDeg: number;
   offsetCount: number;
   groupOffsetCount: number;
+  /** Which horizontal cut the tilted files show; named in a caption while a tilt is active. */
+  hCut?: HCutMode;
 }
 
 /** Whether any simulation is active: a tilt, an azimuth, or an offset on a file or a group. */
@@ -72,14 +85,15 @@ export function offsetCountsAmong(
 
 /**
  * The caption line of an exported image while a simulation is active, else undefined:
- * "Simulated: electrical Δ 4°, mechanical 0°, azimuth 0°, summation method" (the method only while a tilt is active,
- * as it changes the result then), plus the number of per-file and per-group offsets (those among the files the picture
+ * "Simulated: electrical Δ 4°, mechanical 0°, azimuth 0°, summation method, horizontal cut at the horizon" (the method
+ * and the horizontal cut only while a tilt is active, as they change the result then), plus the number of per-file and per-group offsets (those among the files the picture
  * shows when `counts` is given, see `offsetCountsAmong`; else all of the project's).
  */
 export function simulatedCaption(s: SimFacts, method: 'summation' | 'weighted', counts?: { files: number; groups: number }): string | undefined {
   if (!simulationActive(s)) return undefined;
   const parts = [`electrical Δ ${minus(s.tilt.electricalDeg)}°`, `mechanical ${minus(s.tilt.mechanicalDeg)}°`, `azimuth ${minus(s.azimuthDeg)}°`];
   if (s.tiltActive) parts.push(`${method} method`);
+  if (s.tiltActive && s.hCut) parts.push(hCutLabel(s.hCut));
   const files = counts?.files ?? s.offsetCount;
   const groups = counts?.groups ?? s.groupOffsetCount;
   const offsets = [
