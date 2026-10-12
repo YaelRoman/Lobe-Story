@@ -14,4 +14,11 @@ describe('pickedFileId', () => {
     expect(pickedFileId({})).toBeNull();
     expect(pickedFileId(undefined)).toBeNull();
   });
+  it('ignores the second click of a double click (the first one has acted; a double click only resets the view)', () => {
+    const points = [{ customdata: 'a' }];
+    expect(pickedFileId({ points, event: { detail: 1 } })).toBe('a');
+    expect(pickedFileId({ points, event: { detail: 2 } })).toBeNull();
+    expect(pickedFileId({ points, event: { detail: 3 } })).toBeNull();
+    expect(pickedFileId({ points, event: {} })).toBe('a');
+  });
 });

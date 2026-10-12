@@ -254,7 +254,7 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
           el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
           el.removeAllListeners?.('plotly_click');
           el.on?.('plotly_click', (event) => {
-            const id = pickedFileId(event as { points?: { customdata?: unknown }[] });
+            const id = pickedFileId(event as Parameters<typeof pickedFileId>[0]);
             if (id !== null) clickHandler.current?.(id);
           });
           // A double click resets as the toolbar's button does. A polar plot cannot be told not to reset by itself,

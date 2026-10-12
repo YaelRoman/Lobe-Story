@@ -262,6 +262,26 @@ test.describe('3D side by side titles', () => {
   }
 });
 
+test('a double click on a point of the frequency chart highlights its file once, it does not toggle twice', async ({ page }) => {
+  await loadExample(page);
+  const hl = page.locator('.metrics tbody tr.hl');
+  await page.keyboard.press('Escape');
+  await expect(hl).toHaveCount(0);
+  const chart = page.getByTestId('plot-hpbw');
+  const points = chart.locator('.scatterlayer .trace').first().locator('.points path');
+  await expect(points.first()).toBeAttached();
+  await chart.scrollIntoViewIfNeeded();
+  const box = (await points.nth((await points.count()) - 1).boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2 - 5, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  await expect(chart.locator('.hoverlayer .hovertext').first()).toBeAttached();
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(hl).toHaveCount(1);
+  // Not undone a moment later by the second click.
+  await page.waitForTimeout(500);
+  await expect(hl).toHaveCount(1);
+});
+
 test('on a phone the chart toolbar lies in a strip above each plot, not over its title or labels', async ({ page }) => {
   await loadExample(page, 390, 844);
   for (const id of ['plot-h', 'plot-v', 'plot-hpbw']) {
