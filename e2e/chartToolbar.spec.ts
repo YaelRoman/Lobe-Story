@@ -193,6 +193,36 @@ test('an offset on a file that is not drawn does not make the exports simulated'
   expect(await download('plot-h')).toBe('horizontal-cut-simulated.png');
 });
 
+test('the band statistics CSV and histogram are named simulated only while a simulation applies to them', async ({ page }) => {
+  await loadExample(page);
+  const band = page.getByTestId('band-stats');
+  await band.scrollIntoViewIfNeeded();
+  const csvName = async () => {
+    const pending = page.waitForEvent('download');
+    await band.getByRole('button', { name: 'Export band CSV' }).click();
+    return (await pending).suggestedFilename();
+  };
+  const cell = band.getByRole('row', { name: /^Azimuth beamwidth/ }).getByRole('button').first();
+  await cell.click();
+  const histogram = page.getByTestId('plot-band');
+  await expect(histogram.locator('.main-svg').first()).toBeVisible();
+  const histogramName = async () => {
+    const pending = page.waitForEvent('download');
+    await histogram.getByRole('button', { name: DOWNLOAD }).click();
+    return (await pending).suggestedFilename();
+  };
+  expect(await csvName()).toBe('band-statistics.csv');
+  expect(await histogramName()).toBe('band-statistics-histogram.png');
+
+  await openSimulation(page);
+  const tilt = page.getByLabel('Electrical tilt Δ (°) value');
+  await tilt.fill('3');
+  await tilt.press('Enter');
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+  expect(await csvName()).toBe('band-statistics-simulated.csv');
+  await expect(async () => expect(await histogramName()).toBe('band-statistics-histogram-simulated.png')).toPass();
+});
+
 test('a reset that throws at once shows the plot\'s error box, like a draw that throws', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

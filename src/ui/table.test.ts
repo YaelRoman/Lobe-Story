@@ -731,6 +731,7 @@ describe('the formula guard and the own group labels of the app', () => {
     const columns = bandTable(items, analyzeAll(items, DEFAULT_SETTINGS), [{ name: '=cmd|x', minMHz: 1800, maxMHz: 1900 }], { gainUnit: 'dBi', settings: DEFAULT_SETTINGS });
     const lines = bandCsv([{ label: '+cmd|x', columns }], DEFAULT_SETTINGS).split('\r\n');
     // The antenna label and the sub-band name are user text: both start with an apostrophe in every line.
+    expect(lines.slice(1, -1).length).toBeGreaterThan(0); // the loop below must not pass on an empty list
     for (const line of lines.slice(1, -1)) expect(line.startsWith("'+cmd|x,'=cmd|x,")).toBe(true);
   });
 });

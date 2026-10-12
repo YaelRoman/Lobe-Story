@@ -107,6 +107,12 @@ describe('findTrackingPartner', () => {
     expect(findTrackingPartner(q, [q, m, known])).toEqual({ partner: known });
   });
 
+  it('does not pair with a file that has no usable frequency, and says there is no partner (not "Frequency unknown")', () => {
+    const p = mk('p', { polarization: '+45', tiltDeg: 8 });
+    const m = mk('m', { polarization: '-45', tiltDeg: 8 }, { frequencyMHz: 0 });
+    expect(findTrackingPartner(p, [p, m])).toEqual({ reason: 'No opposite-polarization partner loaded' });
+  });
+
   it('requires adjacent odd/even numeric ports', () => {
     const p1 = mk('p1', { polarization: '+45', tiltDeg: 5, port: '1' });
     const m2 = mk('m2', { polarization: '-45', tiltDeg: 5, port: '2' });
