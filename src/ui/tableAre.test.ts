@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRows, cellText, chartFitsData, columnGroupTitle, columnLabel, columnTitle, COLUMN_GROUPS, csvColumns, markReference, METRIC_COLUMNS, needsAngularRegions,
-  rowCell, toCsv, toTsv, visibleColumns, withMethod,
+  methodTag, rowCell, toCsv, toTsv, visibleColumns, withMethod,
 } from './table';
+import { METHOD_UNUSED_NOTE } from './simSummary';
 import { DEFAULT_TABLE_GROUPS } from '../state/store';
 import { analyzeAll, analyzePattern, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import { analyzeTilted, tiltedAngularRegions, tiltTagged } from '../core/analysis/tilt';
@@ -273,5 +274,22 @@ describe('the lower region ratio keeps its small numbers readable', () => {
     expect(chartFitsData('areLower')).toBe(true);
     expect(chartFitsData('areSector')).toBe(false);
     expect(chartFitsData('hLevel')).toBe(false);
+  });
+});
+
+describe('the 3D method next to the estimates on screen', () => {
+  it('a short tag for the three estimate headers, with the full name for the accessible name, as in the CSV header', () => {
+    for (const key of ARE_KEYS) {
+      expect(methodTag(key, 'summation')).toEqual({ short: '[Sum.]', full: '[Summation]' });
+      expect(methodTag(key, 'weighted')).toEqual({ short: '[Wtd.]', full: '[Weighted]' });
+      // The same words as the exported header.
+      expect(withMethod(key, 'X', 'weighted')).toBe(`X ${methodTag(key, 'weighted')!.full}`);
+    }
+    expect(methodTag('hHpbw', 'weighted')).toBeUndefined();
+    expect(methodTag('hLevel', 'weighted')).toBeUndefined();
+  });
+
+  it('the bar says why the 3D method cannot be chosen while nothing uses it', () => {
+    expect(METHOD_UNUSED_NOTE).toBe('Used by the 3D view, a tilt, the horizon cut and the angular regions; none of them is on.');
   });
 });

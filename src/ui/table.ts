@@ -135,6 +135,16 @@ export function withMethod(key: TableColumn, label: string, method: Method3d): s
   return key !== HORIZON_LEVEL_KEY && COLUMN_INFO[key].group === ON_DEMAND_GROUP ? `${label} [${METHOD_NAME[method]}]` : label;
 }
 
+const METHOD_SHORT: Record<Method3d, string> = { summation: 'Sum.', weighted: 'Wtd.' };
+
+/**
+ * The 3D method as the on-screen header of an angular-region column carries it: a short tag to read ("[Sum.]") and
+ * the full one ("[Summation]", as in the exported header) for the accessible name. Undefined for every other column.
+ */
+export function methodTag(key: TableColumn, method: Method3d): { short: string; full: string } | undefined {
+  return key !== HORIZON_LEVEL_KEY && COLUMN_INFO[key].group === ON_DEMAND_GROUP ? { short: `[${METHOD_SHORT[method]}]`, full: `[${METHOD_NAME[method]}]` } : undefined;
+}
+
 /** The metric columns read from the horizontal cut: the ones that follow the choice of the simulated horizontal cut. */
 const HORIZONTAL_KEYS: ReadonlySet<MetricColumn> = new Set<MetricColumn>([
   'hHpbw', 'hBw10', 'squint', 'hPeak', 'fb180', 'fbWindow', 'hSls', 'tracking', 'spr', 'air', 'rollOff', 'du16', 'du64', 'du256',

@@ -1,10 +1,10 @@
-import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
   ariaSort, buildRows, COLUMN_GROUPS, csvColumns, columnGroupTitle, columnLabel, columnTitle, nextSort, onlyTicked, tickedCountText, revealScrollTop, simulationLabel,
-  cellText, clearOfSticky, gainText, markReference, pairWords, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, withHorizonLevel, type SortKey, type SortState,
+  cellText, clearOfSticky, gainText, markReference, methodTag, pairWords, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, withHorizonLevel, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
 import { focusPreviews, hoverPreviews } from './hoverPreview';
@@ -228,7 +228,22 @@ export const MetricsTable = memo(function MetricsTable({
     return fixed[key] ?? (col ? columnLabel(col, fbWindowDeg, uslsRangeDeg, levelDb) : key);
   };
 
-  const header = (key: SortKey, content: string, title?: string, className?: string) => (
+  // An angular-region column names its 3D method next to the number, as its exported header does: short to read, in full for a screen reader.
+  const headerText = (c: (typeof columns)[number]): ReactNode => {
+    const label = `${deltaOn ? 'Δ ' : ''}${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)}`;
+    const tag = methodTag(c.key, method3d);
+    if (!tag) return `${label} (${c.unit})`;
+    return (
+      <>
+        {label}{' '}
+        <span className="method-tag" aria-hidden="true">{tag.short}</span>
+        <span className="visually-hidden">{tag.full}</span>{' '}
+        ({c.unit})
+      </>
+    );
+  };
+
+  const header = (key: SortKey, content: ReactNode, title?: string, className?: string) => (
     <th key={key} scope="col" title={title} className={className} aria-sort={ariaSort(sort, key)}>
       <button type="button" className="sort-btn" onClick={() => setSort((cur) => nextSort(cur, key))}>
         {content}
@@ -335,7 +350,7 @@ export const MetricsTable = memo(function MetricsTable({
               {columns.map((c) =>
                 header(
                   c.key,
-                  `${deltaOn ? 'Δ ' : ''}${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)} (${c.unit})`,
+                  headerText(c),
                   [
                     deltaOn ? `Difference from ${referenceName} (the reference row, first, shows its own values).` : '',
                     columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg, method3d, horizonCut }) ?? '',

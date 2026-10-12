@@ -26,6 +26,9 @@ const H_CUT_WHERE: Record<HCutMode, string> = { beam: 'through the beam peak', h
 /** The choice of the simulated horizontal cut in words, as captions and notes name it. */
 export const hCutLabel = (hCut: HCutMode): string => `horizontal cut ${H_CUT_WHERE[hCut]}`;
 
+/** Under the 3D method control while it is disabled: what would enable it. */
+export const METHOD_UNUSED_NOTE = 'Used by the 3D view, a tilt, the horizon cut and the angular regions; none of them is on.';
+
 /** The line under the Horizontal cut control: what each choice shows. */
 export const H_CUT_HINT =
   'Through the beam peak: the cut a data sheet gives. At the horizon: what each antenna radiates along the horizon (0° elevation), with or without a tilt.';

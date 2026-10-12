@@ -159,7 +159,7 @@ values are computed only while the group is shown or the frequency chart plots o
 **The 3D method is named with the number.** Because the method changes the values by several points,
 it is written wherever they leave the table: the CSV and Copy table headers of the three columns read
 "Sector eff. est. [Summation] (%)" or "… [Weighted] (%)" (square brackets, not a comma, so the plain
-CSV header needs no quoting), and so do the frequency chart's axis title and the caption of its exported image. The
+CSV header needs no quoting), and so do the frequency chart's axis title and the caption of its exported image. On screen the three table headers carry the short form, "Sector eff. est. [Sum.] (%)" or "[Wtd.]" (read out as the full name). The
 collapsed Simulation bar names the method while these columns are shown or plotted.
 
 **Under a tilt simulation.** The regions always follow the tilted beam: P and B are the peak and the

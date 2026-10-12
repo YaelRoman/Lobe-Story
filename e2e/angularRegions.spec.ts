@@ -15,7 +15,8 @@ test('Angular regions (est.): off by default; switched on, three plausible perce
   await expect(page.getByRole('columnheader', { name: /est\./ })).toHaveCount(0);
 
   await toggle.check();
-  const headers = ['Sector eff. est. (%)', 'Spatial eff. est. (%)', 'Lower region est. (%)'];
+  // (The header names the 3D method as the exported one does: "[Sum.]" to read, "[Summation]" for a screen reader.)
+  const headers = ['Sector eff. est. [Summation] (%)', 'Spatial eff. est. [Summation] (%)', 'Lower region est. [Summation] (%)'];
   for (const name of headers) {
     const th = page.getByRole('columnheader', { name });
     await expect(th).toBeVisible();
@@ -47,7 +48,7 @@ test('Angular regions (est.): off by default; switched on, three plausible perce
   const weighted = page.getByRole('button', { name: 'Weighted' });
   await expect(weighted).toBeEnabled();
   await weighted.click();
-  await expect(page.getByRole('columnheader', { name: headers[0] })).toHaveAttribute('title', /3D method: Weighted/);
+  await expect(page.getByRole('columnheader', { name: 'Sector eff. est. [Weighted] (%)' })).toHaveAttribute('title', /3D method: Weighted/);
   await expect.poll(async () => (await numbers('areSector'))[0]).toBeLessThan(sector[0]);
   await page.getByRole('button', { name: 'Summation' }).click();
   await expect.poll(async () => (await numbers('areSector'))[0]).toBe(sector[0]);
@@ -144,4 +145,62 @@ test('Lower region est.: the frequency chart fits its axis to the small values, 
   const others = deltas.slice(1);
   expect(others.some((t) => /^[+-]0\.0{3,}[1-9]/.test(t))).toBe(true);
   for (const t of others) expect(t).toMatch(/^(0\.000|[+-]0\.\d{3,7})$/);
+});
+
+test('the 3D method is named where it matters: a labelled control with the reason it is off, and a tag in the estimate headers', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  const fold = page.getByRole('button', { name: /Simulation/ });
+  await fold.click();
+  const bar = page.getByRole('group', { name: 'Simulation' });
+  const method = page.getByRole('group', { name: '3D method' });
+  const reason = page.getByTestId('sim-method-hint');
+
+  // Nothing uses the method yet: the pair is greyed, with a visible name and the reason under it.
+  await expect(bar.getByText('3D method', { exact: true })).toBeVisible();
+  await expect(method.getByRole('button', { name: 'Weighted' })).toBeDisabled();
+  await expect(reason).toBeVisible();
+  await expect(reason).toHaveText('Used by the 3D view, a tilt, the horizon cut and the angular regions; none of them is on.');
+
+  await page.getByLabel('Show Angular regions (est.) columns').check();
+  await expect(method.getByRole('button', { name: 'Weighted' })).toBeEnabled();
+  await expect(reason).toBeHidden();
+  // Its place is kept: a control that becomes usable at the first step of a slider drag must not move the bar.
+  await page.getByLabel('Show Angular regions (est.) columns').uncheck();
+  await expect(reason).toBeVisible();
+  for (const width of [1024, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const sliders = bar.getByRole('slider');
+    // (Places inside the bar: the page itself may scroll.)
+    const before = await sliders.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); const b = e.closest('.sim-bar')!.getBoundingClientRect(); return [r.x - b.x, r.y - b.y]; }));
+    const mech = page.getByLabel('Mechanical tilt (°) value');
+    await mech.fill('3');
+    await mech.press('Enter');
+    await expect(page.getByTestId('sim-badge')).toBeVisible();
+    await expect(reason).toBeHidden();
+    expect(await sliders.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); const b = e.closest('.sim-bar')!.getBoundingClientRect(); return [r.x - b.x, r.y - b.y]; }))).toEqual(before);
+    await mech.fill('0');
+    await mech.press('Enter');
+    await expect(reason).toBeVisible();
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByLabel('Show Angular regions (est.) columns').check();
+
+  // The headers: "[Sum.]" on screen, "[Summation]" in the accessible name, the exported header's words.
+  const sector = page.locator('.metrics thead th', { hasText: 'Sector eff. est.' });
+  await expect(sector.locator('.method-tag')).toHaveText('[Sum.]');
+  await expect(sector.locator('.method-tag')).toBeVisible();
+  for (const name of ['Sector eff. est. [Summation] (%)', 'Spatial eff. est. [Summation] (%)', 'Lower region est. [Summation] (%)']) {
+    await expect(page.getByRole('columnheader', { name })).toHaveCount(1);
+  }
+  await expect(page.locator('.metrics thead .method-tag')).toHaveCount(3);
+  await method.getByRole('button', { name: 'Weighted' }).click();
+  await expect(sector.locator('.method-tag')).toHaveText('[Wtd.]');
+  await expect(page.getByRole('columnheader', { name: 'Sector eff. est. [Weighted] (%)' })).toHaveCount(1);
+  // The header still sorts.
+  await sector.getByRole('button').click();
+  await expect(sector).toHaveAttribute('aria-sort', 'ascending');
+  await method.getByRole('button', { name: 'Summation' }).click();
 });

@@ -5,7 +5,7 @@ import { anyTilted, combineOffsets, type HCutMode } from '../core/analysis/tilt'
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
+import { H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
 import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
@@ -174,6 +174,9 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
   const horizonActive = sim.hCut === 'horizon' && okIds.length > 0;
   const anyActive = tiltActive || horizonActive || sim.azimuthDeg !== 0 || fileCount > 0 || groupCount > 0;
 
+  // The method matters in the 3D view, under a tilt, for a horizon cut, and for the angular-region estimate (integrated over the reconstruction).
+  const methodUsed = tiltActive || sim.hCut === 'horizon' || is3d || withAngularRegions;
+
   return (
     <div className="sim-bar" role="group" aria-label="Simulation">
       <button
@@ -204,17 +207,26 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
       {SLIDERS.map((s) => (
         <GlobalField key={s.key} k={s.key} label={s.label} />
       ))}
-      <Seg<Method3d>
-        label="3D method"
-        value={method}
-        options={[
-          ['summation', 'Summation'],
-          ['weighted', 'Weighted'],
-        ]}
-        onChange={(method3d) => updateView({ method3d })}
-        // The method matters in the 3D view, under a tilt, for a horizon cut, and for the angular-region estimate (integrated over the reconstruction).
-        disabled={!tiltActive && sim.hCut !== 'horizon' && !is3d && !withAngularRegions}
-      />
+      <div className="sim-explained">
+        <div className="sim-choice">
+          <span>3D method</span>
+          <Seg<Method3d>
+            label="3D method"
+            value={method}
+            options={[
+              ['summation', 'Summation'],
+              ['weighted', 'Weighted'],
+            ]}
+            onChange={(method3d) => updateView({ method3d })}
+            disabled={!methodUsed}
+          />
+        </div>
+        {/* A disabled button cannot be focused or tapped for a tooltip: the reason is written under it. Its place is
+            kept while the method is in use, so the bar does not move when a slider's first step enables the control. */}
+        <span className={methodUsed ? 'count sim-hint badge-ghost' : 'count sim-hint'} aria-hidden={methodUsed || undefined} data-testid="sim-method-hint">
+          {METHOD_UNUSED_NOTE}
+        </span>
+      </div>
       <div className="sim-explained">
         <div className="sim-choice" title={H_CUT_TITLE}>
           <span>Horizontal cut</span>
