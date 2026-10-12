@@ -277,6 +277,9 @@ left at the horizon after a down-tilt.
   −3 dB ring is drawn 3 dB under the cut's own maximum; the F/B and H-SLS crosses lie on the trace.
 - The band statistics, the frequency chart and the difference from a reference use these tilted
   values as they use any other.
+- While this cut is chosen the vertical plot marks where it is taken: a thin line labelled "horizon" at 0°
+  elevation (through the centre of the polar plot, a vertical line in the rectangular one), also in the
+  exported image. The level of the vertical cut on that line is what the horizon cut has lost at boresight.
 - The angular-region estimate does not change: its regions follow the beam (the cut through the
   beam peak) and it integrates the 3D reconstruction.
 

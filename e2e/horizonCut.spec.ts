@@ -214,7 +214,14 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   await expect(page.getByTestId('plot-v').locator('.gtitle')).not.toContainText('horizon');
   // The horizontal plot has the dashed file cut of the ticked file; the vertical plot has no original (nothing changed).
   await expect(drawnLines('h')).toHaveCount(hLines + 1);
-  await expect(drawnLines('v')).toHaveCount(vLines);
+  // (Its one new line is the horizon mark: where the cut on the left is taken.)
+  await expect(drawnLines('v')).toHaveCount(vLines + 1);
+  const vNames = await page.getByTestId('plot-v').evaluate((el) => {
+    const plot = (el.matches('.js-plotly-plot') ? el : el.querySelector('.js-plotly-plot')) as unknown as { data: { name?: string; meta?: string }[] };
+    return plot.data.map((t) => `${t.meta ?? ''}|${t.name ?? ''}`);
+  });
+  expect(vNames.filter((n) => n.includes('(original)'))).toEqual([]);
+  expect(vNames.filter((n) => n.endsWith('|horizon'))).toHaveLength(1);
   const trackingOf = async (r: typeof plus) => Number((await r.locator('td[data-col="tracking"]').innerText()).split('→').pop()!.trim());
   const untilted = await trackingOf(plus);
   expect(Math.abs(untilted - Number(fileTracking))).toBeLessThan(1);
@@ -533,4 +540,51 @@ test('at a beamwidth level of 6 dB the Horizon level tooltip names the column as
   await expect(page.locator('.metrics thead th', { hasText: 'H-BW@6 dB (°)' })).toHaveCount(1);
   const title = page.locator('.metrics thead th', { hasText: 'Horizon level (dB)' });
   await expect(title).toHaveAttribute('title', /H-BW@6 dB, H-BW 10 dB and Squint on this row describe that region/);
+});
+
+test('while the cut is at the horizon the vertical plot marks the horizon, in both plot types and in the image', async ({ page }) => {
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { exportedSvgs: string[] }).exportedSvgs = seen;
+    const src = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')!;
+    Object.defineProperty(HTMLImageElement.prototype, 'src', {
+      ...src,
+      set(value: string) {
+        if (typeof value === 'string' && value.startsWith('data:image/svg+xml')) seen.push(decodeURIComponent(value.slice(value.indexOf(',') + 1)));
+        src.set!.call(this, value);
+      },
+    });
+    const create = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (obj: Blob | MediaSource) => {
+      if (obj instanceof Blob && obj.type.includes('svg')) void obj.text().then((t) => seen.push(t));
+      return create(obj);
+    };
+  });
+  await loadExample(page);
+  await openSimulation(page);
+  const v = page.getByTestId('plot-v');
+  const mark = v.locator('svg text', { hasText: /^horizon$/ });
+  await expect(v.locator('.main-svg').first()).toBeVisible();
+  await expect(mark).toHaveCount(0);
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  await expect(mark).toHaveCount(1);
+  await expect(mark).toBeVisible();
+  // The horizontal plot has no such mark.
+  await expect(page.getByTestId('plot-h').locator('svg text', { hasText: /^horizon$/ })).toHaveCount(0);
+  await page.getByRole('group', { name: 'Plot type' }).getByRole('button', { name: 'Rectangular' }).click();
+  await expect(v.getByText('Angle (°)').first()).toBeVisible();
+  await expect(mark).toHaveCount(1);
+  await expect(mark).toBeVisible();
+
+  // The exported image of the vertical cut has it (it is not a simulated picture: no tilt is set).
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+  const [image] = await Promise.all([page.waitForEvent('download'), v.getByRole('button', { name: DOWNLOAD }).click()]);
+  expect(image.suggestedFilename()).toBe('vertical-cut.png');
+  await expect.poll(async () => {
+    const svgs = await page.evaluate(() => (window as unknown as { exportedSvgs: string[] }).exportedSvgs);
+    return svgs.some((s) => s.includes('Vertical cut') && />horizon</.test(s));
+  }).toBe(true);
+
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'Through the beam peak' }).click();
+  await expect(mark).toHaveCount(0);
 });

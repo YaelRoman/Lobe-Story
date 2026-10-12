@@ -804,3 +804,55 @@ describe('markerCaption and the export of a real cut figure', () => {
     expect(JSON.stringify(dark).toLowerCase()).toBe(text);
   });
 });
+
+describe('the horizon mark on the vertical cut', () => {
+  const [h, v] = series('a');
+  const named = (data: unknown[]) => (data as Partial<PlotData>[]).filter((t) => t.name === 'horizon');
+  const lineAtZero = (shapes: Partial<Shape>[] | undefined) => (shapes ?? []).filter((s) => s.type === 'line' && s.xref === 'x' && s.x0 === 0 && s.x1 === 0);
+
+  it('polar: a thin labelled line at 0° elevation through the centre, the word at the rear end', () => {
+    const overlay = buildCutOverlay(opts({ cut: 'V', series: [v], horizonMark: true, floorDb: 40 }));
+    const [mark] = named(overlay.data);
+    expect(named(overlay.data)).toHaveLength(1);
+    expect(mark.type).toBe('scatterpolar');
+    expect(mark.mode).toBe('text+lines');
+    expect(mark.theta).toEqual([180, 0, 0]);
+    expect(mark.r).toEqual([0, -40, 0]);
+    expect(mark.text).toEqual(['horizon', '', '']);
+    expect(mark.line?.width).toBe(1);
+    expect(mark.line?.color).toBe(FIGURE_THEMES.light.fg);
+    expect(mark.showlegend).toBe(false);
+  });
+
+  it('rectangular: a thin vertical line at 0° with the word at its top end', () => {
+    const overlay = buildCutOverlay(opts({ cut: 'V', mode: 'rect', series: [v], horizonMark: true }));
+    const [line] = lineAtZero(overlay.layout.shapes as Partial<Shape>[]);
+    expect(lineAtZero(overlay.layout.shapes as Partial<Shape>[])).toHaveLength(1);
+    expect(line.line?.width).toBe(1);
+    expect(line.label).toMatchObject({ text: 'horizon', textposition: 'end' });
+    // The figure drawn without a highlighted file has the line too (its layout is the overlay's).
+    expect(lineAtZero(buildCutBase(opts({ cut: 'V', mode: 'rect', series: [v], horizonMark: true })).layout.shapes as Partial<Shape>[])).toHaveLength(1);
+  });
+
+  it('is in the exported figure, with the markers of a highlighted file, and never in the legend', () => {
+    const polar = buildCutFigure(opts({ cut: 'V', series: [v], horizonMark: true, markerTarget: 'a', markers: { ...NO_MARKERS, peak: true } }));
+    const out = exportFigure(polar, { file: 'a', items: [] });
+    expect(named(out.data)).toHaveLength(1);
+    expect(named(out.data)[0].showlegend).toBe(false);
+    const rect = buildCutFigure(opts({ cut: 'V', mode: 'rect', series: [v], horizonMark: true, markerTarget: 'a', markers: { ...NO_MARKERS, peak: true } }));
+    // With the tilt ray of the highlighted file: two vertical lines, one of them the horizon.
+    expect(lineAtZero(exportFigure(rect, { file: 'a', items: [] }).layout.shapes as Partial<Shape>[])).toHaveLength(1);
+    expect((rect.layout.shapes ?? []).length).toBe(2);
+  });
+
+  it('is not drawn without the flag, nor on the horizontal cut', () => {
+    for (const mode of ['polar', 'rect'] as const) {
+      const plain = buildCutOverlay(opts({ cut: 'V', mode, series: [v] }));
+      expect(named(plain.data)).toHaveLength(0);
+      expect(lineAtZero(plain.layout.shapes as Partial<Shape>[])).toHaveLength(0);
+      const onH = buildCutOverlay(opts({ cut: 'H', mode, series: [h], horizonMark: true }));
+      expect(named(onH.data)).toHaveLength(0);
+      expect(lineAtZero(onH.layout.shapes as Partial<Shape>[])).toHaveLength(0);
+    }
+  });
+});

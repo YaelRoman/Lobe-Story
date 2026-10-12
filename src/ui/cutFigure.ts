@@ -45,6 +45,8 @@ export interface CutFigureOptions {
   /** Size of the USLS windows in degrees, for the sidelobe marker labels. */
   uslsRangeDeg: number;
   rotationDeg?: number;
+  /** Vertical cut only: mark the horizon (0° elevation), while the horizontal cut shown is the one taken there. */
+  horizonMark?: boolean;
 }
 
 /** `readout: false` marks a band that only shades the plot and carries no value of its own. */
@@ -407,9 +409,50 @@ export function buildCutOverlay(o: CutFigureOptions): CutOverlay {
     o.cut !== 'H' ? '' : o.series.some((s) => s.horizonCut) ? ' · cut at the horizon' : o.series.some((s) => s.coneCut) ? ' · cut through the tilted beam peak' : '';
   const text = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — ${bwName(o.levelDb)} ${hpbw.toFixed(1)}°` : ''}${cone}`;
   const title = { text, font: { size: 14 } };
-  if (o.mode === 'polar') return { data: polarMarkers(spec, o) as Data[], layout: { title } };
+  const horizon = o.cut === 'V' && o.horizonMark === true;
+  if (o.mode === 'polar') return { data: [...polarMarkers(spec, o), ...(horizon ? [polarHorizonMark(o)] : [])] as Data[], layout: { title } };
   const rect = rectMarkers(spec, o);
-  return { data: rect.traces as Data[], layout: { title, shapes: rect.shapes } };
+  if (!horizon) return { data: rect.traces as Data[], layout: { title, shapes: rect.shapes } };
+  return { data: rect.traces as Data[], layout: { title, shapes: [...rect.shapes, rectHorizonMark(o)] } };
+}
+
+/** The word written at the horizon mark. */
+const HORIZON_MARK = 'horizon';
+
+/**
+ * Where the cut at the horizon is taken, on the vertical polar plot: a thin line through the centre at 0° elevation,
+ * in the text colour (the highlighted file's markers are in the accent colour). The word stands at its rear end,
+ * where a panel antenna radiates least, so it does not lie on the beam.
+ */
+function polarHorizonMark(o: CutFigureOptions): Partial<PlotData> {
+  return {
+    type: 'scatterpolar',
+    mode: 'text+lines',
+    name: HORIZON_MARK,
+    theta: [180, 0, 0],
+    r: [0, -o.floorDb, 0],
+    text: [HORIZON_MARK, '', ''],
+    textposition: 'top right',
+    textfont: { size: 11, color: o.theme.fg },
+    line: { color: o.theme.fg, width: 1 },
+    hoverinfo: 'skip',
+    showlegend: false,
+  };
+}
+
+/** The same on the rectangular plot: a thin vertical line at 0° with the word above its top end, outside the curves. */
+function rectHorizonMark(o: CutFigureOptions): Partial<Shape> {
+  return {
+    type: 'line',
+    xref: 'x',
+    yref: 'paper',
+    x0: 0,
+    x1: 0,
+    y0: 0,
+    y1: 1,
+    line: { color: o.theme.fg, width: 1 },
+    label: { text: HORIZON_MARK, textposition: 'end', textangle: 0, yanchor: 'bottom', font: { size: 11, color: o.theme.fg } },
+  };
 }
 
 /**

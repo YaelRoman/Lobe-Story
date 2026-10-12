@@ -197,7 +197,13 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
       uslsRangeDeg: drawn.settings.uslsRangeDeg,
     };
     const make = (cut: 'H' | 'V') => {
-      const options = { ...common, cut, series: buildCutSeries(drawn.items, drawn.sim, drawn.metrics, drawn.colors, cut, drawn.styles, drawn.reference) };
+      const options = {
+        ...common,
+        cut,
+        series: buildCutSeries(drawn.items, drawn.sim, drawn.metrics, drawn.colors, cut, drawn.styles, drawn.reference),
+        // While the horizontal cut shown is the one at the horizon, the vertical plot marks where that is.
+        ...(cut === 'V' && drawn.sim.hCut === 'horizon' ? { horizonMark: true } : {}),
+      };
       return { options, figure: buildCutBase(options) };
     };
     return { h: make('H'), v: make('V') };
