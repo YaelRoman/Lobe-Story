@@ -3,7 +3,8 @@ import { act } from 'react';
 import { createElement, useMemo } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { useSimulation, type SimulationResult } from './useSimulation';
+import { useSettledSimulation, useSimulation, type SimulationResult } from './useSimulation';
+import { gripSlider } from './sliderHold';
 import { initialState, useStore } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS, type TaggedPattern } from '../core/analysis/metrics';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
@@ -105,5 +106,121 @@ describe('useSimulation with custom groups', () => {
     expect(sim.groupOffsetCount).toBe(1);
     expect(sim.offsetCount).toBe(0);
     probe.unmount();
+  });
+});
+
+describe('a slider dragged where the page does not follow it (many files)', () => {
+  const a = { pattern: patternFrom(quadBeam(65), vBeamWithLobes, { id: 'a' }), tags: { tiltDeg: 6 } };
+  const b = { pattern: patternFrom(quadBeam(60), vBeamWithLobes, { id: 'b' }), tags: { tiltDeg: 6 } };
+  const tagged = [a, b];
+
+  /** As App.tsx: the settled state of the sliders, and the simulation made from it. Counts the passes (new tilted patterns). */
+  function mountSettled(follows: boolean) {
+    const container = document.createElement('div');
+    let root: Root;
+    let latest!: SimulationResult;
+    let flags!: { behind: boolean; waiting: boolean };
+    const passes = new Set<unknown>();
+    function Probe() {
+      const metrics = useMemo(() => analyzeAll(tagged, DEFAULT_SETTINGS), []);
+      const settled = useSettledSimulation(follows);
+      latest = useSimulation(tagged, metrics, DEFAULT_SETTINGS, false, settled.state);
+      flags = { behind: settled.behind, waiting: settled.waiting };
+      passes.add(latest.patterns);
+      return null;
+    }
+    act(() => {
+      root = createRoot(container);
+      root.render(createElement(Probe));
+    });
+    return { latest: () => latest, flags: () => flags, passes: () => passes.size, unmount: () => act(() => root.unmount()) };
+  }
+  const step = (mechanicalDeg: number) => act(() => useStore.getState().updateSimulation({ mechanicalDeg }));
+  const release = () => act(() => void window.dispatchEvent(new Event('pointerup')));
+  /** What is shown for a mechanical tilt set in one step, on a page that follows. */
+  function direct(mechanicalDeg: number) {
+    useStore.setState(initialState());
+    const probe = mountSettled(true);
+    step(mechanicalDeg);
+    const result = probe.latest();
+    probe.unmount();
+    useStore.setState(initialState());
+    return result;
+  }
+
+  let probe: ReturnType<typeof mountSettled>;
+  afterEach(() => {
+    probe?.unmount();
+    release();
+  });
+
+  it('shows the state from before the drag until release, and says that it is waiting', () => {
+    probe = mountSettled(false);
+    const before = probe.latest();
+    act(() => gripSlider());
+    for (const m of [1, 2, 3, 4]) step(m);
+    expect(probe.latest()).toBe(before);
+    expect(probe.flags()).toEqual({ behind: true, waiting: true });
+    expect(probe.passes()).toBe(1);
+  });
+
+  it('after release the simulation is the one a direct set gives, made in one pass', () => {
+    const expected = direct(4);
+    probe = mountSettled(false);
+    act(() => gripSlider());
+    for (const m of [1, 2.5, 3, 6, 4]) step(m);
+    release();
+    const after = probe.latest();
+    expect(probe.flags()).toEqual({ behind: false, waiting: false });
+    expect(probe.passes()).toBe(2);
+    expect(after.tilt).toEqual(expected.tilt);
+    expect(after.tiltActive).toBe(true);
+    expect(after.simActive).toBe(expected.simActive);
+    expect(after.effective('a')).toEqual(expected.effective('a'));
+    expect([...after.patterns]).toEqual([...expected.patterns]);
+    expect([...after.metrics]).toEqual([...expected.metrics]);
+    expect(useStore.getState().view.simulation.mechanicalDeg).toBe(4);
+  });
+
+  it('a drag back to the start ends with the state from before it: no pass at all', () => {
+    probe = mountSettled(false);
+    const before = probe.latest();
+    act(() => gripSlider());
+    for (const m of [1, 2, 0]) step(m);
+    release();
+    expect(probe.latest().patterns).toBe(before.patterns);
+    expect(probe.latest().metrics).toBe(before.metrics);
+    expect(probe.passes()).toBe(1);
+  });
+
+  it('a per-file offset slider is held the same way', () => {
+    probe = mountSettled(false);
+    const before = probe.latest();
+    act(() => gripSlider());
+    act(() => useStore.getState().setOffset('b', { electricalDeg: 2 }));
+    expect(probe.latest()).toBe(before);
+    release();
+    expect(probe.latest().isTiltedId('b')).toBe(true);
+    expect(probe.latest().isTiltedId('a')).toBe(false);
+  });
+
+  it('a change made without a grip (the number box, Reset, undo) is followed at once', () => {
+    probe = mountSettled(false);
+    step(3);
+    expect(probe.latest().tilt.mechanicalDeg).toBe(3);
+    expect(probe.flags()).toEqual({ behind: false, waiting: false });
+    act(() => useStore.getState().resetSimulation());
+    expect(probe.latest().tiltActive).toBe(false);
+  });
+
+  it('where the page follows the drag, a grip holds nothing back', () => {
+    probe = mountSettled(true);
+    act(() => gripSlider());
+    step(1);
+    expect(probe.latest().tilt.mechanicalDeg).toBe(1);
+    step(2);
+    expect(probe.latest().tilt.mechanicalDeg).toBe(2);
+    expect(probe.flags().waiting).toBe(false);
+    expect(probe.passes()).toBe(3);
   });
 });

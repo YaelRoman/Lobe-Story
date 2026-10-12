@@ -1,0 +1,175 @@
+import { expect, test, type Page } from '@playwright/test';
+import { planetText, points } from '../src/test/planetText';
+import { openSimulation } from './simulationBar';
+
+const WAITING = 'The plots and the table follow when the slider stops.';
+const MECHANICAL = 'Mechanical tilt (°)';
+
+/** `count` synthetic files, each its own beam: more ticked files than the page follows a slider drag with. */
+const manyFiles = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({
+    name: `syn_${1700 + 10 * i}.msi`,
+    mimeType: 'text/plain',
+    buffer: Buffer.from(
+      planetText({
+        headers: ['NAME SYN', `FREQUENCY ${1700 + 10 * i}`, 'GAIN 15 dBi', 'TILT ELECTRICAL'],
+        h: points((a) => Math.min(40, 3 * (a / (28 + 0.2 * i)) ** 2)),
+        v: points((a) => Math.min(40, 3 * ((a - 2 - (i % 5)) / (3.5 + 0.02 * i)) ** 2)),
+      }),
+    ),
+  }));
+
+async function loadMany(page: Page, count: number) {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles(manyFiles(count));
+  await expect(page.locator('.panel li')).toHaveCount(count);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await openSimulation(page);
+  await settled(page);
+}
+
+/** Notes from now on whether the waiting line was on the page at any moment (it can come and go between two checks). */
+const watchWaiting = (page: Page) =>
+  page.evaluate((text) => {
+    const w = window as unknown as { sawWaiting: boolean };
+    w.sawWaiting = false;
+    new MutationObserver(() => {
+      if (document.querySelector('[data-testid="updating-2d"]')?.textContent === text) w.sawWaiting = true;
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  }, WAITING);
+const sawWaiting = (page: Page) => page.evaluate(() => (window as unknown as { sawWaiting: boolean }).sawWaiting);
+
+const signed = (n: number) => `${n > 0 ? '+' : ''}${n}`;
+
+/**
+ * The page has caught up with the sliders: the table's line names their values (it is made in the same render as the
+ * plots' figures; none while both tilts are zero), and no hint is left, also a frame later.
+ */
+async function settled(page: Page) {
+  await expect(async () => {
+    const [electrical, mechanical] = await Promise.all(['Electrical tilt Δ (°)', MECHANICAL].map(async (name) => Number(await page.getByRole('slider', { name, exact: true }).inputValue())));
+    const line = page.locator('p.count', { hasText: 'Simulated:' });
+    if (electrical === 0 && mechanical === 0) await expect(line).toHaveCount(0, { timeout: 100 });
+    else await expect(line).toContainText(`Simulated: Δe ${signed(electrical)}°, mech ${signed(mechanical)}°`, { timeout: 100 });
+  }).toPass();
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+}
+
+/** Everything on the page a tilt changes: the table, what the plots draw, the read-outs, the band statistics, the bar. */
+async function shown(page: Page) {
+  const [csvFile] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
+  let csv = '';
+  for await (const chunk of (await csvFile.createReadStream())!) csv += chunk.toString();
+  const dom = await page.evaluate(() => {
+    const text = (selector: string) => Array.from(document.querySelectorAll<HTMLElement>(selector), (e) => e.innerText.replace(/\s+/g, ' ').trim());
+    const plots = Array.from(document.querySelectorAll('.js-plotly-plot'), (el) => {
+      const gd = el as unknown as { data?: { name?: string; r?: number[]; theta?: number[]; x?: number[]; y?: number[]; line?: { dash?: string } }[]; layout?: { title?: { text?: string } } };
+      return { title: gd.layout?.title?.text, traces: (gd.data ?? []).map((t) => [t.name, t.line?.dash, t.r ?? t.y, t.theta ?? t.x]) };
+    });
+    return {
+      table: text('.metrics tbody tr'),
+      tableNotes: text('[data-testid="sim-hcut-note"], [data-testid="sim-pair-note"]'),
+      readouts: text('.readout'),
+      band: text('[data-testid="band-stats"]'),
+      bar: text('.sim-bar'),
+      sliders: Array.from(document.querySelectorAll<HTMLInputElement>('.sim-bar input'), (i) => i.value),
+      paths: Array.from(document.querySelectorAll('[data-testid="plot-h"] .scatterlayer .trace .lines path, [data-testid="plot-v"] .scatterlayer .trace .lines path'), (p) => p.getAttribute('d')),
+      plots,
+    };
+  });
+  return { csv, ...dom };
+}
+
+async function setDirect(page: Page, label: string, value: string) {
+  const box = page.getByLabel(`${label} value`, { exact: true });
+  await box.fill(value);
+  await box.press('Enter');
+  await settled(page);
+}
+
+test('with many files ticked a slider drag is followed when it stops, and ends exactly where a typed value does', async ({ page }) => {
+  await loadMany(page, 48);
+  const slider = page.getByRole('slider', { name: MECHANICAL, exact: true });
+  const box = (await slider.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await watchWaiting(page);
+
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 8; i++) await page.mouse.move(box.x + box.width / 2 + i * 6, y);
+  // The thumb and its number follow the pointer while the button is held.
+  const during = await slider.inputValue();
+  expect(Number(during)).toBeGreaterThan(0);
+  await expect(page.getByLabel(`${MECHANICAL} value`, { exact: true })).toHaveValue(during);
+  await page.mouse.up();
+
+  expect(await sawWaiting(page)).toBe(true);
+  await settled(page);
+  const value = await slider.inputValue();
+  expect(value).toBe(during);
+  await expect(page.locator('p.count', { hasText: 'Simulated:' })).toContainText(`mech +${value}°`);
+  const afterDrag = await shown(page);
+  expect(afterDrag.table.some((row) => row.includes('→'))).toBe(true);
+
+  // The same value typed, from a reset bar.
+  await setDirect(page, MECHANICAL, '0');
+  expect((await shown(page)).table.some((row) => row.includes('→'))).toBe(false);
+  await setDirect(page, MECHANICAL, value);
+  expect(await shown(page)).toEqual(afterDrag);
+
+  // Reset and its undo work as before, and are followed at once (no slider is held).
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await settled(page);
+  await expect(slider).toHaveValue('0');
+  await expect(page.getByTestId('sim-badge')).toHaveCount(0);
+  await page.keyboard.press('Control+z');
+  await expect(slider).toHaveValue(value);
+  await settled(page);
+  expect(await shown(page)).toEqual(afterDrag);
+});
+
+test('with many files ticked the arrow keys on a slider are followed when the key is let go', async ({ page }) => {
+  await loadMany(page, 48);
+  const slider = page.getByRole('slider', { name: 'Electrical tilt Δ (°)', exact: true });
+  await slider.focus();
+  await watchWaiting(page);
+  // A held key repeats: several key downs, one key up.
+  for (let i = 0; i < 6; i++) await page.keyboard.down('ArrowRight');
+  await expect(slider).toHaveValue('3');
+  await page.keyboard.up('ArrowRight');
+  expect(await sawWaiting(page)).toBe(true);
+  await settled(page);
+  await expect(page.locator('p.count', { hasText: 'Simulated:' })).toContainText('Δe +3°');
+  const afterKeys = await shown(page);
+
+  await setDirect(page, 'Electrical tilt Δ (°)', '0');
+  await setDirect(page, 'Electrical tilt Δ (°)', '3');
+  expect(await shown(page)).toEqual(afterKeys);
+});
+
+test('with the built-in example the plots and the table still follow a slider while it is dragged', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await openSimulation(page);
+  await settled(page);
+  const slider = page.getByRole('slider', { name: MECHANICAL, exact: true });
+  const box = (await slider.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await watchWaiting(page);
+
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 8; i++) await page.mouse.move(box.x + box.width / 2 + i * 6, y);
+  const during = await slider.inputValue();
+  // Still holding the button: the table already shows the simulation of the value under the pointer.
+  await expect(page.locator('p.count', { hasText: 'Simulated:' })).toContainText(`mech +${during}°`);
+  await expect(page.locator('.metrics tbody tr').first()).toContainText('→');
+  await page.mouse.up();
+  expect(await sawWaiting(page)).toBe(false);
+});

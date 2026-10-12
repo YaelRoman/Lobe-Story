@@ -9,6 +9,7 @@ import { H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, method
 import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
+import { gripKey, gripSlider } from './sliderHold';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
   { key: 'electricalDeg', label: 'Electrical tilt Δ (°)' },
@@ -54,6 +55,11 @@ function NumberSlider({
         value={value}
         aria-label={label}
         onChange={(e) => onChange(Number(e.target.value))}
+        // With many files the page follows when the slider stops, not at every step (see `followsDrag`).
+        onPointerDown={gripSlider}
+        onKeyDown={(e) => {
+          if (gripKey(e.key)) gripSlider();
+        }}
       />
       <input
         type="number"

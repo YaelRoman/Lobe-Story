@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useMemo, useRef } from 'react';
-import { useStore } from '../state/store';
+import { useStore, type SimulationState } from '../state/store';
 import type { Pattern } from '../core/types';
 import type { AnalysisSettings, PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import {
@@ -14,6 +14,8 @@ import {
   type TiltSettings,
 } from '../core/analysis/tilt';
 import { anySimulated, offsetCountsAmong } from './simSummary';
+import { useHeldWhile } from './heldValue';
+import { useSliderGripped } from './sliderHold';
 
 export interface SimulationResult {
   /** True when any loaded file is tilted (effective Δe or m non-zero). */
@@ -72,19 +74,45 @@ function useStableByKey(offsets: Record<string, SimSettings>, key: string): Reco
   return cache.current.value;
 }
 
+/** The sliders' state the simulation is made from, a moment behind the store's. */
+export interface SettledSimulation {
+  state: SimulationState;
+  /** The store has a newer state: the plots and the table show an older simulation. */
+  behind: boolean;
+  /** The newer state is held back until the slider that is being dragged stops (see `followsDrag`). */
+  waiting: boolean;
+}
+
+/**
+ * The simulation state the plots and the table are made from. It follows the store's a render later (deferred), so a
+ * slider's thumb and number are answered first. Where the page does not follow a drag (`follows` false: too many
+ * files, see `followsDrag`), a gripped slider holds it back: the steps in between are dropped and the last one is
+ * taken once, at release or when the slider has stopped for a moment. Whatever is set without a grip (a number box,
+ * Reset, undo, a loaded project) is followed at once, and the end state is the same either way.
+ */
+export function useSettledSimulation(follows: boolean): SettledSimulation {
+  const live = useStore((s) => s.view.simulation);
+  const held = useHeldWhile(live, useSliderGripped(!follows));
+  // Deferred so dragging a slider stays smooth while tilting/analysing catches up.
+  const state = useDeferredValue(held.value);
+  return { state, behind: state !== live, waiting: held.waiting };
+}
+
 export function useSimulation(
   tagged: TaggedPattern[],
   metrics: Map<string, PatternMetrics>,
   settings: AnalysisSettings,
   /** Compute the angular-region estimate for the tilted files too (see `needsAngularRegions`). */
   withAngularRegions = false,
+  /** The state to simulate (see `useSettledSimulation`); without one, the store's, a render later. */
+  settled?: SimulationState,
 ): SimulationResult {
   const live = useStore((s) => s.view.simulation);
   const method = useStore((s) => s.view.method3d);
   const membership = useStore((s) => s.membership);
   const customGroups = useStore((s) => s.customGroups);
-  // Deferred so dragging a slider stays smooth while tilting/analysing catches up.
-  const sim = useDeferredValue(live);
+  // Deferred so dragging a slider stays smooth while tilting/analysing catches up (a settled state already is: deferring it again adds nothing).
+  const sim = useDeferredValue(settled ?? live);
   const { electricalDeg, mechanicalDeg, azimuthDeg, showOriginal, hCut, offsets: fileOffsets, groupOffsets } = sim;
 
   const ids = useMemo(() => tagged.map((i) => i.pattern.id), [tagged]);

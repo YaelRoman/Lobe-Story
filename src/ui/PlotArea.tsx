@@ -12,7 +12,7 @@ import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend, traceNote } from './legend';
 import { PlotlyChart, type FigureOverlay } from './PlotlyChart';
 import { PlotBoundary } from './ErrorBoundary';
-import { expectedTraceCount, showsUpdateHint, usePaintFirst, useUpdateCost, type UpdateCost } from './updateHint';
+import { expectedTraceCount, showsUpdateHint, usePaintFirst, useUpdateCost, WAITING_NOTE, type SimLag, type UpdateCost } from './updateHint';
 import { Pattern3D } from './Pattern3D';
 import { SimulationBar } from './SimulationBar';
 import { SKIP_TARGETS } from './SkipLinks';
@@ -28,6 +28,8 @@ interface Props {
   /** Colour and line pattern of each shown file. */
   styles: Map<string, FileStyle>;
   sim: SimulationResult;
+  /** How far `sim` is behind the sliders (see `SimLag`). */
+  simLag: SimLag;
   onHelp: OpenHelp;
 }
 
@@ -140,6 +142,7 @@ interface CutPlotsProps {
   colors: Map<string, string>;
   styles: Map<string, FileStyle>;
   sim: SimulationResult;
+  simLag: SimLag;
   reference: string | null;
   /** The file whose markers are drawn (the highlighted one, or the only one), if any. */
   markerTarget: string | null;
@@ -153,7 +156,7 @@ interface CutPlotsProps {
  * The two cut plots. The figures are built here, inside the plot area's error boundary, so a figure that cannot be
  * built leaves the controls above it in place.
  */
-function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerTarget, highlighted, targetHighlighted }: CutPlotsProps) {
+function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference, markerTarget, highlighted, targetHighlighted }: CutPlotsProps) {
   const view = useStore(useShallow((s) => ({ cut: s.view.cut, mode: s.view.mode, floorDb: s.view.floorDb, markers: s.view.markers, theme: s.view.theme })));
   const settings = useStore((s) => s.settings);
   // Everything that decides which traces are drawn and how the figure looks (colours, plot type, floor, theme,
@@ -272,9 +275,11 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
       )}
       {/* The hint sits on the top edge of the first plot: a line of its own would move both plots down and up again, two more repaints of every trace. */}
       <div className="plots-area">
-        {updating && hint && (
+        {/* While a dragged slider is waited for, the line says so whatever the redraw will cost. After that it is the
+            hint, from the moment the sliders are ahead of the plots (the simulation is worked out before the redraw). */}
+        {(simLag === 'waiting' || ((updating || simLag === 'behind') && hint)) && (
           <p className="count updating" data-testid="updating-2d">
-            Updating the plots…
+            {simLag === 'waiting' ? WAITING_NOTE : 'Updating the plots…'}
           </p>
         )}
         <div className="plots">
@@ -286,7 +291,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
   );
 }
 
-export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles, sim, onHelp }: Props) {
+export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles, sim, simLag, onHelp }: Props) {
   // Only the fields used here: subscribing to the whole view would re-render on every slider tick.
   const view = useStore(
     useShallow((s) => ({
@@ -394,9 +399,9 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
           resetKeys={[is3d, items, drawnItems, metrics, colors, styles, sim, reference, markerTarget, settings, view.layout3d, view.cut, view.mode, view.floorDb, view.markers, view.theme]}
         >
           {is3d ? (
-            <Pattern3D items={items} colors={colors} sim={sim} />
+            <Pattern3D items={items} colors={colors} sim={sim} waiting={simLag === 'waiting'} />
           ) : (
-            <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} targetHighlighted={markerTarget !== null && markerTarget === highlighted} />
+            <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} targetHighlighted={markerTarget !== null && markerTarget === highlighted} />
           )}
         </PlotBoundary>
       )}

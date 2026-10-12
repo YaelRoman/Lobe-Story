@@ -12,6 +12,7 @@ import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 import { withSimulated } from './exportFigure';
 import { exportName, simulatedCaption } from './simSummary';
+import { WAITING_NOTE_3D } from './updateHint';
 
 const subscribeResize = (cb: () => void) => {
   window.addEventListener('resize', cb);
@@ -24,10 +25,13 @@ export function Pattern3D({
   items,
   colors,
   sim,
+  waiting,
 }: {
   items: TaggedPattern[];
   colors: Map<string, string>;
   sim: SimulationResult;
+  /** The simulation waits for a dragged slider to stop (see `SimLag`). */
+  waiting: boolean;
 }) {
   const method = useStore((s) => s.view.method3d);
   const layout = useStore((s) => s.view.layout3d);
@@ -89,7 +93,7 @@ export function Pattern3D({
       <p className="count">
         3D shape reconstructed from the H and V cuts ({method === 'summation' ? 'summation' : 'weighted, Gil et al.'}
         ); an estimate, not measured data.
-        {updating ? ' Updating the 3D view…' : ''}
+        {waiting ? ` ${WAITING_NOTE_3D}` : updating ? ' Updating the 3D view…' : ''}
       </p>
       {notice && (
         <p className="count cap-notice" data-testid="cap-notice-3d">

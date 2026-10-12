@@ -3,6 +3,16 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 /** A redraw of the cut plots expected to take longer than this shows "Updating the plots…" while it runs. */
 export const HINT_AFTER_MS = 300;
 
+/**
+ * How far the simulation shown is behind the sliders: not at all; `behind`, being worked out; or `waiting` for a
+ * dragged slider to stop (with many files the page does not follow a drag, see `followsDrag`).
+ */
+export type SimLag = 'none' | 'behind' | 'waiting';
+
+/** Shown in place of the hint while the simulation waits for the slider: nothing is being updated yet. */
+export const WAITING_NOTE = 'The plots and the table follow when the slider stops.';
+export const WAITING_NOTE_3D = 'The 3D view and the table follow when the slider stops.';
+
 /** Cost of a redraw per drawn trace, assumed until one has been timed on this machine. */
 export const ASSUMED_MS_PER_TRACE = 3;
 

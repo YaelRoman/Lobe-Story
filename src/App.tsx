@@ -12,7 +12,8 @@ import { MetricsTable } from './ui/MetricsTable';
 import { needsAngularRegions } from './ui/table';
 import { BandStats } from './ui/BandStats';
 import { Dialog } from './ui/Dialog';
-import { useSimulation } from './ui/useSimulation';
+import { useSettledSimulation, useSimulation } from './ui/useSimulation';
+import { followsDrag } from './ui/sliderHold';
 import { StatusArea } from './ui/StatusArea';
 import { useUnsavedGuard } from './ui/useUnsavedGuard';
 import { EmptyState } from './ui/EmptyState';
@@ -44,7 +45,11 @@ export default function App() {
   const method3d = useStore((s) => s.view.method3d);
   const areMethod = withAngularRegions ? method3d : undefined;
   const metrics = useMemo(() => analyzeAll(tagged, settings, { areMethod }), [tagged, settings, areMethod]);
-  const sim = useSimulation(tagged, metrics, settings, withAngularRegions);
+  // With many files a slider is not followed while it is dragged: the simulation is made once, when it stops.
+  const tickedCount = useMemo(() => tagged.reduce((n, i) => n + (visible[i.pattern.id] ? 1 : 0), 0), [tagged, visible]);
+  const settled = useSettledSimulation(followsDrag({ files: tagged.length, drawn: tickedCount, angularRegions: withAngularRegions }));
+  const sim = useSimulation(tagged, metrics, settings, withAngularRegions, settled.state);
+  const simLag = settled.waiting ? 'waiting' : settled.behind ? 'behind' : 'none';
   // Colour only the currently-visible files, in panel order (groups, then items), so every
   // checked file gets its own colour and colours don't shift as unrelated files are added/removed.
   // With more than ten visible files the colour is the group's and the files differ by lightness.
@@ -102,7 +107,7 @@ export default function App() {
             <>
               {/* A figure that cannot be built or drawn fails inside its own box, below the controls (see PlotArea, HpbwChart and PlotlyChart). These are the last line for anything else in the two regions. */}
               <PlotBoundary className="plot">
-                <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} onHelp={openHelp} />
+                <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} onHelp={openHelp} />
               </PlotBoundary>
               <PlotBoundary className="plot wide">
                 <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
