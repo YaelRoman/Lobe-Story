@@ -10,12 +10,18 @@ async function loadExample(page: Page) {
   await expect(page.locator('.panel li')).toHaveCount(24);
 }
 
-/** A cell under a simulation: `original → tilted`, or one value whose tooltip says the two are equal. */
-async function expectSimulatedCell(cell: Locator) {
+const EQUAL = {
+  /** With no tilt on any file the two values are the file cut and the horizon cut. */
+  horizonOnly: 'file cut and horizon cut are equal',
+  /** Under a tilt they are original and tilted. */
+  tilt: 'original and tilted are equal under the simulation',
+};
+
+/** A cell under a simulation: `a → b`, or one value whose tooltip says, in the words of the mode, that the two are equal. */
+async function expectSimulatedCell(cell: Locator, mode: keyof typeof EQUAL) {
   await expect(async () => {
     const [text, title] = [await cell.innerText(), await cell.getAttribute('title')];
-    // (With no tilt on any file the two values are the file cut and the horizon cut; under a tilt, original and tilted.)
-    expect(text.includes('→') || title === 'original and tilted are equal under the simulation' || title === 'file cut and horizon cut are equal', text).toBe(true);
+    expect(text.includes('→') || title === EQUAL[mode], `${text} | ${title}`).toBe(true);
   }).toPass();
 }
 
@@ -195,7 +201,7 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   // Every file: horizontal cells read "file cut → horizon cut" (once where equal); the vertical cells are the file's own, without an arrow.
   for (const r of [plus, minus, other]) {
     // (Where the two values read the same, the cell shows one value and its tooltip says they are equal.)
-    for (const col of ['hHpbw', 'fb180']) await expectSimulatedCell(r.locator(`td[data-col="${col}"]`));
+    for (const col of ['hHpbw', 'fb180']) await expectSimulatedCell(r.locator(`td[data-col="${col}"]`), 'horizonOnly');
     await expect(r.locator('td[data-col="vHpbw"]')).not.toContainText('→');
     await expect(r.locator('td[data-col="tilt"]')).not.toContainText('→');
   }
@@ -236,9 +242,9 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   await offset.fill('1');
   await offset.press('Enter');
   await expect(page.getByLabel('Offsets: mech +1°')).toBeVisible();
-  await expectSimulatedCell(plus.locator('td[data-col="vHpbw"]'));
+  await expectSimulatedCell(plus.locator('td[data-col="vHpbw"]'), 'tilt');
   await expect(minus.locator('td[data-col="vHpbw"]')).not.toContainText('→');
-  await expectSimulatedCell(minus.locator('td[data-col="hHpbw"]'));
+  await expectSimulatedCell(minus.locator('td[data-col="hHpbw"]'), 'tilt');
   await expect.poll(() => trackingOf(plus)).not.toBe(untilted);
   const tilted = await trackingOf(plus);
   expect(await trackingOf(minus)).toBe(tilted);
