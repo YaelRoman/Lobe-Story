@@ -313,3 +313,27 @@ describe('file names of the frequency chart image', () => {
     for (const c of METRIC_COLUMNS) if (/[A-Z]/.test(c.key)) expect(chartFileBase(c.key)).not.toContain(c.key);
   });
 });
+
+describe('a simulated pair of lower region values', () => {
+  const base = buildRows(groups, withAre, 'dBd')[0];
+  const pair = (from: number, to: number) => ({ ...base, cells: { ...base.cells, areLower: { value: from } }, tilted: { ...base.cells, areLower: { value: to }, hHpbw: { value: 0.04 } } });
+
+  it('does not read "0.001 → 0.000" for a value that is not zero: both sides get the decimals the smaller one needs', () => {
+    expect(rowCell(pair(0.0009, 0.0002), 'areLower').text).toBe('0.0009 → 0.0002');
+    expect(rowCell(pair(0.0009, 0.00002), 'areLower').text).toBe('0.00090 → 0.00002');
+    // Two values that would both read 0.000 are told apart the same way.
+    expect(rowCell(pair(0.0002, 0.0003), 'areLower').text).toBe('0.0002 → 0.0003');
+  });
+
+  it('keeps three decimals where they show both values, and one value for a pair that reads the same', () => {
+    expect(rowCell(pair(0.0031, 0.0127), 'areLower').text).toBe('0.003 → 0.013');
+    expect(rowCell(pair(0.0009, 0.0008), 'areLower')).toEqual({ text: '0.001', title: 'original and tilted are equal under the simulation', equal: true });
+    // An exact zero stays 0.000; a value too small for seven decimals too.
+    expect(rowCell(pair(0.0012, 0), 'areLower').text).toBe('0.001 → 0.000');
+    expect(rowCell(pair(0.0012, 1e-9), 'areLower').text).toBe('0.001 → 0.000');
+  });
+
+  it('leaves the other columns at their own decimals', () => {
+    expect(rowCell({ ...pair(0.001, 0.001), cells: { ...base.cells, hHpbw: { value: 65 } } }, 'hHpbw').text).toBe('65.0 → 0.0');
+  });
+});

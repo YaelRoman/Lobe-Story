@@ -655,6 +655,16 @@ function deltaDecimals(key: TableColumn, v: number | null): number {
   return usual;
 }
 
+/**
+ * Decimals of an original → simulated pair in such a column: the column's own, or as many more as it takes for the
+ * smaller value that is not zero to show a digit ("0.0009 → 0.0002", not "0.001 → 0.000", which reads as "to nothing").
+ */
+function pairDecimals(key: TableColumn, a: number | null, b: number | null): number {
+  const usual = shownDecimals(key);
+  if (DECIMALS[key] === undefined) return usual;
+  return Math.max(deltaDecimals(key, a), deltaDecimals(key, b));
+}
+
 const fmt = (v: number | null, decimals = 2) => (v === null ? '' : fixed(v, decimals));
 /** One CSV field, quoted only where CSV syntax needs it. */
 export const csvCell = (raw: string) => (/[",\r\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw);
@@ -815,7 +825,8 @@ export const cellText = (r: MetricsRow, key: TableColumn): string => rowCell(r, 
 export function rowCell(r: MetricsRow, key: TableColumn, words: PairWords = TILT_WORDS): { text: string; title?: string; equal?: true } {
   const cell = cellOf(r, key);
   if (r.isDelta) return { text: signedDecimals(cell.value, deltaDecimals(key, cell.value)), title: cell.reason };
-  return formatCell(cell, tiltedOf(r, key), shownDecimals(key), words);
+  const tilted = tiltedOf(r, key);
+  return formatCell(cell, tilted, tilted ? pairDecimals(key, cell.value, tilted.value) : shownDecimals(key), words);
 }
 
 /** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */
