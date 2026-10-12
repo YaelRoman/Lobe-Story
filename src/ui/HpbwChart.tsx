@@ -15,7 +15,7 @@ import { bwName } from './bwLabel';
 import { nameOf } from '../core/names';
 import { hasUsableFrequency } from '../core/gain';
 import { withSimulated } from './exportFigure';
-import { exportName, simulatedCaption } from './simSummary';
+import { exportName, simulatedCaption, weightedHorizonNote } from './simSummary';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 
@@ -146,8 +146,9 @@ export const HpbwChart = memo(function HpbwChart({
       withSimulated(
         both ? hpbwCaption(levelDb, simulated, refDrawn, fileCut) : metricCaption(plotLabel, column.unit, simulated, refDrawn, Boolean(DECLARED[metric]), fileCut),
         simulatedLine,
+        followsH ? weightedHorizonNote(sim.hCut, method3d) : undefined,
       ),
-    [both, levelDb, simulated, fileCut, plotLabel, column.unit, refDrawn, metric, simulatedLine],
+    [both, levelDb, simulated, fileCut, plotLabel, column.unit, refDrawn, metric, simulatedLine, followsH, sim.hCut, method3d],
   );
 
   const note = leftOut > 0 ? <p className="count" data-testid="freq-left-out">{leftOutText(leftOut)}</p> : null;

@@ -9,7 +9,7 @@ import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
 import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
 import { withSimulated } from './exportFigure';
-import { exportName, simulatedCaption } from './simSummary';
+import { exportName, simulatedCaption, weightedHorizonNote } from './simSummary';
 import { pairWords } from './table';
 import { copyAndAnnounce } from './clipboard';
 import { FIGURE_THEMES } from './figureTheme';
@@ -260,7 +260,7 @@ export const BandStats = memo(function BandStats({
           testId="plot-band"
           toolbar="xy"
           ariaLabel="Band statistics plot"
-          labelledExport={{ caption: withSimulated(exportCaption ?? undefined, histogramSimulated ? simulatedCaption(marks.namesHCut ? sim : { ...sim, hCut: undefined }, method3d, sim.offsetsAmong(dataset.items.map((i) => i.pattern.id))) : undefined), filename: exportName('band-statistics-histogram', histogramSimulated) }}
+          labelledExport={{ caption: withSimulated(exportCaption ?? undefined, histogramSimulated ? simulatedCaption(marks.namesHCut ? sim : { ...sim, hCut: undefined }, method3d, sim.offsetsAmong(dataset.items.map((i) => i.pattern.id))) : undefined, marks.namesHCut ? weightedHorizonNote(sim.hCut, method3d) : undefined), filename: exportName('band-statistics-histogram', histogramSimulated) }}
         />
       )}
       {anyAdjusted(columns, tiltedColumns) && (

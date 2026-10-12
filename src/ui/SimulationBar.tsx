@@ -5,7 +5,7 @@ import { anyTilted, combineOffsets, type HCutMode } from '../core/analysis/tilt'
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { H_CUT_HINT, hCutAnnouncement, simSummary, summaryHCut, summaryMethod } from './simSummary';
+import { H_CUT_HINT, hCutAnnouncement, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
 import type { OpenHelp } from './HelpDialog';
 import { needsAngularRegions } from './table';
 
@@ -241,6 +241,12 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
         <span id="sim-hcut-hint" className="count sim-hint" data-testid="sim-hcut-hint">
           {H_CUT_HINT}
         </span>
+        {/* Not blocked, but said where the two are chosen: the Weighted rule reshapes this cut. */}
+        {weightedHorizonNote(sim.hCut, method) && (
+          <span className="sim-hint sim-caveat" role="note" data-testid="sim-weighted-note">
+            {weightedHorizonNote(sim.hCut, method)}
+          </span>
+        )}
       </div>
       <label>
         <input

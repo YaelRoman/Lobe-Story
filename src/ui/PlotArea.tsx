@@ -4,7 +4,7 @@ import { useStore, type CutView, type Dimension, type Layout3d, type MarkerKey, 
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout } from './cutFigure';
-import { exportName, simulatedCaption } from './simSummary';
+import { exportName, simulatedCaption, weightedHorizonNote } from './simSummary';
 import { withSimulated } from './exportFigure';
 import { bwMarkerLabel } from './bwLabel';
 import { buildCutSeries, withReference } from './cutSeries';
@@ -74,6 +74,8 @@ interface CutPlotProps {
   markerLine: string | undefined;
   /** The simulation line of the exported image's caption (undefined without a simulation). */
   simulatedLine: string | undefined;
+  /** A caveat about the simulated picture, the caption's last line (see `weightedHorizonNote`). */
+  exportNote?: string;
   /** Name of the exported image, without extension. */
   exportBase: string;
 }
@@ -85,7 +87,7 @@ interface Drawn {
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, fileCut, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportBase }: CutPlotProps) {
+function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, fileCut, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportNote, exportBase }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -98,7 +100,7 @@ function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, 
         toolbar={mode === 'polar' ? 'polar' : 'rect'}
         ariaLabel={`${id === 'h' ? 'Horizontal' : 'Vertical'} cut of the highlighted and visible patterns`}
         labelledExport={{
-          caption: withSimulated(target ? { file: target, items: readout, ...(markerLine ? { markers: markerLine } : {}) } : undefined, simulatedLine),
+          caption: withSimulated(target ? { file: target, items: readout, ...(markerLine ? { markers: markerLine } : {}) } : undefined, simulatedLine, exportNote),
           filename: exportBase,
           figure: exportFigure,
         }}
@@ -246,7 +248,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
           </p>
         )}
         <div className="plots">
-          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} simulatedLine={simulatedLineH} exportBase={exportName('horizontal-cut', simulatedH)} />}
+          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={exportName('horizontal-cut', simulatedH)} />}
           {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} simulatedLine={simulatedLineV} exportBase={exportName('vertical-cut', simulatedV)} />}
         </div>
       </div>

@@ -18,6 +18,8 @@ export interface ExportCaption {
   markers?: string;
   /** The last line while a simulation is active: the tilt and azimuth values and the method. */
   simulated?: string;
+  /** A caveat about the simulated picture, on its own wrapped line after the simulation line. */
+  note?: string;
 }
 
 /** Caption as text lines: the file name, then the values wrapped at about 110 characters. */
@@ -31,14 +33,14 @@ export function exportCaptionLines(caption: ExportCaption): string[] {
     } else current = current ? `${current} · ${item}` : item;
   }
   if (current) lines.push(current);
-  for (const extra of [caption.markers, caption.simulated]) if (extra) lines.push(...wrapText(extra));
+  for (const extra of [caption.markers, caption.simulated, caption.note]) if (extra) lines.push(...wrapText(extra));
   return lines;
 }
 
 /** The caption with the simulation line added (a caption of its own when there was none); unchanged without a simulation. */
-export function withSimulated(caption: ExportCaption | undefined, simulated: string | undefined): ExportCaption | undefined {
+export function withSimulated(caption: ExportCaption | undefined, simulated: string | undefined, note?: string): ExportCaption | undefined {
   if (simulated === undefined) return caption;
-  return { items: [], ...caption, simulated };
+  return { items: [], ...caption, simulated, ...(note ? { note } : {}) };
 }
 
 /** A long sentence broken at spaces into lines of about 110 characters. */

@@ -390,3 +390,51 @@ for (const width of [1440, 390]) {
     await expect(page.getByTestId('sim-summary')).toContainText('H cut: at the horizon');
   });
 }
+
+test('Weighted with the cut at the horizon is allowed but flagged: a visible note at the control and a line in the image', async ({ page }) => {
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { exportedSvgs: string[] }).exportedSvgs = seen;
+    const src = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')!;
+    Object.defineProperty(HTMLImageElement.prototype, 'src', {
+      ...src,
+      set(value: string) {
+        if (typeof value === 'string' && value.startsWith('data:image/svg+xml')) seen.push(decodeURIComponent(value.slice(value.indexOf(',') + 1)));
+        src.set!.call(this, value);
+      },
+    });
+    const create = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (obj: Blob | MediaSource) => {
+      if (obj instanceof Blob && obj.type.includes('svg')) void obj.text().then((t) => seen.push(t));
+      return create(obj);
+    };
+  });
+  await loadExample(page);
+  await openSimulation(page);
+  const note = page.getByTestId('sim-weighted-note');
+  const weighted = page.getByRole('group', { name: '3D method' }).getByRole('button', { name: 'Weighted' });
+  const horizon = page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' });
+  await expect(note).toHaveCount(0);
+  await horizon.click();
+  // Summation is the reference for this cut: nothing to flag.
+  await expect(note).toHaveCount(0);
+  await weighted.click();
+  await expect(weighted).toHaveAttribute('aria-pressed', 'true');
+  await expect(horizon).toHaveAttribute('aria-pressed', 'true');
+  await expect(note).toBeVisible();
+  await expect(note).toHaveText('Weighted distorts the shape of a horizon cut (an artefact of its interpolation, not of the antenna): read its level, not its width. Summation is the reference for this cut.');
+  await expect(hTitle(page)).toContainText('cut at the horizon');
+
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+  const svgText = async () => {
+    const svgs = await page.evaluate(() => (window as unknown as { exportedSvgs: string[] }).exportedSvgs);
+    return svgs.filter((s) => s.includes('Simulated:')).map((s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')).pop() ?? '';
+  };
+  await Promise.all([page.waitForEvent('download'), page.getByTestId('plot-h').getByRole('button', { name: DOWNLOAD }).click()]);
+  await expect.poll(svgText).toContain('Weighted distorts the shape of a horizon cut');
+  expect(await svgText()).toContain('Summation is the reference for this cut.');
+
+  // Back on the cut through the beam peak (or on Summation) the note goes.
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'Through the beam peak' }).click();
+  await expect(note).toHaveCount(0);
+});

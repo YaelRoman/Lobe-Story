@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { anySimulated, exportName, H_CUT_HINT, hCutAnnouncement, offsetCountsAmong, simSummary, simulatedCaption, simulationActive, summaryMethod } from './simSummary';
+import { anySimulated, exportName, H_CUT_HINT, hCutAnnouncement, offsetCountsAmong, simSummary, simulatedCaption, simulationActive, summaryMethod, WEIGHTED_HORIZON_NOTE, weightedHorizonNote } from './simSummary';
+import { exportCaptionLines, withSimulated } from './exportFigure';
+import { FEATURE_HELP, GLOSSARY } from './glossary';
 
 describe('simSummary', () => {
   it('shows the global values', () => {
@@ -98,5 +100,33 @@ describe('the horizontal-cut control explains and announces itself', () => {
   it('says what changed when the choice is switched', () => {
     expect(hCutAnnouncement('horizon')).toBe('Horizontal cut at the horizon: every file shows its horizon cut. Horizon level column added.');
     expect(hCutAnnouncement('beam')).toBe('Horizontal cut through the beam peak. Horizon level column removed.');
+  });
+});
+
+describe('Weighted with the cut at the horizon', () => {
+  it('is flagged only for that combination, in words that match the metric definitions', () => {
+    expect(weightedHorizonNote('horizon', 'weighted')).toBe(WEIGHTED_HORIZON_NOTE);
+    expect(weightedHorizonNote('horizon', 'summation')).toBeUndefined();
+    expect(weightedHorizonNote('beam', 'weighted')).toBeUndefined();
+    expect(weightedHorizonNote(undefined, 'weighted')).toBeUndefined();
+    for (const text of ['Weighted distorts the shape of a horizon cut', 'read its level, not its width', 'Summation is the reference for this cut']) expect(WEIGHTED_HORIZON_NOTE).toContain(text);
+  });
+
+  it('is the last line of an exported image, after the simulation line', () => {
+    const lines = exportCaptionLines(withSimulated({ file: 'a.msi', items: ['x'] }, 'Simulated: y', WEIGHTED_HORIZON_NOTE)!);
+    expect(lines.slice(0, 3)).toEqual(['a.msi', 'x', 'Simulated: y']);
+    expect(lines.slice(3).join(' ')).toBe(WEIGHTED_HORIZON_NOTE);
+    expect(withSimulated({ items: [] }, undefined, WEIGHTED_HORIZON_NOTE)).toEqual({ items: [] });
+    expect(exportCaptionLines(withSimulated(undefined, 'Simulated: y')!)).toEqual(['Simulated: y']);
+  });
+
+  it('Help says the same in the Horizon cut entry and the feature line', () => {
+    const entry = GLOSSARY.find((g) => g.term === 'Horizon cut')!;
+    const line = FEATURE_HELP.find((l) => l.startsWith('Tilt simulation, horizontal cut'))!;
+    for (const text of [entry.text, line]) {
+      expect(text).toContain('Weighted');
+      expect(text).toContain('Summation is the reference');
+      expect(text).toMatch(/level, not its width/);
+    }
   });
 });

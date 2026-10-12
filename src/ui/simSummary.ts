@@ -37,6 +37,17 @@ export const hCutAnnouncement = (hCut: HCutMode): string =>
     : 'Horizontal cut through the beam peak. Horizon level column removed.';
 
 /**
+ * Said wherever a horizon cut made with the Weighted method is shown: the rule weights the two cuts by each other's
+ * level, which reshapes the cut as soon as the elevation cut is not at its peak (see docs/metrics.md).
+ */
+export const WEIGHTED_HORIZON_NOTE =
+  'Weighted distorts the shape of a horizon cut (an artefact of its interpolation, not of the antenna): read its level, not its width. Summation is the reference for this cut.';
+
+/** The note above, while the horizontal cut is the one at the horizon and the 3D method is Weighted. */
+export const weightedHorizonNote = (hCut: HCutMode | undefined, method: 'summation' | 'weighted'): string | undefined =>
+  hCut === 'horizon' && method === 'weighted' ? WEIGHTED_HORIZON_NOTE : undefined;
+
+/**
  * The horizontal-cut choice for the collapsed bar's summary: the cut at the horizon always (every file shows it, tilted
  * or not), the cut through the beam peak only while a file is tilted (without a tilt it is the file cut).
  */
