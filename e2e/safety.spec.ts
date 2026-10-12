@@ -611,3 +611,40 @@ test('Clear also puts the simulation sliders and the horizontal cut back, says s
   await expect(page.getByText(/Simulated:/)).toHaveCount(0);
   await expect(page.getByTestId('sim-weighted-note')).toHaveCount(0);
 });
+
+test('a file written as negative levels is read the right way up and says so; a frequency in GHz is read as MHz, a bare 1.8 is marked', async ({ page }) => {
+  await page.goto('/');
+  const headers = (freq: string) => ['NAME A', `FREQUENCY ${freq}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'];
+  const signed = (a: number) => (a > 180 ? a - 360 : a);
+  const levels = (fn: (a: number) => number) => Array.from({ length: 360 }, (_, a) => `${a.toFixed(1)} ${(-fn(signed(a))).toFixed(2)}`);
+  const negative = planetText({
+    headers: headers('1800'),
+    h: levels((a) => Math.min(40, 3 * (a / 32.5) ** 2)),
+    v: levels((a) => Math.min(40, 3 * ((a - 8) / 4) ** 2)),
+  });
+  await page.getByTestId('file-input').setInputFiles([
+    file('plain.msi', planetText({ headers: headers('1800') })),
+    file('negative.msi', negative),
+    file('ghz.msi', planetText({ headers: headers('1.8 GHz') })),
+    file('bare.msi', planetText({ headers: headers('1.8') })),
+  ]);
+  const panel = page.locator('.panel');
+  await expect(panel.locator('li')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  const mark = (name: string) => panel.locator('li', { hasText: name }).locator('.warn');
+  await expect(mark('plain.msi')).toHaveCount(0);
+  await expect(mark('negative.msi')).toHaveAttribute('title', /HORIZONTAL cut: values look like negative levels \(dB relative to peak written with a minus sign\); read as attenuation/);
+  await expect(mark('negative.msi')).toHaveAttribute('title', /VERTICAL cut: values look like negative levels/);
+  await expect(mark('negative.msi')).not.toHaveAttribute('title', /minimum is -40 dB/);
+  await expect(mark('ghz.msi')).toHaveCount(0);
+  await expect(mark('bare.msi')).toHaveAttribute('title', /frequency looks like GHz/);
+
+  // The table: the negative file reads as the plain one (it was analysed upside down: a wide beam and F/B 0.0).
+  const row = (name: string) => page.locator('.metrics tbody tr', { hasText: name });
+  const cells = (name: string) => row(name).locator('td[data-col]').allInnerTexts();
+  expect(await cells('negative.msi')).toEqual(await cells('plain.msi'));
+  await expect(row('negative.msi').locator('td[data-col="hHpbw"]')).toHaveText('65.0');
+  // The MHz column: 1800 for the GHz file, 1.8 (marked) for the bare one.
+  await expect(row('ghz.msi')).toContainText('1800');
+  await expect(row('bare.msi').locator('td').nth(2)).toHaveText('1.8');
+});

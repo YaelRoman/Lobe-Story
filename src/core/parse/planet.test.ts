@@ -174,3 +174,90 @@ describe('content that is not a Planet pattern', () => {
     expect(parsePlanet('NAME X\nFREQUENCY 900\n', 'x.pln')).toEqual({ ok: false, error: 'Missing HORIZONTAL block' });
   });
 });
+
+describe('levels written as negative dB (relative to the peak, with a minus sign)', () => {
+  const NOTE = 'values look like negative levels (dB relative to peak written with a minus sign); read as attenuation';
+  const neg = (f: (a: number) => number) => points((a) => -f(a));
+
+  it('a cut whose values are all ≤ 0 with a minimum of −3 dB or lower is read with the sign flipped, and says so', () => {
+    const r = expectOk(parsePlanet(planetText({ h: neg(beam), v: neg(beam) }), 'neg.msi'));
+    const plain = expectOk(parsePlanet(planetText({ h: points(beam), v: points(beam) }), 'pos.msi'));
+    // The peak is where the file's 0 is: the same pattern as the file written as attenuation.
+    expect(r.pattern.horizontal).toEqual(plain.pattern.horizontal);
+    expect(r.pattern.vertical).toEqual(plain.pattern.vertical);
+    expect(r.pattern.horizontal.atten[0]).toBe(0);
+    expect(Math.max(...r.pattern.horizontal.atten)).toBe(40);
+    expect(r.warnings).toEqual([
+      { code: 'negative-levels', message: `HORIZONTAL cut: ${NOTE}` },
+      { code: 'negative-levels', message: `VERTICAL cut: ${NOTE}` },
+    ]);
+    // No "minimum is -40 dB, not 0" on top: after the flip the minimum is 0.
+    expect(r.warnings.some((w) => w.code === 'peak-not-zero')).toBe(false);
+  });
+
+  it('each cut is judged on its own', () => {
+    const r = expectOk(parsePlanet(planetText({ h: neg(beam), v: points(beam) }), 'mixed.msi'));
+    expect(r.warnings.map((w) => w.message)).toEqual([`HORIZONTAL cut: ${NOTE}`]);
+    expect(Math.max(...r.pattern.horizontal.atten)).toBe(40);
+    expect(Math.max(...r.pattern.vertical.atten)).toBe(40);
+  });
+
+  it('a flipped cut whose best level is not 0 still gets the normalising warning, with the flipped value', () => {
+    const r = expectOk(parsePlanet(planetText({ h: points((a) => -1 - beam(a)) }), 'x'));
+    expect(r.warnings.map((w) => w.code)).toEqual(['negative-levels', 'peak-not-zero']);
+    expect(r.warnings[1].message).toBe('HORIZONTAL cut minimum is 1 dB, not 0; analysis normalises it');
+    expect(Math.min(...r.pattern.horizontal.atten)).toBe(1);
+  });
+
+  it('is left as it is when it is not unambiguous', () => {
+    const same = (h: string[]) => {
+      const r = expectOk(parsePlanet(planetText({ h }), 'x'));
+      expect(r.warnings.some((w) => w.code === 'negative-levels')).toBe(false);
+      return r.pattern.horizontal.atten;
+    };
+    // Attenuation as usual; an all-zero (omnidirectional) cut; a positive value among negative ones; a shallow negative cut.
+    expect(same(points(beam))[90]).toBe(40);
+    expect(new Set(same(points(() => 0)))).toEqual(new Set([0]));
+    expect(same(points((a) => (a === 0 ? 0.5 : -beam(a))))[90]).toBe(-40);
+    expect(Math.min(...same(points((a) => -Math.min(2.9, Math.abs(a) / 2))))).toBe(-2.9);
+    // Exactly −3 dB is enough.
+    const edge = expectOk(parsePlanet(planetText({ h: points((a) => -Math.min(3, Math.abs(a) / 2)) }), 'x'));
+    expect(edge.warnings.map((w) => w.code)).toEqual(['negative-levels']);
+    expect(Math.max(...edge.pattern.horizontal.atten)).toBe(3);
+    // The file written with a small offset below its peak keeps the existing warning and its values.
+    const offset = expectOk(parsePlanet(planetText({ v: points((a) => 1 + beam(a)) }), 'x'));
+    expect(offset.warnings.map((w) => w.code)).toEqual(['peak-not-zero']);
+  });
+});
+
+describe('the unit of FREQUENCY', () => {
+  const withFreq = (value: string) => parsePlanet(planetText({ headers: ['NAME A', `FREQUENCY ${value}`, 'GAIN 15 dBd'] }), 'f.msi');
+
+  it('reads a frequency given in GHz as MHz, without a warning', () => {
+    for (const [text, mhz] of [['1.8 GHz', 1800], ['1.8GHz', 1800], ['2.6 ghz', 2600], ['0.7 GHz', 700], ['3.55 GHz', 3550], ['1.71 GHz', 1710]] as const) {
+      const r = expectOk(withFreq(text));
+      expect(r.pattern.frequencyMHz, text).toBe(mhz);
+      expect(r.warnings, text).toEqual([]);
+    }
+  });
+
+  it('reads MHz, with or without the unit, as before', () => {
+    for (const [text, mhz] of [['1800', 1800], ['1800 MHz', 1800], ['849.5MHz', 849.5], ['27 MHz', 27]] as const) {
+      const r = expectOk(withFreq(text));
+      expect(r.pattern.frequencyMHz, text).toBe(mhz);
+      expect(r.warnings, text).toEqual([]);
+    }
+  });
+
+  it('marks a bare frequency below 30 as probably GHz, and leaves the value alone', () => {
+    const r = expectOk(withFreq('1.8'));
+    expect(r.pattern.frequencyMHz).toBe(1.8);
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings[0]).toMatchObject({ code: 'frequency-unit', line: 2 });
+    expect(r.warnings[0].message).toBe('FREQUENCY 1.8 has no unit and is below 30: frequency looks like GHz. It is read as 1.8 MHz; write "1.8 GHz" or 1800 if GHz is meant');
+    expect(expectOk(withFreq('29.9')).warnings.map((w) => w.code)).toEqual(['frequency-unit']);
+    expect(expectOk(withFreq('30')).warnings).toEqual([]);
+    // Zero and below keep their own warning.
+    expect(expectOk(withFreq('0')).warnings.map((w) => w.code)).toEqual(['no-frequency']);
+  });
+});

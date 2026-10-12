@@ -32,7 +32,9 @@ export type ParseWarningCode =
   | 'duplicate-angle'
   | 'peak-not-zero'
   | 'gain-out-of-range'
-  | 'no-frequency';
+  | 'no-frequency'
+  | 'negative-levels'
+  | 'frequency-unit';
 
 export interface ParseWarning {
   code: ParseWarningCode;

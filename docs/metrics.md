@@ -9,6 +9,13 @@ the table labels. Column groups can be hidden above the table; the CSV always ha
 - One port and polarization, one frequency, one electrical tilt per file. Each file gives two
   co-polar cuts (azimuth, elevation), resampled to a 1° grid.
 - Every cut is normalised to its own peak. Values are dB below that peak unless stated.
+- The values of a cut are attenuation (0 at the peak, larger away from it). Some tools write levels
+  instead, as dB relative to the peak with a minus sign (0 at the peak, −40 at the back). A cut with no
+  value above 0 and a lowest value of −3 dB or lower is read with the sign turned round and the file
+  gets a warning mark ("values look like negative levels … read as attenuation"); any other cut is
+  read as written.
+- FREQUENCY is in MHz. A value with the unit GHz ("1.8 GHz") is read as MHz (1800). A value with no
+  unit below 30 is kept as it is and the file gets a warning mark ("frequency looks like GHz").
 - Azimuth 0° is the mechanical boresight. Elevation 0° is the horizon and positive angles are
   below the horizon. The file is assumed to have no mechanical tilt.
 - Level crossings are linearly interpolated between 1° samples.

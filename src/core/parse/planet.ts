@@ -59,6 +59,30 @@ function optionalNumber(text: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/** A cut is taken for negative levels only when its lowest value is at least this far below 0 (and none is above 0). */
+export const NEGATIVE_LEVELS_MIN_DB = 3;
+
+/**
+ * Some tools write the levels as dB relative to the peak with a minus sign (0 at the peak, −40 at the back) instead
+ * of as attenuation (0 at the peak, 40 at the back). Read as attenuation such a cut is upside down: its back becomes
+ * the peak. Only the unambiguous case is turned round: no value above 0 and a lowest value of −3 dB or lower. An
+ * attenuation cut has no such shape (its values are ≥ 0), so nothing else is touched. Returns the cut to use, and
+ * whether it was turned round.
+ */
+function asAttenuation(cut: Cut): { cut: Cut; flipped: boolean } {
+  let max = -Infinity;
+  let min = Infinity;
+  for (const v of cut.atten) {
+    if (v > max) max = v;
+    if (v < min) min = v;
+  }
+  if (!(max <= 0 && min <= -NEGATIVE_LEVELS_MIN_DB)) return { cut, flipped: false };
+  return { cut: { angles: cut.angles, atten: cut.atten.map((v) => (v === 0 ? 0 : -v)) }, flipped: true };
+}
+
+/** A frequency below this with no unit is more likely GHz than MHz (no cellular pattern is measured below 30 MHz). */
+export const BARE_FREQUENCY_MIN_MHZ = 30;
+
 function checkCut(label: string, cut: Cut): ParseWarning[] {
   const warnings: ParseWarning[] = [];
   const seen = new Set<number>();
@@ -131,6 +155,16 @@ export function parsePlanet(text: string, fileName: string): ParseResult {
 
   if (!horizontal) return { ok: false, error: 'Missing HORIZONTAL block' };
   if (!vertical) return { ok: false, error: 'Missing VERTICAL block' };
+  const cutWarnings: ParseWarning[] = [];
+  const cuts = { HORIZONTAL: asAttenuation(horizontal), VERTICAL: asAttenuation(vertical) };
+  for (const label of ['HORIZONTAL', 'VERTICAL'] as const) {
+    if (cuts[label].flipped) {
+      cutWarnings.push({ code: 'negative-levels', message: `${label} cut: values look like negative levels (dB relative to peak written with a minus sign); read as attenuation` });
+    }
+    cutWarnings.push(...checkCut(label, cuts[label].cut));
+  }
+  horizontal = cuts.HORIZONTAL.cut;
+  vertical = cuts.VERTICAL.cut;
 
   const freq = headers.get('FREQUENCY');
   let frequencyMHz = 0;
@@ -141,6 +175,16 @@ export function parsePlanet(text: string, fileName: string): ParseResult {
     frequencyMHz = parseFloat(freq.value);
     if (!Number.isFinite(frequencyMHz)) {
       return { ok: false, error: `Non-numeric FREQUENCY "${freq.value}"`, line: freq.line };
+    }
+    // A unit after the number: GHz is converted (the page works in MHz); MHz, or none, is taken as it is.
+    const unit = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?\s*([a-z]+)/i.exec(freq.value)?.[1].toLowerCase();
+    if (unit === 'ghz') frequencyMHz = Number((frequencyMHz * 1000).toFixed(6));
+    else if (unit === undefined && frequencyMHz > 0 && frequencyMHz < BARE_FREQUENCY_MIN_MHZ) {
+      warnings.push({
+        code: 'frequency-unit',
+        message: `FREQUENCY ${freq.value} has no unit and is below ${BARE_FREQUENCY_MIN_MHZ}: frequency looks like GHz. It is read as ${frequencyMHz} MHz; write "${frequencyMHz} GHz" or ${Number((frequencyMHz * 1000).toFixed(6))} if GHz is meant`,
+        line: freq.line,
+      });
     }
     if (!hasUsableFrequency(frequencyMHz)) {
       warnings.push({
@@ -174,7 +218,7 @@ export function parsePlanet(text: string, fileName: string): ParseResult {
     }
   }
 
-  warnings.push(...checkCut('HORIZONTAL', horizontal), ...checkCut('VERTICAL', vertical));
+  warnings.push(...cutWarnings);
 
   const extraHeaders: Record<string, string> = {};
   for (const [k, { value }] of headers) if (!KNOWN_HEADERS.has(k)) extraHeaders[k] = value;
