@@ -5,7 +5,7 @@ import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as Plotly
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
 import { PlotBoundary } from './ErrorBoundary';
-import { CHART_PRIVACY, toolbarButtons, type ChartToolbar } from './chartToolbar';
+import { CHART_PRIVACY, polarViewReset, toolbarButtons, type ChartToolbar } from './chartToolbar';
 import { canvasesOf, releaseGlContexts } from './glContexts';
 import { appliedAfterRedraw, createRedrawGate, hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
@@ -54,6 +54,18 @@ export interface FigureOverlay {
   layout: Figure['layout'];
 }
 
+const builtViews = new WeakMap<Figure, Record<string, unknown> | null>();
+
+/**
+ * The view a polar figure was built with (see `polarViewReset`), as it was when the figure was first seen: a drag
+ * writes the new view into the layout object the library was given, which is the figure's own, so it cannot be read
+ * from the figure later.
+ */
+function builtViewOf(figure: Figure): Record<string, unknown> | null {
+  if (!builtViews.has(figure)) builtViews.set(figure, polarViewReset(figure.layout as Parameters<typeof polarViewReset>[0]));
+  return builtViews.get(figure) ?? null;
+}
+
 /**
  * A chart, inside its own error boundary: an error thrown by the charting library while it draws (or clears) this
  * chart shows "This plot could not be drawn" in the chart's place and leaves the rest of the page alone.
@@ -76,6 +88,8 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
   const previewing = previewBase !== undefined;
   const preview = useRef({ figure, base: previewBase ?? null });
   const drawnHandler = useRef(onDrawn);
+  // Noted now, before the figure is drawn (see `builtViewOf`); the toolbar's handler reads it from the ref.
+  const builtView = useRef(builtViewOf(figure));
   // The traces the library holds for the figure, and what the last draw was of.
   const owned = useRef<{ figure: Figure; traces: object[] } | null>(null);
   const lastDraw = useRef<{ figure: Figure; config: object } | null>(null);
@@ -92,6 +106,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
     exporting.current = { figure, labelledExport };
     preview.current = { figure, base: previewBase ?? null };
     drawnHandler.current = onDrawn;
+    builtView.current = builtViewOf(figure);
   }, [onRelayout, figure, labelledExport, previewBase, onDrawn]);
 
   // The same config object for every redraw of this chart. `Plotly.react` compares the config it is given with the
@@ -113,12 +128,23 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
         ).catch((error: unknown) => console.error('The plot image could not be saved', error));
       },
     };
+    // Polar cuts: a drag zooms or turns the plot, and only a double click put it back.
+    const resetView = {
+      name: 'resetViewPolar',
+      title: 'Reset view',
+      icon: Plotly.Icons.home,
+      click: (gd: HTMLElement) => {
+        // A copy: the library keeps the arrays it is given, and a later drag would change the noted view.
+        const update = builtView.current && structuredClone(builtView.current);
+        if (update) Plotly.relayout(gd, update as Partial<PlotlyNativeLayout>).catch((error: unknown) => console.error('The view could not be reset', error));
+      },
+    };
     return {
       responsive: true,
       ...CHART_PRIVACY,
       toImageButtonOptions: IMAGE_OPTIONS,
       // An explicit list: the library's default set has the charting library's cloud upload button and select tools in it.
-      modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined) as unknown as PlotlyConfig['modeBarButtons'],
+      modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined, resetView) as unknown as PlotlyConfig['modeBarButtons'],
     };
   }, [toolbar, labelled]);
 

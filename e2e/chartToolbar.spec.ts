@@ -45,8 +45,8 @@ test('no chart toolbar offers to share or upload a chart, and each has only the 
 
   // 2D, polar: the two cuts and the frequency chart.
   await expect(page.getByTestId('plot-h').locator('.polarlayer')).toHaveCount(1);
-  await expect.poll(() => buttons(page, 'plot-h')).toEqual([DOWNLOAD]);
-  await expect.poll(() => buttons(page, 'plot-v')).toEqual([DOWNLOAD]);
+  await expect.poll(() => buttons(page, 'plot-h')).toEqual(['Reset view', DOWNLOAD]);
+  await expect.poll(() => buttons(page, 'plot-v')).toEqual(['Reset view', DOWNLOAD]);
   await expect.poll(() => buttons(page, 'plot-hpbw')).toEqual(['Zoom', 'Reset axes', DOWNLOAD]);
   await expectNothingForbidden(page, 3);
 
@@ -73,9 +73,9 @@ test('no chart toolbar offers to share or upload a chart, and each has only the 
   expect(external).toEqual([]);
 });
 
-test('the chart toolbars are five tab stops between the marker checkboxes and "Export CSV", not seventeen', async ({ page }) => {
+test('the chart toolbars are seven tab stops between the marker checkboxes and "Export CSV", not seventeen', async ({ page }) => {
   await loadExample(page);
-  await expect(page.getByTestId('plot-h').locator('.modebar-btn')).toHaveCount(1);
+  await expect(page.getByTestId('plot-h').locator('.modebar-btn')).toHaveCount(2);
   await expect(page.getByTestId('plot-hpbw').locator('.modebar-btn')).toHaveCount(3);
 
   await page.locator('#marker-options input[type="checkbox"]').last().focus();
@@ -92,8 +92,16 @@ test('the chart toolbars are five tab stops between the marker checkboxes and "E
     );
   }
   await expect(target).toBeFocused();
-  // One download per cut plot; zoom, reset and download on the frequency chart.
-  expect(stops.filter((s) => s.startsWith('toolbar: '))).toEqual([`toolbar: ${DOWNLOAD}`, `toolbar: ${DOWNLOAD}`, 'toolbar: Zoom', 'toolbar: Reset axes', `toolbar: ${DOWNLOAD}`]);
+  // A reset and a download per cut plot; zoom, reset and download on the frequency chart.
+  expect(stops.filter((s) => s.startsWith('toolbar: '))).toEqual([
+    'toolbar: Reset view',
+    `toolbar: ${DOWNLOAD}`,
+    'toolbar: Reset view',
+    `toolbar: ${DOWNLOAD}`,
+    'toolbar: Zoom',
+    'toolbar: Reset axes',
+    `toolbar: ${DOWNLOAD}`,
+  ]);
 });
 
 test('exported images are white whatever the screen theme, named by cut, and say when they are simulated', async ({ page }) => {
@@ -145,4 +153,34 @@ test('exported images are white whatever the screen theme, named by cut, and say
   expect(simulated.name).toBe('vertical-cut-simulated.png');
   const freq = await download('plot-hpbw');
   expect(freq.name).toBe('beamwidth-vs-frequency-simulated.png');
+});
+
+test('"Reset view" puts a polar cut back after a drag has zoomed it', async ({ page }) => {
+  await loadExample(page);
+  const plot = page.getByTestId('plot-h');
+  await expect(plot.locator('.polarlayer')).toHaveCount(1);
+  /** The level range and the rotation the plot shows now. */
+  const view = () =>
+    plot.locator('.js-plotly-plot').evaluate((el) => {
+      const polar = (el as unknown as { _fullLayout: { polar: { radialaxis: { range: number[]; angle: number }; angularaxis: { rotation: number } } } })._fullLayout.polar;
+      return { range: polar.radialaxis.range.map((v) => Math.round(v * 100) / 100), angle: polar.radialaxis.angle, rotation: polar.angularaxis.rotation };
+    });
+  const built = await view();
+  expect(built).toMatchObject({ range: [-40, 0], rotation: 90 });
+
+  // A drag across the plot, from near the centre outwards, zooms the level axis.
+  const box = (await plot.locator('.polarlayer .plotbg, .polarlayer .bg').first().boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx + box.width * 0.1, cy - box.height * 0.1);
+  await page.mouse.down();
+  await page.mouse.move(cx + box.width * 0.2, cy - box.height * 0.2, { steps: 6 });
+  await page.mouse.move(cx + box.width * 0.3, cy - box.height * 0.3, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(async () => JSON.stringify((await view()).range)).not.toBe(JSON.stringify(built.range));
+
+  await plot.getByRole('button', { name: 'Reset view' }).click();
+  await expect.poll(view).toEqual(built);
+  // The traces are still there.
+  expect(await plot.locator('.js-plotly-plot').evaluate((el) => (el as unknown as { data: unknown[] }).data.length)).toBeGreaterThan(0);
 });
