@@ -145,7 +145,7 @@ more. "Lower region est." (and the part of the upper region near the zenith) is 
 with "Summation". Sector and spatial efficiency are hardly affected: the power near the poles is a
 small part of the whole.
 
-**No value.** "—" with the reason in the tooltip when the beam is outside the Type A ranges (vertical
+**No value.** "—" with the reason in the tooltip (and, for the focused or tapped cell, in the line above the table, together with what the column means) when the beam is outside the Type A ranges (vertical
 HPBW 0.5° to 25°, horizontal HPBW 50° to 130°, both at 3 dB whatever the beamwidth level setting), when
 a beamwidth is not defined, or when the elevation peak lies behind the antenna. Under a tilt
 simulation the ranges are checked on the simulated cuts. The lower end of the vertical range is out of

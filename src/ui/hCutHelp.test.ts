@@ -25,6 +25,7 @@ describe('help', () => {
     // What does blank a cell of a simulated row: a window without a sidelobe, and the values declared for the file.
     expect(SIMULATION_BLANK_NOTE).toContain('no sidelobe in the window');
     expect(SIMULATION_BLANK_NOTE).toContain('declared');
-    expect(SIMULATION_BLANK_NOTE).toContain('hover a dotted cell for the reason');
+    // ("select", not "hover": the reason is shown in the line above the table for the focused or tapped cell.)
+    expect(SIMULATION_BLANK_NOTE).toContain('select a dotted cell for the reason');
   });
 });

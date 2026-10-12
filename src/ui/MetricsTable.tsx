@@ -21,11 +21,13 @@ import { DefinitionsButton, type OpenHelp } from './HelpDialog';
 import { PinMark } from './PinMark';
 import type { TableColumn } from './table';
 import type { SimulationResult } from './useSimulation';
+import { SelectedCellLine } from './SelectedCellLine';
+import { cellLine, selectCell, type SelectedCell } from './selectedCell';
 
 const FILE_NAME_MAX = 28;
 /** Why a simulated cell can be blank; the examples hold for both horizontal cuts (no cell is blanked for where a cut runs). */
 export const SIMULATION_BLANK_NOTE =
-  '— = not defined (e.g. no sidelobe in the window, or a value declared in the file, which describes the file cut); hover a dotted cell for the reason.';
+  '— = not defined (e.g. no sidelobe in the window, or a value declared in the file, which describes the file cut); select a dotted cell for the reason.';
 
 /** What the tilted horizontal cells mean while the simulated cut is the one at the horizon (see docs/metrics.md). */
 export const HORIZON_CUT_NOTE =
@@ -243,6 +245,23 @@ export const MetricsTable = memo(function MetricsTable({
     );
   };
 
+  // What the line above the table says for a cell: the reason of a "—" and the column's definition (the tooltips, for keyboard and touch).
+  const describeCell = (sel: SelectedCell): string | null => {
+    const r = rowById.get(sel.id);
+    const c = columns.find((x) => x.key === sel.col);
+    if (!r || !c) return null;
+    const cell = rowCell(r, c.key, words);
+    const tag = methodTag(c.key, method3d);
+    return cellLine({
+      file: r.file,
+      header: `${deltaOn ? 'Δ ' : ''}${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)}${tag ? ` ${tag.full}` : ''} (${c.unit})`,
+      text: cell.text,
+      reason: cell.title,
+      note: cell.equal,
+      definition: columnTitle(c.key, { sectorEdgeDeg, siteSectors, uslsRangeDeg, lobeLimitFactor, levelDb, fbWindowDeg, method3d, horizonCut }),
+    });
+  };
+
   const header = (key: SortKey, content: ReactNode, title?: string, className?: string) => (
     <th key={key} scope="col" title={title} className={className} aria-sort={ariaSort(sort, key)}>
       <button type="button" className="sort-btn" onClick={() => setSort((cur) => nextSort(cur, key))}>
@@ -339,6 +358,7 @@ export const MetricsTable = memo(function MetricsTable({
           </p>
         )}
       </div>
+      <SelectedCellLine describe={describeCell} />
       <div className="table-wrap metrics-wrap" ref={wrapRef}>
         <table className="metrics">
           <thead>
@@ -369,6 +389,8 @@ export const MetricsTable = memo(function MetricsTable({
               if (id) setActiveRow(id);
               const td = target.closest<HTMLElement>('td[data-col]');
               setFocusedCell(id && td?.dataset.col ? { id, col: td.dataset.col } : null);
+              // The line above the table keeps the last cell (its own slice: see SelectedCellLine).
+              if (id && td?.dataset.col) selectCell({ id, col: td.dataset.col });
             }}
             onBlur={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusedCell(null);

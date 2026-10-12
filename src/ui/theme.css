@@ -156,6 +156,9 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
 .band th[scope='row'], .band thead th:first-child { position: sticky; left: 0; z-index: 1; background: var(--bg); }
 /* Metrics table: sticky header row and File column inside a bounded scroll area. */
 .metrics-wrap { max-height: min(70vh, 640px); }
+/* The selected cell's line: three lines high whatever it says, so the table does not move from cell to cell. */
+.cell-line { box-sizing: border-box; height: 4.6em; margin: 0 0 6px; padding: 2px 6px; overflow-y: auto; font-size: 13px; line-height: 1.4; border-left: 3px solid var(--border); }
+.cell-line:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* Row lines are inset shadows: collapsed borders do not travel with sticky cells. Whole-pixel line heights keep every row a whole number
    of pixels high, so the sticky File column and the other cells put their lines on the same pixel row. */
 .metrics td, .metrics th { line-height: 18px; }
@@ -177,6 +180,7 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
 .metrics td.has-reason { text-decoration: underline dotted; text-underline-offset: 3px; }
 @media (max-width: 760px) {
   .metrics-wrap { max-height: 60vh; }
+  .cell-line { height: 7.4em; }
   .metrics .file-cell { max-width: 148px; }
   .metrics .file-sub { display: block; overflow: hidden; font-size: 11px; font-weight: 400; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 }
