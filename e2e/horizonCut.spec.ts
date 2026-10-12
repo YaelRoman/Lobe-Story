@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openSimulation } from './simulationBar';
 
 const DOWNLOAD = 'Download plot as a png (with legend and values)';
@@ -8,6 +8,14 @@ async function loadExample(page: Page) {
   await page.goto('/');
   await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
   await expect(page.locator('.panel li')).toHaveCount(24);
+}
+
+/** A cell under a simulation: `original → tilted`, or one value whose tooltip says the two are equal. */
+async function expectSimulatedCell(cell: Locator) {
+  await expect(async () => {
+    const [text, title] = [await cell.innerText(), await cell.getAttribute('title')];
+    expect(text.includes('→') || title === 'original and tilted are equal under the simulation', text).toBe(true);
+  }).toPass();
 }
 
 /** The drawn lines of the horizontal plot (the ticked file's simulated cut and its dashed original). */
@@ -183,10 +191,10 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   await expect(page.getByTestId('readout-h')).toContainText(/Horizon cut: maximum \d+\.\d dB below the 3D peak/);
   await expect(page.getByTestId('sim-hcut-note')).toContainText('horizontal cut at the horizon');
   await expect(page.getByText('Simulated: Δe 0°, mech 0°')).toBeVisible();
-  // Every file: horizontal cells read "file cut → horizon cut"; the vertical cells are the file's own, without an arrow.
+  // Every file: horizontal cells read "file cut → horizon cut" (once where equal); the vertical cells are the file's own, without an arrow.
   for (const r of [plus, minus, other]) {
-    await expect(r.locator('td[data-col="hHpbw"]')).toContainText('→');
-    await expect(r.locator('td[data-col="fb180"]')).toContainText('→');
+    // (Where the two values read the same, the cell shows one value and its tooltip says they are equal.)
+    for (const col of ['hHpbw', 'fb180']) await expectSimulatedCell(r.locator(`td[data-col="${col}"]`));
     await expect(r.locator('td[data-col="vHpbw"]')).not.toContainText('→');
     await expect(r.locator('td[data-col="tilt"]')).not.toContainText('→');
   }
@@ -218,9 +226,9 @@ test('at the horizon every file shows its horizon cut without any tilt, and a po
   await offset.fill('1');
   await offset.press('Enter');
   await expect(page.getByLabel('Offsets: mech +1°')).toBeVisible();
-  await expect(plus.locator('td[data-col="vHpbw"]')).toContainText('→');
+  await expectSimulatedCell(plus.locator('td[data-col="vHpbw"]'));
   await expect(minus.locator('td[data-col="vHpbw"]')).not.toContainText('→');
-  await expect(minus.locator('td[data-col="hHpbw"]')).toContainText('→');
+  await expectSimulatedCell(minus.locator('td[data-col="hHpbw"]'));
   await expect.poll(() => trackingOf(plus)).not.toBe(untilted);
   const tilted = await trackingOf(plus);
   expect(await trackingOf(minus)).toBe(tilted);
