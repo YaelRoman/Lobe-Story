@@ -22,7 +22,7 @@ import { PinMark } from './PinMark';
 import type { TableColumn } from './table';
 import type { SimulationResult } from './useSimulation';
 import { SelectedCellLine } from './SelectedCellLine';
-import { cellLine, selectCell, type SelectedCell } from './selectedCell';
+import { cellLineParts, selectCell, type CellLineParts, type SelectedCell } from './selectedCell';
 
 const FILE_NAME_MAX = 28;
 /** Why a simulated cell can be blank; the examples hold for both horizontal cuts (no cell is blanked for where a cut runs). */
@@ -246,13 +246,13 @@ export const MetricsTable = memo(function MetricsTable({
   };
 
   // What the line above the table says for a cell: the reason of a "—" and the column's definition (the tooltips, for keyboard and touch).
-  const describeCell = (sel: SelectedCell): string | null => {
+  const describeCell = (sel: SelectedCell): CellLineParts | null => {
     const r = rowById.get(sel.id);
     const c = columns.find((x) => x.key === sel.col);
     if (!r || !c) return null;
     const cell = rowCell(r, c.key, words);
     const tag = methodTag(c.key, method3d);
-    return cellLine({
+    return cellLineParts({
       file: r.file,
       header: `${deltaOn ? 'Δ ' : ''}${columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb)}${tag ? ` ${tag.full}` : ''} (${c.unit})`,
       text: cell.text,

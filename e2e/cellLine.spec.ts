@@ -11,7 +11,11 @@ test('the line above the metrics table says what the focused cell\'s column mean
   await loadExample(page);
   const line = page.getByTestId('cell-line');
   await expect(line).toBeVisible();
-  await expect(line).toHaveAttribute('aria-live', 'polite');
+  // The visible line is not a live region (it would queue the whole definition at every arrow key): a short one beside it is.
+  await expect(line).not.toHaveAttribute('aria-live');
+  const live = page.getByTestId('cell-line-live');
+  await expect(live).toHaveAttribute('aria-live', 'polite');
+  await expect(live).toHaveText('');
   await expect(line).toContainText('Select a cell');
   // (Measured from the line's own top: the page scrolls when a cell takes the focus.)
   const gap = async () => (await page.locator('.metrics-wrap').boundingBox())!.y - (await line.boundingBox())!.y;
@@ -24,10 +28,20 @@ test('the line above the metrics table says what the focused cell\'s column mean
   await expect(first.locator('td[data-col="hHpbw"]')).toBeFocused();
   await expect(line).toContainText('example_1710_P45_02T.msi · H-HPBW (°): 66.0.');
   await expect(line).toContainText('Horizontal half-power beamwidth (BASTA 6.1.6)');
+  // Read out: the definition on coming into the column, without the file name and the value (the focus move says those).
+  await expect(live).toContainText('Horizontal half-power beamwidth (BASTA 6.1.6)');
+  await expect(live).not.toContainText('example_1710_P45_02T.msi');
   await page.keyboard.press('ArrowRight');
   await expect(line).toContainText('V-HPBW (°): 8.6.');
+  await expect(live).toContainText('Vertical half-power beamwidth');
   await page.keyboard.press('ArrowDown');
   await expect(line).toContainText('example_1795_P45_02T.msi · V-HPBW (°)');
+  // Down the same column: nothing is read out again, the visible line still says it all.
+  await expect(live).toHaveText('');
+  await expect(line).toContainText('Vertical half-power beamwidth');
+  await page.keyboard.press('ArrowDown');
+  await expect(line).toContainText('example_2110_P45_02T.msi · V-HPBW (°)');
+  await expect(live).toHaveText('');
   // The table has not moved: the line keeps its height whatever it says.
   expect(await gap()).toBe(before);
 
@@ -42,6 +56,15 @@ test('the line above the metrics table says what the focused cell\'s column mean
   await blank.focus();
   await expect(line).toContainText('Why: ');
   for (const part of reason.split('\n')) await expect(line).toContainText(part.replace(/[.\s]+$/, ''));
+  // The reason is read out for every such cell; the definition only for the first of the column.
+  await expect(live).toContainText('Why: ');
+  const definition = (await live.innerText()).replace(/^Why: .*?\. (?=[A-Z])/, '');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.metrics tbody tr').nth(1).locator('td[data-col="dH"]')).toBeFocused();
+  await expect(live).toHaveText(/^(Why: .*)?$/);
+  expect(definition.length).toBeGreaterThan(20);
+  await expect(live).not.toContainText(definition.slice(-30));
+  await blank.focus();
   // The note points to it.
   await expect(page.getByTestId('sim-blank-note')).toContainText('select a dotted cell for the reason');
 

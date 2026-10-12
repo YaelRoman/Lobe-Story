@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cellLine, CELL_LINE_HINT, currentSelectedCell, selectCell, subscribeSelectedCell } from './selectedCell';
+import { cellAnnouncement, cellLine, cellLineParts, CELL_LINE_HINT, currentSelectedCell, enteredColumn, selectCell, subscribeSelectedCell } from './selectedCell';
 
 describe('the selected cell of the metrics table', () => {
   afterEach(() => selectCell(null));
@@ -17,6 +17,43 @@ describe('the selected cell of the metrics table', () => {
     stop();
     selectCell({ id: 'b.msi', col: 'fb180' });
     expect(calls).toBe(3);
+  });
+});
+
+describe('what is read out for the selected cell', () => {
+  afterEach(() => selectCell(null));
+  const base = { file: 'a.msi', header: 'F/B 180° (dB)', text: '28.6', definition: 'Level of the azimuth cut at exactly 180°' };
+
+  it('the line is made of three parts: the value, the reason or note, the definition', () => {
+    expect(cellLineParts({ ...base, text: '—', reason: 'declared\nonly' })).toEqual({ value: 'a.msi · F/B 180° (dB): —.', reason: 'Why: declared; only.', definition: 'Level of the azimuth cut at exactly 180°.' });
+    expect(cellLineParts({ file: 'a.msi', header: 'H', text: '1' })).toEqual({ value: 'a.msi · H: 1.' });
+  });
+
+  it('knows whether the selection came into another column', () => {
+    expect(enteredColumn()).toBe(false);
+    selectCell({ id: 'a.msi', col: 'hHpbw' });
+    expect(enteredColumn()).toBe(true);
+    selectCell({ id: 'b.msi', col: 'hHpbw' });
+    expect(enteredColumn()).toBe(false);
+    selectCell({ id: 'b.msi', col: 'fb180' });
+    expect(enteredColumn()).toBe(true);
+    selectCell(null);
+    expect(enteredColumn()).toBe(false);
+    // The same column again after no selection: its definition is due again.
+    selectCell({ id: 'b.msi', col: 'fb180' });
+    expect(enteredColumn()).toBe(true);
+  });
+
+  it('the definition is read once per column, not for every row; the value is left to the focus move', () => {
+    const parts = cellLineParts(base);
+    expect(cellAnnouncement(parts, true)).toBe('Level of the azimuth cut at exactly 180°.');
+    expect(cellAnnouncement(parts, false)).toBe('');
+  });
+
+  it('the reason of a missing value is read for every cell that has one, before the definition', () => {
+    const parts = cellLineParts({ ...base, text: '—', reason: 'no lobe in the window' });
+    expect(cellAnnouncement(parts, false)).toBe('Why: no lobe in the window.');
+    expect(cellAnnouncement(parts, true)).toBe('Why: no lobe in the window. Level of the azimuth cut at exactly 180°.');
   });
 });
 
