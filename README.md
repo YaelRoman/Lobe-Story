@@ -15,7 +15,8 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - Angular regions (est.), an optional column group that is off by default: sector efficiency, spatial
   efficiency and lower region ratio after NGMN BASTA 7.2.4 for a macro beam (Type A). They are
   estimates from the two co-polar cuts, integrated over the 3D reconstruction, and are not
-  BASTA-compliant: the standard needs the measured full sphere and total power. See
+  BASTA-compliant: the standard needs the measured full sphere and total power. The numbers follow
+  the selected 3D method, which is named in the exported headers. See
   [docs/metrics.md](docs/metrics.md).
 - −3 dB markers on the plots and a frequency chart per group: HPBW by default, and a Metric menu
   plots any table column against frequency (the choice is remembered in the browser).
@@ -44,7 +45,9 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   files (the pinned reference row is always kept) and shows "n of m files"; like the theme it is remembered in
   the browser, not saved in a project.
 - Column groups can be shown or hidden above the metrics table (saved with the project); the CSV
-  always contains every column.
+  contains every column whether shown or not, with one exception: the "Angular regions (est.)" group
+  is exported only while it is shown (its values are not computed otherwise), and its CSV headers
+  name the 3D method the estimate was computed with.
 - Band statistics per NGMN BASTA V13 Annex C: mean ± tolerance, 84th / 16th percentile limits and
   gain statistics over every loaded file of an antenna in a frequency sub-band (automatic or
   user-defined sub-bands, saved with the project), with CSV export and a histogram of any cell.

@@ -74,6 +74,13 @@ export function csvColumns(groups: Record<ColumnGroupKey, boolean>): typeof METR
   return METRIC_COLUMNS.filter((c) => c.group !== ON_DEMAND_GROUP || groups[ON_DEMAND_GROUP]);
 }
 
+/** The tooltip of a column group's checkbox; only the on-demand group has something to say. */
+export function columnGroupTitle(key: ColumnGroupKey): string | undefined {
+  return key === ON_DEMAND_GROUP
+    ? 'Estimates from the two cuts, not BASTA-compliant values. Unlike the other groups, these columns are exported to CSV only while they are shown here.'
+    : undefined;
+}
+
 const CSV_DEFAULT_COLUMNS = METRIC_COLUMNS.filter((c) => c.group !== ON_DEMAND_GROUP);
 
 /** Whether the angular-region estimate has to be computed: its group is shown, or the frequency chart plots one of its columns. */

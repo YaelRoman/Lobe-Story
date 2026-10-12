@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildRows, cellText, columnLabel, columnTitle, COLUMN_GROUPS, csvColumns, markReference, METRIC_COLUMNS, needsAngularRegions,
+  buildRows, cellText, columnGroupTitle, columnLabel, columnTitle, COLUMN_GROUPS, csvColumns, markReference, METRIC_COLUMNS, needsAngularRegions,
   rowCell, toCsv, toTsv, visibleColumns, withMethod,
 } from './table';
 import { DEFAULT_TABLE_GROUPS } from '../state/store';
@@ -108,6 +108,12 @@ describe('the angular-region column group', () => {
     expect(withMethod('areSector', 'Sector eff. est.', 'summation')).toBe('Sector eff. est., Summation');
     expect(withMethod('areLower', 'Lower region est.', 'weighted')).toBe('Lower region est., Weighted');
     expect(withMethod('hHpbw', 'H-HPBW', 'weighted')).toBe('H-HPBW');
+  });
+
+  it('says on its checkbox that the group is exported to CSV only while shown; the other groups have no such note', () => {
+    expect(columnGroupTitle('are')).toMatch(/exported to CSV only while/);
+    expect(columnGroupTitle('are')).toMatch(/estimate/i);
+    for (const g of COLUMN_GROUPS.filter((x) => x.key !== 'are')) expect(columnGroupTitle(g.key)).toBeUndefined();
   });
 
   it('is needed while its group is shown or the frequency chart plots one of its columns', () => {

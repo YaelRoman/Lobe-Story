@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import {
-  ariaSort, buildRows, COLUMN_GROUPS, csvColumns, columnLabel, columnTitle, nextSort, onlyTicked, tickedCountText, revealScrollTop, simulationLabel,
+  ariaSort, buildRows, COLUMN_GROUPS, csvColumns, columnGroupTitle, columnLabel, columnTitle, nextSort, onlyTicked, tickedCountText, revealScrollTop, simulationLabel,
   cellText, clearOfSticky, gainText, markReference, rowCell, rowToTsv, shouldReveal, sortIfShown, sortRows, toCsv, toTsv, visibleColumns, type SortKey, type SortState,
 } from './table';
 import { middleEllipsis } from './legend';
@@ -293,7 +293,7 @@ export const MetricsTable = memo(function MetricsTable({
         <DefinitionsButton onHelp={onHelp} />
         <span className="count">Columns</span>
         {COLUMN_GROUPS.map(({ key, label }) => (
-          <label key={key}>
+          <label key={key} title={columnGroupTitle(key)}>
             <input
               type="checkbox"
               aria-label={`Show ${label} columns`}

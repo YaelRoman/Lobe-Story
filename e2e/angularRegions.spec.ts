@@ -84,6 +84,8 @@ test('the 3D method travels with the angular-region estimate: collapsed Simulati
   await expect(summary).not.toContainText('3D method');
 
   const toggle = page.getByLabel('Show Angular regions (est.) columns');
+  // The one group that is exported only while shown says so where it is switched on.
+  await expect(toggle.locator('xpath=..')).toHaveAttribute('title', /exported to CSV only while/);
   await toggle.check();
   await expect(summary).toContainText('3D method: Summation');
 
