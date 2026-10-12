@@ -34,6 +34,9 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   const pendingFiles = useStore((s) => s.pendingFiles);
   const dismissPending = useStore((s) => s.dismissPending);
   const pending = pendingFiles.length > 0 ? pendingLabel(pendingFiles) : null;
+  // One bar, not two stacked: an undo offer takes the place of a calm load line ("Loaded 24 files", which needs no
+  // action and goes by itself). A warning stays above the offer: it has to be read and may carry "Show errors".
+  const replacedByOffer = undoLabel !== undefined && loadTone === 'info';
   // A line that is only read out (see `announce`): the change it reports is already visible where it was made.
   const spoken = useAnnouncement();
 
@@ -54,7 +57,7 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
 
   return (
     <div className="status-area">
-      {loadMessage && (
+      {loadMessage && !replacedByOffer && (
         <div className={loadTone === 'info' ? 'load-message info' : 'load-message'} data-testid="load-status">
           <span>{loadMessage}</span>
           {loadFailed > 0 && hasErrors && (

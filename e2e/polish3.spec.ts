@@ -475,3 +475,22 @@ test('the sub-band editor says when a typed minimum above the maximum was swappe
   await max.press('Enter');
   await expect(note).toBeHidden();
 });
+
+test('Load example then Show all leaves one status bar: the undo offer takes the place of the load line', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  const bars = page.locator('.status-area .load-message');
+  await expect(page.getByTestId('load-status')).toContainText('Loaded the built-in synthetic example');
+  await expect(bars).toHaveCount(1);
+  const top = (await page.locator('.sim-bar').boundingBox())!.y;
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await expect(page.getByTestId('undo-toast')).toContainText('Showed all files');
+  await expect(bars).toHaveCount(1);
+  await expect(page.getByTestId('load-status')).toHaveCount(0);
+  // The page under the bar has not moved down by a line.
+  expect((await page.locator('.sim-bar').boundingBox())!.y).toBe(top);
+  // Both lines were read out.
+  await expect(page.getByTestId('announcer')).toContainText('Showed all files');
+});
