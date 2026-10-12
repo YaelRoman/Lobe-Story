@@ -10,7 +10,6 @@ const RESUME_MIN_MS = 3_000;
 /** One offer; mounted anew for each (keyed by its id), so the timer and the pause state start fresh. */
 function Offer({ label }: { label: string }) {
   const undoLast = useStore((s) => s.undoLast);
-  const dismissUndo = useStore((s) => s.dismissUndo);
   const fadeUndo = useStore((s) => s.fadeUndo);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -40,7 +39,7 @@ function Offer({ label }: { label: string }) {
     >
       <span>{label}.</span>
       <button onClick={undoLast}>Undo · {undoShortcut()}</button>
-      <button aria-label="Dismiss undo" onClick={dismissUndo}>
+      <button aria-label="Hide undo offer" title="Hide (Ctrl/Cmd+Z still undoes)" onClick={fadeUndo}>
         ✕
       </button>
     </div>

@@ -90,4 +90,16 @@ describe('Ctrl/Cmd+Z', () => {
     modal.remove();
     panel.remove();
   });
+
+  it('the cross only hides the offer; Ctrl/Cmd+Z still undoes until the next change', () => {
+    const st = useStore.getState;
+    act(() => st().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => st().removeFile('a.MSI'));
+    const cross = host.querySelector<HTMLButtonElement>('button[aria-label="Hide undo offer"]');
+    expect(cross?.title).toBe('Hide (Ctrl/Cmd+Z still undoes)');
+    act(() => cross!.click());
+    expect(host.querySelector('[data-testid="undo-toast"]')).toBeNull();
+    ctrlZ();
+    expect(st().files).toHaveLength(2);
+  });
 });

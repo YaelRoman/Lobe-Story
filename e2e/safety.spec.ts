@@ -176,7 +176,7 @@ test('the undo offer waits while it is hovered or focused, and focus moves to a 
   await page.clock.fastForward(30_000);
   await expect(toast).toBeVisible();
   await page.locator('h1').hover();
-  await toast.getByRole('button', { name: 'Dismiss undo' }).focus();
+  await toast.getByRole('button', { name: 'Hide undo offer' }).focus();
   await page.clock.fastForward(30_000);
   await expect(toast).toBeVisible();
   await page.getByLabel('Actions for c.msi').focus();
