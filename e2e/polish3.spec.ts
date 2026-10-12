@@ -260,6 +260,27 @@ test.describe('3D side by side titles', () => {
       for (const b of boxes) expect(b.x + b.w).toBeLessThanOrEqual(area.x + area.width + 1);
     });
   }
+
+  // Fewer scenes use fewer columns and wider titles: two and three ticked files, on a narrow and a wide desktop.
+  for (const width of [800, 1024]) {
+    for (const ticked of [2, 3]) {
+      test(`at ${width} px wide ${ticked} ticked files have non-overlapping titles in two columns`, async ({ page }) => {
+        await loadExample(page, width, 900);
+        await page.getByRole('button', { name: 'Show none', exact: true }).click();
+        const boxesToTick = page.locator('.panel li input[type="checkbox"]');
+        for (let i = 0; i < ticked; i++) await boxesToTick.nth(i).check();
+        await page.getByRole('button', { name: '3D', exact: true }).click();
+        const plot = page.getByTestId('plot-3d');
+        await expect(plot.locator('.infolayer g.annotation')).toHaveCount(ticked);
+        await expect.poll(async () => (await titleBoxes(page)).length).toBe(ticked);
+        const boxes = await titleBoxes(page);
+        for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(overlap(boxes[i], boxes[j]), `titles ${i} and ${j}`).toBe(false);
+        expect(new Set(boxes.map((b) => Math.round(b.x / 20))).size).toBe(2);
+        const area = (await plot.boundingBox())!;
+        for (const b of boxes) expect(b.x + b.w).toBeLessThanOrEqual(area.x + area.width + 1);
+      });
+    }
+  }
 });
 
 test('a double click on a point of the frequency chart highlights its file once, it does not toggle twice', async ({ page }) => {
@@ -275,11 +296,27 @@ test('a double click on a point of the frequency chart highlights its file once,
   await page.mouse.move(box.x + box.width / 2 - 5, box.y + box.height / 2);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
   await expect(chart.locator('.hoverlayer .hovertext').first()).toBeAttached();
+  // Record every change of the number of highlighted rows and the clicks the page receives, from before the double click.
+  await page.evaluate(() => {
+    const w = window as unknown as { hlCounts: number[]; clicks: number };
+    w.hlCounts = [];
+    w.clicks = 0;
+    document.addEventListener('click', () => w.clicks++, true);
+    const body = document.querySelector('.metrics tbody')!;
+    const count = () => body.querySelectorAll('tr.hl').length;
+    new MutationObserver(() => {
+      if (w.hlCounts[w.hlCounts.length - 1] !== count()) w.hlCounts.push(count());
+    }).observe(body, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+  });
   await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
   await expect(hl).toHaveCount(1);
-  // Not undone a moment later by the second click.
-  await page.waitForTimeout(500);
+  // Both clicks reached the page, and whatever they trigger has had its frames and tasks to run: the state is the
+  // same afterwards. (Not a fixed wait: the second click is what could undo the first.)
+  await expect.poll(() => page.evaluate(() => (window as unknown as { clicks: number }).clicks)).toBe(2);
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 0)))));
   await expect(hl).toHaveCount(1);
+  // The count went from none to one and never back: no toggle on and off again.
+  expect(await page.evaluate(() => (window as unknown as { hlCounts: number[] }).hlCounts)).toEqual([1]);
 });
 
 test('on a phone the chart toolbar lies in a strip above each plot, not over its title or labels', async ({ page }) => {
