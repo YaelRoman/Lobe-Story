@@ -495,6 +495,8 @@ test('pressing Undo in the offer by keyboard does not drop the focus to the page
 async function undoWordsAfterRemove(page: Page) {
   await page.goto('/');
   await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900)), file('c.msi', msi(2000))]);
+  // The drawer button exists only once the files are in the store; isVisible() does not wait for that.
+  await expect(page.locator('.panel li')).toHaveCount(3);
   const drawer = page.locator('.files-toggle');
   if (await drawer.isVisible()) await drawer.click();
   await page.getByLabel('Actions for b.msi').click();
