@@ -3,7 +3,7 @@ import { BAND_PARAMS, bandTable, type BandCell, type BandColumn } from '../core/
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import type { SubBand } from '../core/analysis/subBands';
 import { bandItems } from '../test/bandFixture';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandFollowsHCut, bandHistogramMarks, bandTsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands, swappedNote } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandFollowsHCut, bandHistogramMarks, bandTsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands, subBandsNote, swappedNote } from './bandView';
 
 const items = bandItems();
 const metrics = analyzeAll(items, DEFAULT_SETTINGS);
@@ -288,5 +288,26 @@ describe('swappedNote', () => {
     expect(swappedNote(0, band, { maxMHz: 1710 })).toBeNull();
     expect(swappedNote(0, band, { name: 'x' })).toBeNull();
     expect(swappedNote(0, undefined, { minMHz: 3000 })).toBeNull();
+  });
+});
+
+describe('subBandsNote (what the band statistics say while the sub-bands are the user\'s own)', () => {
+  const band = (minMHz: number, maxMHz: number): SubBand => ({ name: `${minMHz}–${maxMHz} MHz`, minMHz, maxMHz });
+  it('says nothing about left-out files while the sub-bands are automatic', () => {
+    expect(subBandsNote(items, [])).toEqual({ userDefined: false, count: 0, outside: 0, total: 12, text: 'Sub-bands are automatic.' });
+  });
+  it('names the user-defined state and how many are defined', () => {
+    expect(subBandsNote(items, [band(1800, 1900)])).toMatchObject({ userDefined: true, outside: 0, text: 'Sub-bands: user-defined (1).' });
+    expect(subBandsNote(items, [band(1800, 1850), band(1900, 1900)]).text).toBe('Sub-bands: user-defined (2).');
+  });
+  it('counts the files of the antenna that fall in none of them, once each', () => {
+    // 1800, 1850, 1900 MHz × 4 files: a band up to 1820 leaves 8 out; overlapping bands count a file once.
+    expect(subBandsNote(items, [band(1800, 1820)])).toMatchObject({ outside: 8, total: 12, text: 'Sub-bands: user-defined (1). 8 of 12 files are in no sub-band.' });
+    expect(subBandsNote(items, [band(1800, 1850), band(1840, 1860)]).text).toBe('Sub-bands: user-defined (2). 4 of 12 files are in no sub-band.');
+    expect(subBandsNote(items.slice(0, 5), [band(1850, 1850)]).text).toBe('Sub-bands: user-defined (1). 4 of 5 files are in no sub-band.');
+    expect(subBandsNote(items.slice(3, 5), [band(1850, 1850)]).text).toBe('Sub-bands: user-defined (1). 1 of 2 files is in no sub-band.');
+  });
+  it('uses the ±0.5 MHz tolerance of the statistics themselves', () => {
+    expect(subBandsNote(items, [band(1800.4, 1899.6)]).outside).toBe(0);
   });
 });

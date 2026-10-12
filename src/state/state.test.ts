@@ -191,12 +191,15 @@ describe('store', () => {
     expect(useStore.getState().view.mode).toBe('rect');
   });
 
-  it('stores sub-bands in the view and keeps them on clear', () => {
+  it('stores sub-bands in the view; Clear returns to automatic ones and its undo brings them back', () => {
     expect(useStore.getState().view.subBands).toEqual([]);
+    useStore.getState().addFiles([input('a.msi', planetText())]);
     const subBands = [{ name: 'A', minMHz: 1, maxMHz: 2 }];
     useStore.getState().updateView({ subBands });
     expect(useStore.getState().view.subBands).toEqual(subBands);
     useStore.getState().clear();
+    expect(useStore.getState().view.subBands).toEqual([]);
+    useStore.getState().undoLast();
     expect(useStore.getState().view.subBands).toEqual(subBands);
   });
 

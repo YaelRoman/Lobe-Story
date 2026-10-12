@@ -4,7 +4,7 @@ import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandHistogramMarks, bandStateNote, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, type BandSheet } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandHistogramMarks, bandStateNote, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, subBandsNote, type BandSheet } from './bandView';
 import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
 import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
@@ -165,6 +165,7 @@ export const BandStats = memo(function BandStats({
   }
 
   const lobeWarning = lobeLimitWarning(settings);
+  const bandsNote = subBandsNote(dataset.items, userSubBands);
   // Only the files the histogram is made from count; the CSV lists every dataset.
   const histogramSimulated = marks.simulated;
 
@@ -205,12 +206,24 @@ export const BandStats = memo(function BandStats({
         BASTA V13 Annex C statistics over every loaded file of the antenna in each sub-band (all tilts and ports; copies
         excluded; co-polar cuts).
         {noFrequency > 0 && ` ${noFrequency} loaded file${noFrequency === 1 ? ' has' : 's have'} no frequency above 0 MHz and ${noFrequency === 1 ? 'is' : 'are'} left out.`}
-        {userSubBands.length === 0 && ' Sub-bands are automatic.'}
+        {!bandsNote.userDefined && ` ${bandsNote.text}`}
         {sim.simActive && ` ${bandStateNote(sim.hCut, sim.tiltActive)}`}
         {settings.levelDb !== 3 &&
           ` Beamwidth level is ${settings.levelDb} dB: the beamwidth, squint and tilt rows are not half-power values.`}
         {lobeWarning && ` ${lobeWarning}`}
       </p>
+      {bandsNote.userDefined && (
+        <p className={bandsNote.outside > 0 ? 'warn subband-state' : 'count subband-state'} data-testid="subband-state">
+          {bandsNote.text}{' '}
+          <button
+            type="button"
+            title="Drop your sub-bands and use one per cluster of loaded frequencies again"
+            onClick={() => updateView({ subBands: [] })}
+          >
+            Back to automatic
+          </button>
+        </p>
+      )}
       <div className="table-wrap">
         <table className="band" aria-label={`Band statistics for ${dataset.label}`}>
           <thead>

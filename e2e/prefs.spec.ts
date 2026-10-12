@@ -73,3 +73,74 @@ test('a damaged stored value is ignored', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'dBd', exact: true })).toHaveAttribute('aria-pressed', 'true');
   expect(errors).toEqual([]);
 });
+
+const tenFiles = (from: number) =>
+  Array.from({ length: 5 }, (_, i) => from + 20 * i).flatMap((f) => ['P45', 'M45'].map((pol) => file(`_${f}_X_CO_${pol}_08T_Y2.MSI`, msi(f))));
+
+test('user sub-bands stay with the session: not stored in the browser, gone after Clear, back with its undo', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles(tenFiles(1800));
+  const band = page.getByTestId('band-stats');
+  const header = (name: RegExp) => band.getByRole('columnheader', { name });
+  await expect(header(/^1800–1880 MHz/)).toBeVisible();
+  await expect(band).toContainText('Sub-bands are automatic.');
+  await expect(band.getByTestId('subband-state')).toHaveCount(0);
+
+  await band.getByRole('button', { name: 'Sub-bands' }).click();
+  await band.getByRole('button', { name: 'Start from automatic' }).click();
+  // Covering every file: the state is named, nothing is left out.
+  await expect(band.getByTestId('subband-state')).toHaveText(/^Sub-bands: user-defined \(1\)\.\s*Back to automatic$/);
+  const max = band.getByLabel('Sub-band 1 max (MHz)');
+  await max.fill('1840');
+  await max.press('Enter');
+  await expect(header(/^1800–1840 MHz/)).toBeVisible();
+  await expect(band.getByTestId('subband-state')).toContainText('Sub-bands: user-defined (1). 4 of 10 files are in no sub-band.');
+  await expect(band).not.toContainText('Sub-bands are automatic.');
+  // The state is said with the editor closed too.
+  await band.getByRole('button', { name: 'Sub-bands' }).click();
+  await expect(band.getByRole('group', { name: 'Sub-bands' })).toHaveCount(0);
+  await expect(band.getByTestId('subband-state')).toBeVisible();
+
+  // A preference written in the same session carries no sub-band.
+  await page.getByRole('button', { name: 'dBi', exact: true }).click();
+  await page.waitForFunction((k) => (localStorage.getItem(k) ?? '').includes('dBi'), KEY);
+  expect(await page.evaluate((k) => localStorage.getItem(k)!, KEY)).not.toMatch(/subBands|1840/);
+
+  // Clear, then other files: automatic again. The undo of the Clear brings the user's sub-bands back with their files.
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(page.locator('.panel')).toHaveCount(0);
+  await page.getByTestId('undo-toast').getByRole('button', { name: /^Undo/ }).click();
+  await expect(header(/^1800–1840 MHz/)).toBeVisible();
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByTestId('file-input').setInputFiles(tenFiles(2500));
+  await expect(header(/^2500–2580 MHz/)).toContainText('10 files');
+  await expect(band.getByTestId('subband-state')).toHaveCount(0);
+  await expect(band).toContainText('Sub-bands are automatic.');
+
+  // "Back to automatic" is the way out without the editor.
+  await band.getByRole('button', { name: 'Sub-bands' }).click();
+  await band.getByLabel('Add a common sub-band').selectOption({ label: '880–960 MHz' });
+  await expect(band.getByTestId('subband-state')).toContainText('10 of 10 files are in no sub-band.');
+  await band.getByRole('button', { name: 'Back to automatic' }).click();
+  await expect(header(/^2500–2580 MHz/)).toBeVisible();
+  await expect(band.getByTestId('subband-state')).toHaveCount(0);
+});
+
+test('sub-bands an earlier version left in the browser are not applied, and are forgotten', async ({ page }) => {
+  await page.addInitScript((k) => {
+    if (!sessionStorage.getItem('seeded')) {
+      localStorage.setItem(k, JSON.stringify({ version: 1, view: { gainUnit: 'dBi', subBands: [{ name: '1710–1750 MHz', minMHz: 1710, maxMHz: 1750 }] } }));
+      sessionStorage.setItem('seeded', '1');
+    }
+  }, KEY);
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles(tenFiles(2500));
+  const band = page.getByTestId('band-stats');
+  await expect(band.getByRole('columnheader', { name: /^2500–2580 MHz/ })).toContainText('10 files');
+  await expect(band).toContainText('Sub-bands are automatic.');
+  // The other stored preference is kept; the sub-bands are gone from the storage.
+  await expect(page.getByRole('button', { name: 'dBi', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate((k) => localStorage.getItem(k)!, KEY)).not.toMatch(/subBands|1750/);
+});

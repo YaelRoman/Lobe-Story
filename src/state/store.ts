@@ -601,7 +601,8 @@ export const useStore = create<State>()((rawSet, get) => {
         selected: null,
         reference: null,
         pendingFiles: [],
-        view: { ...s.view, deltaVsReference: false, simulation: { ...s.view.simulation, offsets: {}, groupOffsets: {} } },
+        // The user's sub-bands were made for the files that go: the next session starts with automatic ones.
+        view: { ...s.view, deltaVsReference: false, subBands: [], simulation: { ...s.view.simulation, offsets: {}, groupOffsets: {} } },
       };
     }),
 

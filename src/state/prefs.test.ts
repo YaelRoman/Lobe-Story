@@ -55,7 +55,6 @@ const changed = () => {
       layout3d: 'overlay' as const,
       freqMetric: 'fb180' as const,
       tableTickedOnly: true,
-      subBands: [{ name: 'Mid', minMHz: 1700, maxMHz: 2000 }],
     },
   };
 };
@@ -67,7 +66,7 @@ describe('applyPrefs', () => {
     expect(out.settings).toEqual(c.settings);
     expect(out.view).toMatchObject({
       theme: c.view.theme, gainUnit: 'dBi', mode: 'rect', cut: 'H', floorDb: 55, freqMetric: 'fb180', tableTickedOnly: true, method3d: 'weighted', layout3d: 'overlay',
-      markers: c.view.markers, tableGroups: c.view.tableGroups, subBands: c.view.subBands,
+      markers: c.view.markers, tableGroups: c.view.tableGroups,
     });
   });
 
@@ -84,7 +83,7 @@ describe('applyPrefs', () => {
     expect(JSON.parse(text).view).not.toHaveProperty('simulation');
     expect(Object.keys(JSON.parse(text)).sort()).toEqual(['settings', 'version', 'view']);
     expect(Object.keys(prefsOf(s).view).sort()).toEqual(
-      ['collapsed', 'cut', 'floorDb', 'freqMetric', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'subBands', 'tableGroups', 'tableTickedOnly', 'theme'],
+      ['collapsed', 'cut', 'floorDb', 'freqMetric', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'tableGroups', 'tableTickedOnly', 'theme'],
     );
   });
 
@@ -143,6 +142,60 @@ describe('applyPrefs', () => {
   it('keeps the plot floor above the beamwidth level', () => {
     const out = applyPrefs(JSON.stringify({ version: PREFS_VERSION, settings: { levelDb: 20 }, view: { floorDb: 10 } }), defaults())!;
     expect(out.view.floorDb).toBe(21); // raised to level + 1, as the settings panel does
+  });
+});
+
+describe('sub-bands are not a preference (they belong to the session and its project file)', () => {
+  const mine = [{ name: 'Mid', minMHz: 1700, maxMHz: 2000 }];
+  const oldStored = () => {
+    const stored = JSON.parse(serializePrefs(changed()));
+    stored.view.subBands = [{ name: '1710–1750 MHz', minMHz: 1710, maxMHz: 1750 }];
+    return JSON.stringify(stored);
+  };
+
+  it('are never serialised', () => {
+    const s = defaults();
+    s.view = { ...s.view, subBands: mine };
+    expect(serializePrefs(s)).not.toMatch(/subBands|Mid/);
+  });
+
+  it('stored by an earlier version are ignored: the session keeps its own', () => {
+    expect(applyPrefs(oldStored(), defaults())!.view.subBands).toEqual([]);
+    const base = defaults();
+    base.view = { ...base.view, subBands: mine };
+    expect(applyPrefs(oldStored(), base)!.view.subBands).toBe(mine);
+  });
+
+  it('stored by an earlier version are dropped from the storage at start, the other preferences stay', () => {
+    const storage = new FakeStorage();
+    storage.setItem(PREFS_KEY, oldStored());
+    const stop = startPrefs({ storage });
+    expect(useStore.getState().view.subBands).toEqual([]);
+    expect(useStore.getState().view.gainUnit).toBe('dBi');
+    expect(storage.getItem(PREFS_KEY)).not.toMatch(/subBands/);
+    expect(JSON.parse(storage.getItem(PREFS_KEY)!)).toEqual(JSON.parse(serializePrefs(changed())));
+    stop();
+  });
+
+  it('stored alone by an earlier version leave nothing behind', () => {
+    const storage = new FakeStorage();
+    storage.setItem(PREFS_KEY, JSON.stringify({ version: PREFS_VERSION, view: { subBands: mine } }));
+    const stop = startPrefs({ storage });
+    expect(useStore.getState().view.subBands).toEqual([]);
+    expect(storage.getItem(PREFS_KEY)).toBeNull();
+    stop();
+  });
+
+  it('edited by the user are not written', () => {
+    const storage = new FakeStorage();
+    const stop = startPrefs({ storage, delayMs: 10 });
+    useStore.getState().updateView({ subBands: mine });
+    vi.advanceTimersByTime(1000);
+    expect(storage.getItem(PREFS_KEY)).toBeNull();
+    useStore.getState().updateView({ gainUnit: 'dBi' });
+    vi.advanceTimersByTime(1000);
+    expect(storage.getItem(PREFS_KEY)).not.toMatch(/subBands|Mid/);
+    stop();
   });
 });
 

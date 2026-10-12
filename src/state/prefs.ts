@@ -6,13 +6,14 @@ import { initialState, sessionSwapCount, useStore, type StoreData, type ViewStat
 /**
  * Display preferences remembered per browser. They change only when the user changes them: a project
  * that is opened (it brings its own settings and view) is shown but not remembered. Nothing of a
- * session is stored: no pattern data, file names, groups, offsets, tags or selections.
+ * session is stored: no pattern data, file names, groups, offsets, tags, selections or sub-bands (those are
+ * saved in the project file).
  */
 export const PREFS_KEY = 'lobe-story:prefs:v1';
 export const PREFS_VERSION = 1;
 
 /** The view fields that are preferences (not the dimension, which starts as 2D, nor the simulation). */
-const VIEW_KEYS = ['theme', 'gainUnit', 'cut', 'mode', 'floorDb', 'markers', 'tableGroups', 'subBands', 'method3d', 'layout3d', 'collapsed', 'freqMetric', 'tableTickedOnly'] as const;
+const VIEW_KEYS = ['theme', 'gainUnit', 'cut', 'mode', 'floorDb', 'markers', 'tableGroups', 'method3d', 'layout3d', 'collapsed', 'freqMetric', 'tableTickedOnly'] as const;
 type PrefViewKey = (typeof VIEW_KEYS)[number];
 
 export interface Prefs {
@@ -49,6 +50,7 @@ export const serializePrefs = (s: Pick<StoreData, 'settings' | 'view'>): string 
 /**
  * The state patch for stored text on top of `base` (the defaults): each value goes through the same
  * sanitisers a project file does, so damaged, hand-edited or outdated values fall back to `base`'s.
+ * Sub-bands an earlier version stored are not read: they stay `base`'s.
  * Missing, unparseable or newer-version text gives null (nothing to apply). Never throws.
  */
 export function applyPrefs(text: string | null, base: Pick<StoreData, 'settings' | 'view'>): Pick<StoreData, 'settings' | 'view'> | null {
@@ -76,7 +78,6 @@ export function applyPrefs(text: string | null, base: Pick<StoreData, 'settings'
       floorDb: clampFloor(display.floorDb, settings.levelDb) ?? base.view.floorDb,
       markers: display.markers,
       tableGroups: display.tableGroups,
-      subBands: display.subBands,
       method3d: display.method3d,
       layout3d: display.layout3d,
       collapsed: display.collapsed,
@@ -96,6 +97,16 @@ export function writePrefs(storage: StorageLike | null, s: Pick<StoreData, 'sett
     else storage.setItem(PREFS_KEY, text);
   } catch {
     // Storage full, blocked or gone: preferences are a convenience, never an error.
+  }
+}
+
+/** Whether stored text still holds sub-bands (written by a version that remembered them as a preference). */
+function hasStoredSubBands(text: string | null): boolean {
+  try {
+    const view = (JSON.parse(text ?? 'null') as { view?: unknown } | null)?.view;
+    return typeof view === 'object' && view !== null && 'subBands' in view;
+  } catch {
+    return false;
   }
 }
 
@@ -163,6 +174,8 @@ export function startPrefs({ storage = browserStorage(), delayMs = 300 }: PrefsO
     }
     const restored = applyPrefs(text, useStore.getState());
     if (restored) useStore.setState(restored);
+    // An earlier version kept the user's sub-bands here, and so carried them into every later session: forget them.
+    if (restored && hasStoredSubBands(text)) writePrefs(storage, applyPrefs(text, defaults) ?? defaults, defaults);
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -202,12 +215,9 @@ export function startPrefs({ storage = browserStorage(), delayMs = 300 }: PrefsO
   };
 }
 
-/** The view preferences a reset restores: user sub-bands are part of the session (saved in project files), so they stay. */
-const RESET_VIEW_KEYS = VIEW_KEYS.filter((k) => k !== 'subBands');
-
 /**
  * Puts the remembered display preferences back to their defaults and forgets the stored ones. Session
- * content is not touched, and a value that already is the default is not set again (no new object, so
+ * content (the user's sub-bands included) is not touched, and a value that already is the default is not set again (no new object, so
  * a loaded session does not become unsaved and an offered undo stays).
  */
 export function resetPrefs(storage: StorageLike | null = browserStorage()): void {
@@ -220,7 +230,7 @@ export function resetPrefs(storage: StorageLike | null = browserStorage()): void
   }
   if (Object.keys(settings).length > 0) updateSettings(settings as Partial<AnalysisSettings>);
   const view: Record<string, unknown> = {};
-  for (const k of RESET_VIEW_KEYS) {
+  for (const k of VIEW_KEYS) {
     if (JSON.stringify(cur.view[k]) !== JSON.stringify(d.view[k])) view[k] = d.view[k];
   }
   if (Object.keys(view).length > 0) updateView(view as Partial<ViewState>);

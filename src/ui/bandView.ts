@@ -1,7 +1,7 @@
 import { BAND_PARAMS, bandParamLabel, tiltText, type BandCell, type BandColumn, type BandParamKey } from '../core/analysis/bandParams';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import type { AnalysisSettings } from '../core/analysis/metrics';
-import { sanitizeSubBands, subBandName, type BandDataset, type SubBand } from '../core/analysis/subBands';
+import { inSubBand, sanitizeSubBands, subBandName, type BandDataset, type SubBand } from '../core/analysis/subBands';
 import { FIRST_LOBE_RANGE } from '../core/analysis/sidelobes';
 import { fixed } from './fixed';
 import { AT_HORIZON_TAG, csvCell, csvText, tabSafe, TILT_WORDS, tsvText, type PairWords } from './table';
@@ -103,6 +103,29 @@ export function swappedNote(index: number, old: SubBand | undefined, patch: Part
 
 export function sameSubBands(a: readonly SubBand[], b: readonly SubBand[]): boolean {
   return a.length === b.length && a.every((x, i) => x.name === b[i].name && x.minMHz === b[i].minMHz && x.maxMHz === b[i].maxMHz);
+}
+
+/** What the band statistics say about their sub-bands. */
+export interface SubBandsNote {
+  userDefined: boolean;
+  /** How many sub-bands the user defined (0 = automatic). */
+  count: number;
+  /** Files of the antenna whose frequency lies in none of the user's sub-bands: they are in no statistic. */
+  outside: number;
+  total: number;
+  text: string;
+}
+
+/**
+ * The state of the sub-bands for the antenna shown (`items`): automatic, or the user's own, and then how many of the
+ * antenna's files fall in none of them. Automatic sub-bands cover every file, so nothing is counted for them.
+ */
+export function subBandsNote(items: readonly { pattern: { frequencyMHz: number } }[], user: readonly SubBand[]): SubBandsNote {
+  const total = items.length;
+  if (user.length === 0) return { userDefined: false, count: 0, outside: 0, total, text: 'Sub-bands are automatic.' };
+  const outside = items.filter((i) => !user.some((b) => inSubBand(i.pattern.frequencyMHz, b))).length;
+  const left = outside > 0 ? ` ${outside} of ${filesText(total)} ${outside === 1 ? 'is' : 'are'} in no sub-band.` : '';
+  return { userDefined: true, count: user.length, outside, total, text: `Sub-bands: user-defined (${user.length}).${left}` };
 }
 
 export interface BandSheet {

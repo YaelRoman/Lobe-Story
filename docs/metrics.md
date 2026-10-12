@@ -360,7 +360,10 @@ Plot visibility does not matter. N, the number of samples, is shown in every cel
 
 **Sub-bands.** With none defined, each cluster of frequencies whose neighbours are at most 100 MHz
 apart is one sub-band. A user-defined list (name, min, max; inclusive with ±0.5 MHz, overlap allowed,
-at most 12) replaces the automatic one and is saved with the project; the editor offers common
+at most 12) replaces the automatic one and is saved with the project. It belongs to the session, not to the
+browser: Clear and a fresh page start with automatic sub-bands, and an opened project brings its own. While a
+user-defined list is in use a line above the table says so, says how many files of the antenna shown fall in none
+of the sub-bands (they are in no statistic) and offers "Back to automatic". The editor offers common
 ranges as presets and "Start from automatic" copies the automatic sub-bands of the selected antenna only. A frequency above 100000 MHz is not accepted. BASTA's own sub-band tables are examples and are not enforced, and the tool does
 not check that all frequency samples required by Annex B are present.
 
