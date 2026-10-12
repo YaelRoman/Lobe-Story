@@ -3,6 +3,7 @@ import type { ExportCaption } from './exportFigure';
 import { LEGEND_NAME_MAX, middleEllipsis } from './legend';
 import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
 import { minSpanRange } from './hpbwFigure';
+import { hasUsableFrequency } from '../core/gain';
 
 /** One file's value of the plotted metric at its frequency; `null` leaves a gap in the line. */
 export interface MetricPoint {
@@ -131,4 +132,13 @@ export function buildMetricFigure(series: MetricSeries[], theme: FigureTheme, la
       yaxis: { title: { text: metricAxisTitle(label, unit) }, gridcolor: theme.grid, ...(range ? { range } : {}) },
     },
   };
+}
+
+/**
+ * The files the frequency chart draws a point for: those with a usable frequency in a group that has a visible file
+ * with one (the chart plots the whole group). A file without a frequency is never plotted, ticked or not.
+ */
+export function plottedFileIds(groups: { items: { pattern: { id: string; frequencyMHz: number } }[] }[], visible: Record<string, boolean | undefined>): string[] {
+  const usable = (i: { pattern: { frequencyMHz: number } }) => hasUsableFrequency(i.pattern.frequencyMHz);
+  return groups.flatMap((g) => (g.items.some((i) => visible[i.pattern.id] && usable(i)) ? g.items.filter(usable).map((i) => i.pattern.id) : []));
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlotData } from 'plotly.js';
-import { buildMetricFigure, metricAxisTitle, metricCaption, minSpanForUnit, noValueNote, noValues, coincidingNote } from './metricFigure';
+import { buildMetricFigure, metricAxisTitle, metricCaption, minSpanForUnit, noValueNote, noValues, coincidingNote, plottedFileIds } from './metricFigure';
 import { FIGURE_THEMES } from './figureTheme';
 
 const traces = (f: { data: unknown[] }) => f.data as Partial<PlotData>[];
@@ -129,5 +129,26 @@ describe('file ids on the points', () => {
     expect(t[1].customdata).toEqual(['c']); // declared marker of c
     expect(t[2].customdata).toBeUndefined(); // ghost
     expect(t[3].customdata).toEqual(['ref']);
+  });
+});
+
+describe('plottedFileIds', () => {
+  const item = (id: string, frequencyMHz: number) => ({ pattern: { id, frequencyMHz } });
+  const groups = [
+    { items: [item('a', 1710), item('b', 1800), item('zero', 0)] },
+    { items: [item('c', 2100), item('d', 2200)] },
+    { items: [item('e', 0), item('f', 2600)] },
+  ];
+
+  it('lists the usable-frequency files of the groups that have a visible file with one', () => {
+    expect(plottedFileIds(groups, { a: true })).toEqual(['a', 'b']);
+    expect(plottedFileIds(groups, { a: true, d: true })).toEqual(['a', 'b', 'c', 'd']);
+    expect(plottedFileIds(groups, {})).toEqual([]);
+  });
+
+  it('never lists a file without a frequency, and a visible one does not make its group plotted', () => {
+    expect(plottedFileIds(groups, { zero: true })).toEqual([]);
+    expect(plottedFileIds(groups, { e: true })).toEqual([]);
+    expect(plottedFileIds(groups, { e: true, f: true })).toEqual(['f']);
   });
 });

@@ -12,7 +12,7 @@ import {
   type SimSettings,
   type TiltSettings,
 } from '../core/analysis/tilt';
-import { anySimulated } from './simSummary';
+import { anySimulated, offsetCountsAmong } from './simSummary';
 
 export interface SimulationResult {
   /** True when any loaded file is tilted (effective Δe or m non-zero). */
@@ -30,6 +30,8 @@ export interface SimulationResult {
   effective(id: string): SimSettings;
   /** Whether any of these files (the ones a picture draws or an export lists) is simulated; see `anySimulated`. */
   simulatedAmong(ids: Iterable<string>): boolean;
+  /** The per-file and per-group offsets among these files (what a picture shows, see `offsetCountsAmong`). */
+  offsetsAmong(ids: Iterable<string>): { files: number; groups: number };
   /** Whether a file's effective tilt is non-zero. */
   isTiltedId(id: string): boolean;
   /** Tilted pattern per id (the original pattern for untilted files). */
@@ -83,6 +85,7 @@ export function useSimulation(
   const effective = useCallback((id: string) => effectiveFor(global, offsets[id]), [global, offsets]);
   const isTiltedId = useCallback((id: string) => isTilted(effective(id)), [effective]);
   const simulatedAmong = useCallback((ids: Iterable<string>) => anySimulated(effective, ids), [effective]);
+  const offsetsAmong = useCallback((ids: Iterable<string>) => offsetCountsAmong(ids, fileOffsets, groupOffsets, membership), [fileOffsets, groupOffsets, membership]);
   const tiltActive = useMemo(() => anyTilted(ids, global, offsets), [ids, global, offsets]);
 
   // A tilt-only view of the per-file settings, stable across an azimuth-only change (global or
@@ -129,6 +132,7 @@ export function useSimulation(
       groupOffsetCount,
       effective,
       simulatedAmong,
+      offsetsAmong,
       isTiltedId,
       patterns,
       metrics: tiltedMetrics,
@@ -142,6 +146,7 @@ export function useSimulation(
       groupOffsetCount,
       effective,
       simulatedAmong,
+      offsetsAmong,
       isTiltedId,
       patterns,
       tiltedMetrics,

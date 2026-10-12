@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anySimulated, exportName, simSummary, simulatedCaption, simulationActive } from './simSummary';
+import { anySimulated, exportName, offsetCountsAmong, simSummary, simulatedCaption, simulationActive } from './simSummary';
 
 describe('simSummary', () => {
   it('shows the global values', () => {
@@ -57,5 +57,23 @@ describe('anySimulated', () => {
   it('sees a tilt, a mechanical tilt or an azimuth', () => {
     const e = effective({ t: [2, 0, 0], m: [0, -1, 0], z: [0, 0, 15] });
     for (const id of ['t', 'm', 'z']) expect(anySimulated(e, [id])).toBe(true);
+  });
+});
+
+describe('offsets counted among the files a picture shows', () => {
+  const fileOffsets = { a: {}, b: {}, c: {} };
+  const groupOffsets = { g1: {}, g2: {} };
+  const membership = { a: 'g1', b: 'g1', c: 'g3', d: 'g2' };
+  it('counts a file offset for a shown file only, and a group once', () => {
+    expect(offsetCountsAmong(['a', 'b', 'c', 'd'], fileOffsets, groupOffsets, membership)).toEqual({ files: 3, groups: 2 });
+    expect(offsetCountsAmong(['a', 'b'], fileOffsets, groupOffsets, membership)).toEqual({ files: 2, groups: 1 });
+    expect(offsetCountsAmong(['d', 'x'], fileOffsets, groupOffsets, membership)).toEqual({ files: 0, groups: 1 });
+    expect(offsetCountsAmong([], fileOffsets, groupOffsets, membership)).toEqual({ files: 0, groups: 0 });
+  });
+  it('is what the caption says when given: offsets on files that are not drawn are not mentioned', () => {
+    const s = { tiltActive: false, tilt: { electricalDeg: 0, mechanicalDeg: 0 }, azimuthDeg: 15, offsetCount: 2, groupOffsetCount: 0 };
+    expect(simulatedCaption(s, 'summation')).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 15°; offsets on 2 files');
+    expect(simulatedCaption(s, 'summation', { files: 0, groups: 0 })).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 15°');
+    expect(simulatedCaption(s, 'summation', { files: 1, groups: 0 })).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 15°; offsets on 1 file');
   });
 });

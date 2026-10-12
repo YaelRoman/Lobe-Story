@@ -44,17 +44,40 @@ export function anySimulated(effective: (id: string) => SimSettings, ids: Iterab
 }
 
 /**
+ * How many per-file and per-group offsets are set among the files `ids` (a file's own offset; a custom group counts
+ * once when one of the files is a member and the group has an offset): what one picture shows, not the whole project.
+ */
+export function offsetCountsAmong(
+  ids: Iterable<string>,
+  fileOffsets: Record<string, unknown>,
+  groupOffsets: Record<string, unknown>,
+  membership: Record<string, string>,
+): { files: number; groups: number } {
+  let files = 0;
+  const groups = new Set<string>();
+  for (const id of ids) {
+    if (fileOffsets[id]) files++;
+    const gid = membership[id];
+    if (gid && groupOffsets[gid]) groups.add(gid);
+  }
+  return { files, groups: groups.size };
+}
+
+/**
  * The caption line of an exported image while a simulation is active, else undefined:
  * "Simulated: electrical Δ 4°, mechanical 0°, azimuth 0°, summation method" (the method only while a tilt is active,
- * as it changes the result then), plus the number of per-file and per-group offsets.
+ * as it changes the result then), plus the number of per-file and per-group offsets (those among the files the picture
+ * shows when `counts` is given, see `offsetCountsAmong`; else all of the project's).
  */
-export function simulatedCaption(s: SimFacts, method: 'summation' | 'weighted'): string | undefined {
+export function simulatedCaption(s: SimFacts, method: 'summation' | 'weighted', counts?: { files: number; groups: number }): string | undefined {
   if (!simulationActive(s)) return undefined;
   const parts = [`electrical Δ ${minus(s.tilt.electricalDeg)}°`, `mechanical ${minus(s.tilt.mechanicalDeg)}°`, `azimuth ${minus(s.azimuthDeg)}°`];
   if (s.tiltActive) parts.push(`${method} method`);
+  const files = counts?.files ?? s.offsetCount;
+  const groups = counts?.groups ?? s.groupOffsetCount;
   const offsets = [
-    s.offsetCount > 0 ? `${s.offsetCount} file${s.offsetCount === 1 ? '' : 's'}` : '',
-    s.groupOffsetCount > 0 ? `${s.groupOffsetCount} group${s.groupOffsetCount === 1 ? '' : 's'}` : '',
+    files > 0 ? `${files} file${files === 1 ? '' : 's'}` : '',
+    groups > 0 ? `${groups} group${groups === 1 ? '' : 's'}` : '',
   ].filter(Boolean);
   return `Simulated: ${parts.join(', ')}${offsets.length > 0 ? `; offsets on ${offsets.join(' and ')}` : ''}`;
 }

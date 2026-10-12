@@ -249,7 +249,7 @@ export const BandStats = memo(function BandStats({
           testId="plot-band"
           toolbar="xy"
           ariaLabel="Band statistics plot"
-          labelledExport={{ caption: withSimulated(exportCaption ?? undefined, histogramSimulated ? simulatedCaption(sim, method3d) : undefined), filename: exportName('band-statistics-histogram', histogramSimulated) }}
+          labelledExport={{ caption: withSimulated(exportCaption ?? undefined, histogramSimulated ? simulatedCaption(sim, method3d, sim.offsetsAmong(dataset.items.map((i) => i.pattern.id))) : undefined), filename: exportName('band-statistics-histogram', histogramSimulated) }}
         />
       )}
       {anyAdjusted(columns, tiltedColumns) && (

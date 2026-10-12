@@ -6,7 +6,7 @@ import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
-import { buildMetricFigure, coincidingNote, metricCaption, noValueNote, noValues, type LineSignature, type MetricSeries } from './metricFigure';
+import { buildMetricFigure, coincidingNote, metricCaption, noValueNote, noValues, plottedFileIds, type LineSignature, type MetricSeries } from './metricFigure';
 import { cellsOf, columnLabel, COLUMN_GROUPS, METRIC_COLUMNS, type MetricColumn } from './table';
 import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
@@ -110,7 +110,8 @@ export const HpbwChart = memo(function HpbwChart({
     if (!single.length) return { build: null, empty: null, coincide: null };
     // Nothing to draw at a number: say so (with the reasons the table's tooltips give) instead of an empty chart.
     if (noValues(single, ref)) {
-      const reasons = groups.flatMap((g) => g.items.map((i) => { const m = sim.metrics.get(i.pattern.id); return m ? cellsOf(m)[metric].reason : undefined; }));
+      // Only the files the chart tried to draw: not those of hidden groups, nor files without a frequency.
+      const reasons = plottedFileIds(groups, visible).map((id) => { const m = sim.metrics.get(id); return m ? cellsOf(m)[metric].reason : undefined; });
       return { build: null, empty: noValueNote(label, reasons), coincide: null };
     }
     return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref), empty: null, coincide: coincidingNote(single.filter((s) => !s.ghost)) };
@@ -120,13 +121,13 @@ export const HpbwChart = memo(function HpbwChart({
   // The chart plots every file of a group that has a visible file, and the reference's diamond.
   const plottedIds = useMemo(
     () => [
-      ...groups.flatMap((g) => (g.items.some((i) => visible[i.pattern.id] && hasUsableFrequency(i.pattern.frequencyMHz)) ? g.items.map((i) => i.pattern.id) : [])),
+      ...plottedFileIds(groups, visible),
       ...(refDrawn && reference !== null ? [reference] : []),
     ],
     [groups, visible, refDrawn, reference],
   );
   const exportSimulated = sim.simulatedAmong(plottedIds);
-  const simulatedLine = exportSimulated ? simulatedCaption(sim, method3d) : undefined;
+  const simulatedLine = exportSimulated ? simulatedCaption(sim, method3d, sim.offsetsAmong(plottedIds)) : undefined;
   const exportCaption = useMemo(
     () =>
       withSimulated(

@@ -44,6 +44,7 @@ function simFor(
     groupOffsetCount: 0,
     effective,
     simulatedAmong: (ids) => anySimulated(effective, ids),
+    offsetsAmong: () => ({ files: Object.keys(offsets).length, groups: 0 }),
     isTiltedId,
     patterns: new Map(tilted.map((i) => [i.pattern.id, i.pattern])),
     metrics: tiltActive ? analyzeTilted(tilted, DEFAULT_SETTINGS, effective) : original,
