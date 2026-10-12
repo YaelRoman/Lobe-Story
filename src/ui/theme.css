@@ -103,13 +103,17 @@ th[scope='row'] { text-align: left; white-space: nowrap; }
    the flow moved the page under the pointer that made it. Above the plots, the menus and the phone's copy pill; below dialogs (50). */
 .undo-toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 40; display: flex; gap: 10px; align-items: center; width: max-content; max-width: calc(100vw - 24px); padding: 8px 8px 8px 14px; font-size: 13px; color: var(--fg); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgb(0 0 0 / 28%); overflow-wrap: anywhere; }
 .undo-toast button { flex: none; padding: 2px 8px; }
-/* An offer that names a file or a group: the name is on one line with the words before it, and its start gives way (ellipsis) while its
-   end stays. Words after the name follow on the line, or on a second one when the offer is narrow (the gap stands for their space). */
+/* An offer that names a file or a group: the name is on one line with the words before it, cut in the middle when the offer is narrow
+   (UndoToast measures how much of its start fits: the rest of the start stays in the text without a size, and the ellipsis is drawn
+   here, with no text of its own where the browser knows how). Inline boxes, not flex items: a copy of the offer, or a screen reader,
+   gets the name in one piece. Words after the name follow on the line, or as a whole on a second one when there is no room. */
 .undo-label { min-width: 0; }
-.undo-label.named { display: flex; flex-wrap: wrap; column-gap: 0.3em; overflow-wrap: normal; }
-.undo-name { display: flex; min-width: 0; max-width: 100%; white-space: pre; }
-.undo-name > * { flex: none; }
-.undo-name > .mid-head { flex: 0 1 auto; min-width: 2em; max-width: none; }
+.undo-label.named { overflow-wrap: normal; }
+.undo-name { display: inline-block; max-width: 100%; overflow: hidden; white-space: pre; vertical-align: bottom; }
+.undo-name .mid-head { display: inline; max-width: none; overflow: visible; }
+.undo-name .mid-rest { font-size: 0; }
+.undo-name .mid-head.cut > :first-child::after { content: '…'; content: '…' / ''; }
+.undo-after { white-space: nowrap; }
 .panel:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: -2px; }
 .drop-overlay { position: fixed; inset: 0; display: grid; place-items: center; font-size: 20px; background: rgb(9 105 218 / 15%); border: 3px dashed var(--accent); pointer-events: none; }
 .settings { position: absolute; right: 12px; top: 100%; z-index: 10; display: grid; grid-template-columns: auto 90px; gap: 6px 12px; align-items: center; padding: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useStore } from '../state/store';
 import { SKIP_TARGETS } from './SkipLinks';
 import { isTextEntry, isUndoShortcut, undoWording } from './undoKeys';
-import { MidName } from './MidName';
+import { splitTail } from './legend';
+import { fittingHead } from './midFit';
 import { usePhoneLayout, useTouchOnly } from './phoneLayout';
 
 /** How long the toast offering an undo stays; the undo itself stays available to Ctrl/Cmd+Z until a later edit withdraws it. */
@@ -12,22 +13,88 @@ export const UNDO_MS = 10_000;
 const RESUME_MIN_MS = 3_000;
 
 /**
+ * A file or group name with the words before it, on one line, cut in the middle when the offer is narrow: its end,
+ * which tells files apart, stays whole and its start gives way. The cut is measured, not left to the stylesheet's
+ * ellipsis (that leaves a gap of up to a character before the end of the name, which reads as a space in it), and
+ * it is drawn, not written: the part that is cut stays in the page without a size and the ellipsis is the
+ * stylesheet's (see `.undo-name`), so the text of the offer is the whole name, in one piece, for a copy and for a
+ * screen reader.
+ */
+function FittedName({ before, name, end }: { before: string; name: string; end: string }) {
+  const { head, tail } = splitTail(name, 11);
+  const box = useRef<HTMLSpanElement>(null);
+  const start = useRef<HTMLSpanElement>(null);
+  // How many characters of the head are shown; null: all of them, and whether they fit is measured next (a new
+  // object each time it is asked for, so that it is measured again also when the answer was "all" before).
+  const [fit, setFit] = useState<{ kept: number | null }>({ kept: null });
+  const { kept } = fit;
+
+  useLayoutEffect(() => {
+    const line = box.current;
+    const shown = start.current;
+    if (!line || !shown || fit.kept !== null) return;
+    // Whole pixels, the content's rounded: a pixel is taken off the room below for it.
+    const over = line.scrollWidth - line.clientWidth;
+    if (over <= 0) return;
+    // Measured in the line itself (its font), out of the flow and not shown.
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
+    line.appendChild(probe);
+    const widthOf = (text: string) => {
+      probe.textContent = text;
+      return probe.getBoundingClientRect().width;
+    };
+    const room = shown.getBoundingClientRect().width - over - 1;
+    setFit({ kept: fittingHead(head, room, widthOf) });
+    probe.remove();
+  }, [fit, head]);
+
+  // The room changes with the window: measured again from the whole name.
+  useEffect(() => {
+    const again = () => setFit({ kept: null });
+    window.addEventListener('resize', again);
+    return () => window.removeEventListener('resize', again);
+  }, []);
+
+  const cut = kept !== null && kept < head.length;
+  return (
+    <span className="undo-name" ref={box}>
+      {before}
+      <span className={cut ? 'mid-head cut' : 'mid-head'} ref={start}>
+        {cut ? (
+          <>
+            <span>{head.slice(0, kept)}</span>
+            <span className="mid-rest">{head.slice(kept)}</span>
+          </>
+        ) : (
+          head
+        )}
+      </span>
+      {tail && <span className="mid-tail">{tail}</span>}
+      {end}
+    </span>
+  );
+}
+
+/**
  * What the offer is about. A file or group name in it stays on one line with the words before it and is cut in the
- * middle when the offer is narrow (its end, which tells files apart, stays whole; see `.undo-label`); words after
- * the name go to a second line when there is no room. The full text stays in the page.
+ * middle when the offer is narrow (see `FittedName`); words after the name go to a second line, as a whole, when
+ * there is no room. The full text stays in the page.
  */
 function OfferLabel({ label, name }: { label: string; name?: string }) {
   const at = name ? label.indexOf(name) : -1;
   if (!name || at < 0) return <span className="undo-label">{label}.</span>;
   const after = label.slice(at + name.length);
+  const words = after.trimStart();
   return (
     <span className="undo-label named">
-      <span className="undo-name">
-        <span>{label.slice(0, at)}</span>
-        <MidName text={name} />
-        {after === '' && <span>.</span>}
-      </span>
-      {after !== '' && <span>{after}.</span>}
+      <FittedName before={label.slice(0, at)} name={name} end={after === '' ? '.' : ''} />
+      {after !== '' && (
+        <>
+          {after.slice(0, after.length - words.length)}
+          <span className="undo-after">{words}.</span>
+        </>
+      )}
     </span>
   );
 }

@@ -425,7 +425,7 @@ test('on a phone the undo offer of a Remove is one line: the button says Undo an
   await page.getByRole('menuitem', { name: 'Remove' }).click();
   const toast = page.getByTestId('undo-toast');
   await expect(toast).toBeVisible();
-  // No keyboard shortcut is named where there is no keyboard.
+  // The button is short in the phone's layout: the room goes to the name.
   await expect(toast.getByRole('button', { name: 'Undo', exact: true })).toBeVisible();
   // The whole name is in the page, on one line with the words before it and the buttons (it was three lines, 73 px).
   await expect(toast.locator('.undo-label')).toHaveText('Removed example_1710_P45_02T.msi.');
@@ -433,12 +433,34 @@ test('on a phone the undo offer of a Remove is one line: the button says Undo an
   expect(box.height).toBeLessThanOrEqual(52);
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(390);
-  const lines = await toast.locator('.undo-name > *').evaluateAll((parts) => new Set(parts.map((p) => Math.round(p.getBoundingClientRect().top))).size);
-  expect(lines).toBe(1);
-  // The end of the name, which tells the files apart, is not cut.
+  // The end of the name, which tells the files apart, is whole and inside the offer; the start is cut, on the same line.
   const tail = toast.locator('.mid-tail');
   await expect(tail).toHaveText('P45_02T.msi');
-  expect(await tail.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+  const parts = await toast.evaluate((offer) => {
+    const rect = (selector: string) => offer.querySelector(selector)!.getBoundingClientRect();
+    const [name, shown, tail, button] = ['.undo-name', '.mid-head.cut > :first-child', '.mid-tail', 'button'].map(rect);
+    return { name, shown, tail, button, kept: offer.querySelector('.mid-head.cut > :first-child')!.textContent ?? '' };
+  });
+  expect(Math.round(parts.tail.top)).toBe(Math.round(parts.shown.top));
+  expect(parts.tail.right).toBeLessThanOrEqual(parts.name.right + 0.5);
+  expect(parts.name.right).toBeLessThanOrEqual(parts.button.left);
+  // The cut is where the room ends, not earlier: some of the start is kept, and no gap is left between the ellipsis and
+  // the end of the name (the ellipsis is drawn at the end of the kept start; a gap there reads as a space in the name).
+  expect(parts.kept.length).toBeGreaterThanOrEqual(3);
+  expect('example_1710_'.startsWith(parts.kept)).toBe(true);
+  expect(Math.abs(parts.tail.left - parts.shown.right)).toBeLessThanOrEqual(0.5);
+  // The text of the offer is what it says, in one piece: no ellipsis character, no break inside the name or before the full stop.
+  expect(await toast.locator('.undo-label').innerText()).toBe('Removed example_1710_P45_02T.msi.');
+  expect(await toast.ariaSnapshot()).toContain('Removed example_1710_P45_02T.msi.');
+
+  // With room for the whole name nothing is cut.
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await expect(toast.locator('.mid-head.cut')).toHaveCount(0);
+  expect(await toast.locator('.undo-label').innerText()).toBe('Removed example_1710_P45_02T.msi.');
+  // And back: the cut is measured again.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(toast.locator('.mid-head.cut')).toHaveCount(1);
+  expect((await toast.boundingBox())!.height).toBeLessThanOrEqual(52);
 });
 
 test('pressing Undo in the offer by keyboard does not drop the focus to the page body', async ({ page }) => {

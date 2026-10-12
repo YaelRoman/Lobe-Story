@@ -139,6 +139,19 @@ describe('the offer on a phone, and a long file name in it', () => {
     expect(label.querySelector('.mid-tail')?.textContent).toBe('P45_02T.msi');
   });
 
+  it('the name is plain text in the page: one piece per part of it, none of them a box of its own that a copy or a reader would take apart', () => {
+    layout(true);
+    act(() => st().addFiles([file('example_1710_P45_02T.msi', 1710), file('b.MSI', 1900)]));
+    act(() => st().removeFile('example_1710_P45_02T.msi'));
+    const name = toast()!.querySelector('.undo-name')!;
+    expect(name.textContent).toBe('Removed example_1710_P45_02T.msi.');
+    // No ellipsis character is written into the text: where the name is cut, the cut is drawn, and the whole name stays.
+    expect(name.textContent).not.toContain('…');
+    expect(Array.from(name.children, (c) => c.tagName)).toEqual(['SPAN', 'SPAN']);
+    expect(name.childNodes[0].textContent).toBe('Removed ');
+    expect(name.lastChild?.textContent).toBe('.');
+  });
+
   it('what follows the name stays whole too', () => {
     layout(true);
     act(() => st().addFiles([file('example_1710_P45_02T.msi', 1710), file('b.MSI', 1900)]));
