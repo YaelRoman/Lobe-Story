@@ -70,3 +70,11 @@ it('the help has a line for each feature', () => {
   for (const word of ['Metric menu', 'Reference file', 'Copy']) expect(lines(word).length, word).toBeGreaterThan(0);
   expect(FEATURE_HELP.every((l) => l.length > 20)).toBe(true);
 });
+
+it('the angular-region entry says the numbers follow the 3D method and what a mechanical tilt does', () => {
+  const are = GLOSSARY.find((g) => g.term === 'Angular regions (est.)')!;
+  expect(are.text).toContain('3D method');
+  expect(are.text).toMatch(/Summation.*Weighted/);
+  expect(are.text).toMatch(/mechanical tilt/i);
+  expect(are.text).toMatch(/exported|CSV/);
+});

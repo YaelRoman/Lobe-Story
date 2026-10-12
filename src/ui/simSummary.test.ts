@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anySimulated, exportName, offsetCountsAmong, simSummary, simulatedCaption, simulationActive } from './simSummary';
+import { anySimulated, exportName, offsetCountsAmong, simSummary, simulatedCaption, simulationActive, summaryMethod } from './simSummary';
 
 describe('simSummary', () => {
   it('shows the global values', () => {
@@ -16,6 +16,14 @@ describe('simSummary', () => {
       'Tilt Δ 3° · Mech 2° · Az 0° · 3D method: Weighted',
     );
     expect(simSummary({ electricalDeg: 3, mechanicalDeg: 2, azimuthDeg: 0 }, 0, 0, 'summation')).toContain('3D method: Summation');
+  });
+  it('names the 3D method whenever it changes a number on screen: under a tilt, or while the angular-region estimate is shown or plotted', () => {
+    expect(summaryMethod('weighted', false, false)).toBeUndefined();
+    expect(summaryMethod('weighted', true, false)).toBe('weighted');
+    expect(summaryMethod('summation', false, true)).toBe('summation');
+    expect(simSummary({ electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0 }, 0, 0, summaryMethod('summation', false, true))).toBe(
+      'Tilt Δ 0° · Mech 0° · Az 0° · 3D method: Summation',
+    );
   });
 });
 

@@ -83,6 +83,14 @@ export function needsAngularRegions(groups: Record<ColumnGroupKey, boolean>, fre
 
 const METHOD_NAME: Record<Method3d, string> = { summation: 'Summation', weighted: 'Weighted' };
 
+/**
+ * A column's label where its numbers leave the table (CSV and copied headers, the frequency chart's axis and caption):
+ * the angular-region estimate carries the 3D method, which changes it by several points; every other label is as given.
+ */
+export function withMethod(key: MetricColumn, label: string, method: Method3d): string {
+  return COLUMN_INFO[key].group === ON_DEMAND_GROUP ? `${label}, ${METHOD_NAME[method]}` : label;
+}
+
 /** The second half of the three angular-region tooltips: what kind of number this is. */
 const areNote = (method: Method3d): string =>
   `Estimate from the two co-polar cuts, integrated over the 3D reconstruction (3D method: ${METHOD_NAME[method]}, chosen in the Simulation bar); not BASTA-compliant, which needs the measured full sphere and total power. Beam Type A (macro) only: — when V-HPBW is outside 0.5–25° or H-HPBW outside 50–130°`;
@@ -518,13 +526,15 @@ export function toCsv(
   deltaVs?: string,
   deltaTilted = false,
   columns: readonly (typeof METRIC_COLUMNS)[number][] = CSV_DEFAULT_COLUMNS,
+  /** The 3D method the angular-region estimate was computed with; named in the headers of its columns. */
+  method3d: Method3d = 'summation',
 ): string {
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
   // The difference view has one column per metric (the difference of the shown values), whatever the simulation.
   const tilted = deltaVs === undefined && (typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim));
   const withSource = rows.some((r) => r.source !== r.file);
   const metricHeader = columns.flatMap((c) => {
-    const label = columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb);
+    const label = withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d);
     return tilted ? [`${label} original (${c.unit})`, `${label} tilted (${c.unit})`] : [columnHeader(label, c.unit, deltaVs, deltaTilted)];
   });
   const header = [
@@ -605,6 +615,8 @@ export function toTsv(
   levelDb = 3,
   deltaVs?: string,
   deltaTilted = false,
+  /** The 3D method the angular-region estimate was computed with; named in the headers of its columns. */
+  method3d: Method3d = 'summation',
 ): string {
   const withRole = deltaVs !== undefined;
   const header = [
@@ -613,7 +625,7 @@ export function toTsv(
     ...(withRole ? ['Row'] : []),
     'MHz',
     columnHeader('Gain', gainUnit, deltaVs, deltaTilted),
-    ...columns.map((c) => columnHeader(columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), c.unit, deltaVs, deltaTilted)),
+    ...columns.map((c) => columnHeader(withMethod(c.key, columnLabel(c, fbWindowDeg, uslsRangeDeg, levelDb), method3d), c.unit, deltaVs, deltaTilted)),
   ];
   return [header.map(tsvText).join('\t'), ...rows.map((r) => rowToTsv(r, columns, withRole))].join('\r\n') + '\r\n';
 }

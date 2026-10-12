@@ -5,7 +5,7 @@ import { anyTilted, combineOffsets } from '../core/analysis/tilt';
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { simSummary } from './simSummary';
+import { simSummary, summaryMethod } from './simSummary';
 import { needsAngularRegions } from './table';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
@@ -184,7 +184,7 @@ export function SimulationBar({ is3d }: { is3d: boolean }) {
       )}
       {collapsed && (
         <span className="count" data-testid="sim-summary">
-          {simSummary(global, fileCount, groupCount, tiltActive ? method : undefined)}
+          {simSummary(global, fileCount, groupCount, summaryMethod(method, tiltActive, withAngularRegions))}
         </span>
       )}
       <div id="sim-body" className="sim-body" hidden={collapsed}>

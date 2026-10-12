@@ -56,7 +56,8 @@ test('Angular regions (est.): off by default; switched on, three plausible perce
   const select = page.getByLabel('Metric', { exact: true });
   await select.selectOption({ label: 'Sector eff. est. (%)' });
   const chart = page.getByTestId('plot-hpbw');
-  await expect(chart.locator('.ytitle')).toContainText('Sector eff. est. (%)');
+  // The axis title names the 3D method, as the CSV header does: it travels with the number into the PNG.
+  await expect(chart.locator('.ytitle')).toContainText('Sector eff. est., Summation (%)');
   expect(await chart.locator('.scatterlayer .trace .lines path').count()).toBeGreaterThan(0);
   await expect(page.getByRole('heading', { name: /^Sector eff\. est\. vs frequency/ })).toBeVisible();
 
@@ -65,4 +66,36 @@ test('Angular regions (est.): off by default; switched on, three plausible perce
   await expect(page.getByRole('columnheader', { name: /est\./ })).toHaveCount(0);
   await expect(page.getByTestId('freq-no-value')).toHaveCount(0);
   expect(await chart.locator('.scatterlayer .trace .lines path').count()).toBeGreaterThan(0);
+});
+
+test('the 3D method travels with the angular-region estimate: collapsed Simulation summary, copied table and CSV headers', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  await expect(page.locator('.metrics tbody tr').first()).toBeVisible();
+
+  const fold = page.getByRole('button', { name: /Simulation/ });
+  if ((await fold.getAttribute('aria-expanded')) === 'true') await fold.click();
+  const summary = page.getByTestId('sim-summary');
+  // No tilt, no estimate on screen: the method changes nothing, so the summary does not name it.
+  await expect(summary).toBeVisible();
+  await expect(summary).not.toContainText('3D method');
+
+  const toggle = page.getByLabel('Show Angular regions (est.) columns');
+  await toggle.check();
+  await expect(summary).toContainText('3D method: Summation');
+
+  await page.getByTitle(/^Copy the table as shown \(visible columns/).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('Sector eff. est., Summation (%)\tSpatial eff. est., Summation (%)\tLower region est., Summation (%)');
+
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
+  const stream = await download.createReadStream();
+  let csv = '';
+  for await (const chunk of stream) csv += chunk.toString();
+  expect(csv.split('\r\n')[0]).toContain('"Sector eff. est., Summation (%)","Spatial eff. est., Summation (%)","Lower region est., Summation (%)"');
+
+  await toggle.uncheck();
+  await expect(summary).not.toContainText('3D method');
 });

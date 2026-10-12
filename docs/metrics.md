@@ -146,6 +146,12 @@ the group is shown; in the frequency chart's Metric menu always; in Δ vs refere
 simulation (original → tilted) like every other column. It is not part of the band statistics. The
 values are computed only while the group is shown or the frequency chart plots one of them.
 
+**The 3D method is named with the number.** Because the method changes the values by several points,
+it is written wherever they leave the table: the CSV and Copy table headers of the three columns read
+"Sector eff. est., Summation (%)" or "…, Weighted (%)" (in the CSV the header is quoted, as it holds a
+comma), and so do the frequency chart's axis title and the caption of its exported image. The
+collapsed Simulation bar names the method while these columns are shown or plotted.
+
 **Under a tilt simulation.** The regions always follow the tilted beam: P and B are the peak and the
 3 dB beamwidth of the simulated elevation cut, as the table shows them. What is integrated depends on
 the kind of tilt:

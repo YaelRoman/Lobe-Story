@@ -7,7 +7,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
 import { buildMetricFigure, coincidingNote, metricCaption, noValueNote, noValues, plottedFileIds, type LineSignature, type MetricSeries } from './metricFigure';
-import { cellsOf, columnLabel, COLUMN_GROUPS, METRIC_COLUMNS, type MetricColumn } from './table';
+import { cellsOf, columnLabel, COLUMN_GROUPS, METRIC_COLUMNS, withMethod, type MetricColumn } from './table';
 import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
 import { groupLook, PER_FILE_COLOURS } from './colors';
@@ -53,7 +53,10 @@ export const HpbwChart = memo(function HpbwChart({
   // H-HPBW keeps the two-panel chart of the beamwidths (H above, V below); every other metric has one panel.
   const both = metric === 'hHpbw';
 
+  const method3d = useStore((s) => s.view.method3d);
   const label = labelOf(column);
+  // In the picture (axis title, caption) the angular-region estimate carries its 3D method, as its CSV header does.
+  const plotLabel = withMethod(column.key, label, method3d);
   const vColumn = METRIC_COLUMNS.find((c) => c.key === 'vHpbw') ?? METRIC_COLUMNS[0];
   // The diamond is only mentioned when it is drawn: the reference file exists here and has metrics.
   const refDrawn = reference !== null && sim.metrics.has(reference) && groups.some((g) => g.items.some((i) => i.pattern.id === reference && hasUsableFrequency(i.pattern.frequencyMHz)));
@@ -114,10 +117,9 @@ export const HpbwChart = memo(function HpbwChart({
       const reasons = plottedFileIds(groups, visible).map((id) => { const m = sim.metrics.get(id); return m ? cellsOf(m)[metric].reason : undefined; });
       return { build: null, empty: noValueNote(label, reasons), coincide: null };
     }
-    return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], label, column.unit, ref), empty: null, coincide: coincidingNote(single.filter((s) => !s.ghost)) };
-  }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, column.unit, reference]);
+    return { build: () => buildMetricFigure(single, FIGURE_THEMES[theme], plotLabel, column.unit, ref), empty: null, coincide: coincidingNote(single.filter((s) => !s.ghost)) };
+  }, [groups, metrics, visible, theme, sim, levelDb, metric, both, label, plotLabel, column.unit, reference]);
 
-  const method3d = useStore((s) => s.view.method3d);
   // The chart plots every file of a group that has a visible file, and the reference's diamond.
   const plottedIds = useMemo(
     () => [
@@ -131,10 +133,10 @@ export const HpbwChart = memo(function HpbwChart({
   const exportCaption = useMemo(
     () =>
       withSimulated(
-        both ? hpbwCaption(levelDb, simulated, refDrawn) : metricCaption(label, column.unit, simulated, refDrawn, Boolean(DECLARED[metric])),
+        both ? hpbwCaption(levelDb, simulated, refDrawn) : metricCaption(plotLabel, column.unit, simulated, refDrawn, Boolean(DECLARED[metric])),
         simulatedLine,
       ),
-    [both, levelDb, simulated, label, column.unit, refDrawn, metric, simulatedLine],
+    [both, levelDb, simulated, plotLabel, column.unit, refDrawn, metric, simulatedLine],
   );
 
   const note = leftOut > 0 ? <p className="count" data-testid="freq-left-out">{leftOutText(leftOut)}</p> : null;
@@ -174,7 +176,7 @@ export const HpbwChart = memo(function HpbwChart({
           ariaLabel={
             both
               ? `${levelDb === 3 ? 'Half-power beamwidth' : `Beamwidth at ${levelDb} dB`} against frequency, one line per group`
-              : `${label} (${column.unit}) against frequency, one line per group`
+              : `${plotLabel} (${column.unit}) against frequency, one line per group`
           }
           caption={exportCaption}
           filename={exportName(both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency`, exportSimulated)}

@@ -8,7 +8,7 @@ export function simSummary(
   g: { electricalDeg: number; mechanicalDeg: number; azimuthDeg: number },
   fileOffsets: number,
   groupOffsets: number,
-  /** The 3D method, given only while a tilt is active (it changes the result then). */
+  /** The 3D method, given only while it changes a number on screen (see `summaryMethod`). */
   method?: 'summation' | 'weighted',
 ): string {
   const parts = [`Tilt Δ ${minus(g.electricalDeg)}°`, `Mech ${minus(g.mechanicalDeg)}°`, `Az ${minus(g.azimuthDeg)}°`];
@@ -17,6 +17,13 @@ export function simSummary(
   if (method) parts.push(`3D method: ${method === 'weighted' ? 'Weighted' : 'Summation'}`);
   return parts.join(' · ');
 }
+
+/**
+ * The 3D method for the collapsed bar's summary, or undefined while it changes nothing on screen: it matters under a
+ * tilt, and while the angular-region estimate (integrated over the reconstruction) is shown or plotted.
+ */
+export const summaryMethod = <M extends 'summation' | 'weighted'>(method: M, tiltActive: boolean, angularRegions: boolean): M | undefined =>
+  tiltActive || angularRegions ? method : undefined;
 
 /** The simulation facts a caption or a file name needs (the parts of `SimulationResult` used, so it can be tested without hooks). */
 export interface SimFacts {
