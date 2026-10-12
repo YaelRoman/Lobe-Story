@@ -3,7 +3,7 @@ import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
 import { COPY_NOTE_MS, initialState, useStore, clampSim } from './store';
 import { groupPatterns, selectErrors, selectTagged, selectWarnings, selectInstances, buildPanelGroups, instanceIds, instanceName, warningsFor } from './selectors';
-import { changesSession, clearNeedsConfirm, isDirty, markOf, stableStringify, takeSnapshot } from './undo';
+import { changesSession, clearNeedsConfirm, clearQuestion, isDirty, markOf, stableStringify, takeSnapshot } from './undo';
 import { openedMessage, parseProject, savedCounts, savedMessage, serializeProject } from './project';
 import { DEFAULT_HEADERS, planetText, points } from '../test/planetText';
 
@@ -753,6 +753,64 @@ describe('unsaved work', () => {
     expect(clearNeedsConfirm(st())).toBe(true);
     st().clear();
     st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    expect(clearNeedsConfirm(st())).toBe(true);
+  });
+});
+
+describe('Clear ends the session: the simulation and the cut choice go with the files', () => {
+  const st = useStore.getState;
+  const UNDO = 'You can undo this.';
+
+  it('resets the global sliders and the horizontal cut, keeps the 3D method, and its undo brings all of it back', () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    st().updateView({ method3d: 'weighted' });
+    st().updateSimulation({ electricalDeg: 2, mechanicalDeg: 5, azimuthDeg: 20, hCut: 'horizon', showOriginal: false });
+    st().setOffset('a.MSI', { mechanicalDeg: 1 });
+    const before = st().view.simulation;
+    st().clear();
+    expect(st().view.simulation).toEqual({ electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0, hCut: 'beam', showOriginal: false, offsets: {}, groupOffsets: {} });
+    // The 3D method is a browser preference: it is not part of what a Clear resets.
+    expect(st().view.method3d).toBe('weighted');
+    st().undoLast();
+    expect(st().view.simulation).toEqual(before);
+    // Cleared again, the next files start unsimulated.
+    st().clear();
+    st().addFiles([input('c.MSI', msi(2100))]);
+    expect(st().view.simulation).toMatchObject({ electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0, hCut: 'beam', offsets: {} });
+  });
+
+  it('the question names what goes besides the files, and only what is set', () => {
+    st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
+    expect(clearQuestion(st(), UNDO)).toBe('Clear 2 files and all groups, names and offsets? You can undo this.');
+    st().updateSimulation({ mechanicalDeg: 5 });
+    expect(clearQuestion(st(), UNDO)).toBe('Clear 2 files and all groups, names and offsets? The simulation sliders are reset too. You can undo this.');
+    st().updateSimulation({ hCut: 'horizon' });
+    expect(clearQuestion(st(), UNDO)).toBe(
+      'Clear 2 files and all groups, names and offsets? The simulation sliders and the horizontal cut (back to the one through the beam peak) are reset too. You can undo this.',
+    );
+    st().updateSimulation({ mechanicalDeg: 0 });
+    st().updateView({ subBands: [{ name: 'A', minMHz: 1, maxMHz: 2 }] });
+    expect(clearQuestion(st(), UNDO)).toBe(
+      'Clear 2 files and all groups, names and offsets? The horizontal cut (back to the one through the beam peak) and your sub-bands (back to automatic) are reset too. You can undo this.',
+    );
+    st().updateView({ subBands: [] });
+    expect(clearQuestion(st(), UNDO)).toContain('The horizontal cut (back to the one through the beam peak) is reset too.');
+    st().updateSimulation({ azimuthDeg: 20, hCut: 'beam' });
+    st().updateView({ subBands: [] });
+    expect(clearQuestion(st(), UNDO)).toContain('The simulation sliders are reset too.');
+  });
+
+  it('the question for a session with no loaded file, and for one file', () => {
+    st().addFiles([input('a.MSI', msi(1800))]);
+    expect(clearQuestion(st(), UNDO)).toBe('Clear 1 file and all groups, names and offsets? You can undo this.');
+    useStore.setState({ files: [] });
+    expect(clearQuestion(st(), UNDO)).toBe('Clear the session with all its groups, names and offsets? You can undo this.');
+  });
+
+  it('asks before clearing a single file that has user sub-bands (typed work, like a name)', () => {
+    st().addFiles([input('a.MSI', msi(1800))]);
+    expect(clearNeedsConfirm(st())).toBe(false);
+    st().updateView({ subBands: [{ name: 'A', minMHz: 1, maxMHz: 2 }] });
     expect(clearNeedsConfirm(st())).toBe(true);
   });
 });

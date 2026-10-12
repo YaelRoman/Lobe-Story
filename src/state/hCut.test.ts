@@ -106,9 +106,9 @@ describe('the horizontal cut of the tilt simulation, and undo', () => {
     st().addFiles([input('a.MSI', msi(1800)), input('b.MSI', msi(1900))]);
     st().updateSimulation({ mechanicalDeg: 4, hCut: 'horizon' });
     expect(takeSnapshot(st()).view.simulation.hCut).toBe('horizon');
-    // Clear keeps the global simulation settings (the sliders), and this choice with them.
+    // Clear resets the global simulation settings (the sliders), and this choice with them; its undo brings both back.
     st().clear();
-    expect(st().view.simulation).toMatchObject({ mechanicalDeg: 4, hCut: 'horizon' });
+    expect(st().view.simulation).toMatchObject({ mechanicalDeg: 0, hCut: 'beam' });
     st().undoLast();
     expect(st().view.simulation).toMatchObject({ mechanicalDeg: 4, hCut: 'horizon' });
 

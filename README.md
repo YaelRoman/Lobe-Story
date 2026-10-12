@@ -75,6 +75,9 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 - Undo: Remove, Delete group, Clear, Show all / none and opening a project over a session can be taken back
   with the Undo button for a few seconds and then with Ctrl/Cmd+Z until the next change you make (one step; a
   later edit withdraws it). Ctrl/Cmd+Z with nothing to undo says so.
+  Clear ends the session: besides the files, groups, names and offsets it puts the simulation sliders, the
+  horizontal-cut choice and your sub-bands back to their defaults (the question before it says which); the 3D
+  method, like the other display preferences, stays.
 - **Load example** on the empty page loads a small synthetic dual-polarised panel generated in code (24 files,
   not a real antenna) so every feature can be tried; **Help** explains the main terms.
 

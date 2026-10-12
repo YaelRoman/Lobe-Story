@@ -570,3 +570,44 @@ test('in a narrow window on a desktop the button is short, and the cross, its no
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('You can undo this with Ctrl/Cmd+Z until your next change.');
 });
+
+test('Clear also puts the simulation sliders and the horizontal cut back, says so first, and its undo brings them back; the next files are not simulated', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900))]);
+  await openSimulation(page);
+  const mech = page.getByLabel('Mechanical tilt (°) value');
+  await mech.fill('5');
+  await mech.press('Enter');
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  await page.getByRole('group', { name: '3D method' }).getByRole('button', { name: 'Weighted' }).click();
+  await expect(page.getByTestId('sim-badge')).toBeVisible();
+  await expect(page.getByTestId('plot-h').locator('.gtitle')).toContainText('cut at the horizon');
+
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Clear 2 files and all groups, names and offsets? The simulation sliders and the horizontal cut (back to the one through the beam peak) are reset too.');
+  await dialog.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(page.getByText('Open or drop Planet pattern files')).toBeVisible();
+
+  // The undo brings the files back as they were: simulated, at the horizon.
+  await page.getByTestId('undo-toast').getByRole('button', { name: /^Undo/ }).click();
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  await expect(mech).toHaveValue('5');
+  await expect(page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('sim-badge')).toBeVisible();
+
+  // Cleared for good, other files start as their files are. The 3D method (a browser preference) stays, and names nothing as simulated.
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByTestId('file-input').setInputFiles([file('c.msi', msi(2100)), file('d.msi', msi(2200))]);
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  await expect(page.getByTestId('sim-badge')).toHaveCount(0);
+  await expect(mech).toHaveValue('0');
+  await expect(page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'Through the beam peak' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('group', { name: '3D method' }).getByRole('button', { name: 'Weighted' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('plot-h').locator('.gtitle')).toHaveText(/^Horizontal cut — HPBW [\d.]+°$/);
+  await expect(page.locator('.metrics tbody')).not.toContainText('→');
+  await expect(page.getByText(/Simulated:/)).toHaveCount(0);
+  await expect(page.getByTestId('sim-weighted-note')).toHaveCount(0);
+});

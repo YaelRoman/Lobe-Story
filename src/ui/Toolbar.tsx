@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { inputsFromFileList } from '../state/files';
 import { savedCounts, savedMessage, serializeProject } from '../state/project';
-import { clearNeedsConfirm } from '../state/undo';
+import { clearNeedsConfirm, clearQuestion } from '../state/undo';
 import { openSelection } from './openSelection';
 import { SettingsPanel } from './SettingsPanel';
 import { confirmDialog, saveProjectDialog } from './dialogs';
@@ -39,9 +39,7 @@ export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
   const onClear = async () => {
     const state = useStore.getState();
     if (clearNeedsConfirm(state)) {
-      const n = state.files.length;
-      const what = n === 0 ? 'Clear the session with all its groups' : `Clear ${n} file${n === 1 ? '' : 's'} and all groups`;
-      const ok = await confirmDialog(`${what}, names and offsets? ${undoWording({ keys: !isTouchOnly(), narrow: false }).beforeClear}`, 'Clear');
+      const ok = await confirmDialog(clearQuestion(state, undoWording({ keys: !isTouchOnly(), narrow: false }).beforeClear), 'Clear');
       if (!ok) return;
     }
     clear();

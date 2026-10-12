@@ -601,8 +601,15 @@ export const useStore = create<State>()((rawSet, get) => {
         selected: null,
         reference: null,
         pendingFiles: [],
-        // The user's sub-bands were made for the files that go: the next session starts with automatic ones.
-        view: { ...s.view, deltaVsReference: false, subBands: [], simulation: { ...s.view.simulation, offsets: {}, groupOffsets: {} } },
+        // The user's sub-bands were made for the files that go: the next session starts with automatic ones. So were the
+        // simulation and the horizontal cut chosen: the next files start as their files are (the undo brings all of it back).
+        // The 3D method and "Show original" are display choices and stay.
+        view: {
+          ...s.view,
+          deltaVsReference: false,
+          subBands: [],
+          simulation: { ...s.view.simulation, electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0, hCut: 'beam', offsets: {}, groupOffsets: {} },
+        },
       };
     }),
 

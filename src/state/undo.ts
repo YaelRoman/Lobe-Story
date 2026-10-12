@@ -131,6 +131,28 @@ export function clearNeedsConfirm(s: StoreData): boolean {
     Object.keys(s.names).length > 0 ||
     Object.keys(s.tagOverrides).length > 0 ||
     Object.keys(sim.offsets).length > 0 ||
-    Object.keys(sim.groupOffsets).length > 0
+    Object.keys(sim.groupOffsets).length > 0 ||
+    // Typed work, like a name.
+    s.view.subBands.length > 0
   );
+}
+
+/**
+ * The question before a Clear: what goes, and — only where it is set — what else is put back to its default with the
+ * files (the global simulation sliders, the horizontal cut at the horizon, the user's sub-bands). `undoSentence` is
+ * the last sentence, about undoing (see `undoWording`).
+ */
+export function clearQuestion(s: Pick<StoreData, 'files' | 'view'>, undoSentence: string): string {
+  const n = s.files.length;
+  const what = n === 0 ? 'Clear the session with all its groups' : `Clear ${n} file${n === 1 ? '' : 's'} and all groups`;
+  const sim = s.view.simulation;
+  // Each with whether it reads as a plural when it stands alone.
+  const also: [string, boolean][] = [];
+  if (sim.electricalDeg !== 0 || sim.mechanicalDeg !== 0 || sim.azimuthDeg !== 0) also.push(['the simulation sliders', true]);
+  if (sim.hCut === 'horizon') also.push(['the horizontal cut (back to the one through the beam peak)', false]);
+  if (s.view.subBands.length > 0) also.push(['your sub-bands (back to automatic)', true]);
+  const names = also.map(([name]) => name);
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : (names[0] ?? '');
+  const reset = also.length === 0 ? '' : ` ${list[0].toUpperCase()}${list.slice(1)} ${also.length > 1 || also[0][1] ? 'are' : 'is'} reset too.`;
+  return `${what}, names and offsets?${reset} ${undoSentence}`;
 }
