@@ -23,8 +23,9 @@ import type { TableColumn } from './table';
 import type { SimulationResult } from './useSimulation';
 
 const FILE_NAME_MAX = 28;
+/** Why a simulated cell can be blank; the examples hold for both horizontal cuts (no cell is blanked for where a cut runs). */
 export const SIMULATION_BLANK_NOTE =
-  '— = not defined (e.g. the horizon cut leaves the main beam); hover a dotted cell for the reason.';
+  '— = not defined (e.g. no sidelobe in the window, or a value declared in the file, which describes the file cut); hover a dotted cell for the reason.';
 
 /** What the tilted horizontal cells mean while the simulated cut is the one at the horizon (see docs/metrics.md). */
 export const HORIZON_CUT_NOTE =
