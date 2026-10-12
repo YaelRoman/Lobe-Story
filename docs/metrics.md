@@ -181,6 +181,26 @@ the kind of tilt:
   simulation does everywhere; that convention alone can move a value by about 0.2 points against a
   finer integration.
 
+## The three simulation sliders
+
+- **Electrical tilt Δ** changes the electrical tilt of every file by that much, added to the tilt the
+  file already has: the elevation cut is shifted, and the metrics read from it follow.
+- **Mechanical tilt** tips the whole antenna: both cuts and their metrics are read from the tipped 3D
+  reconstruction (see the next section).
+- **Azimuth** is a pointing direction, for a site view. It turns the pattern on the plot (the
+  horizontal cut and the 3D view) and changes no metric: squint, peak azimuth, roll-off, SPR, D/U and
+  tracking are properties of the antenna, read against its own boresight. With an azimuth and nothing
+  else set, nothing is called simulated: the badge of the bar says "Turned", the table shows single
+  values, and the metrics and band-statistics CSV keep their plain names. The read-out under the
+  horizontal plot says "Squint 0.7° (antenna) · pointing 20°" (the ray is drawn at 20.7°), the angle
+  labels of the polar plot stay where they are (0° at the top) while the trace turns, and the image of
+  the horizontal cut or the 3D view is named `…-turned.png` with the line "Turned on the plot:
+  azimuth 20°. The metrics are not affected." The metrics CSV has a column "Azimuth pointing (°)"
+  (the slider plus the file's and its group's offsets) whenever a file is turned, and next to the two
+  tilt columns whenever those are present.
+
+A file or a custom group can have its own offsets on top of the three sliders.
+
 ## The simulated horizontal cut
 
 The Simulation bar offers **Horizontal cut: Through the beam peak | At the horizon**. The control

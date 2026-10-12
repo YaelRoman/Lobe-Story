@@ -129,7 +129,10 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
   }
   if (o.markers.peak && beam.direction.value !== null) {
     const name = o.cut === 'H' ? 'Squint' : 'Tilt';
-    spec.rays.push({ angle: signed(beam.direction.value + rot), label: `${name} ${beam.direction.value.toFixed(1)}°` });
+    // A turned horizontal cut (an azimuth) draws the ray away from where the squint says: the squint is the antenna's
+    // own, against its boresight, and the plot points the boresight to the azimuth.
+    const turned = o.cut === 'H' && rot !== 0 ? ` (antenna) · pointing ${String(rot).replace('-', '−')}°` : '';
+    spec.rays.push({ angle: signed(beam.direction.value + rot), label: `${name} ${beam.direction.value.toFixed(1)}°${turned}` });
   }
   if (o.markers.sector && o.cut === 'H') {
     for (const sign of [1, -1]) {

@@ -56,7 +56,7 @@ describe('wording of the cut at the horizon while no file is tilted', () => {
     expect(plain).toContain('F/B 180° [H cut at the horizon] (dB)');
     // Only the words differ from the header under a tilt: column by column.
     plain.forEach((h, i) => expect(h.replace(' [H cut at the horizon]', ' tilted [horizon cut]').replace(' simulated (', ' tilted (')).toBe(tilted[i]));
-    expect(plain.slice(-3)).toEqual(['Electrical tilt Δ (°)', 'Mechanical tilt (°)', 'Azimuth (°)']);
+    expect(plain.slice(-3)).toEqual(['Electrical tilt Δ (°)', 'Mechanical tilt (°)', 'Azimuth pointing (°)']);
     // The values are untouched.
     const body = (csv: string) => csv.split('\r\n').slice(1).join('\n');
     expect(body(toCsv(rows, 'dBd', 30, effective, 20, 3, undefined, false, columns, 'summation', true, false))).toBe(body(toCsv(rows, 'dBd', 30, effective, 20, 3, undefined, false, columns, 'summation', true)));

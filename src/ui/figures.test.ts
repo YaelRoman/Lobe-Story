@@ -332,10 +332,29 @@ describe('simulation display options', () => {
     expect((t.x as number[])[peak]).toBe(30);
   });
 
-  it('rotates markers but keeps antenna-frame labels', () => {
+  it('rotates markers but keeps antenna-frame labels, and says that the squint is the antenna\'s and where the plot points', () => {
     const f = buildCutFigure(opts({ markers: { ...NO_MARKERS, peak: true }, markerTarget: 'a', rotationDeg: 30 }));
-    const ray = traces(f).find((t) => t.name === 'Squint 0.0°')!;
+    const ray = traces(f).find((t) => t.name === 'Squint 0.0° (antenna) · pointing 30°')!;
     expect(ray.theta).toEqual([30, 30]);
+    // The read-out under the plot says the same: the ray at 30° is not a squint of 30°.
+    const readout = (rotationDeg: number | undefined, cut: 'H' | 'V' = 'H') =>
+      markerReadout(opts({ cut, series: [series('a')[cut === 'H' ? 0 : 1]], markers: { ...NO_MARKERS, peak: true }, markerTarget: 'a', ...(rotationDeg === undefined ? {} : { rotationDeg }) }));
+    expect(readout(30)).toEqual(['Squint 0.0° (antenna) · pointing 30°']);
+    expect(readout(-20)).toEqual(['Squint 0.0° (antenna) · pointing −20°']);
+    // A series' own rotation (a per-file azimuth offset) is the one that counts.
+    expect(markerReadout(opts({ series: [{ ...series('a')[0], rotationDeg: 45 }], markers: { ...NO_MARKERS, peak: true }, markerTarget: 'a', rotationDeg: 30 }))).toEqual(['Squint 0.0° (antenna) · pointing 45°']);
+    // Not turned: as it always read. The vertical cut is never turned.
+    expect(readout(undefined)).toEqual(['Squint 0.0°']);
+    expect(readout(0)).toEqual(['Squint 0.0°']);
+    expect(readout(30, 'V')[0]).toMatch(/^Tilt [\d.−-]+°$/);
+  });
+
+  it('keeps the angle labels of the polar plot where they are while the trace turns: 0° stays at the top', () => {
+    for (const rotationDeg of [0, 20, -90, 180]) {
+      const axis = buildCutFigure(opts({ rotationDeg })).layout.polar?.angularaxis;
+      expect(axis?.rotation).toBe(90);
+      expect(axis?.direction).toBe('clockwise');
+    }
   });
 
   it('keeps F/B rectangles inside −180…180 after rotation', () => {

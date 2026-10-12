@@ -340,7 +340,7 @@ test('at the horizon with no tilt nothing says "tilted": the page, the tooltips 
   const header = (await readText(csvFile)).split('\r\n')[0];
   expect(header).toContain('H-HPBW original (°),H-HPBW [H cut at the horizon] (°),Horizon level [horizon cut] (dB),V-HPBW original (°),V-HPBW simulated (°)');
   expect(header).not.toMatch(/tilted|"/);
-  expect(header.endsWith('Electrical tilt Δ (°),Mechanical tilt (°),Azimuth (°)')).toBe(true);
+  expect(header.endsWith('Electrical tilt Δ (°),Mechanical tilt (°),Azimuth pointing (°)')).toBe(true);
   if (canReadClipboard) {
     await page.locator('section', { has: page.getByRole('heading', { name: 'Metrics' }) }).getByRole('button', { name: 'Copy table' }).click();
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('H-HPBW [H cut at the horizon] (°)');

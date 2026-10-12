@@ -139,7 +139,8 @@ export const HpbwChart = memo(function HpbwChart({
     [groups, visible, refDrawn, reference],
   );
   // A metric of the vertical cut does not depend on the horizontal cut chosen, and its picture does not name it.
-  const exportSimulated = sim.simulatedAmong(plottedIds, followsH);
+  // The chart plots metrics: an azimuth (which only turns the cut plots) does not make it simulated.
+  const exportSimulated = sim.simulatedAmong(plottedIds, followsH, false);
   const simulatedLine = exportSimulated ? simulatedCaption(followsH ? sim : { ...sim, hCut: undefined }, method3d, sim.offsetsAmong(plottedIds)) : undefined;
   const exportCaption = useMemo(
     () =>

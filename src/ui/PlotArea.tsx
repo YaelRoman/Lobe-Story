@@ -4,7 +4,7 @@ import { useStore, type CutView, type Dimension, type Layout3d, type MarkerKey, 
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout } from './cutFigure';
-import { exportName, simulatedCaption, weightedHorizonNote } from './simSummary';
+import { exportName, pictureName, simulatedCaption, weightedHorizonNote } from './simSummary';
 import { withSimulated } from './exportFigure';
 import { bwMarkerLabel } from './bwLabel';
 import { buildCutSeries, farBelowPeakNote, withReference } from './cutSeries';
@@ -191,7 +191,8 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
   const simulatedH = sim.simulatedAmong(drawnIds);
   const simulatedLineH = simulatedH ? simulatedCaption(sim, method3d, sim.offsetsAmong(drawnIds)) : undefined;
   // The vertical cut does not depend on the horizontal cut chosen: it neither counts as simulated for it nor names it.
-  const simulatedV = sim.simulatedAmong(drawnIds, false);
+  // Nor is it turned by an azimuth.
+  const simulatedV = sim.simulatedAmong(drawnIds, false, false);
   const simulatedLineV = simulatedV ? simulatedCaption({ ...sim, hCut: undefined }, method3d, sim.offsetsAmong(drawnIds)) : undefined;
 
   // The files' traces: built when the drawn files, their colours or the axes change, never for a highlight or a marker.
@@ -294,7 +295,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
           </p>
         )}
         <div className="plots">
-          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={exportName('horizontal-cut', simulatedH)} farBelowNote={farBelow} onShowRectangular={showRectangular} />}
+          {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={pictureName('horizontal-cut', simulatedH, sim.simulatedAmong(drawnIds, true, false))} farBelowNote={farBelow} onShowRectangular={showRectangular} />}
           {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineV} exportBase={exportName('vertical-cut', simulatedV)} />}
         </div>
       </div>

@@ -281,8 +281,9 @@ export const MetricsTable = memo(function MetricsTable({
   const exports = useLatest({
     exportCsv: () =>
       downloadText(
-        exportName('pattern-metrics', sim.simulatedAmong(rows.map((r) => r.id)), '.csv'),
-        '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.simActive ? sim.effective : undefined, uslsRangeDeg, levelDb, deltaVs, deltaTilted, withHorizonLevel(csvColumns(tableGroups), horizonCut), method3d, horizonCut, sim.tiltActive),
+        // An azimuth alone turns the plots and changes no value of the table: the file is not called simulated for it.
+        exportName('pattern-metrics', sim.simulatedAmong(rows.map((r) => r.id), true, false), '.csv'),
+        '﻿' + toCsv(rows, gainUnit, fbWindowDeg, sim.effective, uslsRangeDeg, levelDb, deltaVs, deltaTilted, withHorizonLevel(csvColumns(tableGroups), horizonCut), method3d, horizonCut, sim.tiltActive),
         'text/csv;charset=utf-8',
       ),
     copyTable: () => copy(toTsv(rows, columns, gainUnit, fbWindowDeg, uslsRangeDeg, levelDb, deltaVs, deltaTilted, method3d, horizonCut, sim.tiltActive), copiedRows(rows.length)),

@@ -107,7 +107,7 @@ describe('the choice is named in the folded bar, the table note and the image ca
     );
     // An azimuth-only simulation tilts nothing: through the beam peak every file shows its file cut, at the horizon every file its horizon cut.
     const turned = { ...facts, tiltActive: false, tilt: { electricalDeg: 0, mechanicalDeg: 0 } };
-    expect(simulatedCaption({ ...turned, hCut: 'beam' }, 'summation')).toBe('Simulated: electrical Δ 0°, mechanical 0°, azimuth 10°');
+    expect(simulatedCaption({ ...turned, hCut: 'beam' }, 'summation')).toBe('Turned on the plot: azimuth 10°. The metrics are not affected.');
     expect(simulatedCaption({ ...turned, hCut: 'horizon' }, 'summation')).toBe(
       'Simulated: electrical Δ 0°, mechanical 0°, azimuth 10°, summation method, horizontal cut at the horizon',
     );

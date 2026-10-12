@@ -151,6 +151,10 @@ main[data-sim-behind] .modebar-btn[data-title^='Download plot'] { opacity: 0.35;
 .badge { padding: 2px 8px; border-radius: 999px; background: var(--accent-fill); color: #fff; font-size: 12px; }
 /* Keeps its place without being shown: what would otherwise appear at the first step of a slider drag and push the slider along. */
 .ghost { visibility: hidden; }
+/* The shorter word in the room of the longer one: the badge is as wide for "Turned" as for "Simulated". */
+.badge.turned { display: inline-grid; justify-items: center; }
+.badge.turned::before { content: 'Simulated'; visibility: hidden; grid-area: 1 / 1; }
+.badge.turned > span { grid-area: 1 / 1; }
 /* The lines that explain the Horizontal cut: the whole width of the bar, under the row of the control (directly under the control on a phone: SimulationBar puts them there in the page, so the Tab order is the one seen). */
 .sim-notes { flex-basis: 100%; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; min-width: 0; }
 .sim-hint { font-size: 12px; }

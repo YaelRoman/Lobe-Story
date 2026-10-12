@@ -11,7 +11,7 @@ import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
 import { withSimulated } from './exportFigure';
-import { exportName, simulatedCaption } from './simSummary';
+import { pictureName, simulatedCaption } from './simSummary';
 import { WAITING_NOTE_3D } from './updateHint';
 
 const subscribeResize = (cb: () => void) => {
@@ -100,7 +100,7 @@ export function Pattern3D({
           {notice}
         </p>
       )}
-      <PlotlyChart className="plot plot3d" height={layout === 'grid' ? gridHeightPx(series.length, viewportWidth) : undefined} figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: withSimulated(exportCaption, simulated ? simulatedCaption({ ...sim, hCut: undefined }, method, sim.offsetsAmong(drawn.map((i) => i.pattern.id))) : undefined), filename: exportName('antenna-pattern-3d', simulated) }} />
+      <PlotlyChart className="plot plot3d" height={layout === 'grid' ? gridHeightPx(series.length, viewportWidth) : undefined} figure={figure} onRelayout={onRelayout} testId="plot-3d" toolbar="3d" ariaLabel="3D radiation pattern" labelledExport={{ caption: withSimulated(exportCaption, simulated ? simulatedCaption({ ...sim, hCut: undefined }, method, sim.offsetsAmong(drawn.map((i) => i.pattern.id))) : undefined), filename: pictureName('antenna-pattern-3d', simulated, sim.simulatedAmong(drawn.map((i) => i.pattern.id), false, false)) }} />
     </>
   );
 }

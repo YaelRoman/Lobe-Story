@@ -106,7 +106,8 @@ test('keyboard only: load, highlight the second file, set an offset, export CSV'
   await tabTo(page, page.getByRole('button', { name: 'Export CSV' }));
   const download = page.waitForEvent('download');
   await page.keyboard.press('Enter');
-  expect((await download).suggestedFilename()).toBe('pattern-metrics-simulated.csv');
+  // An azimuth offset turns the drawing and changes no value of the table: the file is not called simulated.
+  expect((await download).suggestedFilename()).toBe('pattern-metrics.csv');
 });
 
 test('menu and tag editor open from the keyboard and Esc returns the focus', async ({ page }) => {

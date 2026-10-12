@@ -106,7 +106,7 @@ export const BandStats = memo(function BandStats({
     [histogramCell, pickedSpec, settings, theme],
   );
 
-  const marks = bandHistogramMarks(picked?.key, (hCutCounts) => sim.simulatedAmong((dataset?.items ?? []).map((i) => i.pattern.id), hCutCounts));
+  const marks = bandHistogramMarks(picked?.key, (hCutCounts) => sim.simulatedAmong((dataset?.items ?? []).map((i) => i.pattern.id), hCutCounts, false));
   const histogramTilted = tiltedColumns !== null && marks.simulated;
 
   const exportCaption = useMemo(
@@ -141,7 +141,7 @@ export const BandStats = memo(function BandStats({
           ...(sim.simActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx) } : {}),
         };
       });
-      downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id))), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut, sim.tiltActive), 'text/csv;charset=utf-8');
+      downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id)), true, false), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut, sim.tiltActive), 'text/csv;charset=utf-8');
     },
     copyTable: () => void copyAndAnnounce(bandTsv(columns, tiltedColumns, settings, horizonCut, sim.tiltActive), `Copied the band statistics of ${dataset?.label ?? ''}`, setCopyNote),
   });

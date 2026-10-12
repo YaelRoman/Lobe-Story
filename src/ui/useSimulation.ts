@@ -43,9 +43,10 @@ export interface SimulationResult {
   /**
    * Whether any of these files (the ones a picture draws or an export lists) is simulated; see `anySimulated`. The
    * horizon cut makes every file simulated, except with `hCutCounts` false: for a picture that does not show the
-   * horizontal cut (the vertical cut, the 3D view).
+   * horizontal cut (the vertical cut, the 3D view). An azimuth counts too (it turns the drawing), except with
+   * `turnCounts` false: for what does not turn (the table, the statistics, the frequency chart, the vertical cut).
    */
-  simulatedAmong(ids: Iterable<string>, hCutCounts?: boolean): boolean;
+  simulatedAmong(ids: Iterable<string>, hCutCounts?: boolean, turnCounts?: boolean): boolean;
   /** The per-file and per-group offsets among these files (what a picture shows, see `offsetCountsAmong`). */
   offsetsAmong(ids: Iterable<string>): { files: number; groups: number };
   /** Whether a file's effective tilt is non-zero. */
@@ -158,7 +159,7 @@ export function useSimulation(
   const isTiltedId = useCallback((id: string) => isTilted(effective(id)), [effective]);
   const showsSimulatedH = useCallback((id: string) => hCut === 'horizon' || isTilted(effective(id)), [hCut, effective]);
   const simulatedAmong = useCallback(
-    (ids: Iterable<string>, hCutCounts = true) => anySimulated(effective, ids, hCutCounts && hCut === 'horizon'),
+    (ids: Iterable<string>, hCutCounts = true, turnCounts = true) => anySimulated(effective, ids, hCutCounts && hCut === 'horizon', turnCounts),
     [effective, hCut],
   );
   const offsetsAmong = useCallback((ids: Iterable<string>) => offsetCountsAmong(ids, fileOffsets, groupOffsets, membership), [fileOffsets, groupOffsets, membership]);

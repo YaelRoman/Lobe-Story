@@ -72,6 +72,10 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
   what the markers that are on mean and, while a simulation is active, a line "Simulated: electrical Δ …,
   mechanical …, azimuth …" (with the 3D method and the horizontal cut while a tilt is active or the cut is the one at the horizon; the image of the vertical cut does not name the horizontal cut). File names say what they are: `horizontal-cut.png`, `vertical-cut.png`,
   `pattern-metrics.csv` and so on, with `-simulated` added while a simulation is active.
+  The Azimuth slider only turns the drawing (a pointing direction for a site view; the metrics are the
+  antenna's own and do not change): with an azimuth alone nothing is called simulated, the picture is named
+  `…-turned.png` and says "Turned on the plot: azimuth …", and the metrics CSV gets a column
+  "Azimuth pointing (°)".
 - Undo: Remove, Delete group, Clear, Show all / none and opening a project over a session can be taken back
   with the Undo button for a few seconds and then with Ctrl/Cmd+Z until the next change you make (one step; a
   later edit withdraws it). Ctrl/Cmd+Z with nothing to undo says so.

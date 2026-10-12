@@ -108,19 +108,21 @@ export interface SimFacts {
 /** Whether the picture's files show a reconstructed cut: one is tilted, or the horizontal cut is the one at the horizon. */
 const modelled = (s: SimFacts): boolean => s.tiltActive || s.hCut === 'horizon';
 
-/** Whether any simulation is active: a tilt, an azimuth, an offset on a file or a group, or the horizontal cut at the horizon. */
+/** Whether any simulation is active: a tilt, an azimuth (which only turns the drawing), an offset on a file or a group, or the horizontal cut at the horizon. */
 export const simulationActive = (s: SimFacts): boolean => modelled(s) || s.azimuthDeg !== 0 || s.offsetCount > 0 || s.groupOffsetCount > 0;
 
 /**
  * Whether something among the files `ids` (the ones a picture draws or an export lists) is simulated: one of them has
  * a non-zero effective tilt or azimuth (global values plus its own and its group's offsets). An offset on a file that
  * is not among them does not count. With `everyFile` (the horizontal cut at the horizon, in what shows it) any file is.
+ * The azimuth only turns the drawing of the horizontal cut and of the 3D view: with `turnCounts` false (the table, the
+ * statistics, the frequency chart, the vertical cut: nothing in them turns) an azimuth alone is no simulation.
  */
-export function anySimulated(effective: (id: string) => SimSettings, ids: Iterable<string>, everyFile = false): boolean {
+export function anySimulated(effective: (id: string) => SimSettings, ids: Iterable<string>, everyFile = false, turnCounts = true): boolean {
   for (const id of ids) {
     if (everyFile) return true;
     const e = effective(id);
-    if (e.electricalDeg !== 0 || e.mechanicalDeg !== 0 || e.azimuthDeg !== 0) return true;
+    if (e.electricalDeg !== 0 || e.mechanicalDeg !== 0 || (turnCounts && e.azimuthDeg !== 0)) return true;
   }
   return false;
 }
@@ -150,20 +152,55 @@ export function offsetCountsAmong(
  * "Simulated: electrical Δ 4°, mechanical 0°, azimuth 0°, summation method, horizontal cut at the horizon" (the method
  * and the horizontal cut only while they change the result: under a tilt, or for the cut at the horizon), plus the number of per-file and per-group offsets (those among the files the picture
  * shows when `counts` is given, see `offsetCountsAmong`; else all of the project's).
+ * A picture that is only turned (an azimuth, no tilt, not the cut at the horizon) is not called simulated:
+ * "Turned on the plot: azimuth 20°. The metrics are not affected."
  */
 export function simulatedCaption(s: SimFacts, method: 'summation' | 'weighted', counts?: { files: number; groups: number }): string | undefined {
   if (!simulationActive(s)) return undefined;
+  const offsetsText = (): string => {
+    const files = counts?.files ?? s.offsetCount;
+    const groups = counts?.groups ?? s.groupOffsetCount;
+    const on = [files > 0 ? `${files} file${files === 1 ? '' : 's'}` : '', groups > 0 ? `${groups} group${groups === 1 ? '' : 's'}` : ''].filter(Boolean);
+    return on.length > 0 ? `; offsets on ${on.join(' and ')}` : '';
+  };
+  // With no tilt among the files any offset is an azimuth offset: nothing but the direction of the drawing differs from the file.
+  if (!modelled(s)) return `Turned on the plot: azimuth ${minus(s.azimuthDeg)}°${offsetsText()}. The metrics are not affected.`;
   const parts = [`electrical Δ ${minus(s.tilt.electricalDeg)}°`, `mechanical ${minus(s.tilt.mechanicalDeg)}°`, `azimuth ${minus(s.azimuthDeg)}°`];
   if (modelled(s)) parts.push(`${method} method`);
   if (modelled(s) && s.hCut) parts.push(hCutLabel(s.hCut));
-  const files = counts?.files ?? s.offsetCount;
-  const groups = counts?.groups ?? s.groupOffsetCount;
-  const offsets = [
-    files > 0 ? `${files} file${files === 1 ? '' : 's'}` : '',
-    groups > 0 ? `${groups} group${groups === 1 ? '' : 's'}` : '',
-  ].filter(Boolean);
-  return `Simulated: ${parts.join(', ')}${offsets.length > 0 ? `; offsets on ${offsets.join(' and ')}` : ''}`;
+  return `Simulated: ${parts.join(', ')}${offsetsText()}`;
 }
+
+/** The tooltip of each global slider: what it does to the files. */
+export const SIM_SLIDER_HELP: Record<'electricalDeg' | 'mechanicalDeg' | 'azimuthDeg', string> = {
+  electricalDeg:
+    'Electrical tilt Δ: a change of the electrical tilt, added to the tilt each file already has. The beam moves down (positive) or up along the antenna’s own axis; the vertical cut and its metrics follow.',
+  mechanicalDeg:
+    'Mechanical tilt: the whole antenna is tipped forward (positive) or back. The front of the pattern goes down, the back comes up; both cuts and their metrics are read from the tipped 3D reconstruction.',
+  azimuthDeg:
+    'Azimuth: the direction the antenna points to, for a site view. It turns the pattern on the plot (the horizontal cut and the 3D view); the metrics are not affected: they are properties of the antenna, read against its own boresight.',
+};
+
+/** The line in the bar about the Azimuth slider (the only one of the three that changes no number). */
+export const AZIMUTH_HINT = 'Azimuth turns the pattern on the plot (a pointing direction, for a site view); the metrics are not affected.';
+
+/**
+ * The word on the Simulation bar's badge, or null for none: "Simulated" while values are (a tilt, or the horizontal cut
+ * at the horizon), "Turned" while the only thing set is an azimuth (the drawing is turned, no value is simulated).
+ * Offsets that change nothing (they cancel out) keep the badge "Simulated", as before.
+ */
+export function simBadge(o: { valuesSimulated: boolean; turned: boolean; offsets: boolean }): 'Simulated' | 'Turned' | null {
+  if (o.valuesSimulated) return 'Simulated';
+  if (o.turned) return 'Turned';
+  return o.offsets ? 'Simulated' : null;
+}
+
+/**
+ * The file name of a picture that an azimuth turns (the horizontal cut, the 3D view): `-simulated` while a value in it
+ * is simulated, `-turned` while it is only turned, else the plain name.
+ */
+export const pictureName = (base: string, simulatedOrTurned: boolean, valuesSimulated: boolean): string =>
+  !simulatedOrTurned ? base : valuesSimulated ? `${base}-simulated` : `${base}-turned`;
 
 /** An export file name, with `-simulated` before the extension while a simulation is active. */
 export const exportName = (base: string, simulated: boolean, extension = ''): string => `${base}${simulated ? '-simulated' : ''}${extension}`;

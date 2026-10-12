@@ -752,6 +752,9 @@ export function offsetLabel(o: SimSettings): string {
     .join(', ');
 }
 
+/** The CSV column that says where each file points on the plot (the azimuth slider plus the file's and its group's offsets). */
+const AZIMUTH_COLUMN = 'Azimuth pointing (°)';
+
 export function toCsv(
   rows: MetricsRow[],
   gainUnit: GainUnit,
@@ -773,6 +776,8 @@ export function toCsv(
   const simFor = typeof sim === 'function' ? sim : sim ? () => sim : undefined;
   // The difference view has one column per metric (the difference of the shown values), whatever the simulation.
   const tilted = deltaVs === undefined && (typeof sim === 'function' ? rows.some((r) => r.tilted) : sim !== undefined && isTilted(sim));
+  // The azimuth only turns the drawing: it doubles no column, but where a file is turned the export says where it points.
+  const turned = simFor !== undefined && rows.some((r) => simFor(r.id).azimuthDeg !== 0);
   const withSource = rows.some((r) => r.source !== r.file);
   // The Horizon level is one value per row (a file cut has none), so it has one column where the others have two.
   const paired = (c: ColumnSpec): boolean => tilted && c.key !== HORIZON_LEVEL_KEY;
@@ -792,7 +797,8 @@ export function toCsv(
     'Frequency (MHz)',
     columnHeader('Gain', gainUnit, deltaVs, deltaTilted),
     ...metricHeader,
-    ...(tilted ? ['Electrical tilt Δ (°)', 'Mechanical tilt (°)', 'Azimuth (°)'] : []),
+    ...(tilted ? ['Electrical tilt Δ (°)', 'Mechanical tilt (°)'] : []),
+    ...(tilted || turned ? [AZIMUTH_COLUMN] : []),
   ];
   const lines = rows.map((r) => [
     csvText(r.file),
@@ -807,10 +813,10 @@ export function toCsv(
           ? [fmt(cellOf(r, c.key).value, csvDecimals(c.key)), fmt(shown(r, c.key).value, csvDecimals(c.key))]
           : [fmt(shown(r, c.key).value, csvDecimals(c.key))],
       ),
-      ...(tilted && simFor
+      ...((tilted || turned) && simFor
         ? (() => {
             const e = simFor(r.id);
-            return [String(e.electricalDeg), String(e.mechanicalDeg), String(e.azimuthDeg)];
+            return [...(tilted ? [String(e.electricalDeg), String(e.mechanicalDeg)] : []), String(e.azimuthDeg)];
           })()
         : []),
     ].map(csvCell),

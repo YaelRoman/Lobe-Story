@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { clampSim, SIM_LIMITS, useStore, type SimulationKey } from '../state/store';
 import type { Method3d } from '../core/analysis/pattern3d';
-import { anyTilted, combineOffsets, type HCutMode } from '../core/analysis/tilt';
+import { anyTilted, combineOffsets, effectiveFor, type HCutMode } from '../core/analysis/tilt';
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
+import { AZIMUTH_HINT, H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, SIM_SLIDER_HELP, simBadge, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
 import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
@@ -24,11 +24,14 @@ function NumberSlider({
   label,
   value,
   onChange,
+  describedBy,
 }: {
   k: SimulationKey;
   label: string;
   value: number;
   onChange: (n: number) => void;
+  /** Id of a line on the page that says what the slider does (read out with it). */
+  describedBy?: string;
 }) {
   const { min, max, step } = SIM_LIMITS[k];
   const [text, setText] = useState(String(value));
@@ -46,7 +49,7 @@ function NumberSlider({
   };
 
   return (
-    <div className="sim-field" role="group" aria-label={label}>
+    <div className="sim-field" role="group" aria-label={label} title={SIM_SLIDER_HELP[k]}>
       <span>{label}</span>
       <input
         type="range"
@@ -55,6 +58,7 @@ function NumberSlider({
         step={step}
         value={value}
         aria-label={label}
+        aria-describedby={describedBy}
         onChange={(e) => onChange(Number(e.target.value))}
         // With many files the page follows when the slider stops, not at every step (see `followsDrag`).
         onPointerDown={gripByPointer}
@@ -82,7 +86,7 @@ function NumberSlider({
 function GlobalField({ k, label }: { k: SimulationKey; label: string }) {
   const value = useStore((s) => s.view.simulation[k]);
   const updateSimulation = useStore((s) => s.updateSimulation);
-  return <NumberSlider k={k} label={label} value={value} onChange={(n) => updateSimulation({ [k]: n })} />;
+  return <NumberSlider k={k} label={label} value={value} onChange={(n) => updateSimulation({ [k]: n })} describedBy={k === 'azimuthDeg' ? 'sim-az-hint' : undefined} />;
 }
 
 function OffsetField({ id, k, label }: { id: string; k: SimulationKey; label: string }) {
@@ -188,7 +192,9 @@ export function SimulationBar({
   const tiltActive = useMemo(() => anyTilted(okIds, global, combined), [okIds, global, combined]);
   // The cut at the horizon is a reconstructed cut of every loaded file, with or without a tilt.
   const horizonActive = sim.hCut === 'horizon' && okIds.length > 0;
-  const anyActive = tiltActive || horizonActive || sim.azimuthDeg !== 0 || fileCount > 0 || groupCount > 0;
+  // An azimuth (the slider's, a file's or a group's) turns the drawing and simulates no value: the badge says which it is.
+  const turned = useMemo(() => okIds.some((id) => effectiveFor(global, combined[id]).azimuthDeg !== 0), [okIds, global, combined]);
+  const badge = simBadge({ valuesSimulated: tiltActive || horizonActive, turned: turned || sim.azimuthDeg !== 0, offsets: fileCount > 0 || groupCount > 0 });
 
   // The method matters in the 3D view, under a tilt, for a horizon cut, and for the angular-region estimate (integrated over the reconstruction).
   const methodUses = { view3d: is3d, tilt: tiltActive, horizonCut: sim.hCut === 'horizon', angularRegions: withAngularRegions };
@@ -218,6 +224,12 @@ export function SimulationBar({
           {H_CUT_3D_NOTE}
         </span>
       )}
+      {/* The one slider that changes no number. A line of its own would make the open bar taller (at 1024 px it pushes
+          the first plot off the first screen), so the sentence is the slider's description for a screen reader and its
+          tooltip for a pointer; the badge ("Turned"), the read-out under the plot and the Help say it to everyone. */}
+      <span id="sim-az-hint" className="visually-hidden" data-testid="sim-az-hint">
+        {AZIMUTH_HINT}
+      </span>
       {/* Not blocked, but said where the two are chosen: the Weighted rule reshapes this cut. */}
       {weightedNote && (
         <span className="sim-hint sim-caveat" role="note" data-testid="sim-weighted-note">
@@ -251,9 +263,14 @@ export function SimulationBar({
       {/* The badge's place is kept while the bar is open and nothing is simulated: a badge that appeared at the first
           step of a drag would push the sliders along under the held pointer. Folded there is no slider to protect,
           and on a phone the kept place would push the summary onto a second line. */}
-      {anyActive ? (
-        <span className="badge" data-testid="sim-badge">
-          Simulated
+      {badge ? (
+        // "Turned" takes the room of "Simulated" (see `.badge.turned`), so the sliders do not move when a tilt joins an azimuth.
+        <span
+          className={badge === 'Turned' ? 'badge turned' : 'badge'}
+          data-testid="sim-badge"
+          title={badge === 'Turned' ? 'Only an azimuth is set: the pattern is turned on the plot, no value is simulated' : undefined}
+        >
+          <span>{badge}</span>
         </span>
       ) : (
         !collapsed && (

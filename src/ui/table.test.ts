@@ -98,15 +98,24 @@ describe('simulation in the table', () => {
   it('doubles metric columns and appends slider values in the CSV when tilted', () => {
     const [header, line] = toCsv(rows, 'dBd', 30, { ...tilt, azimuthDeg: 30 }).trimEnd().split('\r\n');
     expect(header).toContain('H-HPBW original (°),H-HPBW tilted (°)');
-    expect(header.endsWith('Electrical tilt Δ (°),Mechanical tilt (°),Azimuth (°)')).toBe(true);
+    expect(header.endsWith('Electrical tilt Δ (°),Mechanical tilt (°),Azimuth pointing (°)')).toBe(true);
     expect(line.endsWith(',4,0,30')).toBe(true);
   });
 
-  it('ignores an azimuth-only simulation in the CSV', () => {
+  it('an azimuth alone simulates nothing in the CSV: the same values, one column each, plus where the plot points', () => {
     const plain = buildRows(groups, analyzeAll(tagged), 'dBd');
-    expect(toCsv(plain, 'dBd', 30, { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 45 })).toBe(
-      toCsv(plain, 'dBd', 30),
-    );
+    const turned = toCsv(plain, 'dBd', 30, { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 45 }).trimEnd().split('\r\n');
+    const file = toCsv(plain, 'dBd', 30).trimEnd().split('\r\n');
+    expect(turned.map((l) => l.slice(0, l.lastIndexOf(',')))).toEqual(file);
+    expect(turned[0].endsWith(',Azimuth pointing (°)')).toBe(true);
+    expect(turned[0]).not.toMatch(/original|tilted|Electrical tilt|Mechanical tilt/);
+    for (const line of turned.slice(1)) expect(line.endsWith(',45')).toBe(true);
+    // Per file (a site's sectors): each row its own, 0 where a file is not turned.
+    const perFile = toCsv(plain, 'dBd', 30, (id) => ({ electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: id === plain[0].id ? 120 : 0 })).trimEnd().split('\r\n');
+    expect(perFile[0].endsWith(',Azimuth pointing (°)')).toBe(true);
+    expect(perFile.slice(1).map((l) => l.slice(l.lastIndexOf(',') + 1))).toEqual(plain.map((_, i) => (i === 0 ? '120' : '0')));
+    // No azimuth anywhere: no column.
+    expect(toCsv(plain, 'dBd', 30, () => ({ electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0 }))).toBe(toCsv(plain, 'dBd', 30));
   });
 
   it('leaves the CSV unchanged without a tilt', () => {
