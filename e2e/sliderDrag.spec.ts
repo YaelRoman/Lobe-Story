@@ -105,12 +105,13 @@ test('with many files ticked the arrow keys on a slider are followed when the ke
   expect(await shown(page)).toEqual(afterKeys);
 });
 
-test('with the built-in example the plots and the table still follow a slider while it is dragged', async ({ page }) => {
+// One ticked file is followed on any machine. (With all 24 ticked it goes by what a pass takes on the machine: see the next test.)
+test('with the built-in example and one file ticked the plots and the table follow a slider while it is dragged', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
   await expect(page.locator('.panel li')).toHaveCount(24);
-  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await expect(page.locator('.metrics tbody tr')).toHaveCount(24);
   await openSimulation(page);
   await settled(page);
   const slider = page.getByRole('slider', { name: MECHANICAL, exact: true });
@@ -127,6 +128,38 @@ test('with the built-in example the plots and the table still follow a slider wh
   await expect(page.locator('.metrics tbody tr').first()).toContainText('→');
   await page.mouse.up();
   expect(await sawWaiting(page)).toBe(false);
+});
+
+test('with the built-in example and all 24 files ticked a drag is followed or waited for, as the machine allows, and ends exactly where a typed value does', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await openSimulation(page);
+  await settled(page);
+  const slider = page.getByRole('slider', { name: MECHANICAL, exact: true });
+  const box = (await slider.boundingBox())!;
+  const y = box.y + box.height / 2;
+  // Two drags: the first is followed on the first guess, the second goes by what the first one's passes took.
+  for (const from of [0, 48]) {
+    await page.mouse.move(box.x + box.width / 2 + from, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i++) await page.mouse.move(box.x + box.width / 2 + from + i * 6, y);
+    const during = await slider.inputValue();
+    await expect(page.getByLabel(`${MECHANICAL} value`, { exact: true })).toHaveValue(during);
+    await page.mouse.up();
+    await settled(page);
+  }
+  const value = await slider.inputValue();
+  expect(Number(value)).toBeGreaterThan(0);
+  await expect(page.locator('p.count', { hasText: 'Simulated:' })).toContainText(`mech +${value}°`);
+  const afterDrag = await shown(page);
+  expect(afterDrag.table.some((row) => row.includes('→'))).toBe(true);
+  // The same value typed, from a reset bar.
+  await setDirect(page, MECHANICAL, '0');
+  await setDirect(page, MECHANICAL, value);
+  expect(await shown(page)).toEqual(afterDrag);
 });
 
 test('a right click on a slider grips nothing: a value typed after it is followed at once, with no waiting line', async ({ page }) => {

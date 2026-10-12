@@ -67,12 +67,12 @@ test('while a slider is held with many files, the table, the band statistics and
   await expect.poll(opacity).toBe(1);
 });
 
-test('with the built-in example (the page follows the drag) no sentence comes in the bar and nothing is marked busy', async ({ page }) => {
+// One ticked file: followed on any machine (with all 24 ticked it goes by what a pass takes on the machine).
+test('with the built-in example and one file ticked (the page follows the drag) no sentence comes in the bar and nothing is marked busy', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
   await expect(page.locator('.panel li')).toHaveCount(24);
-  await page.getByRole('button', { name: 'Show all', exact: true }).click();
   await openSimulation(page);
   await settled(page);
   // Notes whether the sentence or the mark was there at any moment (they could come and go between two checks).

@@ -134,15 +134,53 @@ export function useSliderGrip(counts: boolean): Grip | null {
  */
 const STEP_MS = { perFile: 0.8, perFileAngularRegions: 2, perDrawnFile: 7 };
 
-/** A step expected to cost more than this is not followed while the slider is dragged. The built-in example, all ticked and with the angular regions, stays under it. */
-export const LIVE_DRAG_BUDGET_MS = 250;
+/** The load a slider step works on: `files` are the loaded ones, `drawn` the ticked ones. */
+export interface StepLoad {
+  files: number;
+  drawn: number;
+  angularRegions: boolean;
+}
+
+/** The estimated cost of a step for a load, in the milliseconds of the machine it was profiled on: the shape of the cost, whatever the machine. */
+export function estimatedUnits({ files, drawn, angularRegions }: StepLoad): number {
+  return files * (STEP_MS.perFile + (angularRegions ? STEP_MS.perFileAngularRegions : 0)) + drawn * STEP_MS.perDrawnFile;
+}
 
 /**
- * Whether the plots and the table follow a simulation slider while it is dragged. With many files a step blocks the
- * page for longer than the hand takes to the next one, and the thumb stops following the pointer: the page then
- * follows at release (see `useHeldWhile`). `files` are the loaded ones, `drawn` the ticked ones.
+ * The first guess, before a pass was timed on this machine: a step estimated to cost more than this is not followed
+ * while the slider is dragged. The built-in example, all ticked and with the angular regions, stays under it.
  */
-export function followsDrag({ files, drawn, angularRegions }: { files: number; drawn: number; angularRegions: boolean }): boolean {
-  const cost = files * (STEP_MS.perFile + (angularRegions ? STEP_MS.perFileAngularRegions : 0)) + drawn * STEP_MS.perDrawnFile;
-  return cost <= LIVE_DRAG_BUDGET_MS;
+export const LIVE_DRAG_BUDGET_MS = 250;
+
+/** Once a pass has been timed: a step expected to take longer than this on this machine is not followed while the slider is dragged. */
+export const HOLD_ABOVE_MS = 80;
+
+/**
+ * A load estimated at no more than this is always followed (one ticked file of the built-in example is 26): there is
+ * too little in it to wait for, whatever a pass took. A timed pass of a smaller load counts as one of this size: a pass
+ * has a fixed part, so a very small one says little about the cost per file.
+ */
+export const ALWAYS_LIVE_UNITS = 30;
+
+/** A timed pass (see `createPassMeter`): how long it took, and the estimate of the load it worked on. */
+export interface PassCost {
+  ms: number;
+  units: number;
+}
+
+/** How long a step of a load estimated at `units` is expected to take on this machine, going by the `timed` pass. */
+export function expectedPassMs(units: number, timed: PassCost): number {
+  return (timed.ms / Math.max(timed.units, ALWAYS_LIVE_UNITS)) * units;
+}
+
+/**
+ * Whether the plots and the table follow a simulation slider while it is dragged. Where a step blocks the page for
+ * longer than the hand takes to the next one, the thumb stops following the pointer: the page then follows at release
+ * (see `useHeldWhile`). It goes by the last pass timed on this machine (`timed`), scaled to the load by the estimate;
+ * before any pass was timed (null), by the estimate alone. Either way the page ends as after a typed value.
+ */
+export function followsDrag(load: StepLoad, timed: PassCost | null = null): boolean {
+  const units = estimatedUnits(load);
+  if (timed === null) return units <= LIVE_DRAG_BUDGET_MS;
+  return units <= ALWAYS_LIVE_UNITS || expectedPassMs(units, timed) <= HOLD_ABOVE_MS;
 }

@@ -19,6 +19,7 @@ import { SKIP_TARGETS } from './SkipLinks';
 import { Seg } from './Seg';
 import { PER_FILE_COLOURS, type FileStyle } from './colors';
 import type { SimulationResult } from './useSimulation';
+import { noteSimulationDrawn } from './passCost';
 import type { OpenHelp } from './HelpDialog';
 
 interface Props {
@@ -257,7 +258,10 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
   // The simulation the plots have finished drawing: until it is the page's, an image of them would be of the older one.
   const [simDrawn, setSimDrawn] = useState(sim);
   useEffect(() => {
-    if (!updating) setSimDrawn(sim);
+    if (updating) return;
+    setSimDrawn(sim);
+    // The pass that made this simulation is over: how long it took says whether the next drag is followed (see `followsDrag`).
+    noteSimulationDrawn();
   }, [updating, sim]);
   const exportBehind = simDrawn !== sim;
 

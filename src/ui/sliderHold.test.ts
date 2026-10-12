@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { followsDrag, GRIP_PAUSE_MS, gripByKey, gripByPointer, gripKey, KEY_RELEASE_MS, LIVE_DRAG_BUDGET_MS, sliderGrip, sliderGripped } from './sliderHold';
+import { ALWAYS_LIVE_UNITS, estimatedUnits, expectedPassMs, followsDrag, GRIP_PAUSE_MS, HOLD_ABOVE_MS, gripByKey, gripByPointer, gripKey, KEY_RELEASE_MS, LIVE_DRAG_BUDGET_MS, sliderGrip, sliderGripped } from './sliderHold';
 import { PAUSE_MS } from './heldValue';
 
 afterEach(() => window.dispatchEvent(new Event('blur')));
@@ -194,7 +194,7 @@ describe('arrow-key taps: the grip of a key ends a moment after its last key up'
   });
 });
 
-describe('whether the page follows a slider while it is dragged', () => {
+describe('whether the page follows a slider while it is dragged: the first guess, before any pass was timed on this machine', () => {
   it('does with the built-in example, all 24 files ticked, with or without the angular regions', () => {
     expect(followsDrag({ files: 24, drawn: 24, angularRegions: false })).toBe(true);
     expect(followsDrag({ files: 24, drawn: 24, angularRegions: true })).toBe(true);
@@ -250,5 +250,65 @@ describe('whether the page follows a slider while it is dragged', () => {
     // 24 files at 0.8 + 2 ms each and 24 drawn at 7 ms: 235 ms. Two more files of the same kind would be over.
     expect(followsDrag({ files: 24, drawn: 24, angularRegions: true })).toBe(true);
     expect(followsDrag({ files: 26, drawn: 26, angularRegions: true })).toBe(false);
+  });
+});
+
+describe('whether the page follows a slider while it is dragged, once a pass has been timed on this machine', () => {
+  const example = { files: 24, drawn: 24, angularRegions: false };
+  const one = { files: 24, drawn: 1, angularRegions: false };
+  const units = estimatedUnits(example);
+
+  it('the estimate gives the shape of the cost: 0.8 per loaded file, 2 more with the angular regions, 7 per ticked file', () => {
+    expect(units).toBeCloseTo(24 * 0.8 + 24 * 7, 9);
+    expect(estimatedUnits({ ...example, angularRegions: true })).toBeCloseTo(24 * 2.8 + 24 * 7, 9);
+    expect(estimatedUnits(one)).toBeCloseTo(24 * 0.8 + 7, 9);
+  });
+
+  it('holds when a pass of this workload took more than about 80 ms, and follows when it took less', () => {
+    expect(HOLD_ABOVE_MS).toBe(80);
+    expect(followsDrag(example, null)).toBe(true); // the first guess
+    expect(followsDrag(example, { ms: 180, units })).toBe(false); // the example with Show all on a machine where a step blocks for 180 ms
+    expect(followsDrag(example, { ms: 81, units })).toBe(false);
+    expect(followsDrag(example, { ms: 80, units })).toBe(true);
+    expect(followsDrag(example, { ms: 35, units })).toBe(true);
+  });
+
+  it('a pass timed on another workload is scaled by the estimate of the two', () => {
+    // 180 ms for the 24 ticked files says about 90 ms for half of them, and about 30 ms for one.
+    const timed = { ms: 180, units };
+    expect(expectedPassMs(estimatedUnits({ files: 24, drawn: 12, angularRegions: false }), timed)).toBeCloseTo(180 * (19.2 + 84) / units, 9);
+    expect(followsDrag({ files: 24, drawn: 12, angularRegions: false }, timed)).toBe(false);
+    expect(followsDrag({ files: 24, drawn: 9, angularRegions: false }, timed)).toBe(true);
+    // A fast machine follows more files than the first guess allows; a slow one fewer.
+    const many = { files: 48, drawn: 48, angularRegions: false };
+    expect(followsDrag(many, null)).toBe(false);
+    expect(followsDrag(many, { ms: 30, units })).toBe(true);
+    expect(followsDrag({ files: 12, drawn: 12, angularRegions: false }, { ms: 400, units })).toBe(false);
+  });
+
+  it('one ticked file of the example stays live whatever was timed: a small workload is always followed', () => {
+    expect(estimatedUnits(one)).toBeLessThanOrEqual(ALWAYS_LIVE_UNITS);
+    for (const ms of [5, 80, 180, 5000]) expect(followsDrag(one, { ms, units })).toBe(true);
+    expect(followsDrag({ files: 0, drawn: 0, angularRegions: true }, { ms: 5000, units })).toBe(true);
+    // Not so one ticked file among very many loaded ones: that workload is not small.
+    expect(followsDrag({ files: 192, drawn: 1, angularRegions: false }, { ms: 180, units })).toBe(false);
+  });
+
+  it('a pass timed on a tiny workload says little about the cost per unit (it has a fixed part): it is counted as a small one', () => {
+    // 16 ms (a frame) for one file alone is not "2 ms per unit" (that would hold four ticked files): it counts as 16 ms for a small workload.
+    const tiny = { ms: 16, units: estimatedUnits({ files: 1, drawn: 1, angularRegions: false }) };
+    expect(tiny.units).toBeLessThan(ALWAYS_LIVE_UNITS);
+    expect(expectedPassMs(units, tiny)).toBeCloseTo((16 / ALWAYS_LIVE_UNITS) * units, 9);
+    expect(followsDrag({ files: 4, drawn: 4, angularRegions: false }, tiny)).toBe(true);
+    expect(followsDrag({ files: 24, drawn: 12, angularRegions: false }, tiny)).toBe(true);
+  });
+
+  it('more files never make it follow again, for any timed pass', () => {
+    for (const ms of [20, 80, 300]) {
+      const live = Array.from({ length: 401 }, (_, n) => followsDrag({ files: n, drawn: n, angularRegions: false }, { ms, units }));
+      const firstHeld = live.indexOf(false);
+      expect(firstHeld).toBeGreaterThan(0);
+      expect(live.slice(firstHeld).some(Boolean)).toBe(false);
+    }
   });
 });

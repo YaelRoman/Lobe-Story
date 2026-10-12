@@ -13,7 +13,8 @@ import { needsAngularRegions } from './ui/table';
 import { BandStats } from './ui/BandStats';
 import { Dialog } from './ui/Dialog';
 import { useSettledSimulation, useSimulation } from './ui/useSimulation';
-import { followsDrag } from './ui/sliderHold';
+import { estimatedUnits, followsDrag } from './ui/sliderHold';
+import { usePassStart, useTimedPass } from './ui/passCost';
 import { StatusArea } from './ui/StatusArea';
 import { useUnsavedGuard } from './ui/useUnsavedGuard';
 import { EmptyState } from './ui/EmptyState';
@@ -47,8 +48,16 @@ export default function App() {
   const metrics = useMemo(() => analyzeAll(tagged, settings, { areMethod }), [tagged, settings, areMethod]);
   // With many files a slider is not followed while it is dragged: the simulation is made once, when it stops.
   const tickedCount = useMemo(() => tagged.reduce((n, i) => n + (visible[i.pattern.id] ? 1 : 0), 0), [tagged, visible]);
-  const follows = followsDrag({ files: tagged.length, drawn: tickedCount, angularRegions: withAngularRegions });
+  // Whether it is goes by what a pass last took on this machine (the file counts are the first guess, and scale it).
+  const load = useMemo(() => ({ files: tagged.length, drawn: tickedCount, angularRegions: withAngularRegions }), [tagged.length, tickedCount, withAngularRegions]);
+  const follows = followsDrag(load, useTimedPass());
   const settled = useSettledSimulation(follows);
+  // A pass is timed from here (before the simulation is worked out) to the cut plots having drawn it, and only while
+  // nothing else changes: not the files, the ticks, the settings or the view.
+  const dimension = useStore((s) => s.view.dimension);
+  const cutView = useStore((s) => s.view.cut);
+  const plotMode = useStore((s) => s.view.mode);
+  usePassStart(settled.state, [tagged, visible, settings, method3d, withAngularRegions, dimension, cutView, plotMode], estimatedUnits(load));
   const sim = useSimulation(tagged, metrics, settings, withAngularRegions, settled.state);
   const simLag = settled.waiting ? 'waiting' : settled.behind ? 'behind' : 'none';
   // Said and shown only where the lag lasts (the page does not follow a drag): where it does, the simulation is a
