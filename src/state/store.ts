@@ -679,6 +679,8 @@ export const useStore = create<State>()((rawSet, get) => {
       const hasOffsets = Object.keys(sim.offsets).length > 0 || Object.keys(sim.groupOffsets).length > 0;
       if (isZeroOffset(sim) && !(scope === 'all' && (hasOffsets || sim.hCut !== 'beam'))) return state;
       return {
+        // Whatever the reset takes (slider values, offsets, the cut at the horizon) can be put back: the usual offer and Ctrl/Cmd+Z.
+        ...undoEntry(state, scope === 'all' ? 'Reset the simulation' : 'Reset the sliders'),
         view: {
           ...state.view,
           simulation: {

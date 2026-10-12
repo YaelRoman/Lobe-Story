@@ -192,7 +192,7 @@ is ever above 0 dB (or above the file's own offset, for a file whose cut does no
 The vertical cut, the vertical metrics, the 3D view and the angular-region estimate do not depend
 on the choice: for a file without a tilt they stay exactly the file's own, with no "original →
 tilted" pair in the table and no dashed original in the vertical plot. The choice is saved with the project (not remembered as a preference) and is put
-back to "Through the beam peak" by Reset (with offsets set: by "Reset everything").
+back to "Through the beam peak" by Reset (with offsets set: by "Reset everything"). A Reset can be undone like a removal: by the offer that appears, or with Ctrl/Cmd+Z.
 
 **Through the beam peak** (the default). The cut on the ground-frame cone at the elevation of the
 tilted beam peak: the cut a data sheet gives. A file without a tilt is not simulated here and shows

@@ -141,3 +141,38 @@ describe('the horizontal cut of the tilt simulation, and the remembered preferen
     expect(out.view.simulation.hCut).toBe('horizon');
   });
 });
+
+describe('Reset of the simulation can be undone', () => {
+  it('at the horizon with no offsets: the cut goes back to the beam peak, and Undo returns the horizon cut', () => {
+    st().updateSimulation({ hCut: 'horizon' });
+    st().resetSimulation();
+    expect(st().view.simulation.hCut).toBe('beam');
+    expect(st().undo?.label).toBe('Reset the simulation');
+    expect(st().undo?.shown).toBe(true);
+    st().undoLast();
+    expect(st().view.simulation.hCut).toBe('horizon');
+    expect(st().undo).toBeNull();
+  });
+
+  it('with sliders and offsets set, each kind of reset brings back exactly what it took', () => {
+    st().addFiles([input('a.msi', msi(1800))]);
+    st().updateSimulation({ mechanicalDeg: 6, azimuthDeg: 20, hCut: 'horizon' });
+    st().setOffset('a.msi', { electricalDeg: 2 });
+    st().resetSimulation('sliders');
+    expect(st().view.simulation).toMatchObject({ mechanicalDeg: 0, azimuthDeg: 0, hCut: 'horizon' });
+    expect(st().undo?.label).toBe('Reset the sliders');
+    st().undoLast();
+    expect(st().view.simulation).toMatchObject({ mechanicalDeg: 6, azimuthDeg: 20, hCut: 'horizon' });
+    st().resetSimulation('all');
+    expect(st().view.simulation).toMatchObject({ mechanicalDeg: 0, hCut: 'beam', offsets: {} });
+    st().undoLast();
+    expect(st().view.simulation).toMatchObject({ mechanicalDeg: 6, azimuthDeg: 20, hCut: 'horizon', offsets: { 'a.msi': { electricalDeg: 2 } } });
+  });
+
+  it('a reset that changes nothing offers nothing', () => {
+    st().resetSimulation();
+    expect(st().undo).toBeNull();
+    st().resetSimulation('sliders');
+    expect(st().undo).toBeNull();
+  });
+});

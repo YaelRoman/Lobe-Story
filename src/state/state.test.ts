@@ -882,7 +882,6 @@ describe('an offered undo is withdrawn by any later change to the session (B2)',
     ['settings', () => st().updateSettings({ fbWindowDeg: 25 })],
     ['view', () => st().updateView({ mode: 'rect' })],
     ['simulation', () => st().updateSimulation({ electricalDeg: 2 })],
-    ['reset simulation', () => st().resetSimulation()],
     ['visibility', () => st().toggleVisible('b.MSI')],
     ['group visibility', () => st().setVisible(['b.MSI', 'c.MSI'], true)],
     ['adding files', () => st().addFiles([input('z.MSI', msi(1700))])],
@@ -891,6 +890,18 @@ describe('an offered undo is withdrawn by any later change to the session (B2)',
     st().updateSimulation({ azimuthDeg: 30 }); // something for Reset to reset
     st().removeFile('a.MSI');
     act();
+    expect(st().undo).toBeNull();
+  });
+
+  it('reset simulation withdraws it: the offer is now the reset\'s own, and undoing brings back the sliders, not the removed file', () => {
+    load3();
+    st().updateSimulation({ azimuthDeg: 30 }); // something for Reset to reset
+    st().removeFile('a.MSI');
+    st().resetSimulation();
+    expect(st().undo?.label).toBe('Reset the simulation');
+    st().undoLast();
+    expect(st().view.simulation.azimuthDeg).toBe(30);
+    expect(st().files.map((f) => f.id)).toEqual(['b.MSI', 'c.MSI']);
     expect(st().undo).toBeNull();
   });
 

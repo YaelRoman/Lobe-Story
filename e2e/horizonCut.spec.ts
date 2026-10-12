@@ -305,7 +305,7 @@ test('at the horizon with no tilt nothing says "tilted": the page, the tooltips 
 
   // The frequency chart and the note under the cut plots (24 traces: no legend).
   await expect(page.getByRole('heading', { name: /HPBW vs frequency/ })).toContainText("faint lines: the file's own cut");
-  await expect(page.getByTestId('readout-h').locator('p.count')).toContainText("(dashed = the file's own cut)");
+  await expect(page.getByTestId('readout-h')).toContainText("(dashed = the file's own cut)");
   // The band statistics: note, cells, picked cell.
   const band = page.getByTestId('band-stats');
   await expect(band).toContainText('Horizontal cut at the horizon: cells show file cut → horizon cut where they differ.');
@@ -471,4 +471,34 @@ test('a horizon cut far below the peak in the polar plot offers the rectangular 
   await expect(note).toBeVisible();
   await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'Through the beam peak' }).click();
   await expect(note).toHaveCount(0);
+});
+
+test('Reset at the horizon with no offsets can be undone, by the offer and by the keyboard', async ({ page }) => {
+  await loadExample(page);
+  await openSimulation(page);
+  const choice = page.getByRole('group', { name: 'Horizontal cut' });
+  const horizon = choice.getByRole('button', { name: 'At the horizon' });
+  const beam = choice.getByRole('button', { name: 'Through the beam peak' });
+  const reset = page.getByRole('button', { name: 'Reset', exact: true });
+  const toast = page.getByTestId('undo-toast');
+
+  await horizon.click();
+  await expect(page.getByTestId('sim-badge')).toBeVisible();
+  await reset.click();
+  await expect(beam).toHaveAttribute('aria-pressed', 'true');
+  await expect(toast).toContainText('Reset the simulation.');
+  await expect(page.getByTestId('announcer')).toContainText('Reset the simulation. Undo:');
+  await toast.getByRole('button', { name: /^Undo/ }).click();
+  await expect(horizon).toHaveAttribute('aria-pressed', 'true');
+  await expect(hTitle(page)).toContainText('cut at the horizon');
+
+  // Ctrl+Z does the same, also for the sliders.
+  await setMechanical(page, '6');
+  await reset.click();
+  await expect(page.getByLabel('Mechanical tilt (°) value')).toHaveValue('0');
+  await expect(beam).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('h1').first().click();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByLabel('Mechanical tilt (°) value')).toHaveValue('6');
+  await expect(horizon).toHaveAttribute('aria-pressed', 'true');
 });
