@@ -476,7 +476,13 @@ test('a horizon cut far below the peak in the polar plot offers the rectangular 
   await page.keyboard.press('Enter');
   await expect(rect).toHaveAttribute('aria-pressed', 'true');
   await expect(note).toHaveCount(0);
+  // The button is gone with the note: the focus is on the switch it pressed, not lost to the top of the page.
+  await expect(rect).toBeFocused();
   await expect(page.getByTestId('plot-h').getByText('Angle (°)').first()).toBeVisible();
+  // The same by mouse.
+  await polar.click();
+  await note.getByRole('button', { name: 'Show rectangular' }).click();
+  await expect(rect).toBeFocused();
   // Polar again: the note is back; on the cut through the beam peak it is not offered.
   await polar.click();
   await expect(note).toBeVisible();

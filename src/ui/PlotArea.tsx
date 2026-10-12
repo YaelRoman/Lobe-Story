@@ -254,7 +254,12 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, reference, markerT
     [drawn, target],
   );
   const updateView = useStore((s) => s.updateView);
-  const showRectangular = useCallback(() => updateView({ mode: 'rect' }), [updateView]);
+  const showRectangular = useCallback(() => {
+    updateView({ mode: 'rect' });
+    // The button that was pressed goes with the note: the focus moves to the switch it pressed for the user (else it
+    // falls to the page, and the next Tab starts from the top).
+    document.querySelector<HTMLElement>('[role="group"][aria-label="Plot type"] [data-value="rect"]')?.focus();
+  }, [updateView]);
 
   return (
     <>

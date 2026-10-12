@@ -17,7 +17,7 @@ export function Seg<T extends string>({
   return (
     <div className="seg" role="group" aria-label={label}>
       {options.map(([v, text]) => (
-        <button key={v} aria-pressed={value === v} aria-describedby={describedBy} disabled={disabled} onClick={() => onChange(v)}>
+        <button key={v} data-value={v} aria-pressed={value === v} aria-describedby={describedBy} disabled={disabled} onClick={() => onChange(v)}>
           {text}
         </button>
       ))}
