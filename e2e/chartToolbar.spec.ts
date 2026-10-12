@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { planetText } from '../src/test/planetText';
 
 const DOWNLOAD = 'Download plot as a png (with legend and values)';
 /** Nothing in a chart toolbar may offer to share or upload the chart, or link to the charting library's site. */
@@ -183,4 +184,129 @@ test('"Reset view" puts a polar cut back after a drag has zoomed it', async ({ p
   await expect.poll(view).toEqual(built);
   // The traces are still there.
   expect(await plot.locator('.js-plotly-plot').evaluate((el) => (el as unknown as { data: unknown[] }).data.length)).toBeGreaterThan(0);
+});
+
+/** The ranges the chart shows now, per axis, rounded to two decimals. */
+const axisRanges = (page: Page, testId: string, axes: string[]) =>
+  page
+    .getByTestId(testId)
+    .locator('.js-plotly-plot')
+    .evaluate(
+      (el, names) => {
+        const full = (el as unknown as { _fullLayout: Record<string, { range: number[] } | undefined> })._fullLayout;
+        return names.map((name) => full[name]?.range.map((v) => Math.round(v * 100) / 100) ?? null);
+      },
+      axes,
+    );
+/** The level range of a polar cut. */
+const polarRange = (page: Page, testId: string) =>
+  page
+    .getByTestId(testId)
+    .locator('.js-plotly-plot')
+    .evaluate((el) => (el as unknown as { _fullLayout: { polar: { radialaxis: { range: number[] } } } })._fullLayout.polar.radialaxis.range.map((v) => Math.round(v * 100) / 100));
+
+/** Drags a zoom box over the middle of an x/y chart. */
+async function dragZoom(page: Page, testId: string) {
+  const area = page.getByTestId(testId).locator('.draglayer .nsewdrag').first();
+  await area.scrollIntoViewIfNeeded();
+  const box = (await area.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.45, box.y + box.height * 0.45, { steps: 5 });
+  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.6, { steps: 5 });
+  await page.mouse.up();
+}
+/** Double-clicks the middle of a chart's plot area. */
+async function doubleClickPlot(page: Page, testId: string, area: string) {
+  const target = page.getByTestId(testId).locator(area).first();
+  await target.scrollIntoViewIfNeeded();
+  const box = (await target.boundingBox())!;
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+}
+async function setPlotFloor(page: Page, floor: number) {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const field = page.getByRole('dialog', { name: 'Analysis settings' }).getByLabel('Plot floor (dB)');
+  await field.fill(String(floor));
+  await field.press('Enter');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Analysis settings' })).toHaveCount(0);
+}
+
+test('"Reset axes" and a double click return a rectangular cut to the view of the figure it shows now, not of an earlier one', async ({ page }) => {
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Rectangular', exact: true }).click();
+  await expect(page.getByTestId('plot-h').locator('.xtitle')).toHaveCount(1);
+  const view = () => axisRanges(page, 'plot-h', ['xaxis', 'yaxis']);
+  await expect.poll(view).toEqual([[-180, 180], [-40, 0]]);
+
+  // Another floor: the plot is updated in place.
+  await setPlotFloor(page, 30);
+  await expect.poll(view).toEqual([[-180, 180], [-30, 0]]);
+
+  await dragZoom(page, 'plot-h');
+  await expect.poll(async () => JSON.stringify(await view())).not.toBe(JSON.stringify([[-180, 180], [-30, 0]]));
+  await page.getByTestId('plot-h').getByRole('button', { name: 'Reset axes' }).click();
+  await expect.poll(view).toEqual([[-180, 180], [-30, 0]]);
+
+  await dragZoom(page, 'plot-h');
+  await expect.poll(async () => JSON.stringify(await view())).not.toBe(JSON.stringify([[-180, 180], [-30, 0]]));
+  await doubleClickPlot(page, 'plot-h', '.draglayer .nsewdrag');
+  await expect.poll(view).toEqual([[-180, 180], [-30, 0]]);
+  // And once more from the built view: a double click there changes nothing (it is not a toggle to another scale).
+  await doubleClickPlot(page, 'plot-h', '.draglayer .nsewdrag');
+  await page.getByTestId('plot-h').getByRole('button', { name: 'Reset axes' }).click();
+  await expect.poll(view).toEqual([[-180, 180], [-30, 0]]);
+});
+
+test('the frequency chart resets to the scale of the metric it shows now', async ({ page }) => {
+  // Two frequencies of one pattern: every metric is flat, so each figure comes with a y range of its own.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  const text = (freq: number) => planetText({ headers: ['NAME A', `FREQUENCY ${freq}`, 'GAIN 15 dBd', 'TILT ELECTRICAL'] });
+  await page.getByTestId('file-input').setInputFiles([1910, 1930].map((freq) => ({ name: `f${freq}.msi`, mimeType: 'text/plain', buffer: Buffer.from(text(freq)) })));
+  await expect(page.locator('.panel li')).toHaveCount(2);
+  const chart = page.getByTestId('plot-hpbw');
+  await expect(chart.locator('.y2title')).toHaveCount(1);
+  const view = () => axisRanges(page, 'plot-hpbw', ['xaxis', 'yaxis']);
+  const beamwidths = await view();
+
+  await page.getByLabel('Metric', { exact: true }).selectOption({ label: 'F/B 180° (dB)' });
+  await expect(chart.locator('.ytitle')).toContainText('F/B 180° (dB)');
+  await expect.poll(async () => JSON.stringify((await view())[1])).not.toBe(JSON.stringify(beamwidths[1]));
+  const built = await view();
+
+  await dragZoom(page, 'plot-hpbw');
+  await expect.poll(async () => JSON.stringify(await view())).not.toBe(JSON.stringify(built));
+  await chart.getByRole('button', { name: 'Reset axes' }).click();
+  await expect.poll(view).toEqual(built);
+
+  await dragZoom(page, 'plot-hpbw');
+  await expect.poll(async () => JSON.stringify(await view())).not.toBe(JSON.stringify(built));
+  await doubleClickPlot(page, 'plot-hpbw', '.draglayer .nsewdrag');
+  await expect.poll(view).toEqual(built);
+});
+
+test('a double click returns a polar cut to the floor it shows now', async ({ page }) => {
+  await loadExample(page);
+  const plot = page.getByTestId('plot-h');
+  await expect(plot.locator('.polarlayer')).toHaveCount(1);
+  await expect.poll(() => polarRange(page, 'plot-h')).toEqual([-40, 0]);
+  await setPlotFloor(page, 30);
+  await expect.poll(() => polarRange(page, 'plot-h')).toEqual([-30, 0]);
+
+  // A drag from near the centre outwards zooms the level axis.
+  const box = (await plot.locator('.polarlayer .plotbg, .polarlayer .bg').first().boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx + box.width * 0.1, cy - box.height * 0.1);
+  await page.mouse.down();
+  await page.mouse.move(cx + box.width * 0.2, cy - box.height * 0.2, { steps: 6 });
+  await page.mouse.move(cx + box.width * 0.3, cy - box.height * 0.3, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(async () => JSON.stringify(await polarRange(page, 'plot-h'))).not.toBe(JSON.stringify([-30, 0]));
+
+  await page.mouse.dblclick(cx + box.width * 0.2, cy - box.height * 0.2);
+  await expect.poll(() => polarRange(page, 'plot-h')).toEqual([-30, 0]);
+  await plot.getByRole('button', { name: 'Reset view' }).click();
+  await expect.poll(() => polarRange(page, 'plot-h')).toEqual([-30, 0]);
 });

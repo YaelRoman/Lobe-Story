@@ -5,7 +5,7 @@ import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as Plotly
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
 import { PlotBoundary } from './ErrorBoundary';
-import { CHART_PRIVACY, polarViewReset, toolbarButtons, type ChartToolbar } from './chartToolbar';
+import { CHART_PRIVACY, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
 import { canvasesOf, releaseGlContexts } from './glContexts';
 import { appliedAfterRedraw, createRedrawGate, hoverStore, ownTraces, previewRestyle, restyleDiff, type PreviewRestyle } from './hoverPreview';
 
@@ -57,13 +57,23 @@ export interface FigureOverlay {
 const builtViews = new WeakMap<Figure, Record<string, unknown> | null>();
 
 /**
- * The view a polar figure was built with (see `polarViewReset`), as it was when the figure was first seen: a drag
- * writes the new view into the layout object the library was given, which is the figure's own, so it cannot be read
- * from the figure later.
+ * The view a figure was built with (see `viewReset`), as it was when the figure was first seen: a drag writes the
+ * new view into the layout object the library was given, which is the figure's own, so it cannot be read from the
+ * figure later.
  */
-function builtViewOf(figure: Figure): Record<string, unknown> | null {
-  if (!builtViews.has(figure)) builtViews.set(figure, polarViewReset(figure.layout as Parameters<typeof polarViewReset>[0]));
+function builtViewOf(figure: Figure, toolbar: ChartToolbar): Record<string, unknown> | null {
+  if (!builtViews.has(figure)) builtViews.set(figure, viewReset(toolbar, figure.layout));
   return builtViews.get(figure) ?? null;
+}
+
+/**
+ * Puts the chart back to the `view` its figure was built with. The library's own resets (its "Reset axes", a double
+ * click) return to the view of the first figure a chart drew, and a chart that is updated in place has drawn others
+ * since: another floor, another metric.
+ */
+function resetView(gd: HTMLElement, view: Record<string, unknown> | null): void {
+  // A copy: the library keeps the arrays it is given, and a later drag would change the noted view.
+  if (view) Plotly.relayout(gd, structuredClone(view) as Partial<PlotlyNativeLayout>).catch((error: unknown) => console.error('The view could not be reset', error));
 }
 
 /**
@@ -96,7 +106,7 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
   const preview = useRef({ figure, base: previewBase ?? null });
   const drawnHandler = useRef(onDrawn);
   // Noted now, before the figure is drawn (see `builtViewOf`); the toolbar's handler reads it from the ref.
-  const builtView = useRef(builtViewOf(figure));
+  const builtView = useRef(builtViewOf(figure, toolbar));
   // The traces the library holds for the figure, and what the last draw was of.
   const owned = useRef<{ figure: Figure; traces: object[] } | null>(null);
   const lastDraw = useRef<{ figure: Figure; config: object } | null>(null);
@@ -113,8 +123,8 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
     exporting.current = { figure, labelledExport };
     preview.current = { figure, base: previewBase ?? null };
     drawnHandler.current = onDrawn;
-    builtView.current = builtViewOf(figure);
-  }, [onRelayout, figure, labelledExport, previewBase, onDrawn]);
+    builtView.current = builtViewOf(figure, toolbar);
+  }, [onRelayout, figure, toolbar, labelledExport, previewBase, onDrawn]);
 
   // The same config object for every redraw of this chart. `Plotly.react` compares the config it is given with the
   // one it has, functions by identity: a download handler made anew for each redraw counts as a changed config, and
@@ -135,23 +145,21 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
         ).catch((error: unknown) => console.error('The plot image could not be saved', error));
       },
     };
-    // Polar cuts: a drag zooms or turns the plot, and only a double click put it back.
-    const resetView = {
-      name: 'resetViewPolar',
-      title: 'Reset view',
+    // Back to the view of the figure that is drawn now (a drag zooms the plot, or turns a polar one).
+    const reset = {
+      name: 'resetViewBuilt',
+      title: toolbar === 'polar' ? 'Reset view' : 'Reset axes',
       icon: Plotly.Icons.home,
-      click: (gd: HTMLElement) => {
-        // A copy: the library keeps the arrays it is given, and a later drag would change the noted view.
-        const update = builtView.current && structuredClone(builtView.current);
-        if (update) Plotly.relayout(gd, update as Partial<PlotlyNativeLayout>).catch((error: unknown) => console.error('The view could not be reset', error));
-      },
+      click: (gd: HTMLElement) => resetView(gd, builtView.current),
     };
     return {
       responsive: true,
       ...CHART_PRIVACY,
+      // The library's double click goes back to the first figure's axes: ours takes its place (see the draw below).
+      ...(toolbar === 'rect' || toolbar === 'xy' ? { doubleClick: false as const } : {}),
       toImageButtonOptions: IMAGE_OPTIONS,
       // An explicit list: the library's default set has the charting library's cloud upload button and select tools in it.
-      modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined, resetView) as unknown as PlotlyConfig['modeBarButtons'],
+      modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined, toolbar === '3d' ? undefined : reset) as unknown as PlotlyConfig['modeBarButtons'],
     };
   }, [toolbar, labelled]);
 
@@ -219,6 +227,10 @@ function Chart({ figure, className, testId, ariaLabel, toolbar, onRelayout, labe
           if (previewing) void restylePreview(el);
           el.removeAllListeners?.('plotly_relayout');
           el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
+          // A double click resets as the toolbar's button does. A polar plot cannot be told not to reset by itself,
+          // and does so right after this event, to the first figure's view: ours follows it within the same task.
+          el.removeAllListeners?.('plotly_doubleclick');
+          el.on?.('plotly_doubleclick', () => queueMicrotask(() => resetView(el, builtView.current)));
           drawnHandler.current?.(figure, overlay);
         })
         .catch((error: unknown) => {
