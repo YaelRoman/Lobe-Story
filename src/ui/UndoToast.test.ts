@@ -155,3 +155,41 @@ describe('the offer on a phone, and a long file name in it', () => {
     expect(label.querySelector('.mid-head')).toBeNull();
   });
 });
+
+describe('pressing Undo in the offer does not drop the focus to the page', () => {
+  const st = useStore.getState;
+  const undoButton = () => Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.startsWith('Undo'))!;
+  let outside: HTMLButtonElement;
+  beforeEach(() => {
+    outside = document.createElement('button');
+    document.body.appendChild(outside);
+    act(() => st().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => st().removeFile('a.MSI'));
+  });
+  afterEach(() => {
+    outside.remove();
+    document.querySelector('.panel')?.remove();
+  });
+
+  it('gives the focus back to where it came from', () => {
+    outside.focus();
+    act(() => undoButton().focus());
+    act(() => undoButton().click());
+    expect(st().files).toHaveLength(2);
+    expect(host.querySelector('[data-testid="undo-toast"]')).toBeNull();
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it('or to the file panel, when that place is gone or there was none', () => {
+    const panel = document.createElement('div');
+    panel.className = 'panel';
+    panel.tabIndex = -1;
+    document.body.appendChild(panel);
+    outside.focus();
+    act(() => undoButton().focus());
+    outside.remove();
+    act(() => undoButton().click());
+    expect(st().files).toHaveLength(2);
+    expect(document.activeElement).toBe(panel);
+  });
+});

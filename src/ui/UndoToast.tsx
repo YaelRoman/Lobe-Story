@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useStore } from '../state/store';
 import { SKIP_TARGETS } from './SkipLinks';
 import { isTextEntry, isUndoShortcut, undoShortcut } from './undoKeys';
@@ -56,13 +57,22 @@ function Offer({ label, name }: { label: string; name?: string }) {
     };
   }, [paused, fadeUndo]);
 
-  // The cross removes the button that has the focus: put the focus back where it was (else on the plots' heading or the
-  // panel), and say once, in the note that is both shown and announced, that the keyboard shortcut still undoes.
+  // Both buttons remove the offer, and with it the button that has the focus: the focus goes back where it was before
+  // it entered the offer (else to the plots' heading or the panel), not to the page, where the next Tab would start
+  // from the top.
+  const placeBefore = () => (cameFrom.current?.isConnected ? cameFrom.current : (document.getElementById(SKIP_TARGETS.plots) ?? document.querySelector<HTMLElement>('.panel')));
+  // The cross says once, in the note that is both shown and announced, that the keyboard shortcut still undoes.
   const hide = () => {
-    const back = cameFrom.current?.isConnected ? cameFrom.current : (document.getElementById(SKIP_TARGETS.plots) ?? document.querySelector<HTMLElement>('.panel'));
+    const back = placeBefore();
     fadeUndo();
     back?.focus();
     setCopyNote(`Undo offer hidden. ${undoShortcut()} still undoes.`);
+  };
+  // What is undone is back in the page before the place is looked for: the plots' heading is not there while no file
+  // is loaded (an undone Clear brings it back).
+  const undo = () => {
+    flushSync(undoLast);
+    placeBefore()?.focus();
   };
 
   return (
@@ -80,7 +90,7 @@ function Offer({ label, name }: { label: string; name?: string }) {
       onBlur={() => setFocused(false)}
     >
       <OfferLabel label={label} name={name} />
-      <button onClick={undoLast}>{phone ? 'Undo' : `Undo · ${undoShortcut()}`}</button>
+      <button onClick={undo}>{phone ? 'Undo' : `Undo · ${undoShortcut()}`}</button>
       <button aria-label="Hide undo offer" title="Hide (Ctrl/Cmd+Z still undoes)" onClick={hide}>
         ✕
       </button>

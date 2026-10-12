@@ -440,3 +440,31 @@ test('on a phone the undo offer of a Remove is one line: the button says Undo an
   await expect(tail).toHaveText('P45_02T.msi');
   expect(await tail.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
 });
+
+test('pressing Undo in the offer by keyboard does not drop the focus to the page body', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800)), file('b.msi', msi(1900)), file('c.msi', msi(2000))]);
+  const toast = page.getByTestId('undo-toast');
+  await page.getByLabel('Actions for b.msi').click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  // After a Remove the focus is on the neighbour's menu button: from there into the offer, and back there after Undo.
+  const neighbour = page.getByLabel('Actions for c.msi');
+  await expect(neighbour).toBeFocused();
+  await toast.getByRole('button', { name: /^Undo/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(toast).toHaveCount(0);
+  await expect(page.locator('.panel li')).toHaveCount(3);
+  await expect(neighbour).toBeFocused();
+
+  // An undone Clear: nothing was focused before the offer (the page was empty), and the plots' heading is back to take it.
+  page.on('dialog', (d) => void d.accept());
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  const confirm = page.getByRole('dialog').getByRole('button', { name: 'Clear' });
+  if (await confirm.count()) await confirm.click();
+  await expect(page.locator('.panel li')).toHaveCount(0);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await toast.getByRole('button', { name: /^Undo/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.panel li')).toHaveCount(3);
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+});
