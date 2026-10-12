@@ -234,6 +234,66 @@ test('the highlighted file is drawn on top of the other files, under the referen
   expect(await plotIds(page, ['plot-h', 'plot-v'])).toEqual(charts);
 });
 
+test('with a reference and a tilt simulation (originals drawn), the highlighted file goes under the reference with its dashed original right under it, in both plot types', async ({ page }) => {
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await expect.poll(async () => (await cutState(page)).files.length).toBe(24);
+  await page.locator('.panel li').nth(2).getByLabel(/^Actions for /).click();
+  await page.getByRole('menuitem', { name: 'Use as reference' }).click();
+  // A mechanical tilt makes every file but the reference tilted, so each has a dashed original (23 of them).
+  const mech = page.getByRole('group', { name: 'Mechanical tilt (°)' }).locator('input[type="number"]');
+  if (!(await mech.isVisible())) await page.getByRole('button', { name: /Simulation/ }).first().click();
+  await mech.fill('6');
+  await mech.press('Enter');
+  await page.getByLabel('Show original').check();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.locator('body').press('Escape');
+  await expect(page.locator('tr.hl[data-row-id]')).toHaveCount(0);
+  await expect.poll(async () => (await cutState(page)).files.length).toBe(47);
+
+  for (const mode of ['Polar', 'Rectangular']) {
+    await page.getByRole('group', { name: 'Plot type' }).getByRole('button', { name: mode }).click();
+    await expect.poll(async () => (await cutState(page)).files.length).toBe(47);
+    await expect.poll(async () => (await cutState(page)).title).toMatch(/^Horizontal cut/);
+    const series = (await drawingOrder(page)).map((t) => t[0]);
+    const seriesV = (await drawingOrder(page, 'plot-v')).map((t) => t[0]);
+    const refAt = (await drawingOrder(page)).findIndex((t) => t[2]);
+    const legend = await page.getByTestId('plot-h').locator('.legend .legendtext').allTextContents();
+    const live = series.filter((id): id is string => id !== null && !id.endsWith('#original'));
+    const target = live.find((id, k) => k === 7 && !(refAt >= 0 && series[refAt] === id))!;
+    const row = page.locator(`tr[data-row-id="${target.replace(/"/g, '\\"')}"]`);
+
+    /** The series order with `target` and its original moved to just under the reference. */
+    const expected = (() => {
+      const rest = series.filter((id) => id !== target && id !== `${target}#original`);
+      const at = rest.indexOf(series[refAt]);
+      return [...rest.slice(0, at), `${target}#original`, target, ...rest.slice(at)];
+    })();
+
+    await row.click();
+    await page.mouse.move(2, 2);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    for (const id of ['plot-h', 'plot-v']) {
+      await expect.poll(async () => (await drawingOrder(page, id)).map((t) => t[0])).toEqual(expected);
+    }
+    const order = await drawingOrder(page);
+    const at = order.findIndex((t) => t[0] === target);
+    // The highlighted trace is thick, directly above its original and directly under the reference.
+    expect(order[at][1]).toBe(2.5);
+    expect(order[at - 1][0]).toBe(`${target}#original`);
+    expect(order[at + 1][2]).toBe(true);
+    expect((await paintedOrder(page)).map((uid) => seriesIdOf(uid))).toEqual(expected);
+    // The legend keeps the order of the files.
+    expect(await page.getByTestId('plot-h').locator('.legend .legendtext').allTextContents()).toEqual(legend);
+
+    // Esc puts every trace back in series order.
+    await page.locator('body').press('Escape');
+    await expect.poll(async () => (await drawingOrder(page)).map((t) => t[0])).toEqual(series);
+    await expect.poll(async () => (await drawingOrder(page, 'plot-v')).map((t) => t[0])).toEqual(seriesV);
+    expect((await paintedOrder(page)).map((uid) => seriesIdOf(uid))).toEqual(series);
+  }
+});
+
 test('3D: scenes that a redraw drops release their WebGL contexts, so the browser never takes one away', async ({ page }) => {
   test.slow();
   const warnings: string[] = [];
