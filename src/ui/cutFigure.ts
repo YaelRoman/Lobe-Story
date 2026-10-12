@@ -310,6 +310,8 @@ type FileTrace = Partial<PlotData> & { meta?: string; legendrank?: number };
 
 /** Opacity of the other files' traces while one file is highlighted. */
 export const DIMMED_OPACITY = 0.35;
+/** Pixels the rectangular plot's x tick labels are moved away from the axis (see `baseLayout`). */
+export const RECT_TICK_STANDOFF = 6;
 const BASE_WIDTH = 1.5;
 const EMPHASISED_WIDTH = 2.5;
 const REFERENCE_WIDTH = 3.5;
@@ -465,7 +467,9 @@ function baseLayout(o: CutBaseOptions, top: number): Partial<Layout> {
   return {
     ...base,
     hovermode: 'x unified',
-    xaxis: { range: [-180, 180], dtick: 30, automargin: true, title: { text: 'Angle (°)', standoff: 8 }, gridcolor: o.theme.grid, zeroline: false },
+    // The x tick labels sit a few pixels lower, so "−180" does not touch the y axis' lowest label ("−40") at the corner.
+    // `ticklabelstandoff` is in the library but not in @types/plotly.js.
+    xaxis: { range: [-180, 180], dtick: 30, automargin: true, title: { text: 'Angle (°)', standoff: 8 }, gridcolor: o.theme.grid, zeroline: false, ...({ ticklabelstandoff: RECT_TICK_STANDOFF } as object) },
     yaxis: { range: [-o.floorDb, top], dtick: 10, title: { text: 'Relative level (dB)' }, gridcolor: o.theme.grid },
   };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Legend, PlotData, Shape } from 'plotly.js';
 import { buildHpbwFigure, hpbwCaption } from './hpbwFigure';
 import { exportFigure } from './exportFigure';
-import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout, verticalAngleTicks, type CutFigureOptions, type PlotSeries } from './cutFigure';
+import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout, RECT_TICK_STANDOFF, verticalAngleTicks, type CutFigureOptions, type PlotSeries } from './cutFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
 import { tiltPattern } from '../core/analysis/tilt';
@@ -515,6 +515,15 @@ describe('vertical polar angle labels', () => {
     expect(Math.min(...(t.theta as number[]))).toBeLessThan(-170);
     expect(Math.max(...(t.theta as number[]))).toBe(180);
     expect(t.hovertemplate).toContain('%{theta:.0f}°');
+  });
+});
+
+describe('rectangular plot corner', () => {
+  it('moves the x tick labels away from the axis so "−180" cannot touch the y axis\' lowest label', () => {
+    const [h] = series('a');
+    const rect = buildCutFigure(opts({ mode: 'rect', series: [h] })).layout.xaxis as { ticklabelstandoff?: number };
+    expect(rect.ticklabelstandoff).toBe(RECT_TICK_STANDOFF);
+    expect(RECT_TICK_STANDOFF).toBeGreaterThan(0);
   });
 });
 
