@@ -105,8 +105,8 @@ describe('the angular-region column group', () => {
   });
 
   it('names the 3D method wherever a value leaves the table, for these columns only', () => {
-    expect(withMethod('areSector', 'Sector eff. est.', 'summation')).toBe('Sector eff. est., Summation');
-    expect(withMethod('areLower', 'Lower region est.', 'weighted')).toBe('Lower region est., Weighted');
+    expect(withMethod('areSector', 'Sector eff. est.', 'summation')).toBe('Sector eff. est. [Summation]');
+    expect(withMethod('areLower', 'Lower region est.', 'weighted')).toBe('Lower region est. [Weighted]');
     expect(withMethod('hHpbw', 'H-HPBW', 'weighted')).toBe('H-HPBW');
   });
 
@@ -176,24 +176,24 @@ describe('the angular-region columns in the table and the exports', () => {
 
   it('adds the three columns, headers and values, to the CSV while the group is shown', () => {
     const lines = toCsv(rows, 'dBi', 30, undefined, 20, 3, undefined, false, csvColumns(shownGroups)).trimEnd().split('\r\n');
-    // The 3D method changes these numbers by several points, so it is written into the header (quoted: it has a comma).
-    expect(lines[0].endsWith(',F/B − decl. (dB),"Sector eff. est., Summation (%)","Spatial eff. est., Summation (%)","Lower region est., Summation (%)"')).toBe(true);
+    // The 3D method changes these numbers by several points, so it is written into the header (no comma, so the plain export needs no quoting).
+    expect(lines[0].endsWith(',F/B − decl. (dB),Sector eff. est. [Summation] (%),Spatial eff. est. [Summation] (%),Lower region est. [Summation] (%)')).toBe(true);
     const weightedRows = buildRows(groups, analyzeAll(tagged, DEFAULT_SETTINGS, { areMethod: 'weighted' }), 'dBi');
     const weightedHeader = toCsv(weightedRows, 'dBi', 30, undefined, 20, 3, undefined, false, csvColumns(shownGroups), 'weighted').split('\r\n')[0];
-    expect(weightedHeader.endsWith('"Sector eff. est., Weighted (%)","Spatial eff. est., Weighted (%)","Lower region est., Weighted (%)"')).toBe(true);
+    expect(weightedHeader.endsWith('Sector eff. est. [Weighted] (%),Spatial eff. est. [Weighted] (%),Lower region est. [Weighted] (%)')).toBe(true);
     // No other header changes with the method.
     expect(weightedHeader.split('Weighted').join('Summation')).toBe(lines[0]);
     expect(lines[1].split(',').slice(-3)).toEqual([fixed(expectedA.sector.value!, 2), fixed(expectedA.spatial.value!, 2), fixed(expectedA.lower.value!, 4)]);
     expect(lines[2].split(',').slice(-3)).toEqual([fixed(expectedB.sector.value!, 2), fixed(expectedB.spatial.value!, 2), fixed(expectedB.lower.value!, 4)]);
-    expect(lines[0].split(',')).toHaveLength(lines[1].split(',').length + 3);
+    expect(lines[0].split(',')).toHaveLength(lines[1].split(',').length);
   });
 
   it('copies the columns with the table (tab-separated) when they are shown', () => {
     const columns = visibleColumns(shownGroups);
     const [header, first] = toTsv(rows, columns, 'dBi', 30).trimEnd().split('\r\n');
-    expect(header.split('\t').slice(-3)).toEqual(['Sector eff. est., Summation (%)', 'Spatial eff. est., Summation (%)', 'Lower region est., Summation (%)']);
+    expect(header.split('\t').slice(-3)).toEqual(['Sector eff. est. [Summation] (%)', 'Spatial eff. est. [Summation] (%)', 'Lower region est. [Summation] (%)']);
     const weightedHeader = toTsv(rows, columns, 'dBi', 30, 20, 3, undefined, false, 'weighted').split('\r\n')[0];
-    expect(weightedHeader.split('\t').slice(-3)).toEqual(['Sector eff. est., Weighted (%)', 'Spatial eff. est., Weighted (%)', 'Lower region est., Weighted (%)']);
+    expect(weightedHeader.split('\t').slice(-3)).toEqual(['Sector eff. est. [Weighted] (%)', 'Spatial eff. est. [Weighted] (%)', 'Lower region est. [Weighted] (%)']);
     expect(weightedHeader.split('\t').slice(0, -3)).toEqual(header.split('\t').slice(0, -3));
     expect(first.split('\t').slice(-3)).toEqual([fixed(expectedA.sector.value!, 1), fixed(expectedA.spatial.value!, 1), fixed(expectedA.lower.value!, 3)]);
     expect(toTsv(rows, visibleColumns(DEFAULT_TABLE_GROUPS), 'dBi', 30)).not.toContain('est.');
@@ -207,7 +207,7 @@ describe('the angular-region columns in the table and the exports', () => {
     expect(beta.cells.areSector.value!).toBeLessThan(0);
     expect(cellText(beta, 'areSector')).toMatch(/^-\d+\.\d$/);
     const header = toCsv(marked, 'dBi', 30, undefined, 20, 3, 'alpha.msi', false, csvColumns(shownGroups)).split('\r\n')[0];
-    expect(header).toContain('"Sector eff. est., Summation Δ vs alpha.msi (%)"');
+    expect(header).toContain(',Sector eff. est. [Summation] Δ vs alpha.msi (%),');
   });
 
   it('shows original → tilted under a tilt simulation', () => {
@@ -227,10 +227,9 @@ describe('the angular-region columns in the table and the exports', () => {
     );
     expect(cellText(simRows[0], 'areSector')).toBe(`${fixed(expectedA.sector.value!, 1)} → ${fixed(tilted.value!, 1)}`);
     const lines = toCsv(simRows, 'dBi', 30, { ...t, azimuthDeg: 0 }, 20, 3, undefined, false, csvColumns(shownGroups)).trimEnd().split('\r\n');
-    expect(lines[0]).toContain('"Sector eff. est., Summation original (%)","Sector eff. est., Summation tilted (%)","Spatial eff. est., Summation original (%)"');
+    expect(lines[0]).toContain(',Sector eff. est. [Summation] original (%),Sector eff. est. [Summation] tilted (%),Spatial eff. est. [Summation] original (%),');
     const cells = lines[1].split(',');
-    // No header before this one has a comma, so the position of its first half is the column.
-    const at = lines[0].split(',').indexOf('"Sector eff. est.');
+    const at = lines[0].split(',').indexOf('Sector eff. est. [Summation] original (%)');
     expect(cells[at]).toBe(fixed(expectedA.sector.value!, 2));
     expect(cells[at + 1]).toBe(fixed(tilted.value!, 2));
   });

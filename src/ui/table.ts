@@ -95,7 +95,7 @@ const METHOD_NAME: Record<Method3d, string> = { summation: 'Summation', weighted
  * the angular-region estimate carries the 3D method, which changes it by several points; every other label is as given.
  */
 export function withMethod(key: MetricColumn, label: string, method: Method3d): string {
-  return COLUMN_INFO[key].group === ON_DEMAND_GROUP ? `${label}, ${METHOD_NAME[method]}` : label;
+  return COLUMN_INFO[key].group === ON_DEMAND_GROUP ? `${label} [${METHOD_NAME[method]}]` : label;
 }
 
 /** The second half of the three angular-region tooltips: what kind of number this is. */

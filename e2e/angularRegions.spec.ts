@@ -57,7 +57,7 @@ test('Angular regions (est.): off by default; switched on, three plausible perce
   await select.selectOption({ label: 'Sector eff. est. (%)' });
   const chart = page.getByTestId('plot-hpbw');
   // The axis title names the 3D method, as the CSV header does: it travels with the number into the PNG.
-  await expect(chart.locator('.ytitle')).toContainText('Sector eff. est., Summation (%)');
+  await expect(chart.locator('.ytitle')).toContainText('Sector eff. est. [Summation] (%)');
   expect(await chart.locator('.scatterlayer .trace .lines path').count()).toBeGreaterThan(0);
   await expect(page.getByRole('heading', { name: /^Sector eff\. est\. vs frequency/ })).toBeVisible();
 
@@ -90,13 +90,13 @@ test('the 3D method travels with the angular-region estimate: collapsed Simulati
   await expect(summary).toContainText('3D method: Summation');
 
   await page.getByTitle(/^Copy the table as shown \(visible columns/).click();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('Sector eff. est., Summation (%)\tSpatial eff. est., Summation (%)\tLower region est., Summation (%)');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('Sector eff. est. [Summation] (%)\tSpatial eff. est. [Summation] (%)\tLower region est. [Summation] (%)');
 
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
   const stream = await download.createReadStream();
   let csv = '';
   for await (const chunk of stream) csv += chunk.toString();
-  expect(csv.split('\r\n')[0]).toContain('"Sector eff. est., Summation (%)","Spatial eff. est., Summation (%)","Lower region est., Summation (%)"');
+  expect(csv.split('\r\n')[0]).toContain(',Sector eff. est. [Summation] (%),Spatial eff. est. [Summation] (%),Lower region est. [Summation] (%)');
 
   await toggle.uncheck();
   await expect(summary).not.toContainText('3D method');
