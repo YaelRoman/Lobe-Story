@@ -62,7 +62,7 @@ export function UndoToast() {
 export const NOTHING_TO_UNDO = 'Nothing to undo';
 
 /**
- * Ctrl/Cmd+Z outside a text field and a dialog takes back the last destructive action while its snapshot is kept
+ * Ctrl/Cmd+Z outside a text field and a dialog (the store's, the Help dialog, the Settings panel) takes back the last destructive action while its snapshot is kept
  * (also after the toast has faded), or says there is nothing to undo.
  */
 function useUndoShortcut() {
@@ -70,7 +70,8 @@ function useUndoShortcut() {
     const onKey = (e: KeyboardEvent) => {
       if (!isUndoShortcut(e)) return;
       const state = useStore.getState();
-      if (isTextEntry(e.target as HTMLElement | null) || state.dialog) return;
+      const target = e.target as HTMLElement | null;
+      if (isTextEntry(target) || state.dialog || target?.closest?.('dialog[open], [role="dialog"]')) return;
       e.preventDefault();
       if (state.undo) state.undoLast();
       else state.setCopyNote(NOTHING_TO_UNDO);

@@ -67,4 +67,27 @@ describe('Ctrl/Cmd+Z', () => {
     expect(st().files).toHaveLength(1);
     expect(st().copyNote).toBe(NOTHING_TO_UNDO);
   });
+
+  it('leaves Ctrl/Cmd+Z alone inside an open dialog or a dialog-role panel', () => {
+    const st = useStore.getState;
+    act(() => st().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => st().removeFile('a.MSI'));
+    const modal = document.createElement('dialog');
+    modal.setAttribute('open', '');
+    const inModal = document.createElement('button');
+    modal.appendChild(inModal);
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    const inPanel = document.createElement('button');
+    panel.appendChild(inPanel);
+    document.body.append(modal, panel);
+    ctrlZ(inModal);
+    ctrlZ(inPanel);
+    expect(st().files).toHaveLength(1);
+    expect(st().copyNote).toBeNull();
+    ctrlZ();
+    expect(st().files).toHaveLength(2);
+    modal.remove();
+    panel.remove();
+  });
 });
