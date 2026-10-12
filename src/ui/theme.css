@@ -121,20 +121,24 @@ h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .plot3d { height: 640px; }
 @media (max-width: 760px) { .plot3d { height: 480px; } }
-.sim-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 8px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.sim-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
 .sim-field, .sim-choice { display: inline-flex; gap: 6px; align-items: center; }
 .sim-field input[type='range'] { width: 140px; }
 .sim-field input[type='number'] { width: 70px; }
 .badge { padding: 2px 8px; border-radius: 999px; background: var(--accent-fill); color: #fff; font-size: 12px; }
-.badge-ghost { visibility: hidden; }
-/* A control with its one-line explanation under it; the line wraps inside the control's own width share. */
-.sim-explained { display: inline-flex; flex-direction: column; gap: 2px; align-items: flex-start; min-width: 0; max-width: 100%; }
-.sim-hint { max-width: 64ch; font-size: 12px; }
+/* Keeps its place without being shown: what would otherwise appear at the first step of a slider drag and push the slider along. */
+.ghost { visibility: hidden; }
+/* The lines that explain the Horizontal cut: the whole width of the bar, under the row of the control (see the phone rule for the order). */
+.sim-notes { order: 1; flex-basis: 100%; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; min-width: 0; }
+.sim-hint { font-size: 12px; }
+/* Two lines of which one shows, lying on one another: the place is as big as the bigger, whichever is shown. */
+.sim-slot { display: grid; align-items: center; max-width: 46ch; line-height: 1.25; }
+.sim-slot > * { grid-area: 1 / 1; }
 .sim-caveat { color: var(--warn); }
 .method-tag { font-weight: 400; color: var(--muted); }
 button.link { padding: 0 2px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
 .seg button:disabled { opacity: 0.5; cursor: not-allowed; }
-.sim-offsets { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; flex-basis: 100%; padding-top: 6px; border-top: 1px dashed var(--border); }
+.sim-offsets { order: 2; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; flex-basis: 100%; padding-top: 6px; border-top: 1px dashed var(--border); }
 .offset-badge { padding: 0 6px; border-radius: 999px; background: var(--accent-fill); color: #fff; font-size: 11px; }
 .menu { position: relative; }
 .menu summary { list-style: none; cursor: pointer; padding: 0 6px; border: 1px solid var(--border); border-radius: 4px; }
@@ -238,6 +242,9 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
   .fold { min-height: 32px; }
   button.link { min-height: 32px; }
   .sim-field, .sim-choice { flex-wrap: wrap; }
+  /* One column: the lines about the Horizontal cut come directly under it, before "Show original" and Reset. */
+  .sim-notes, .sim-offsets { order: 0; }
+  .sim-slot { align-items: start; }
   .sim-field input[type='range'] { width: 110px; }
   .toolbar { padding: 6px 8px; }
   .subband-row input[type='text'] { width: 120px; }

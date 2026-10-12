@@ -202,3 +202,82 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
     expect(await page.getByTestId('load-status').count()).toBe(lines);
   });
 }
+
+/** Where every control of the open bar sits, relative to the bar (the page itself may scroll). */
+const placesInBar = (page: import('@playwright/test').Page) =>
+  page.locator('.sim-bar').evaluate((bar) => {
+    const b = bar.getBoundingClientRect();
+    return Array.from(bar.querySelectorAll('input, button')).map((e) => {
+      const r = e.getBoundingClientRect();
+      return [Math.round((r.x - b.x) * 10) / 10, Math.round((r.y - b.y) * 10) / 10];
+    });
+  });
+
+test('the open bar at 1024 px is compact: Reset stays on the Horizontal cut row and no empty band is kept under the 3D method', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  await page.getByRole('button', { name: /Simulation/ }).click();
+  const methodButtons = page.getByRole('group', { name: '3D method' });
+  const cutButtons = page.getByRole('group', { name: 'Horizontal cut', exact: true });
+  const reset = page.getByRole('button', { name: 'Reset', exact: true });
+  const reason = page.getByTestId('sim-method-hint');
+  const use = page.getByTestId('sim-method-use');
+  const box = async (l: import('@playwright/test').Locator) => (await l.boundingBox())!;
+
+  // Nothing uses the method: the reason is beside the control, not a band under it.
+  await expect(reason).toBeVisible();
+  await expect(use).toBeHidden();
+  const gap = async () => (await box(cutButtons)).y - ((await box(methodButtons)).y + (await box(methodButtons)).height);
+  expect(await gap()).toBeLessThanOrEqual(16);
+  expect((await box(reason)).x).toBeGreaterThan((await box(methodButtons)).x + (await box(methodButtons)).width);
+  // Reset and "Show original" share the row of the Horizontal cut buttons; the hint line is under that row.
+  const cut = await box(cutButtons);
+  const hint = await box(page.getByTestId('sim-hcut-hint'));
+  for (const control of [reset, page.getByLabel('Show original')]) {
+    const b = await box(control);
+    expect(b.y + b.height / 2).toBeGreaterThan(cut.y);
+    expect(b.y + b.height / 2).toBeLessThan(cut.y + cut.height);
+    expect(b.x).toBeGreaterThan(cut.x + cut.width);
+  }
+  expect(hint.y).toBeGreaterThanOrEqual(cut.y + cut.height);
+  expect(hint.y - (cut.y + cut.height)).toBeLessThanOrEqual(12);
+
+  // In use (a tilt): the same place says so; nothing in the bar has moved.
+  const idle = await placesInBar(page);
+  const mech = page.getByLabel('Mechanical tilt (°) value');
+  await mech.fill('3');
+  await mech.press('Enter');
+  await expect(methodButtons.getByRole('button', { name: 'Weighted' })).toBeEnabled();
+  await expect(reason).toBeHidden();
+  await expect(use).toBeVisible();
+  await expect(use).toHaveText('In use by a tilt.');
+  expect(await gap()).toBeLessThanOrEqual(16);
+  expect(await placesInBar(page)).toEqual(idle);
+  await mech.fill('0');
+  await mech.press('Enter');
+  await expect(reason).toBeVisible();
+  expect(await placesInBar(page)).toEqual(idle);
+
+  // The first plot: no more of it below the fold than before the hint lines came (about 40 % at 1024 x 768).
+  const plot = await box(page.getByTestId('plot-h'));
+  expect((plot.y + plot.height - 768) / plot.height).toBeLessThanOrEqual(0.45);
+});
+
+test('on a phone the line under the 3D method keeps its size when a tilt puts the method to use: nothing in the bar moves', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.getByRole('button', { name: 'Files (24)' })).toBeVisible();
+  await page.getByRole('button', { name: /Simulation/ }).click();
+  await expect(page.getByTestId('sim-method-hint')).toBeVisible();
+  const idle = await placesInBar(page);
+  const mech = page.getByLabel('Mechanical tilt (°) value');
+  await mech.fill('3');
+  await mech.press('Enter');
+  await expect(page.getByTestId('sim-method-use')).toBeVisible();
+  await expect(page.getByTestId('sim-method-hint')).toBeHidden();
+  expect(await placesInBar(page)).toEqual(idle);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+});

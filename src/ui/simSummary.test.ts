@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anySimulated, exportName, H_CUT_HINT, hCutAnnouncement, offsetCountsAmong, simSummary, simulatedCaption, simulationActive, summaryMethod, WEIGHTED_HORIZON_NOTE, weightedHorizonNote } from './simSummary';
+import { anySimulated, exportName, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, offsetCountsAmong, simSummary, simulatedCaption, simulationActive, summaryMethod, WEIGHTED_HORIZON_NOTE, weightedHorizonNote } from './simSummary';
 import { exportCaptionLines, withSimulated } from './exportFigure';
 import { FEATURE_HELP, GLOSSARY } from './glossary';
 
@@ -128,5 +128,20 @@ describe('Weighted with the cut at the horizon', () => {
       expect(text).toContain('Summation is the reference');
       expect(text).toMatch(/level, not its width/);
     }
+  });
+});
+
+describe('the line beside the 3D method control', () => {
+  const none = { view3d: false, tilt: false, horizonCut: false, angularRegions: false };
+  it('gives the reason while nothing uses the method', () => {
+    expect(methodUseNote(none)).toBe(METHOD_UNUSED_NOTE);
+  });
+  it('names what uses it otherwise, so the line is never an empty place', () => {
+    expect(methodUseNote({ ...none, tilt: true })).toBe('In use by a tilt.');
+    expect(methodUseNote({ ...none, horizonCut: true, tilt: true })).toBe('In use by a tilt and the horizon cut.');
+    expect(methodUseNote({ view3d: true, tilt: true, horizonCut: true, angularRegions: true })).toBe('In use by the 3D view, a tilt, the horizon cut and the angular regions.');
+  });
+  it('is never longer than the reason: the reason sets the size of the place both share', () => {
+    expect(methodUseNote({ view3d: true, tilt: true, horizonCut: true, angularRegions: true }).length).toBeLessThan(METHOD_UNUSED_NOTE.length);
   });
 });

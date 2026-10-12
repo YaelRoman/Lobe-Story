@@ -5,7 +5,7 @@ import { anyTilted, combineOffsets, type HCutMode } from '../core/analysis/tilt'
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
+import { H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
 import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
@@ -175,7 +175,9 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
   const anyActive = tiltActive || horizonActive || sim.azimuthDeg !== 0 || fileCount > 0 || groupCount > 0;
 
   // The method matters in the 3D view, under a tilt, for a horizon cut, and for the angular-region estimate (integrated over the reconstruction).
-  const methodUsed = tiltActive || sim.hCut === 'horizon' || is3d || withAngularRegions;
+  const methodUses = { view3d: is3d, tilt: tiltActive, horizonCut: sim.hCut === 'horizon', angularRegions: withAngularRegions };
+  const methodUsed = methodUses.view3d || methodUses.tilt || methodUses.horizonCut || methodUses.angularRegions;
+  const weightedNote = weightedHorizonNote(sim.hCut, method);
 
   return (
     <div className="sim-bar" role="group" aria-label="Simulation">
@@ -196,7 +198,7 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
         </span>
       ) : (
         !collapsed && (
-          <span className="badge badge-ghost" aria-hidden="true">
+          <span className="badge ghost" aria-hidden="true">
             Simulated
           </span>
         )
@@ -210,51 +212,61 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
       {SLIDERS.map((s) => (
         <GlobalField key={s.key} k={s.key} label={s.label} />
       ))}
-      <div className="sim-explained">
-        <div className="sim-choice">
-          <span>3D method</span>
-          <Seg<Method3d>
-            label="3D method"
-            value={method}
-            options={[
-              ['summation', 'Summation'],
-              ['weighted', 'Weighted'],
-            ]}
-            onChange={(method3d) => updateView({ method3d })}
-            disabled={!methodUsed}
-          />
-        </div>
-        {/* A disabled button cannot be focused or tapped for a tooltip: the reason is written under it. Its place is
-            kept while the method is in use, so the bar does not move when a slider's first step enables the control. */}
-        <span className={methodUsed ? 'count sim-hint badge-ghost' : 'count sim-hint'} aria-hidden={methodUsed || undefined} data-testid="sim-method-hint">
-          {METHOD_UNUSED_NOTE}
+      <div className="sim-choice">
+        <span>3D method</span>
+        <Seg<Method3d>
+          label="3D method"
+          value={method}
+          options={[
+            ['summation', 'Summation'],
+            ['weighted', 'Weighted'],
+          ]}
+          onChange={(method3d) => updateView({ method3d })}
+          disabled={!methodUsed}
+        />
+        {/* A disabled button cannot be focused or tapped for a tooltip: the reason is written beside it (under it on a
+            phone). The same place says what uses the method once something does: the two lines lie on one another and
+            the reason, the longer one, sets the size, so nothing in the bar moves when a slider's first step enables
+            the control, and no empty band is kept for it. */}
+        <span className="count sim-hint sim-slot">
+          <span className={methodUsed ? 'ghost' : undefined} aria-hidden={methodUsed || undefined} data-testid="sim-method-hint">
+            {METHOD_UNUSED_NOTE}
+          </span>
+          <span className={methodUsed ? undefined : 'ghost'} aria-hidden={!methodUsed || undefined} data-testid="sim-method-use">
+            {methodUsed ? methodUseNote(methodUses) : ''}
+          </span>
         </span>
       </div>
-      <div className="sim-explained">
-        <div className="sim-choice" title={H_CUT_TITLE}>
-          <span>Horizontal cut</span>
-          <Seg<HCutMode>
-            label="Horizontal cut"
-            value={sim.hCut}
-            options={[
-              ['beam', 'Through the beam peak'],
-              ['horizon', 'At the horizon'],
-            ]}
-            describedBy={is3d ? 'sim-hcut-hint sim-hcut-3d' : 'sim-hcut-hint'}
-            onChange={(hCut) => {
-              if (hCut === sim.hCut) return;
-              updateSimulation({ hCut });
-              // The plot, a table column and most horizontal cells change at once: say so in the status region (read out, not shown: a toast would cover the bar).
-              announce(hCutAnnouncement(hCut));
-            }}
-          />
-          {/* A real button, so the explanation is one Tab or one tap away (a tooltip on the box reaches neither). */}
+      <div className="sim-choice" title={H_CUT_TITLE}>
+        <span>Horizontal cut</span>
+        <Seg<HCutMode>
+          label="Horizontal cut"
+          value={sim.hCut}
+          options={[
+            ['beam', 'Through the beam peak'],
+            ['horizon', 'At the horizon'],
+          ]}
+          describedBy={is3d ? 'sim-hcut-hint sim-hcut-3d' : 'sim-hcut-hint'}
+          onChange={(hCut) => {
+            if (hCut === sim.hCut) return;
+            updateSimulation({ hCut });
+            // The plot, a table column and most horizontal cells change at once: say so in the status region (read out, not shown: a toast would cover the bar).
+            announce(hCutAnnouncement(hCut));
+          }}
+        />
+      </div>
+      {/* The lines about the Horizontal cut take the bar's whole width under its row (directly under the control on a
+          phone): beside the buttons they made the row so wide that Reset went to a row of its own at 1024 px. */}
+      <div className="sim-notes">
+        <span className="count sim-hint">
+          <span id="sim-hcut-hint" data-testid="sim-hcut-hint">
+            {H_CUT_HINT}
+          </span>{' '}
+          {/* A real button, so the explanation is one Tab or one tap away (a tooltip on the box reaches neither). It ends
+              the line it explains and follows the control in the Tab order. */}
           <button type="button" className="link" aria-haspopup="dialog" onClick={(e) => onHelp(e, 'Horizon cut')}>
             What is this?
           </button>
-        </div>
-        <span id="sim-hcut-hint" className="count sim-hint" data-testid="sim-hcut-hint">
-          {H_CUT_HINT}
         </span>
         {/* The control stays usable in 3D (the table and the charts below follow it): the line says what it does not change. */}
         {is3d && (
@@ -263,9 +275,9 @@ export function SimulationBar({ is3d, onHelp }: { is3d: boolean; onHelp: OpenHel
           </span>
         )}
         {/* Not blocked, but said where the two are chosen: the Weighted rule reshapes this cut. */}
-        {weightedHorizonNote(sim.hCut, method) && (
+        {weightedNote && (
           <span className="sim-hint sim-caveat" role="note" data-testid="sim-weighted-note">
-            {weightedHorizonNote(sim.hCut, method)}
+            {weightedNote}
           </span>
         )}
       </div>

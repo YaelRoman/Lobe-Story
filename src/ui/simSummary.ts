@@ -26,8 +26,26 @@ const H_CUT_WHERE: Record<HCutMode, string> = { beam: 'through the beam peak', h
 /** The choice of the simulated horizontal cut in words, as captions and notes name it. */
 export const hCutLabel = (hCut: HCutMode): string => `horizontal cut ${H_CUT_WHERE[hCut]}`;
 
-/** Under the 3D method control while it is disabled: what would enable it. */
+/** Beside the 3D method control while it is disabled: what would enable it. */
 export const METHOD_UNUSED_NOTE = 'Used by the 3D view, a tilt, the horizon cut and the angular regions; none of them is on.';
+
+/** What can put the 3D method to use. */
+export interface MethodUses {
+  view3d: boolean;
+  tilt: boolean;
+  horizonCut: boolean;
+  angularRegions: boolean;
+}
+
+/**
+ * The line beside the 3D method control: the reason it is off, or what uses it now. One of the two is always true, so
+ * the place it takes never has to come or go (which would move the bar under a slider that is being dragged).
+ */
+export function methodUseNote(u: MethodUses): string {
+  const by = [u.view3d ? 'the 3D view' : '', u.tilt ? 'a tilt' : '', u.horizonCut ? 'the horizon cut' : '', u.angularRegions ? 'the angular regions' : ''].filter(Boolean);
+  if (by.length === 0) return METHOD_UNUSED_NOTE;
+  return `In use by ${by.length === 1 ? by[0] : `${by.slice(0, -1).join(', ')} and ${by[by.length - 1]}`}.`;
+}
 
 /** The line under the Horizontal cut control: what each choice shows. */
 export const H_CUT_HINT =
