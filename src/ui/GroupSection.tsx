@@ -114,21 +114,23 @@ export const GroupSection = memo(function GroupSection({
         >
           <span aria-hidden="true">{isFolded ? '▸' : '▾'}</span>
         </button>
-        <input
-          type="checkbox"
-          aria-label={groupToggleLabel(g.label, ids.length, filtering)}
-          data-focus-target={custom ? undefined : true}
-          // A group made from tags has no name button: its checkbox is the header's list entry.
-          data-nav={custom ? undefined : true}
-          tabIndex={custom ? subTab : stop === groupFocusKey ? 0 : -1}
-          checked={ids.length > 0 && ids.every((id) => visible[id])}
-          // Partly ticked: the box shows a dash instead of looking unticked.
-          ref={(el) => {
-            if (el) el.indeterminate = ids.some((id) => visible[id]) && !ids.every((id) => visible[id]);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => setVisible(ids, e.target.checked)}
-        />
+        <label className="hit" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            aria-label={groupToggleLabel(g.label, ids.length, filtering)}
+            data-focus-target={custom ? undefined : true}
+            // A group made from tags has no name button: its checkbox is the header's list entry.
+            data-nav={custom ? undefined : true}
+            tabIndex={custom ? subTab : stop === groupFocusKey ? 0 : -1}
+            checked={ids.length > 0 && ids.every((id) => visible[id])}
+            // Partly ticked: the box shows a dash instead of looking unticked.
+            ref={(el) => {
+              if (el) el.indeterminate = ids.some((id) => visible[id]) && !ids.every((id) => visible[id]);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setVisible(ids, e.target.checked)}
+          />
+        </label>
         {custom && renaming === `group:${custom}` ? (
           <NameEditor
             initial={g.label}

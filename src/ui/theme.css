@@ -178,7 +178,16 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 .sim-body, .marker-options { display: contents; }
 .sim-body[hidden], .marker-options[hidden] { display: none; }
 .files-toggle { display: none; }
+/* A bare checkbox in a row: its label is the tap target on a phone (32 px, see below), plain on a desktop. */
+.hit { display: inline-flex; align-items: center; justify-content: center; }
 @media (max-width: 760px) {
+  /* Touch targets of at least 32 x 32 px: padding on labels and buttons, the boxes themselves keep their size. */
+  .hit { min-width: 32px; min-height: 32px; }
+  .controls label, .sim-bar label, .delta-toggle, .metrics label { min-height: 32px; }
+  .load-message button { min-width: 32px; min-height: 32px; }
+  .sort-btn { min-height: 32px; }
+  /* The library's own rules are as specific as a short selector: this one is longer so it wins. */
+  .js-plotly-plot .plotly .modebar .modebar-group .modebar-btn { box-sizing: border-box; min-width: 32px; height: 32px; padding: 6px 8px; }
   /* The file panel is a drawer above the plots; main keeps the rest of the screen. */
   .files-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 40px; border-radius: 0; border-width: 0 0 1px; padding: 6px 12px; background: var(--panel); font-weight: 600; }
   .panel { display: none; }

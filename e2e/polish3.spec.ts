@@ -54,3 +54,38 @@ test('the trace note says "dashed = original" only while a simulation draws orig
   await page.getByRole('menuitem', { name: 'Use as reference' }).click();
   await expect(note).toContainText('The thick dashed line in the text colour is the reference');
 });
+
+test.describe('phone hit areas', () => {
+  test.use({ hasTouch: true });
+
+  test('every control a finger has to hit is at least 32 x 32 px at 390 px wide', async ({ page }) => {
+    await loadExample(page, 390, 844);
+    await page.getByRole('button', { name: /^Files \(/ }).click();
+    await expect(page.locator('.panel')).toBeVisible();
+    // The area a tap on `locator` reaches: the control itself, or its label when it has one.
+    const hit = (selector: string) =>
+      page.locator(selector).first().evaluate((el) => {
+        const r = (el.closest('label') ?? el).getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height) };
+      });
+    const targets: Record<string, string> = {
+      'file checkbox': '.group li input[type="checkbox"]',
+      'group Show all checkbox': '.group header input[type="checkbox"]',
+      'Dismiss message': 'button[aria-label="Dismiss message"]',
+      'column group checkbox': 'input[aria-label="Show Beam columns"]',
+      'Δ vs reference': '.delta-toggle input',
+      'Ticked files only': '.delta-toggle:nth-of-type(2) input',
+      'table header sort button': '.metrics .sort-btn',
+      'chart toolbar button': '[data-testid="plot-h"] .modebar-btn',
+    };
+    const small: string[] = [];
+    for (const [name, selector] of Object.entries(targets)) {
+      await page.locator(selector).first().waitFor({ state: 'attached' });
+      const { w, h } = await hit(selector);
+      if (w < 32 || h < 32) small.push(`${name}: ${w}x${h}`);
+    }
+    expect(small).toEqual([]);
+    // Nothing spills sideways.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+});

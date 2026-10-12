@@ -95,14 +95,17 @@ export const FileRow = memo(function FileRow({
       onFocus={(e) => focusPreviews(e.target) && setHoverId(id)}
       onBlur={() => setHoverId(null)}
     >
-      <input
-        type="checkbox"
-        aria-label={`Show ${name}`}
-        tabIndex={subTab}
-        checked={shown}
-        onClick={(e) => e.stopPropagation()}
-        onChange={() => toggleVisible(id)}
-      />
+      {/* The label is the tap target on a phone (see .hit); the row's own click (highlight) must not fire for it. */}
+      <label className="hit" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          aria-label={`Show ${name}`}
+          tabIndex={subTab}
+          checked={shown}
+          onClick={(e) => e.stopPropagation()}
+          onChange={() => toggleVisible(id)}
+        />
+      </label>
       {renaming ? (
         <>
           <span className="swatch" style={{ background: swatch }} />
