@@ -173,3 +173,20 @@ test('with the built-in example the plots and the table still follow a slider wh
   await page.mouse.up();
   expect(await sawWaiting(page)).toBe(false);
 });
+
+test('a right click on a slider grips nothing: a value typed after it is followed at once, with no waiting line', async ({ page }) => {
+  await loadMany(page, 48);
+  const slider = page.getByRole('slider', { name: MECHANICAL, exact: true });
+  const box = (await slider.boundingBox())!;
+  await watchWaiting(page);
+  // A context menu takes the release of the button that opened it: the page sees a pointer go down and never come up.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down({ button: 'right' });
+  const typed = page.getByLabel(`${MECHANICAL} value`, { exact: true });
+  await typed.fill('5');
+  await typed.press('Enter');
+  await settled(page);
+  await expect(page.locator('p.count', { hasText: 'Simulated:' })).toContainText('mech +5°');
+  expect(await sawWaiting(page)).toBe(false);
+  await page.mouse.up({ button: 'right' });
+});

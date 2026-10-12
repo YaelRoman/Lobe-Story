@@ -4,7 +4,7 @@ import { createElement, useMemo } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useSettledSimulation, useSimulation, type SimulationResult } from './useSimulation';
-import { gripSlider } from './sliderHold';
+import { gripByPointer } from './sliderHold';
 import { initialState, useStore } from '../state/store';
 import { analyzeAll, DEFAULT_SETTINGS, type TaggedPattern } from '../core/analysis/metrics';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
@@ -136,7 +136,9 @@ describe('a slider dragged where the page does not follow it (many files)', () =
     return { latest: () => latest, flags: () => flags, passes: () => passes.size, unmount: () => act(() => root.unmount()) };
   }
   const step = (mechanicalDeg: number) => act(() => useStore.getState().updateSimulation({ mechanicalDeg }));
-  const release = () => act(() => void window.dispatchEvent(new Event('pointerup')));
+  /** The primary button goes down on a slider, and is let go. */
+  const gripSlider = () => gripByPointer({ pointerId: 1, button: 0, isPrimary: true });
+  const release = () => act(() => void window.dispatchEvent(Object.assign(new Event('pointerup'), { pointerId: 1 })));
   /** What is shown for a mechanical tilt set in one step, on a page that follows. */
   function direct(mechanicalDeg: number) {
     useStore.setState(initialState());

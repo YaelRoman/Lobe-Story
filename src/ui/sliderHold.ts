@@ -3,30 +3,88 @@ import { createStore } from 'zustand/vanilla';
 
 /**
  * Whether a simulation slider is gripped: a pointer or a key that moves it is down on it. A tiny store of its own
- * (as the hover preview's): nothing of it is saved or undone.
+ * (as the hover preview's): nothing of it is saved or undone. `pointer` is the id of the pointer that pressed it.
  */
-const gripStore = createStore<{ gripped: boolean }>(() => ({ gripped: false }));
+const gripStore = createStore<{ pointer: number | null; key: boolean }>(() => ({ pointer: null, key: false }));
 
-const ENDS = ['pointerup', 'pointercancel', 'keyup', 'blur'] as const;
+const gripped = (): boolean => gripStore.getState().pointer !== null || gripStore.getState().key;
 
-function letGo(event: Event): void {
-  // The window's own blur only: an element's (the press on a slider takes the focus from another field) passes here too.
-  if (event.type === 'blur' && event.target instanceof Node) return;
-  for (const end of ENDS) window.removeEventListener(end, letGo, true);
-  gripStore.setState({ gripped: false });
+/** What can end a grip; listened for on the window (the pointer may leave the slider while it drags) while one is on. */
+const WATCHED = ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerdown', 'pointermove', 'contextmenu', 'keyup', 'blur', 'visibilitychange'] as const;
+let watching = false;
+
+function watch(on: boolean): void {
+  if (on === watching) return;
+  watching = on;
+  for (const type of WATCHED) {
+    if (on) window.addEventListener(type, onWatched, true);
+    else window.removeEventListener(type, onWatched, true);
+  }
+}
+
+function setGrip(next: Partial<{ pointer: number | null; key: boolean }>): void {
+  gripStore.setState(next);
+  watch(gripped());
 }
 
 /**
- * A pointer or a key went down on a slider: it is gripped until the next pointer or key up anywhere (the pointer may
- * leave the slider while it drags), a cancelled pointer, or the window losing the focus (the up then never comes).
+ * A grip never outlives what holds it. The pointer's: its up or cancel, its capture lost, and the signs that an up
+ * was missed (a context menu swallows it; so does a release outside the window, after which the pointer comes back
+ * moving with no button down, or is pressed again). The key's: its key up.
+ * Both: the window losing the focus, the page being hidden.
  */
-export function gripSlider(): void {
-  if (gripStore.getState().gripped) return;
-  for (const end of ENDS) window.addEventListener(end, letGo, true);
-  gripStore.setState({ gripped: true });
+function onWatched(event: Event): void {
+  const { pointer } = gripStore.getState();
+  const own = pointer !== null && (event as PointerEvent).pointerId === pointer;
+  switch (event.type) {
+    case 'pointerup':
+    case 'pointercancel':
+    case 'lostpointercapture':
+    case 'pointerdown':
+      if (own) setGrip({ pointer: null });
+      break;
+    case 'pointermove':
+      if (own && (event as PointerEvent).buttons === 0) setGrip({ pointer: null });
+      break;
+    case 'contextmenu':
+      setGrip({ pointer: null });
+      break;
+    case 'keyup':
+      setGrip({ key: false });
+      break;
+    case 'blur':
+      // The window's own blur only: an element's (the press on a slider takes the focus from another field) passes here too.
+      if (event.target instanceof Node) break;
+      setGrip({ pointer: null, key: false });
+      break;
+    case 'visibilitychange':
+      setGrip({ pointer: null, key: false });
+      break;
+  }
 }
 
-export const sliderGripped = (): boolean => gripStore.getState().gripped;
+/** The parts of a pointer event a grip goes by. */
+export interface PressLike {
+  pointerId: number;
+  button: number;
+  isPrimary: boolean;
+}
+
+/**
+ * A pointer went down on a slider: its primary button grips it (the first finger, the left mouse button; any other
+ * button moves no slider, and the release after a context menu is not reported).
+ */
+export function gripByPointer(press: PressLike): void {
+  if (press.button !== 0 || !press.isPrimary) return;
+  setGrip({ pointer: press.pointerId });
+}
+
+/** A key that moves a slider went down on it (see `gripKey`); held down it repeats, as a drag does. */
+export function gripByKey(): void {
+  setGrip({ key: true });
+}
+
+export const sliderGripped = gripped;
 
 const GRIP_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
 
@@ -35,7 +93,7 @@ export const gripKey = (key: string): boolean => GRIP_KEYS.has(key);
 
 /** Whether a slider is gripped while `counts` is set; never re-renders the caller while it is not. */
 export function useSliderGripped(counts: boolean): boolean {
-  return useSyncExternalStore(gripStore.subscribe, () => counts && gripStore.getState().gripped);
+  return useSyncExternalStore(gripStore.subscribe, () => counts && gripped());
 }
 
 /**
