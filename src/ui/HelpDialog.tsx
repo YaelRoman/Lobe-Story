@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { trapTab } from './trapTab';
 import { FEATURE_HELP, GLOSSARY, METRICS_DOC_URL, PANEL_HELP, README_URL } from './glossary';
 
 /** What a Help button hands over when clicked: its click event (the dialog gives the focus back to `currentTarget`). */
@@ -39,6 +40,7 @@ export function HelpDialog({ onClose, opener }: { onClose: () => void; opener: H
       className="help"
       tabIndex={-1}
       aria-labelledby="help-title"
+      onKeyDown={trapTab}
       onClick={(e) => {
         // Only a click outside the dialog's box is a backdrop click: one in its padding, or the end of a text selection, is not.
         const r = e.currentTarget.getBoundingClientRect();

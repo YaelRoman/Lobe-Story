@@ -1,27 +1,7 @@
-import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore, type DialogState } from '../state/store';
 import { cancelDialog, settleDialog, validateDialogInput } from './dialogs';
-
-const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
-
-/** Keeps Tab and Shift+Tab inside the dialog. */
-function trapTab(e: ReactKeyboardEvent<HTMLElement>): void {
-  if (e.key !== 'Tab') return;
-  const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE));
-  if (items.length === 0) return;
-  const first = items[0];
-  const last = items[items.length - 1];
-  const at = document.activeElement;
-  // The dialog container itself (focused by a click on its text) is not one of the items: it wraps too.
-  const outside = at === e.currentTarget || !e.currentTarget.contains(at);
-  if (e.shiftKey && (at === first || outside)) {
-    e.preventDefault();
-    last.focus();
-  } else if (!e.shiftKey && (at === last || outside)) {
-    e.preventDefault();
-    first.focus();
-  }
-}
+import { trapTab } from './trapTab';
 
 function DialogBody({ dialog }: { dialog: NonNullable<DialogState> }) {
   const [text, setText] = useState(dialog.kind === 'prompt' ? dialog.initial : '');

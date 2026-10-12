@@ -3,6 +3,7 @@ import { useStore } from '../state/store';
 import { DEFAULT_SETTINGS, type AnalysisSettings } from '../core/analysis/metrics';
 import { resetPrefs } from '../state/prefs';
 import { confirmDialog } from './dialogs';
+import { trapTab } from './trapTab';
 import { clampFloor, clampSetting, FLOOR_LIMITS, SETTING_LIMITS } from '../core/analysis/settingLimits';
 
 const DEFAULT_FLOOR_DB = 40;
@@ -151,6 +152,8 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
       ref={ref}
       onKeyDown={(e) => {
         if (e.key === 'Escape' && !useStore.getState().dialog) onClose(true);
+        // Tab stays inside while the panel is open (as in the dialogs); Esc or a click elsewhere closes it.
+        else trapTab(e);
       }}
       onBlur={(e) => {
         // Tab (or a programmatic move) to something outside the panel and its button closes it.

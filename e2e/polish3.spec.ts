@@ -89,3 +89,51 @@ test.describe('phone hit areas', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 });
+
+test('Settings keeps Tab inside while open and Esc gives the focus back to the Settings button', async ({ page }) => {
+  await loadExample(page);
+  const button = page.getByRole('button', { name: 'Settings', exact: true });
+  await button.focus();
+  await page.keyboard.press('Enter');
+  const panel = page.getByRole('dialog', { name: 'Analysis settings' });
+  await expect(panel).toBeVisible();
+  const where = () => page.evaluate(() => (document.activeElement?.closest('.settings') ? 'panel' : document.activeElement?.tagName ?? 'none'));
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.press('Tab');
+    expect(await where(), `Tab ${i + 1}`).toBe('panel');
+  }
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.press('Shift+Tab');
+    expect(await where(), `Shift+Tab ${i + 1}`).toBe('panel');
+  }
+  await expect(panel).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+  await expect(button).toBeFocused();
+});
+
+test('Help: Tab wraps from Close to the first control and Shift+Tab back, never resting on the page body', async ({ page }) => {
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Help', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  const help = page.locator('dialog.help');
+  await expect(help).toBeVisible();
+  const at = () => page.evaluate(() => {
+    const a = document.activeElement;
+    return a === document.body ? 'body' : a?.closest('dialog.help') ? (a.textContent ?? '').trim().slice(0, 30) || a.tagName : 'outside';
+  });
+  const seen: string[] = [];
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press('Tab');
+    seen.push(await at());
+  }
+  expect(seen).not.toContain('body');
+  expect(seen).not.toContain('outside');
+  // The links are first, Close last; one more Tab from Close goes to the first control.
+  const close = help.getByRole('button', { name: 'Close' });
+  await close.focus();
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement?.closest('dialog.help') !== null && document.activeElement?.tagName === 'A')).toBe(true);
+  await page.keyboard.press('Shift+Tab');
+  await expect(close).toBeFocused();
+});
