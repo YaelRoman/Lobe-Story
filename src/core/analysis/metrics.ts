@@ -128,14 +128,21 @@ function areOf(
   remember: boolean,
   model: AnalyzeOptions['areModel'],
 ): AngularRegionEfficiency {
-  const compute = () => model?.(pattern, grids, edgeDeg, method) ?? angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
-  if (!remember) return compute();
-  // With a model the same pattern object can have another answer than its two cuts give, so the two are kept apart.
-  const key = `${method}|${edgeDeg}|${model ? 'model' : 'cuts'}`;
+  if (!remember) return model?.(pattern, grids, edgeDeg, method) ?? angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  // The memo is keyed on what answered: a pattern the model answers for (a mechanically tilted copy) has another value
+  // than its two cuts give, but one the model passes on (an untilted file in a tilted list) is the same as in the
+  // untilted pass and shares its entry.
+  const base = `${method}|${edgeDeg}`;
   const hit = areCache.get(pattern);
-  if (hit && hit.key === key) return hit.value;
-  const value = compute();
-  areCache.set(pattern, { key, value });
+  if (model && hit?.key === `${base}|model`) return hit.value;
+  const answered = model?.(pattern, grids, edgeDeg, method);
+  if (answered) {
+    areCache.set(pattern, { key: `${base}|model`, value: answered });
+    return answered;
+  }
+  if (hit?.key === `${base}|cuts`) return hit.value;
+  const value = angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  areCache.set(pattern, { key: `${base}|cuts`, value });
   return value;
 }
 

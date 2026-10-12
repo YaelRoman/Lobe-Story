@@ -173,4 +173,16 @@ describe('the angular-region estimate under a mechanical tilt', () => {
     analyzeTilted(tilted, { ...DEFAULT_SETTINGS, sectorEdgeDeg: 45 }, tiltFor, 'summation');
     expect(sphereTablesBuilt() - before).toBe(24);
   });
+
+  it('computes an untilted file\'s estimate once across passes that also contain a mechanically tilted file', () => {
+    const [a, b] = [example(0), { ...example(0), id: 'tilted.msi' }];
+    const items: TaggedPattern[] = [{ pattern: a, tags: {} }, { pattern: b, tags: {} }];
+    const tiltFor = (id: string): TiltSettings => (id === 'tilted.msi' ? { electricalDeg: 0, mechanicalDeg: 4 } : { electricalDeg: 0, mechanicalDeg: 0 });
+    const tilted = tiltEach(items, tiltFor, 'summation');
+    const first = analyzeAll(items, DEFAULT_SETTINGS, { areMethod: 'summation' }).get(a.id)!.are;
+    const second = analyzeTilted(tilted, DEFAULT_SETTINGS, tiltFor, 'summation').get(a.id)!.are;
+    const third = analyzeAll(items, DEFAULT_SETTINGS, { areMethod: 'summation' }).get(a.id)!.are;
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+  });
 });
