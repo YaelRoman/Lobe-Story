@@ -279,7 +279,7 @@ function baseTitle(key: TableColumn, settings: TitleSettings): string | undefine
     case 'areSpatial':
       return `Spatial efficiency (after BASTA 7.2.4): power in the service region (within ±${e}° of boresight) as a share of the power in the service and interference regions together (all azimuths, from one V-HPBW above the beam peak, at most the horizon, down to 75° below the horizon). ${areNote(method)}`;
     case HORIZON_LEVEL_KEY:
-      return 'Horizon level: how far the strongest point of the horizon cut is below the strongest point of the whole pattern (the 3D peak), in dB. 0 dB means the beam peak is on the horizon; 10 dB means a tenth of the peak power reaches it, 20 dB a hundredth. When the level is large the horizon runs through a sidelobe or a null, and H-HPBW, H-BW 10 dB and Squint on this row describe that region, not the main beam. Subtract it from F/B, H-SLS or Roll-off to get the value against the cut itself.';
+      return 'Horizon level: how far the strongest point of the horizon cut is below the strongest point of the whole pattern (the 3D peak), in dB. When the level is large the horizon runs through a sidelobe or a null, and H-HPBW, H-BW 10 dB and Squint on this row describe that region, not the main beam.';
     case 'areLower':
       return `Lower region ratio (after BASTA 7.2.4): power from 75° below the horizon to straight down, all azimuths, as a share of the power over the whole sphere. ${areNote(method)}`;
     default:

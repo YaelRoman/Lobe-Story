@@ -18,6 +18,7 @@ import { analyzeTilted, effectiveFor, isTilted, tiltEach, type HCutMode, type Si
 import { bandTable } from '../core/analysis/bandParams';
 import { groupPatterns } from '../state/selectors';
 import { bandItems } from '../test/bandFixture';
+import { HORIZON_LEVEL_KEY } from '../state/metricKeys';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../test/synthetic';
 
 beforeEach(() => useStore.setState(initialState()));
@@ -465,5 +466,15 @@ describe('column tooltips say which peak a level is below while the cut is the o
     for (const key of ['vHpbw', 'vBw10', 'tilt', 'usls', 'uslsHorizon', 'nullFill', 'spr', 'air', 'du16', 'dV', 'areSector'] as const) {
       expect(at(key), key).toBe(columnTitle(key, settings));
     }
+  });
+});
+
+describe('the Horizon level tooltip', () => {
+  it('is the definition and the warning about the widths, in two sentences', () => {
+    const tip = columnTitle(HORIZON_LEVEL_KEY, { sectorEdgeDeg: 60, siteSectors: 3, horizonCut: true })!;
+    expect(tip.split(/(?<=\.) /)).toHaveLength(2); // sentences, not the "H-HPBW, H-BW" commas
+    expect(tip).toContain('(the 3D peak), in dB');
+    expect(tip).toMatch(/sidelobe or a null.*H-HPBW.*Squint.*not the main beam/);
+    expect(tip).not.toContain('a tenth');
   });
 });
