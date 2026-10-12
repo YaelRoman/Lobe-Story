@@ -7,7 +7,7 @@ import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { buildHpbwFigure, hpbwCaption, type HpbwSeries } from './hpbwFigure';
 import { buildMetricFigure, coincidingNote, metricCaption, noValueNote, noValues, plottedFileIds, type LineSignature, type MetricSeries } from './metricFigure';
-import { chartColumns, chartFitsData, columnLabel, COLUMN_GROUPS, followsHCut, HORIZON_LEVEL_COLUMN, METRIC_COLUMNS, metricValue, shownChartMetric, withMethod, type ColumnSpec, type TableColumn } from './table';
+import { chartColumns, chartFileBase, chartFitsData, columnLabel, COLUMN_GROUPS, followsHCut, HORIZON_LEVEL_COLUMN, METRIC_COLUMNS, metricValue, shownChartMetric, withMethod, type ColumnSpec, type TableColumn } from './table';
 import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
 import { groupLook, PER_FILE_COLOURS } from './colors';
@@ -191,7 +191,7 @@ export const HpbwChart = memo(function HpbwChart({
               : `${plotLabel} (${column.unit}) against frequency, one line per group`
           }
           caption={exportCaption}
-          filename={exportName(both ? 'beamwidth-vs-frequency' : `${metric}-vs-frequency`, exportSimulated)}
+          filename={exportName(chartFileBase(metric), exportSimulated)}
           onPointClick={pickFile}
         />
       </PlotBoundary>

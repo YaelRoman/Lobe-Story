@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildRows, cellText, chartFitsData, columnGroupTitle, columnLabel, columnTitle, COLUMN_GROUPS, csvColumns, markReference, METRIC_COLUMNS, needsAngularRegions,
+  buildRows, cellText, chartFileBase, chartFitsData, columnGroupTitle, columnLabel, columnTitle, COLUMN_GROUPS, csvColumns, markReference, METRIC_COLUMNS, needsAngularRegions,
   methodTag, rowCell, toCsv, toTsv, visibleColumns, withMethod,
 } from './table';
 import { METHOD_UNUSED_NOTE } from './simSummary';
@@ -291,5 +291,25 @@ describe('the 3D method next to the estimates on screen', () => {
 
   it('the bar says why the 3D method cannot be chosen while nothing uses it', () => {
     expect(METHOD_UNUSED_NOTE).toBe('Used by the 3D view, a tilt, the horizon cut and the angular regions; none of them is on.');
+  });
+});
+
+describe('file names of the frequency chart image', () => {
+  it('are readable words, not internal column keys', () => {
+    expect(chartFileBase('areSector')).toBe('sector-efficiency-est-vs-frequency');
+    expect(chartFileBase('areSpatial')).toBe('spatial-efficiency-est-vs-frequency');
+    expect(chartFileBase('areLower')).toBe('lower-region-est-vs-frequency');
+    expect(chartFileBase('hLevel')).toBe('horizon-level-vs-frequency');
+    expect(chartFileBase('fb180')).toBe('front-to-back-180-vs-frequency');
+    // The beamwidth chart (both beamwidths) keeps its name.
+    expect(chartFileBase('hHpbw')).toBe('beamwidth-vs-frequency');
+  });
+
+  it('every column has one, lower-case words joined by hyphens, each different', () => {
+    const names = [...METRIC_COLUMNS.map((c) => c.key), 'hLevel' as const].map(chartFileBase);
+    for (const n of names) expect(n).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*-vs-frequency$/);
+    expect(new Set(names).size).toBe(names.length);
+    // No camel-case key shows through.
+    for (const c of METRIC_COLUMNS) if (/[A-Z]/.test(c.key)) expect(chartFileBase(c.key)).not.toContain(c.key);
   });
 });

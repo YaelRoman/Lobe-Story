@@ -122,6 +122,45 @@ const NO_HORIZON_LEVEL: MetricResult = { value: null, reason: 'Only a simulated 
 /** The Horizon level of a file's metrics: a value for a simulated horizon cut, missing (with the reason) for anything else. */
 const horizonLevelOf = (m: PatternMetrics | undefined): MetricResult => (m?.hCutPeakDb === undefined ? NO_HORIZON_LEVEL : { value: m.hCutPeakDb });
 
+/** The words a column has in the name of its frequency chart image (a file name: no settings-dependent numbers, no symbols). */
+const CHART_SLUG: Record<TableColumn, string> = {
+  hHpbw: 'beamwidth',
+  vHpbw: 'vertical-beamwidth',
+  hBw10: 'horizontal-beamwidth-10-db',
+  vBw10: 'vertical-beamwidth-10-db',
+  squint: 'squint',
+  hPeak: 'peak-azimuth',
+  tilt: 'tilt',
+  vPeak: 'peak-tilt',
+  tiltError: 'tilt-error',
+  fb180: 'front-to-back-180',
+  fbWindow: 'front-to-back-window',
+  firstUsls: 'first-upper-sidelobe',
+  usls: 'upper-sidelobe-from-peak',
+  uslsHorizon: 'upper-sidelobe-from-horizon',
+  uslsMax: 'upper-sidelobe-max',
+  nullFill: 'null-fill',
+  firstLsls: 'first-lower-sidelobe',
+  hSls: 'horizontal-sidelobe',
+  tracking: 'port-to-port-tracking',
+  spr: 'sector-power-ratio',
+  air: 'azimuth-interference-ratio',
+  rollOff: 'roll-off',
+  du16: 'du-aperture-16qam',
+  du64: 'du-aperture-64qam',
+  du256: 'du-aperture-256qam',
+  dH: 'horizontal-beamwidth-minus-declared',
+  dV: 'vertical-beamwidth-minus-declared',
+  dFb: 'front-to-back-minus-declared',
+  areSector: 'sector-efficiency-est',
+  areSpatial: 'spatial-efficiency-est',
+  areLower: 'lower-region-est',
+  [HORIZON_LEVEL_KEY]: 'horizon-level',
+};
+
+/** The name of a column's frequency chart image, without "-simulated" and the extension: "sector-efficiency-est-vs-frequency". */
+export const chartFileBase = (key: TableColumn): string => `${CHART_SLUG[key]}-vs-frequency`;
+
 /** One column's value of a file's metrics (what the frequency chart plots). */
 export const metricValue = (m: PatternMetrics, key: TableColumn): MetricResult => (key === HORIZON_LEVEL_KEY ? horizonLevelOf(m) : cellsOf(m)[key]);
 

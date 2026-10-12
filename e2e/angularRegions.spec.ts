@@ -204,3 +204,25 @@ test('the 3D method is named where it matters: a labelled control with the reaso
   await expect(sector).toHaveAttribute('aria-sort', 'ascending');
   await method.getByRole('button', { name: 'Summation' }).click();
 });
+
+test('the frequency chart image is named after the metric in words', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  const chart = page.getByTestId('plot-hpbw');
+  const download = async () => {
+    const pending = page.waitForEvent('download');
+    await chart.getByRole('button', { name: 'Download plot as a png (with legend and values)' }).click();
+    return (await pending).suggestedFilename();
+  };
+  const select = page.getByLabel('Metric', { exact: true });
+  await select.selectOption({ label: 'Sector eff. est. (%)' });
+  await expect(chart.locator('.ytitle')).toContainText('Sector eff. est.');
+  expect(await download()).toBe('sector-efficiency-est-vs-frequency.png');
+  await page.getByRole('button', { name: /Simulation/ }).click();
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  await select.selectOption({ label: 'Horizon level (dB)' });
+  await expect(chart.locator('.ytitle')).toContainText('Horizon level');
+  await expect(async () => expect(await download()).toBe('horizon-level-vs-frequency-simulated.png')).toPass();
+});
