@@ -30,7 +30,9 @@ export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
     try {
       if (input.files) await openSelection(await inputsFromFileList(input.files));
     } catch {
-      setLoadMessage('Could not read the selected files');
+      // One file: its name is the news. (A file that cannot be parsed is not this: it is listed with its reason.)
+      const names = Array.from(input.files ?? [], (f) => f.name);
+      setLoadMessage(names.length === 1 ? `Could not read ${names[0]}` : 'Could not read the selected files');
     } finally {
       input.value = '';
     }

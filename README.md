@@ -3,6 +3,12 @@
 A browser-based viewer and analyser for antenna radiation patterns in Planet format
 (`.msi`, `.pln`, `.txt`). Files are read in your browser and never uploaded.
 
+A pattern file under another extension, or none, is taken by its content when it is a valid
+pattern (the file dialog lists the three extensions; choose "All files" there, or drop the file).
+Lines may end in CR LF, LF or CR alone. A file that cannot be loaded is listed with its cause
+(empty, UTF-16 text, decimal commas, a block and line number), and the list can be dismissed in
+one go.
+
 ## Features
 
 - Polar and rectangular plots of the horizontal and vertical cuts, with overlays.

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeText } from './decode';
 import { isPatternFile, type FileInput } from './files';
-import { COPY_NOTE_MS, initialState, useStore, clampSim } from './store';
+import { COPY_NOTE_MS, initialState, NO_PATTERN_FILES, useStore, clampSim } from './store';
 import { groupPatterns, selectErrors, selectTagged, selectWarnings, selectInstances, buildPanelGroups, instanceIds, instanceName, warningsFor } from './selectors';
 import { changesSession, clearNeedsConfirm, clearQuestion, isDirty, markOf, stableStringify, takeSnapshot } from './undo';
 import { openedMessage, parseProject, savedCounts, savedMessage, serializeProject } from './project';
@@ -49,13 +49,42 @@ describe('store', () => {
   it('skips Zone.Identifier and non-pattern files, and reports the load boundary message', () => {
     useStore.getState().addFiles([input('a.MSI:Zone.Identifier', '[ZoneTransfer]'), input('readme.docx', 'x')]);
     expect(useStore.getState().files).toEqual([]);
-    expect(useStore.getState().loadMessage).toBe('No .msi/.pln/.txt files found in the selection');
+    expect(useStore.getState().loadMessage).toBe(NO_PATTERN_FILES);
+    expect(NO_PATTERN_FILES).toBe('No pattern files found in the selection (.msi, .pln, .txt, or a Planet pattern under another name)');
+  });
+
+  it('loads a file with another extension, or none, that was taken for a pattern by its content', () => {
+    const st = useStore.getState;
+    st().addFiles([{ ...input('site/good.dat', msi(1800)), byContent: true }, { ...input('site/good', msi(1900)), byContent: true }, input('site/other.dat', msi(2000))]);
+    expect(st().files.map((f) => [f.id, f.result.ok])).toEqual([['site/good.dat', true], ['site/good', true]]);
+    expect(st().loadMessage).toBe('Loaded 2 files');
+  });
+
+  it('dismisses every file that could not be loaded at once, with one undo', () => {
+    const st = useStore.getState;
+    st().addFiles([input('a.MSI', msi(1800)), input('n1.txt', 'notes\n'), input('n2.txt', ''), input('n3.msi', 'NAME X\n')]);
+    expect(selectErrors(st().files)).toHaveLength(3);
+    st().removeErrors();
+    expect(st().files.map((f) => f.id)).toEqual(['a.MSI']);
+    expect(st().undo?.label).toBe('Dismissed 3 files that could not be loaded');
+    expect(st().loadMessage).toBeNull();
+    expect(st().loadFailed).toBe(0);
+    st().undoLast();
+    expect(selectErrors(st().files).map((e) => e.path)).toEqual(['n1.txt', 'n2.txt', 'n3.msi']);
+    // One file: the singular. None: nothing happens, and no undo is offered for it.
+    st().removeFile('n1.txt');
+    st().removeFile('n2.txt');
+    st().removeErrors();
+    expect(st().undo?.label).toBe('Dismissed 1 file that could not be loaded');
+    const before = st().undo;
+    st().removeErrors();
+    expect(st().undo).toBe(before);
   });
 
   it('clears the load message once files load successfully; setLoadMessage sets and dismisses it', () => {
     const st = useStore.getState;
     st().addFiles([input('readme.docx', 'x')]);
-    expect(st().loadMessage).toBe('No .msi/.pln/.txt files found in the selection');
+    expect(st().loadMessage).toBe(NO_PATTERN_FILES);
     st().addFiles([input('a.MSI', msi(1800))]);
     expect(st().loadMessage).toBe('Loaded 1 file');
     st().setLoadMessage('Could not read 2 file(s)');

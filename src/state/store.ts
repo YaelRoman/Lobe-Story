@@ -167,6 +167,8 @@ export interface StoreActions {
   openDialog(dialog: NonNullable<DialogState>): void;
   closeDialog(): void;
   removeFile(id: string): void;
+  /** Dismisses every file that could not be loaded (the Errors list) at once; one undo brings them back. */
+  removeErrors(): void;
   clear(): void;
   setTags(id: string, tags: Partial<Tags>): void;
   toggleVisible(id: string): void;
@@ -272,6 +274,9 @@ export function initialState(): StoreData {
 }
 
 const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
+
+/** The status line when a selection holds nothing to load. A pattern is told by its name or, under another name, by its content. */
+export const NO_PATTERN_FILES = 'No pattern files found in the selection (.msi, .pln, .txt, or a Planet pattern under another name)';
 
 /** Parses `text` as the file at `path`. */
 export function loadText(path: string, text: string): LoadedFile {
@@ -430,10 +435,10 @@ export const useStore = create<State>()((rawSet, get) => {
       const unreadable = options.unreadable ?? 0;
       const note = options.note ? [options.note] : [];
       const parsed = inputs
-        .filter((input) => isPatternFile(input.path))
+        .filter((input) => isPatternFile(input.path) || input.byContent === true)
         .map((input) => loadText(input.path, decodeText(input.bytes)));
       if (parsed.length === 0) {
-        const nothing = unreadable > 0 ? `Could not read ${unreadable} file(s)` : 'No .msi/.pln/.txt files found in the selection';
+        const nothing = unreadable > 0 ? `Could not read ${unreadable} file(s)` : NO_PATTERN_FILES;
         return {
           loadFailed: 0,
           loadTone: 'warn',
@@ -578,6 +583,19 @@ export const useStore = create<State>()((rawSet, get) => {
         // The status line may be about the file that just went: do not leave a stale count behind.
         ...(isCopy ? {} : { loadMessage: null, loadFailed: 0 }),
         ...undoEntry(s, `Removed ${removedName}${ids.length > 1 ? ' and its copies' : ''}`, removedName),
+      };
+    }),
+
+  removeErrors: () =>
+    set((s) => {
+      const n = s.files.filter((f) => !f.result.ok).length;
+      if (n === 0) return s;
+      return {
+        files: s.files.filter((f) => f.result.ok),
+        // The status line counts them ("2 could not be loaded", Show errors): it is about files that are gone.
+        loadMessage: null,
+        loadFailed: 0,
+        ...undoEntry(s, `Dismissed ${n} file${n === 1 ? '' : 's'} that could not be loaded`),
       };
     }),
 

@@ -44,7 +44,9 @@ function readBlock(lines: string[], start: number, key: string, countText: strin
     const angle = Number(parts[0]);
     const value = Number(parts[1]);
     if (parts.length < 2 || !Number.isFinite(angle) || !Number.isFinite(value)) {
-      return { ok: false, error: `Non-numeric value in ${key} block: "${text}"`, line: i + 1 };
+      // "0,5 12,30": the commonest reason, and one the message alone does not give away.
+      const commas = /\d,\d/.test(text) ? '. Decimal commas are not read: write the values with points (0.5, not 0,5)' : '';
+      return { ok: false, error: `Non-numeric value in ${key} block: "${text}"${commas}`, line: i + 1 };
     }
     angles.push(angle);
     atten.push(value);
@@ -117,8 +119,28 @@ function looksLikePlanet(lines: string[]): boolean {
   });
 }
 
+/** The lines of a file, whatever ends them: CR LF, LF, or CR alone (files written by old tools). */
+const linesOf = (text: string): string[] => text.split(/\r\n|\r|\n/);
+
+/** Whether `text` (a file, or its start) looks like a Planet pattern: one of its lines starts with a header or block keyword. */
+export const looksLikePlanetText = (text: string): boolean => looksLikePlanet(linesOf(text));
+
+/**
+ * Whether `text` is UTF-16 that was decoded as a one-byte encoding: it starts with the byte order mark read as two
+ * letters, or a zero byte stands beside most of its characters.
+ */
+function looksLikeUtf16(text: string): boolean {
+  let zeros = 0;
+  for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 0) zeros++;
+  if (zeros === 0) return false;
+  return text.startsWith('ÿþ') || text.startsWith('þÿ') || zeros * 4 >= text.length;
+}
+
 export function parsePlanet(text: string, fileName: string): ParseResult {
-  const lines = text.split(/\r?\n/);
+  // The causes that "not a pattern file" would hide.
+  if (text.trim() === '') return { ok: false, error: 'The file is empty' };
+  if (looksLikeUtf16(text)) return { ok: false, error: 'The file looks like UTF-16 text: save it as UTF-8 (or ANSI) and open it again' };
+  const lines = linesOf(text);
   if (!looksLikePlanet(lines)) return { ok: false, error: 'Not a Planet pattern file' };
   const headers = new Map<string, { value: string; line: number }>();
   const warnings: ParseWarning[] = [];
@@ -132,7 +154,8 @@ export function parsePlanet(text: string, fileName: string): ParseResult {
       i++;
       continue;
     }
-    const match = /^(\S+)(?:\s+(.*))?$/.exec(line)!;
+    // `[^]` and not `.`: a value may hold a character that `.` takes for a line end (U+2028), and the line is still a line.
+    const match = /^(\S+)(?:\s+([^]*))?$/.exec(line)!;
     const key = match[1].toUpperCase();
     const value = (match[2] ?? '').trim();
     if (key === 'HORIZONTAL' || key === 'VERTICAL') {

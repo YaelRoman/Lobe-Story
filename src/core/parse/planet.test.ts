@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePlanet } from './planet';
+import { looksLikePlanetText, parsePlanet } from './planet';
 import { DEFAULT_HEADERS, planetText, points } from '../../test/planetText';
 import type { ParseResult } from '../types';
 
@@ -165,9 +165,23 @@ describe('content that is not a Planet pattern', () => {
   it.each([
     ['plain notes', 'Meeting notes\nbuy cables\n'],
     ['binary bytes', '\u0000\u0001\u0002PK\u0003\u0004\nÿþ'],
-    ['empty text', ''],
   ])('reports %s as not a pattern file', (_label, text) => {
     expect(parsePlanet(text, 'x.txt')).toEqual({ ok: false, error: 'Not a Planet pattern file' });
+    expect(looksLikePlanetText(text)).toBe(false);
+  });
+
+  it('says that a file is empty, instead of what it is not', () => {
+    for (const text of ['', '\r\n \r\n', '\uFEFF']) expect(parsePlanet(text, 'x.msi'), JSON.stringify(text)).toEqual({ ok: false, error: 'The file is empty' });
+  });
+
+  it('names the encoding of a UTF-16 file, and the way out', () => {
+    const utf16 = (text: string, bom: string) => bom + Array.from(text, (c) => `${c}\u0000`).join('');
+    const expected = { ok: false, error: 'The file looks like UTF-16 text: save it as UTF-8 (or ANSI) and open it again' };
+    // As the page decodes the bytes: the mark FF FE read as "ÿþ", and a zero byte after every letter.
+    expect(parsePlanet(utf16(planetText(), 'ÿþ'), 'x.msi')).toEqual(expected);
+    // Without the mark, and big-endian (the zero byte first).
+    expect(parsePlanet(utf16(planetText(), ''), 'x.msi')).toEqual(expected);
+    expect(parsePlanet('þÿ' + Array.from(planetText(), (c) => `\u0000${c}`).join(''), 'x.msi')).toEqual(expected);
   });
 
   it('keeps the specific error for a file that looks like a pattern but is incomplete', () => {
@@ -259,5 +273,36 @@ describe('the unit of FREQUENCY', () => {
     expect(expectOk(withFreq('30')).warnings).toEqual([]);
     // Zero and below keep their own warning.
     expect(expectOk(withFreq('0')).warnings.map((w) => w.code)).toEqual(['no-frequency']);
+  });
+});
+
+describe('line ends and decimal commas', () => {
+  it('reads a file whose lines end in a carriage return alone (old Mac), as one with CR LF or LF', () => {
+    const cr = expectOk(parsePlanet(planetText({ eol: '\r' }), 'cr.msi'));
+    const crlf = expectOk(parsePlanet(planetText({ eol: '\r\n' }), 'cr.msi'));
+    const lf = expectOk(parsePlanet(planetText({ eol: '\n' }), 'cr.msi'));
+    expect(cr).toEqual(crlf);
+    expect(lf).toEqual(crlf);
+    expect(cr.pattern.horizontal.angles).toHaveLength(360);
+    // An error in it has its own line number, not "line 1" for the whole file.
+    const bad = parsePlanet(planetText({ eol: '\r' }).replace('10.0 0.28', '10.0 abc'), 'cr.msi');
+    expect(bad).toEqual({ ok: false, error: 'Non-numeric value in HORIZONTAL block: "10.0 abc"', line: 16 });
+  });
+
+  it('a line separator inside a header value does not stop the page (the file is read, or refused with a reason)', () => {
+    expect(() => parsePlanet(planetText({ headers: ['NAME A\u2028B', 'FREQUENCY 1800'] }), 'x.msi')).not.toThrow();
+  });
+
+  it('says that decimal commas are not read, where a value has one', () => {
+    const comma = (lines: string[]) => lines.map((l) => l.replace(/\./g, ','));
+    const r = parsePlanet(planetText({ h: comma(points((a) => Math.min(40, Math.abs(a) / 2))) }), 'x.msi');
+    expect(r).toEqual({
+      ok: false,
+      error: 'Non-numeric value in HORIZONTAL block: "0,0 0,00". Decimal commas are not read: write the values with points (0.5, not 0,5)',
+      line: 6,
+    });
+    // Another kind of non-number gets no such hint.
+    const other = parsePlanet(planetText().replace('10.0 0.28', '10.0 abc'), 'x.msi');
+    expect(other.ok === false && other.error).toBe('Non-numeric value in HORIZONTAL block: "10.0 abc"');
   });
 });

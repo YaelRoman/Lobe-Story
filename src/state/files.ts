@@ -1,6 +1,11 @@
+import { looksLikePlanetText, parsePlanet } from '../core/parse/planet';
+import { decodeText } from './decode';
+
 export interface FileInput {
   path: string;
   bytes: ArrayBuffer;
+  /** The name does not say it is a pattern file (another extension, or none): it was taken for one by its content. */
+  byContent?: boolean;
 }
 
 /** A file from a selection or drop that may be a saved project (see `isProjectCandidate`). */
@@ -43,6 +48,22 @@ export function isPatternFile(path: string): boolean {
   return /\.(msi|pln|txt)$/i.test(path);
 }
 
+/** How much of a file that is not a pattern file by its name is looked at to see whether it is one by its content. */
+export const SNIFF_BYTES = 4096;
+
+/**
+ * A file whose name does not say what it is (not .msi/.pln/.txt, not a project): its bytes when its content is a
+ * Planet pattern, else null. Only its start is read first, so a folder of photos costs next to nothing. Among other
+ * files it must be a valid pattern (notes with a line "Name …" look like one and are none); `sole`, the one file the
+ * user picked, is taken as soon as it looks like one, so that the reason it does not load is shown.
+ */
+async function patternByContent(file: Blob, name: string, sole: boolean): Promise<ArrayBuffer | null> {
+  if (/\.json$/i.test(name)) return null;
+  if (!looksLikePlanetText(decodeText(await file.slice(0, SNIFF_BYTES).arrayBuffer()))) return null;
+  const bytes = await file.arrayBuffer();
+  return sole || parsePlanet(decodeText(bytes), name).ok ? bytes : null;
+}
+
 export async function inputsFromFileList(list: FileList): Promise<ReadInputsResult> {
   const inputs: FileInput[] = [];
   const projects: ProjectCandidate[] = [];
@@ -55,6 +76,10 @@ export async function inputsFromFileList(list: FileList): Promise<ReadInputsResu
     try {
       if (isPatternFile(path)) inputs.push({ path, bytes: await file.arrayBuffer() });
       else if (isProjectCandidate(path, sole)) projects.push({ path, text: await file.text() });
+      else {
+        const bytes = await patternByContent(file, path, sole);
+        if (bytes) inputs.push({ path, bytes, byContent: true });
+      }
     } catch {
       failed++;
     }
@@ -75,13 +100,16 @@ export async function inputsFromDataTransfer(dt: DataTransfer): Promise<ReadInpu
     if (entry.isFile) {
       const path = prefix + entry.name;
       const pattern = isPatternFile(path);
-      if (!pattern && !isProjectCandidate(path, sole)) return;
       try {
         const file = await new Promise<File>((resolve, reject) =>
           (entry as FileSystemFileEntry).file(resolve, reject),
         );
         if (pattern) inputs.push({ path, bytes: await file.arrayBuffer() });
-        else projects.push({ path, text: await file.text() });
+        else if (isProjectCandidate(path, sole)) projects.push({ path, text: await file.text() });
+        else {
+          const bytes = await patternByContent(file, path, sole);
+          if (bytes) inputs.push({ path, bytes, byContent: true });
+        }
       } catch {
         failed++;
       }

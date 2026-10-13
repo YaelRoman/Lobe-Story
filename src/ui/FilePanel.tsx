@@ -27,6 +27,7 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
   const offsets = useStore((s) => s.view.simulation.offsets);
   const groupOffsets = useStore((s) => s.view.simulation.groupOffsets);
   const removeFile = useStore((s) => s.removeFile);
+  const removeErrors = useStore((s) => s.removeErrors);
   const setVisibleOnly = useStore((s) => s.setVisibleOnly);
   // The filter text and the folded groups are display-only: nothing here is saved in a project or counted as unsaved work.
   const [query, setQuery] = useState('');
@@ -233,6 +234,20 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
           <header>
             <span>Errors</span>
             <span className="count">{errors.length}</span>
+            {errors.length > 1 && (
+              <button
+                type="button"
+                className="dismiss-all"
+                title="Take every file that could not be loaded off this list (can be undone)"
+                onClick={() => {
+                  removeErrors();
+                  // The button goes with the list: the focus stays in the panel.
+                  requestAnimationFrame(() => panelRef.current?.focus());
+                }}
+              >
+                Dismiss all
+              </button>
+            )}
           </header>
           <ul className="errors-list">
             {errors.map((e) => (
