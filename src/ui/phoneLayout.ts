@@ -10,6 +10,12 @@ export const PHONE_QUERY = '(max-width: 760px)';
  */
 export const TOUCH_ONLY_QUERY = '(hover: none) and (pointer: coarse)';
 
+/**
+ * The primary pointer is a finger. The plots give up their drag there, so that a swipe starting on one scrolls the page
+ * (see `touchLayout`), and the stylesheet makes the targets larger, whatever the width.
+ */
+export const COARSE_QUERY = '(pointer: coarse)';
+
 /** A media query asked now, and as a hook that re-renders when its answer changes. Where the browser cannot say, the answer is no. */
 function media(text: string): { is: () => boolean; use: () => boolean } {
   const query = (): MediaQueryList | null => (typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(text) : null);
@@ -24,6 +30,7 @@ function media(text: string): { is: () => boolean; use: () => boolean } {
 
 const phone = media(PHONE_QUERY);
 const touchOnly = media(TOUCH_ONLY_QUERY);
+const coarse = media(COARSE_QUERY);
 
 /** Whether the page is laid out for a phone right now. */
 export const isPhoneLayout = phone.is;
@@ -36,3 +43,6 @@ export const isTouchOnly = touchOnly.is;
 
 /** Whether the device is used by touch alone; re-renders when that changes (a mouse or a keyboard is attached). */
 export const useTouchOnly = touchOnly.use;
+
+/** Whether the primary pointer is a finger (see `COARSE_QUERY`); re-renders when that changes. */
+export const useCoarsePointer = coarse.use;

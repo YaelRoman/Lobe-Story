@@ -91,6 +91,9 @@ one go.
   method, like the other display preferences, stays.
 - **Load example** on the empty page loads a small synthetic dual-polarised panel generated in code (24 files,
   not a real antenna) so every feature can be tried; **Help** explains the main terms.
+- Phones and tablets: on a touch screen one finger moved up or down scrolls the page also when it starts on a cut
+  plot, the frequency chart or the histogram (a tap still reads a point); these charts are zoomed with **Zoom in**
+  and **Zoom out** in their toolbar there. The 3D view is turned with a finger, so the page is scrolled beside it.
 
 Metrics follow the NGMN BASTA V13 definitions where the two co-polar cuts allow; see
 [Metric definitions](docs/metrics.md) for each definition and the known differences.

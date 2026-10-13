@@ -7,7 +7,8 @@ import { exportFigure, type ExportCaption } from './exportFigure';
 import { exportFootLine } from './exportFoot';
 import { imageExportHeld } from './simCurrent';
 import { PlotBoundary } from './ErrorBoundary';
-import { CHART_PRIVACY, guardedReset, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
+import { CHART_PRIVACY, guardedReset, leaveTouchesToThePage, toolbarButtons, touchScrolls, viewReset, type ChartToolbar } from './chartToolbar';
+import { useCoarsePointer } from './phoneLayout';
 import { canvasesOf, releaseGlContexts } from './glContexts';
 import { pickedFileId } from './pointPick';
 import { appliedAfterRedraw, applyLook, createRedrawGate, drawingOrder, hoverStore, ownTraces, positionsIn, previewRestyle, restyleAt, restyleDiff, type PreviewRestyle } from './hoverPreview';
@@ -123,6 +124,8 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
   failure.current = fail;
 
   const labelled = labelledExport !== undefined;
+  // A finger that starts on a plot scrolls the page: the touch is kept from the library there (see `touchScrolls`).
+  const coarse = useCoarsePointer();
   const exporting = useRef({ figure, labelledExport });
   const previewing = previewBase !== undefined;
   const preview = useRef({ figure, base: previewBase ?? null });
@@ -185,9 +188,9 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
       ...(toolbar === 'rect' || toolbar === 'xy' ? { doubleClick: false as const } : {}),
       toImageButtonOptions: IMAGE_OPTIONS,
       // An explicit list: the library's default set has the charting library's cloud upload button and select tools in it.
-      modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined, toolbar === '3d' ? undefined : reset) as unknown as PlotlyConfig['modeBarButtons'],
+      modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined, toolbar === '3d' ? undefined : reset, coarse) as unknown as PlotlyConfig['modeBarButtons'],
     };
-  }, [toolbar, labelled]);
+  }, [toolbar, labelled, coarse]);
 
   /** Brings the drawn traces to the current preview, restyling only those whose look changes. */
   const restylePreview = (el: HTMLElement) => {
@@ -323,6 +326,11 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
     const el = ref.current;
     if (el && previewing) void restylePreview(el);
   }, [previewBase, previewing]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el && touchScrolls(toolbar, coarse)) return leaveTouchesToThePage(el);
+  }, [toolbar, coarse]);
 
   useEffect(() => {
     const el = ref.current;

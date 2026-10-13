@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PHONE_QUERY, TOUCH_ONLY_QUERY, isPhoneLayout, isTouchOnly, usePhoneLayout, useTouchOnly } from './phoneLayout';
+import { COARSE_QUERY, PHONE_QUERY, TOUCH_ONLY_QUERY, isPhoneLayout, isTouchOnly, useCoarsePointer, usePhoneLayout, useTouchOnly } from './phoneLayout';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -92,6 +92,30 @@ describe('a device with touch only (no keyboard is likely): asked of the input, 
     act(() => root.render(createElement(Probe)));
     expect(seen[seen.length - 1]).toBe(true);
     expect(media.matchMedia).toHaveBeenCalledWith(TOUCH_ONLY_QUERY);
+    act(() => media.set(false));
+    expect(seen[seen.length - 1]).toBe(false);
+    act(() => root.unmount());
+    expect(media.listeners.size).toBe(0);
+  });
+});
+
+describe('a coarse pointer (a finger): asked of the input, whatever the width and whether a mouse is there too', () => {
+  it('is the primary pointer being coarse', () => {
+    expect(COARSE_QUERY).toBe('(pointer: coarse)');
+  });
+
+  it('the hook follows a change, and is false where the browser cannot say', () => {
+    const media = stubMatchMedia(true);
+    const seen: boolean[] = [];
+    function Probe() {
+      seen.push(useCoarsePointer());
+      return null;
+    }
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    act(() => root.render(createElement(Probe)));
+    expect(seen[seen.length - 1]).toBe(true);
+    expect(media.matchMedia).toHaveBeenCalledWith(COARSE_QUERY);
     act(() => media.set(false));
     expect(seen[seen.length - 1]).toBe(false);
     act(() => root.unmount());

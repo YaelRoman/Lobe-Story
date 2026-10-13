@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { axesViewReset, CHART_PRIVACY, guardedReset, polarViewReset, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
+import { axesViewReset, CHART_PRIVACY, guardedReset, polarViewReset, leaveTouchesToThePage, toolbarButtons, touchScrolls, viewReset, type ChartToolbar } from './chartToolbar';
 import { buildHpbwFigure } from './hpbwFigure';
 import { buildMetricFigure } from './metricFigure';
 import { buildCutBase } from './cutFigure';
@@ -27,6 +27,79 @@ describe('toolbarButtons', () => {
     const own = { name: 'toImageLabelled' };
     expect(toolbarButtons('xy', own)).toEqual([['zoom2d', 'resetScale2d'], [own]]);
     expect(toolbarButtons('polar', own)).toEqual([[own]]);
+  });
+});
+
+describe('a touch screen (coarse pointer): a finger on a plot scrolls the page (R4-09)', () => {
+  it('leaves a touch on the plots with axes and on the polar plot to the browser, and the 3D view its turning', () => {
+    expect(touchScrolls('rect', true)).toBe(true);
+    expect(touchScrolls('xy', true)).toBe(true);
+    expect(touchScrolls('polar', true)).toBe(true);
+    expect(touchScrolls('3d', true)).toBe(false);
+  });
+
+  it('changes nothing for a mouse', () => {
+    for (const kind of KINDS) expect(touchScrolls(kind, false)).toBe(false);
+    for (const kind of KINDS) expect(toolbarButtons(kind, undefined, undefined, false)).toEqual(toolbarButtons(kind));
+  });
+
+  describe('leaveTouchesToThePage', () => {
+    type Listener = (event: { timeStamp: number; stopPropagation: () => void }) => void;
+    const fakeElement = () => {
+      const listeners: { type: string; fn: Listener; options: { capture?: boolean; passive?: boolean } }[] = [];
+      const el = {
+        addEventListener: (type: string, fn: Listener, options: { capture?: boolean; passive?: boolean }) => listeners.push({ type, fn, options }),
+        removeEventListener: (type: string, fn: Listener) => {
+          const at = listeners.findIndex((l) => l.type === type && l.fn === fn);
+          if (at >= 0) listeners.splice(at, 1);
+        },
+      } as unknown as HTMLElement;
+      /** Sends an event of `type` at time `timeStamp`; true when it was stopped before reaching the library. */
+      const send = (type: string, timeStamp: number): boolean => {
+        let stopped = false;
+        for (const l of listeners.filter((x) => x.type === type)) l.fn({ timeStamp, stopPropagation: () => (stopped = true) });
+        return stopped;
+      };
+      return { el, listeners, send };
+    };
+
+    it('a touch that starts in the chart does not reach the library; the listener is ahead of it and cannot stop the scroll', () => {
+      const { el, listeners, send } = fakeElement();
+      leaveTouchesToThePage(el);
+      // Before the library's listeners (capture), and unable to stop the browser's scroll (passive).
+      expect(listeners.find((l) => l.type === 'touchstart')?.options).toEqual({ capture: true, passive: true });
+      expect(send('touchstart', 100)).toBe(true);
+      expect(send('touchend', 180)).toBe(false);
+    });
+
+    it('the pointer "leaving" right after a tap is kept from the library, so the reading stays; a mouse that leaves later is not', () => {
+      const { el, send } = fakeElement();
+      leaveTouchesToThePage(el);
+      // No touch yet: a mouse leaving the plot clears the reading as always.
+      expect(send('mouseout', 50)).toBe(false);
+      send('touchstart', 1000);
+      send('touchend', 1080);
+      expect(send('mouseout', 1100)).toBe(true);
+      expect(send('mouseout', 1080 + 699)).toBe(true);
+      expect(send('mouseout', 1080 + 700)).toBe(false);
+      expect(send('mouseout', 5000)).toBe(false);
+    });
+
+    it('can be undone: no listener is left', () => {
+      const { el, listeners } = fakeElement();
+      const undo = leaveTouchesToThePage(el);
+      expect(listeners.length).toBeGreaterThan(0);
+      undo();
+      expect(listeners).toHaveLength(0);
+    });
+  });
+
+  it('zooming is by buttons on the charts with axes: Zoom in and Zoom out, and no drag-zoom tool', () => {
+    expect(toolbarButtons('rect', undefined, undefined, true)).toEqual([['zoomIn2d', 'zoomOut2d', 'resetScale2d'], ['toImage']]);
+    expect(toolbarButtons('xy', undefined, undefined, true)).toEqual([['zoomIn2d', 'zoomOut2d', 'resetScale2d'], ['toImage']]);
+    expect(toolbarButtons('polar', undefined, undefined, true)).toEqual(toolbarButtons('polar'));
+    expect(toolbarButtons('3d', undefined, undefined, true)).toEqual(toolbarButtons('3d'));
+    for (const kind of KINDS) expect(toolbarButtons(kind, undefined, undefined, true).flat().length).toBeLessThanOrEqual(4);
   });
 });
 
