@@ -14,7 +14,7 @@ import { groupLook, PER_FILE_COLOURS } from './colors';
 import { bwName } from './bwLabel';
 import { nameOf } from '../core/names';
 import { hasUsableFrequency } from '../core/gain';
-import { withSimulated } from './exportFigure';
+import { withCoinciding, withSimulated } from './exportFigure';
 import { exportName, simulatedCaption, weightedHorizonNote } from './simSummary';
 import { PlotlyChart } from './PlotlyChart';
 import type { SimulationResult } from './useSimulation';
@@ -145,11 +145,11 @@ export const HpbwChart = memo(function HpbwChart({
   const exportCaption = useMemo(
     () =>
       withSimulated(
-        both ? hpbwCaption(levelDb, simulated, refDrawn, fileCut) : metricCaption(plotLabel, column.unit, simulated, refDrawn, Boolean(DECLARED[metric]), fileCut),
+        withCoinciding(both ? hpbwCaption(levelDb, simulated, refDrawn, fileCut) : metricCaption(plotLabel, column.unit, simulated, refDrawn, Boolean(DECLARED[metric]), fileCut), coincide),
         simulatedLine,
         followsH ? weightedHorizonNote(sim.hCut, method3d) : undefined,
       ),
-    [both, levelDb, simulated, fileCut, plotLabel, column.unit, refDrawn, metric, simulatedLine, followsH, sim.hCut, method3d],
+    [both, coincide, levelDb, simulated, fileCut, plotLabel, column.unit, refDrawn, metric, simulatedLine, followsH, sim.hCut, method3d],
   );
 
   const note = leftOut > 0 ? <p className="count" data-testid="freq-left-out">{leftOutText(leftOut)}</p> : null;

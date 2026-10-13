@@ -12,6 +12,19 @@ const LEGEND_PAD_PX = 20;
 /** The bottom margin the library uses when the figure sets none. */
 const DEFAULT_MARGIN_B = 80;
 const LINE_MAX_CHARS = 110;
+/** The library's size of a title that sets none. */
+const DEFAULT_TITLE_PX = 17;
+/** The library's line spacing of a title of several lines, in ems of the title's font size. */
+export const CAPTION_LINE_EM = 1.3;
+/**
+ * How far above its anchor the library draws the first line of a title of several lines, in ems: a one-line title
+ * hangs from its anchor by this much, a title with line breaks does not (seen in the browser).
+ */
+export const TITLE_FIRST_LINE_EM = 0.7;
+/** From the image's top edge to the title. */
+const TITLE_PAD_PX = 10;
+/** Between the last caption line and what the figure draws above its plot area. */
+const CAPTION_GAP_PX = 8;
 
 /** What is printed under the title of the exported image. */
 export interface ExportCaption {
@@ -21,6 +34,8 @@ export interface ExportCaption {
   items: string[];
   /** Title for a figure that has none on screen (its heading is page text). */
   title?: string;
+  /** Which lines are drawn on top of each other (a frequency chart), a wrapped line of its own after the values, as under the chart on screen. */
+  coincide?: string;
   /** What the analysis markers that are on mean (cut plots), one wrapped line of its own after the values. */
   markers?: string;
   /** The last line while a simulation is active: the tilt and azimuth values and the method. */
@@ -40,7 +55,7 @@ export function exportCaptionLines(caption: ExportCaption): string[] {
     } else current = current ? `${current} · ${item}` : item;
   }
   if (current) lines.push(current);
-  for (const extra of [caption.markers, caption.simulated, caption.note]) if (extra) lines.push(...wrapText(extra));
+  for (const extra of [caption.coincide, caption.markers, caption.simulated, caption.note]) if (extra) lines.push(...wrapText(extra));
   return lines;
 }
 
@@ -48,6 +63,11 @@ export function exportCaptionLines(caption: ExportCaption): string[] {
 export function withSimulated(caption: ExportCaption | undefined, simulated: string | undefined, note?: string): ExportCaption | undefined {
   if (simulated === undefined) return caption;
   return { items: [], ...caption, simulated, ...(note ? { note } : {}) };
+}
+
+/** The caption with the note about lines that coincide (see `coincidingNote`); unchanged without one. */
+export function withCoinciding(caption: ExportCaption | undefined, coincide: string | null | undefined): ExportCaption | undefined {
+  return caption && coincide ? { ...caption, coincide } : caption;
 }
 
 /** A long sentence broken at spaces into lines of about 110 characters. */
@@ -104,14 +124,25 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
   const traces = data.filter((t) => typeof t.meta === 'string').length;
   const lines = caption ? exportCaptionLines(caption) : [];
   const margin = figure.layout.margin ?? {};
-  // Labels drawn above the plot area (the histogram's line names) need their own room under the caption.
-  const labelRoom = (figure.layout.annotations?.length ?? 0) > 0 ? 40 : 0;
-  /** What a caption of so many lines adds to the top margin. */
-  const topExtra = (captionLines: number) => (captionLines > 0 ? 34 * captionLines + 30 + labelRoom : 0);
+  const screenTitle = figure.layout.title as { text?: string; font?: { size?: number } } | undefined;
+  const titleText = screenTitle?.text || caption?.title || '';
+  const titlePx = screenTitle?.font?.size ?? DEFAULT_TITLE_PX;
+  const lineHeight = CAPTION_LINE_EM * titlePx;
+  /**
+   * The top margin under a caption of so many lines. The title hangs from the top edge and its lines run down from
+   * there, so the margin is what they take and no more. A figure with a title on screen already has room for one line
+   * in its margin; one without (its heading is page text) keeps its whole margin for what it draws above the plot area
+   * (the histogram's line names).
+   */
+  const topFor = (captionLines: number) => {
+    const own = margin.t ?? 50;
+    if (!titleText && captionLines === 0) return own;
+    const textEnd = TITLE_PAD_PX + titlePx + lineHeight * captionLines;
+    return Math.ceil(screenTitle?.text ? Math.max(own + lineHeight * captionLines, textEnd + CAPTION_GAP_PX) : textEnd + CAPTION_GAP_PX + own);
+  };
   // The legend hangs from the top of the plot area: the image is made as high as its rows need. Only beyond the
   // tallest image that can be written are entries left out, and then a caption line says how many.
-  const heightFor = (rows: number, captionLines: number) =>
-    (margin.t ?? 50) + topExtra(captionLines) + (margin.b ?? DEFAULT_MARGIN_B) + rows * LEGEND_ROW_PX + LEGEND_PAD_PX;
+  const heightFor = (rows: number, captionLines: number) => topFor(captionLines) + (margin.b ?? DEFAULT_MARGIN_B) + rows * LEGEND_ROW_PX + LEGEND_PAD_PX;
   let files = traces;
   if (heightFor(traces, lines.length) > EXPORT_MAX_HEIGHT) {
     files = Math.max(0, Math.floor((EXPORT_MAX_HEIGHT - heightFor(0, lines.length + 1)) / LEGEND_ROW_PX));
@@ -119,10 +150,11 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
     let seen = 0;
     data = data.map((t) => (typeof t.meta === 'string' && ++seen > files ? { ...t, showlegend: false } : t));
   }
-  const titleText = (figure.layout.title as { text?: string } | undefined)?.text ?? caption?.title ?? '';
   const title = {
     ...(figure.layout.title as object | undefined),
     text: lines.length > 0 ? `${titleText}<br><sup>${lines.join('<br>')}</sup>` : titleText,
+    // From the top edge down: placed by the library's default (the middle of the margin) a long caption leaves an empty band above the title and ends on the plot area.
+    ...(titleText || lines.length > 0 ? { yref: 'container', y: 1, yanchor: 'top', pad: { t: TITLE_PAD_PX + (lines.length > 0 ? TITLE_FIRST_LINE_EM * titlePx : 0) } } : {}),
   };
   // Room for the longest legend entry (about 6 px a character at 11 px), at least the usual 280 px.
   const longest = Math.max(0, ...data.filter((t) => typeof t.meta === 'string').map((t) => (t.meta as string).length));
@@ -146,7 +178,7 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
     autosize: false,
     width: EXPORT_WIDTH,
     height: Math.max(EXPORT_MIN_HEIGHT, heightFor(files, lines.length)),
-    margin: { ...margin, ...(files > 0 ? { r: legendWidth } : {}), t: (margin.t ?? 50) + topExtra(lines.length) },
+    margin: { ...margin, ...(files > 0 ? { r: legendWidth } : {}), t: topFor(lines.length) },
   };
   return { data: data as unknown as Data[], layout };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Data } from 'plotly.js';
-import { exportCaptionLines, exportFigure, withSimulated, EXPORT_MAX_HEIGHT, EXPORT_WIDTH, LEGEND_ROW_PX } from './exportFigure';
+import { exportCaptionLines, exportFigure, withCoinciding, withSimulated, CAPTION_LINE_EM, TITLE_FIRST_LINE_EM, EXPORT_MAX_HEIGHT, EXPORT_WIDTH, LEGEND_ROW_PX } from './exportFigure';
 import type { Figure } from './figureTheme';
 import { FIGURE_THEMES, LEGEND } from './figureTheme';
 
@@ -199,5 +199,81 @@ describe('the exported legend is never cut off without a word', () => {
     expect((out.layout.title as { text: string }).text).toContain(`Legend: the first ${shown} of 500 traces, +${500 - shown} more are drawn but not listed`);
     // Every trace is still drawn.
     expect(out.data).toHaveLength(501);
+  });
+});
+
+describe('the caption is laid out from the top edge (R4-07)', () => {
+  type Title = { text: string; yref?: string; y?: number; yanchor?: string; pad?: { t?: number }; font?: { size?: number } };
+  const title = (f: Figure) => f.layout.title as Title;
+  const size = (f: Figure) => title(f).font?.size ?? 17;
+  const captionLines = (f: Figure) => title(f).text.split('<br>').length - 1;
+  /**
+   * Where the title's first line starts, in px from the top edge. The library hangs a one-line title by its cap height
+   * from `pad.t`; a title of several lines loses that shift and sits 0.7 em higher (measured in the browser), so its
+   * pad has to carry it.
+   */
+  const textStart = (f: Figure) => (title(f).pad?.t ?? 0) - (captionLines(f) > 0 ? TITLE_FIRST_LINE_EM * size(f) : 0);
+  /** Where the last line of the title block ends, in px from the top edge. */
+  const textEnd = (f: Figure) => textStart(f) + size(f) + CAPTION_LINE_EM * size(f) * captionLines(f);
+  const caption = (n: number) => ({ file: 'f', items: Array.from({ length: n - 1 }, (_, i) => `${'x'.repeat(100)} ${i}`) });
+
+  it('hangs the title from the top of the image, not from the middle of the margin', () => {
+    for (const lines of [0, 1, 6]) {
+      const t = title(exportFigure(figure(2), lines ? caption(lines) : undefined));
+      expect(t).toMatchObject({ yref: 'container', y: 1, yanchor: 'top' });
+    }
+    for (const lines of [0, 1, 6]) {
+      const out = exportFigure(figure(2), lines ? caption(lines) : undefined);
+      expect(textStart(out)).toBeGreaterThanOrEqual(6);
+      expect(textStart(out)).toBeLessThanOrEqual(16);
+    }
+  });
+
+  it('sizes the top margin from the number of caption lines: no empty band, and no line on the plot area', () => {
+    for (const lines of [1, 3, 6, 10]) {
+      const out = exportFigure(figure(2), caption(lines));
+      expect(exportCaptionLines(caption(lines))).toHaveLength(lines);
+      const t = out.layout.margin?.t ?? 0;
+      expect(t).toBeGreaterThanOrEqual(textEnd(out));
+      expect(t - textEnd(out)).toBeLessThanOrEqual(40);
+    }
+  });
+
+  it('a figure without a title on screen gets room for the caption title too', () => {
+    const bare: Figure = { data: [fileTrace(0)] as unknown as Data[], layout: { margin: { l: 60, r: 20, t: 20, b: 50 } } };
+    for (const c of [{ title: 'A chart', items: [] }, { title: 'A chart', file: 'one', items: ['two'], simulated: 'Simulated: x', note: 'word '.repeat(40).trim() }]) {
+      const out = exportFigure(bare, c);
+      expect(out.layout.margin?.t).toBeGreaterThanOrEqual(textEnd(out) + 20);
+      expect((out.layout.margin?.t ?? 0) - textEnd(out)).toBeLessThanOrEqual(60);
+    }
+  });
+
+  it('keeps the room of labels drawn above the plot area (the histogram)', () => {
+    const hist: Figure = { data: [], layout: { margin: { t: 58 }, annotations: [{ text: 'mean' }] } };
+    const out = exportFigure(hist, { title: 'Histogram', file: 'a', items: ['b'] });
+    expect(out.layout.margin?.t).toBeGreaterThanOrEqual(textEnd(out) + 58);
+  });
+
+  it('a figure with neither title nor caption keeps its margin', () => {
+    const out = exportFigure({ data: [], layout: { margin: { t: 20 } } });
+    expect(out.layout.margin?.t).toBe(20);
+  });
+});
+
+describe('lines that coincide are said in the image', () => {
+  it('prints the note as a wrapped line of its own after the values', () => {
+    const note = `2 lines coincide: ${'+45 · 2°T = -45 · 2°T; '.repeat(8)}end.`;
+    const lines = exportCaptionLines({ file: 'f', items: ['a'], coincide: note, simulated: 'Simulated: x' });
+    expect(lines[0]).toBe('f');
+    expect(lines[1]).toBe('a');
+    expect(lines[lines.length - 1]).toBe('Simulated: x');
+    expect(lines.slice(2, -1).join(' ')).toBe(note);
+    expect(lines.every((l) => l.length <= 110)).toBe(true);
+  });
+
+  it('withCoinciding adds it to a caption and leaves a caption alone without one', () => {
+    expect(withCoinciding({ items: ['a'] }, '2 lines coincide: A = B.')).toEqual({ items: ['a'], coincide: '2 lines coincide: A = B.' });
+    expect(withCoinciding({ items: ['a'] }, null)).toEqual({ items: ['a'] });
+    expect(withCoinciding(undefined, null)).toBeUndefined();
   });
 });

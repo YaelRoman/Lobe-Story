@@ -38,7 +38,8 @@ export const metricAxisTitle = (label: string, unit: string): string => `${label
 export function metricCaption(label: string, unit: string, simulated: boolean, reference = false, declared = false, fileCut = false): ExportCaption {
   return {
     title: `${metricAxisTitle(label, unit)} against frequency, one line per group`,
-    file: `${label} in ${unit}: one line per group${declared ? ' · hollow markers: values declared in the file' : ''}`,
+    // The title says what is plotted; a first line saying it again was dropped (R4-07).
+    ...(declared ? { file: 'Hollow markers: values declared in the file' } : {}),
     items: [...(simulated ? [faintLinesNote(fileCut)] : []), ...(reference ? ['Diamond: the reference file'] : [])],
   };
 }

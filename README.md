@@ -77,7 +77,7 @@ one go.
 - CSV export of the metrics table and PNG export of any plot. Images are always drawn in the light colours on
   white, whatever the screen theme, with a legend of every file, the highlighted file's values, a line saying
   what the markers that are on mean and, while a simulation is active, a line "Simulated: electrical Δ …,
-  mechanical …, azimuth …" (with the 3D method and the horizontal cut while a tilt is active or the cut is the one at the horizon; the image of the vertical cut does not name the horizontal cut). File names say what they are: `horizontal-cut.png`, `vertical-cut.png`,
+  mechanical …, azimuth …" (with the 3D method and the horizontal cut while a tilt is active or the cut is the one at the horizon; the image of the vertical cut does not name the horizontal cut). The title and these lines run down from the top edge of the image, and the image of the frequency chart says which lines coincide, as the page does. File names say what they are: `horizontal-cut.png`, `vertical-cut.png`,
   `pattern-metrics.csv` and so on, with `-simulated` added while a simulation is active.
   The Azimuth slider only turns the drawing (a pointing direction for a site view; the metrics are the
   antenna's own and do not change): with an azimuth alone nothing is called simulated, the picture is named

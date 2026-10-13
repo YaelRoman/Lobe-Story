@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlotData } from 'plotly.js';
+import { exportCaptionLines } from './exportFigure';
 import { buildMetricFigure, fitRange, metricAxisTitle, metricCaption, minSpanForUnit, noValueNote, noValues, coincidingNote, plottedFileIds } from './metricFigure';
 import { FIGURE_THEMES } from './figureTheme';
 
@@ -51,9 +52,15 @@ describe('buildMetricFigure', () => {
     expect(metricCaption('F/B 180°', 'dB', false).items).toHaveLength(0);
   });
 
+  it('says what the chart is once: the title names the metric, and no caption line repeats it', () => {
+    const c = metricCaption('Squint', '°', false);
+    expect(c.title).toBe('Squint (°) against frequency, one line per group');
+    expect(c.file).toBeUndefined();
+    expect(exportCaptionLines(c)).toEqual([]);
+  });
+
   it('explains the hollow markers only for a metric that has declared values', () => {
-    expect(metricCaption('Squint', '°', false).file).toBe('Squint in °: one line per group');
-    expect(metricCaption('F/B 180°', 'dB', false, false, true).file).toContain('hollow markers: values declared in the file');
+    expect(metricCaption('F/B 180°', 'dB', false, false, true).file).toBe('Hollow markers: values declared in the file');
   });
 });
 
