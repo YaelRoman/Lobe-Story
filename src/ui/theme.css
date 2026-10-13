@@ -143,11 +143,14 @@ h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 760px) { .plot3d { height: 480px; } }
 /* The sentence about a simulation that is behind the sliders (see SimulationBar) lies on the bar's top edge, as the plots' own line
    lies on theirs: it takes no room, so nothing moves when it comes under a held pointer. Its anchor has no height and sticks to the
-   top of the scrolled page (inside main's padding, which is the room the sentence needs above it) while any of the bar is in view:
-   the sentence is on the screen wherever the dragged slider is. */
+   top of the scrolled page while any of the bar is in view: the sentence is on the screen wherever the dragged slider is. Stuck, it
+   is in main's 12 px of padding and two px more: one small line, so it does not lie on the row of controls that is at the top then. */
 .sim-bar-wrap { position: relative; }
-.sim-lag-anchor { position: sticky; top: 0; z-index: 3; height: 0; pointer-events: none; }
-.sim-lag { position: absolute; top: -11px; left: 10px; max-width: calc(100% - 20px); margin: 0; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); font-size: 12px; }
+.sim-lag-anchor, .follows-note-anchor { position: sticky; top: 0; z-index: 3; height: 0; pointer-events: none; }
+.sim-lag { position: absolute; top: -12px; left: 10px; max-width: calc(100% - 20px); margin: 0; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); font-size: 11px; line-height: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The same sentence above the chart, the table and the statistics (see App): at the top of the page while they are on it. The
+   anchor is an item of main's column, so it takes back the gap it would add. */
+.follows-note-anchor { margin-bottom: -16px; }
 /* The frequency chart, the table and the band statistics while they show an older simulation than the sliders (see App). */
 .follows-sim { display: flex; flex-direction: column; gap: 16px; min-width: 0; flex: none; transition: opacity 0.12s; }
 .follows-sim[aria-busy='true'] { opacity: 0.5; }
@@ -317,7 +320,7 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
   .status-area { position: sticky; top: 0; z-index: 9; }
   /* What is scrolled or focused into view stops under the status line, not behind it (its height is set by StatusArea). */
   html { scroll-padding-top: var(--status-h, 0px); }
-  .sim-lag-anchor { top: calc(var(--status-h, 0px) + 12px); }
+  .sim-lag-anchor, .follows-note-anchor { top: calc(var(--status-h, 0px) + 12px); }
   /* The undo offer cannot be clear of the page here. It stays at the foot unless it would lie on a slider or a number box of the
      Simulation bar there (see offerPlace): then it hangs under the status line. */
   .undo-toast[data-place='top'] { position: absolute; top: calc(100% + 6px); bottom: auto; }

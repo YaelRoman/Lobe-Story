@@ -45,3 +45,12 @@ export function imageExportHeld(pictureBehind = false): boolean {
   useStore.getState().setCopyNote(IMAGE_BEHIND_NOTE);
   return true;
 }
+
+/**
+ * An image export went through. If the note still says that a picture was not saved (it stays a few seconds, and the
+ * picture may have caught up and been saved meanwhile), it is taken away: it is no longer true. Any other note stays.
+ */
+export function imageExported(): void {
+  const { copyNote, setCopyNote } = useStore.getState();
+  if (copyNote === IMAGE_BEHIND_NOTE) setCopyNote(null);
+}

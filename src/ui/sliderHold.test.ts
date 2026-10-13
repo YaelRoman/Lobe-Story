@@ -119,6 +119,12 @@ describe('arrow-key taps: the grip of a key ends a moment after its last key up'
   afterEach(() => vi.useRealTimers());
   const keyUp = () => window.dispatchEvent(new Event('keyup'));
 
+  it('the pause after a key up is short: a single tap is followed about a third of a second later, and taps 180 ms apart stay one grip', () => {
+    // Taps 180 ms apart leave about 140 ms between a key up and the next key down.
+    expect(KEY_RELEASE_MS).toBeGreaterThanOrEqual(2 * 140);
+    expect(KEY_RELEASE_MS).toBeLessThanOrEqual(300);
+  });
+
   it('a key up does not let go at once, but after the pause', () => {
     gripByKey();
     keyUp();

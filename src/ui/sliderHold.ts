@@ -8,9 +8,11 @@ export type Grip = 'pointer' | 'key';
 /**
  * A key's grip ends this long after its last key up, not at the key up: a run of arrow-key taps is then one grip,
  * followed once when it is over (each tap a release would be each tap a pass, with the hint flipping between its two
- * sentences). The next key down on a slider keeps the grip.
+ * sentences). The next key down on a slider keeps the grip. Shorter than the pause of a standing slider: taps 180 ms
+ * apart leave about 140 ms between a key up and the next key down, and a single tap on a heavy page is followed a
+ * third of a second after it, not half a second.
  */
-export const KEY_RELEASE_MS = PAUSE_MS;
+export const KEY_RELEASE_MS = 300;
 
 /**
  * How long a gripped slider may stand still before the page follows although the grip goes on (see `useHeldWhile`).

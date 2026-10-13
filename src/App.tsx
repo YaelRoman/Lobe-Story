@@ -23,6 +23,7 @@ import { useEscapeClear } from './ui/useEscapeClear';
 import { useFirstFilesFocus } from './ui/useFirstFilesFocus';
 import { PlotBoundary } from './ui/ErrorBoundary';
 import { SkipLinks } from './ui/SkipLinks';
+import { lagNote } from './ui/updateHint';
 
 export default function App() {
   const files = useStore((s) => s.files);
@@ -128,6 +129,17 @@ export default function App() {
               {/* What is made from the simulation and is not the cut plots (they have their own line): marked, for the eye
                   and for a screen reader, while it shows an older simulation than the sliders. One box around the three,
                   so that none of them renders again for the mark. */}
+              {/* Why they are dimmed, said where they are: a slider moved by a held key can be far above, with its bar and
+                  the plots' line off the screen. The sentence takes no room and stays at the top of the page while the
+                  chart, the table or the statistics are on it (see `.follows-note-anchor`); outside the dimmed box, so it is
+                  not dimmed itself. Hidden from a screen reader, which has the same sentence in the bar and `aria-busy` on the box. */}
+              <div className="follows-note-anchor">
+                {simStale && (
+                  <p className="count sim-lag" data-testid="follows-note" aria-hidden="true">
+                    {lagNote(simLag, dimension === '3d')}
+                  </p>
+                )}
+              </div>
               <div className="follows-sim" aria-busy={simStale || undefined}>
                 <PlotBoundary className="plot wide">
                   <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />

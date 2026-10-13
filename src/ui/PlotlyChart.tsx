@@ -5,7 +5,7 @@ import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as Plotly
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
 import { exportFootLine } from './exportFoot';
-import { imageExportHeld } from './simCurrent';
+import { imageExportHeld, imageExported } from './simCurrent';
 import { PlotBoundary } from './ErrorBoundary';
 import { CHART_PRIVACY, guardedReset, leaveTouchesToThePage, toolbarButtons, touchScrolls, viewReset, type ChartToolbar } from './chartToolbar';
 import { useCoarsePointer } from './phoneLayout';
@@ -165,6 +165,7 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
         const cur = exporting.current;
         // A picture of an older simulation than the sliders show is not saved without a word: the reason is said instead.
         if (imageExportHeld(cur.labelledExport?.behind)) return;
+        imageExported();
         // Always light colours on white, whatever the screen theme: the image is rebuilt from a copy, the drawn figure is not touched.
         const { view, settings } = useStore.getState();
         const out = exportFigure(cur.labelledExport?.figure?.() ?? cur.figure, cur.labelledExport?.caption, view.theme, exportFootLine(settings, view, new Date()));
