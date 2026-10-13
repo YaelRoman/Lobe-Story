@@ -9,29 +9,113 @@ export interface GlossaryEntry {
   text: string;
 }
 
-/** One sentence for the Help dialog about the file panel's filter, fold and preview. */
-export const PANEL_HELP =
-  'File panel: the filter box narrows the list (every word must match the name, group or MHz) and Show all, Show none, Only matches and Add matches change which files are drawn; a group’s arrow button folds it; hovering a file, or moving the keyboard focus to it, previews its trace in the cut plots, and Esc clears the highlight and the preview.';
+/** A headed block of the Help dialog: a few short lines about one subject. */
+export interface HelpSection {
+  title: string;
+  /** What the section is about; several sections can share one subject (see `helpAbout`). */
+  topic: 'panel' | 'copying' | 'reference' | 'ticked' | 'horizontal-cut' | 'chart';
+  lines: readonly string[];
+}
 
-/** One line per feature for the Help dialog (the lines for the table, the chart and the reference file). */
-export const FEATURE_HELP: readonly string[] = [
-  'Copying: Copy table (above the metrics table and the band statistics) puts the table as shown on the clipboard for a spreadsheet; Copy row (the mark beside a file name, or Ctrl/Cmd+C on it) copies one row; click a cell and then the Copy value button that appears in it, or Right arrow into the cells and then Enter or Ctrl/Cmd+C, copies one value.',
-  'Reference file: the ⋯ menu of a file has Use as reference (and Clear reference). The reference shows a pin, is drawn in the cut plots as a thick dashed line in the text colour (also when it is not ticked, and alone when no other file is ticked) and is marked by a diamond in the frequency chart; the Δ vs reference box above the metrics table shows every metric and the gain as the difference from it (the reference row stays first and keeps its own values; the CSV and copy add a Row column saying which is which). It is saved with the project.',
-  'Ticked files only: the box beside Δ vs reference limits the metrics table, Copy table and Export CSV to the ticked files (the pinned reference stays) and says how many of the loaded files are listed; it is remembered in this browser, not in projects.',
-  'Tilt simulation, horizontal cut: the Simulation bar offers Horizontal cut: Through the beam peak (the default: the file cut, and under a tilt the cut on the cone through the tilted beam peak, the one a data sheet gives) or At the horizon (the cut at 0° elevation). At the horizon every file shows its horizon cut, tilted or not: no tilt is needed, and a file with built-in tilt shows the cut above its beam straight away. The horizon cut is read from the 3D reconstruction (an estimate, so the view is marked Simulated); it shows what each antenna puts on the horizon, the widening under mechanical tilt and what is left after a down-tilt. It can lie many dB below the 3D peak: the read-out under the plot says by how much for the highlighted file, and the Horizon level column (in the table, the CSV, Copy table, Δ vs reference and the Metric menu of the frequency chart while this cut is chosen) says it for every file. On it, beamwidths, squint and peak azimuth are those of that cut (against its own maximum), while F/B, H-SLS, roll-off and tracking are levels below the 3D peak. With the 3D method Weighted the horizon cut is reshaped by the interpolation itself (it can read twice as wide with no tilt at all): read its level, not its width; Summation is the reference for it, and the bar says so while both are chosen. The vertical cut and its metrics do not depend on the choice. The plot title, the folded bar, image captions and export headers name the choice; it is saved with the project.',
-  'Frequency chart: the Metric menu above it plots any table column against frequency, one line per group; the choice is remembered in this browser, not in projects. Clicking a point highlights that file as a click on its row does (again: clears), and the table scrolls to its row.',
+/** The second half of the Help dialog, after the glossary: how the parts of the page work. */
+export const HELP_SECTIONS: readonly HelpSection[] = [
+  {
+    title: 'File panel',
+    topic: 'panel',
+    lines: [
+      'The filter box narrows the list: every word must match the name, group or MHz.',
+      'Show all, Show none, Only matches and Add matches change which files are drawn; a group’s arrow button folds it.',
+      'Hovering a file, or moving the keyboard focus to it, previews its trace in the cut plots; Esc clears the highlight and the preview.',
+    ],
+  },
+  {
+    title: 'Copying',
+    topic: 'copying',
+    lines: [
+      'Copy table (above the metrics table and the band statistics) puts the table as shown on the clipboard for a spreadsheet.',
+      'Copy row (the mark beside a file name, or Ctrl/Cmd+C on it) copies one row.',
+      'One value: click a cell and then the Copy value button that appears in it, or Right arrow into the cells and then Enter or Ctrl/Cmd+C.',
+    ],
+  },
+  {
+    title: 'Reference file',
+    topic: 'reference',
+    lines: [
+      'The ⋯ menu of a file has Use as reference (and Clear reference). It is saved with the project.',
+      'The reference shows a pin, is drawn in the cut plots as a thick dashed line in the text colour (also when it is not ticked, and alone when no other file is ticked) and is marked by a diamond in the frequency chart.',
+      'The Δ vs reference box above the metrics table shows every metric and the gain as the difference from it. The reference row stays first and keeps its own values; the CSV and copy add a Row column saying which is which.',
+    ],
+  },
+  {
+    title: 'Ticked files only',
+    topic: 'ticked',
+    lines: [
+      'The box beside Δ vs reference limits the metrics table, Copy table and Export CSV to the ticked files (the pinned reference stays) and says how many of the loaded files are listed.',
+      'It is remembered in this browser, not in projects.',
+    ],
+  },
+  {
+    title: 'Tilt simulation, horizontal cut',
+    topic: 'horizontal-cut',
+    lines: [
+      'The Simulation bar offers Horizontal cut: Through the beam peak (the default: the file cut, and under a tilt the cut on the cone through the tilted beam peak, the one a data sheet gives) or At the horizon (the cut at 0° elevation).',
+      'At the horizon every file shows its horizon cut, tilted or not: no tilt is needed, and a file with built-in tilt shows the cut above its beam straight away.',
+      'The vertical cut and its metrics do not depend on the choice.',
+      'The plot title, the folded bar, image captions and export headers name the choice; it is saved with the project.',
+    ],
+  },
+  {
+    title: 'Horizon cut: what it shows',
+    topic: 'horizontal-cut',
+    lines: [
+      'The horizon cut is read from the 3D reconstruction (an estimate, so the view is marked Simulated); it shows what each antenna puts on the horizon, the widening under mechanical tilt and what is left after a down-tilt.',
+      'It can lie many dB below the 3D peak: the read-out under the plot says by how much for the highlighted file, and the Horizon level column (in the table, the CSV, Copy table, Δ vs reference and the Metric menu of the frequency chart while this cut is chosen) says it for every file.',
+      'On it, beamwidths, squint and peak azimuth are those of that cut (against its own maximum), while F/B, H-SLS, roll-off and tracking are levels below the 3D peak.',
+    ],
+  },
+  {
+    title: 'Horizon cut and the 3D method',
+    topic: 'horizontal-cut',
+    lines: [
+      'With the 3D method Weighted the horizon cut is reshaped by the interpolation itself (it can read twice as wide with no tilt at all): read its level, not its width.',
+      'Summation is the reference for it, and the bar says so while both are chosen.',
+    ],
+  },
+  {
+    title: 'Frequency chart',
+    topic: 'chart',
+    lines: [
+      'The Metric menu above it plots any table column against frequency, one line per group; the choice is remembered in this browser, not in projects.',
+      'Clicking a point highlights that file as a click on its row does (again: clears), and the table scrolls to its row.',
+    ],
+  },
 ];
 
+/** Everything Help says about one subject, as one text (its sections, each with its heading). */
+export const helpAbout = (topic: HelpSection['topic']): string =>
+  HELP_SECTIONS.filter((s) => s.topic === topic)
+    .map((s) => `${s.title}: ${s.lines.join(' ')}`)
+    .join(' ');
+
 export const GLOSSARY: readonly GlossaryEntry[] = [
+  { term: 'Planet file', text: 'A text file with one antenna pattern, as planning tools exchange it (.msi, .pln, .txt): a few header lines (NAME, FREQUENCY, GAIN, TILT …) and two blocks of values, HORIZONTAL and VERTICAL, in dB below the peak, usually one per degree. One port and polarization, one frequency and one electrical tilt per file.' },
+  { term: 'Co-polar', text: 'The polarization a port is meant to radiate (for example +45°). A Planet file holds the two co-polar cuts only; the cross-polar part is not in it, so F/B, SPR and AIR are not total-power values.' },
+  { term: 'Boresight', text: 'The direction the antenna faces: azimuth 0° of the file. Squint, the sector edges and the D/U aperture are measured from it, not from the beam peak.' },
+  { term: 'dBd / dBi', text: 'Two units of gain: dBi is against an isotropic radiator, dBd against a half-wave dipole, and dBi = dBd + 2.15. The two buttons in the toolbar choose the unit shown; a GAIN header without a unit is read as dBd.' },
   { term: 'HPBW', text: 'Half-power beamwidth: the angle between the two points where the pattern is 3 dB below its peak (the level can be changed in Settings; the labels then read BW@x dB instead of HPBW).' },
   { term: 'Squint', text: 'How far the middle of the horizontal beam points away from 0° (the antenna’s boresight).' },
+  { term: 'Peak az / Peak tilt', text: 'The azimuth and the elevation of the strongest point of the horizontal and the vertical cut. On an asymmetric beam they differ from Squint and Tilt, which are the middle between the two half-power points.' },
   { term: 'Tilt', text: 'The elevation angle of the vertical beam, positive below the horizon. Electrical tilt is set inside the antenna and is read from the file name (for example 05T) or its header.' },
+  { term: 'Tilt error', text: 'Tilt minus the nominal tilt of the file (from its name or header), signed. Not available when the nominal tilt is unknown.' },
   { term: 'Simulation sliders', text: 'Electrical tilt Δ changes the electrical tilt of every file by that much (added to the tilt a file already has): the beam moves along the antenna’s own axis. Mechanical tilt tips the whole antenna: the front goes down and the back comes up. Both change the cuts and the metrics, shown as original → tilted. Azimuth is a pointing direction for a site view: it turns the pattern on the plot (horizontal cut and 3D view) and the metrics are not affected, so the table and its CSV are not called simulated for it; the read-out then says “Squint … (antenna) · pointing …”. A file or a custom group can have its own offsets on top.' },
+  { term: '3D method (Summation / Weighted)', text: 'How the 3D pattern is rebuilt from the two cuts of a file. Summation multiplies the two cuts (adds their dB values); Weighted is the cross-weighted combination, which puts more power away from the two cut planes. It is chosen in the Simulation bar and is used by the 3D view, a tilt, the horizon cut and the angular regions; nothing else depends on it.' },
   { term: 'Horizon cut', text: 'The simulated horizontal cut at 0° elevation, an alternative to the cut through the beam peak (Simulation bar, Horizontal cut); when chosen it is shown for every file, tilted or not. It is drawn against the 3D peak, so a beam that points below the horizon gives a low cut; its beamwidth is measured against its own maximum and its levels (F/B, H-SLS, roll-off, tracking) below the 3D peak. With the 3D method Weighted the shape of this cut is distorted (an artefact of that interpolation, not of the antenna): read its level, not its width; Summation is the reference for this cut.' },
   { term: 'Horizon level', text: 'A column shown while the horizontal cut is the one at the horizon: how far the strongest point of the horizon cut is below the strongest point of the whole pattern (the 3D peak), in dB. 0 dB means the beam peak is on the horizon; 20 dB means a hundredth of the peak power reaches it. When the level is large, the horizon runs through a sidelobe or a null, and the beamwidths and the squint of that row describe that region, not the main beam.' },
   { term: 'F/B', text: 'Front-to-back ratio: how many dB lower the strongest level behind the antenna (180° ± a window) is than the peak. Bigger is better.' },
   { term: 'USLS', text: 'Upper sidelobe suppression: how far the upper sidelobes are below the peak: the first upper lobe, or the strongest one in a window above the beam, depending on the column. It tells how much energy goes towards neighbouring cells.' },
+  { term: 'First LSLS / First USLS', text: 'The level of the first sidelobe below (LSLS) and above (USLS) the main beam of the vertical cut, in dB below the peak: larger is better. A lobe that has merged with the main beam is read at 1.55 × V-HPBW from the peak.' },
   { term: 'Null fill', text: 'How deep the first null below the main beam is. A shallow null fills the dead zone close to the mast; a deep one leaves a hole.' },
+  { term: 'H-SLS', text: 'Horizontal sidelobe suppression: the strongest level of the horizontal cut inside the sector beyond the first null on either side of the main beam, in dB below the peak. “—” when there is none, the usual case for a sector panel.' },
   { term: 'Roll-off', text: 'How many dB the pattern has dropped at the sector edges (±60° by default); the worse of the two edges is shown.' },
   { term: 'SPR / AIR', text: 'Sector power ratio: the power outside the sector divided by the power inside, times 100. It is not a share of the total power, so it can exceed 100 % for wide or omnidirectional patterns. AIR is the same comparison the other way round (power inside versus outside), in dB. A low SPR and a high AIR mean the beam stays in its sector.' },
   { term: 'P2P tracking', text: 'Port-to-port tracking: the largest difference over the sector between a pattern and its opposite-polarization partner (+45 and −45, same tilt, array and frequency). Small means the two ports behave alike.' },

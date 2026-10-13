@@ -303,12 +303,17 @@ dialog.help:focus { outline: none; }
 .glossary dt { font-weight: 600; }
 .glossary dd { margin: 0; color: var(--muted); }
 dialog.help a { color: var(--accent); }
+dialog.help h3 { margin: 16px 0 4px; font-size: 14px; }
+.help-section ul { margin: 0; padding-left: 18px; }
+.help-section li { margin: 3px 0; color: var(--muted); }
 
 /* Inline validation messages (Settings, tag editor). */
 .range-hint { display: block; font-size: 11px; color: var(--muted); }
 .field-message { grid-column: 1 / -1; margin: -2px 0 0; font-size: 12px; color: var(--muted); }
 .field-message.error { color: var(--danger); }
-.settings { max-width: min(360px, calc(100vw - 24px)); }
+/* One line under each setting: what it changes. Close under its field, apart from the next one. */
+.setting-help { grid-column: 1 / -1; margin: -4px 0 6px; font-size: 12px; line-height: 1.3; color: var(--muted); }
+.settings { max-width: min(360px, calc(100vw - 24px)); overflow-y: auto; }
 input[aria-invalid='true'] { border-color: var(--danger); }
 .group.drop-target { outline: 2px dashed var(--accent); outline-offset: 0; border-radius: 4px; }
 .empty-group { margin: 0 0 8px; font-size: 12px; }

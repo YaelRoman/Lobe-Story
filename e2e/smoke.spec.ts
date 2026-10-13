@@ -59,6 +59,18 @@ test('loads files, plots them and fills the metrics table', async ({ page }) => 
   await expect(settings.getByText('USLS window (°)')).toBeVisible();
   await expect(settings.getByText('Null search range (°)')).toHaveCount(0);
   await expect(settings.getByText('First-lobe limit (× V-HPBW)')).toBeVisible();
+  // Under each setting one line says what it changes; the two resets say what each puts back.
+  await expect(settings.getByText('Sector size for P2P tracking, SPR, AIR, Roll-off, H-SLS and the service region of the angular-region estimate.')).toBeVisible();
+  await expect(settings.getByText('Lowest level the cut plots and the 3D view draw. It changes the drawing only, no metric.')).toBeVisible();
+  await expect(settings.getByLabel('Sectors per site')).toHaveAccessibleDescription('Neighbour spacing for D/U aperture: 360° divided by this number.');
+  await expect(settings.getByRole('button', { name: 'Reset preferences' })).toHaveAccessibleDescription(/the browser forgets them/);
+  // In a low window the panel ends at the window's foot and scrolls: its last button can be reached.
+  await page.setViewportSize({ width: 1280, height: 520 });
+  const box = (await settings.boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(520);
+  await settings.getByRole('button', { name: 'Reset preferences' }).scrollIntoViewIfNeeded();
+  await expect(settings.getByRole('button', { name: 'Reset preferences' })).toBeInViewport();
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
 
   await page.getByRole('button', { name: 'Rectangular' }).click();

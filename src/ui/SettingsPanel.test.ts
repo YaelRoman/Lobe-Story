@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SettingsPanel } from './SettingsPanel';
 import { initialState, useStore } from '../state/store';
 import { FLOOR_LIMITS, SETTING_LIMITS } from '../core/analysis/settingLimits';
+import { SETTING_HELP } from './settingsHelp';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -75,7 +76,8 @@ describe('SettingsPanel limits', () => {
 
   const messageOf = (label: string): string | null => {
     const input = inputFor(label);
-    const id = input.getAttribute('aria-describedby');
+    // The field is described by its line of help as well: the message is the other one.
+    const id = (input.getAttribute('aria-describedby') ?? '').split(' ').find((x) => x.endsWith('-msg'));
     return id ? (host.querySelector(`#${id}`)?.textContent ?? null) : null;
   };
 
@@ -142,5 +144,34 @@ describe('SettingsPanel limits', () => {
       const text = [...host.querySelectorAll('span')].find((s) => s.textContent?.startsWith(label))?.textContent ?? '';
       expect(text, label).toContain(`${l.min}–${l.max}`);
     }
+  });
+
+  it('says under each setting what it changes, and the field is described by that line', () => {
+    for (const [label, key] of [
+      ['Beamwidth level', 'levelDb'],
+      ['F/B window', 'fbWindowDeg'],
+      ['USLS window', 'uslsRangeDeg'],
+      ['First-lobe', 'lobeLimitFactor'],
+      ['Sector edge', 'sectorEdgeDeg'],
+      ['Sectors per site', 'siteSectors'],
+      ['Plot floor', 'floorDb'],
+    ] as const) {
+      const input = inputFor(label);
+      const ids = (input.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean);
+      const described = ids.map((id) => host.querySelector(`#${id}`)?.textContent ?? '');
+      expect(described, label).toContain(SETTING_HELP[key]);
+      // The label is still the field's name alone: the help is not part of it.
+      expect(input.closest('label')?.textContent, label).not.toContain(SETTING_HELP[key]);
+    }
+  });
+
+  it('says what each of the two resets puts back', () => {
+    const text = host.textContent ?? '';
+    expect(text).toContain(SETTING_HELP.reset);
+    expect(text).toContain(SETTING_HELP.resetPreferences);
+    const buttons = [...host.querySelectorAll('button')];
+    const described = (name: string) => host.querySelector(`#${buttons.find((b) => b.textContent?.trim() === name)?.getAttribute('aria-describedby')}`)?.textContent;
+    expect(described('Reset')).toBe(SETTING_HELP.reset);
+    expect(described('Reset preferences')).toBe(SETTING_HELP.resetPreferences);
   });
 });

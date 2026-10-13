@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { FEATURE_HELP, GLOSSARY, METRICS_DOC_URL, PANEL_HELP, README_URL, REPO_URL } from './glossary';
+import { GLOSSARY, HELP_SECTIONS, helpAbout, METRICS_DOC_URL, README_URL, REPO_URL } from './glossary';
 import { canOfferExample, loadExample } from './loadExample';
 import { initialState, useStore } from '../state/store';
 import { exampleLoadedMessage } from '../core/exampleSet';
@@ -30,7 +30,7 @@ it('the angular-region entry says the values are estimates from two cuts and not
 });
 
 it('the help says what the file panel filter, fold and preview do', () => {
-  for (const word of ['filter', 'folds', 'previews']) expect(PANEL_HELP).toContain(word);
+  for (const word of ['filter', 'folds', 'previews']) expect(helpAbout('panel')).toContain(word);
 });
 
 describe('loadExample', () => {
@@ -65,10 +65,11 @@ describe('canOfferExample', () => {
   });
 });
 
-it('the help has a line for each feature', () => {
-  const lines = (word: string) => FEATURE_HELP.filter((l) => l.includes(word));
-  for (const word of ['Metric menu', 'Reference file', 'Copy']) expect(lines(word).length, word).toBeGreaterThan(0);
-  expect(FEATURE_HELP.every((l) => l.length > 20)).toBe(true);
+it('the help has a section for each feature', () => {
+  const sections = HELP_SECTIONS.map((s) => `${s.title}: ${s.lines.join(' ')}`);
+  const about = (word: string) => sections.filter((l) => l.includes(word));
+  for (const word of ['Metric menu', 'Reference file', 'Copy']) expect(about(word).length, word).toBeGreaterThan(0);
+  expect(sections.every((l) => l.length > 20)).toBe(true);
 });
 
 it('the angular-region entry says the numbers follow the 3D method and what a mechanical tilt does', () => {

@@ -40,6 +40,14 @@ test('Help / glossary: keyboard accessible, Esc closes, focus comes back, links 
   for (const term of ['HPBW', 'Squint', 'Tilt', 'F/B', 'USLS', 'Null fill', 'Roll-off', 'SPR / AIR', 'P2P tracking', 'D/U aperture', 'Band statistics']) {
     await expect(dialog.getByText(term, { exact: true })).toBeVisible();
   }
+  // Also the terms a newcomer meets on the page first, and after the glossary headed sections of a few lines each.
+  for (const term of ['Planet file', 'Co-polar', 'Boresight', 'dBd / dBi', 'Simulation sliders', '3D method (Summation / Weighted)', 'Peak az / Peak tilt', 'Tilt error', 'First LSLS / First USLS', 'H-SLS']) {
+    await expect(dialog.locator('dt', { hasText: term }).first()).toBeAttached();
+  }
+  for (const title of ['Glossary', 'File panel', 'Copying', 'Reference file', 'Ticked files only', 'Tilt simulation, horizontal cut', 'Horizon cut: what it shows', 'Horizon cut and the 3D method', 'Frequency chart']) {
+    await expect(dialog.getByRole('heading', { level: 3, name: title, exact: true })).toBeAttached();
+  }
+  expect(await dialog.locator('.help-section li').evaluateAll((items) => Math.max(...items.map((li) => (li.textContent ?? '').length)))).toBeLessThanOrEqual(330);
   await expect(dialog.getByRole('link', { name: 'metric definitions' })).toHaveAttribute('href', 'https://github.com/YaelRoman/Lobe-Story/blob/main/docs/metrics.md');
   await expect(dialog.getByRole('link', { name: 'README' })).toHaveAttribute('href', 'https://github.com/YaelRoman/Lobe-Story#readme');
   await expect(dialog).toBeFocused();

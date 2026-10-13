@@ -3,7 +3,7 @@ import {
   buildRows, cellText, chartColumns, columnLabel, columnTitle, csvColumns, HORIZON_LEVEL_COLUMN, markReference, metricValue, needsAngularRegions, rowCell, rowToTsv,
   shownChartMetric, sortIfShown, sortRows, sortValue, toCsv, toTsv, visibleColumns, withHorizonLevel, METRIC_COLUMNS,
 } from './table';
-import { GLOSSARY, FEATURE_HELP } from './glossary';
+import { GLOSSARY, helpAbout } from './glossary';
 import { DEFAULT_TABLE_GROUPS } from '../state/store';
 import { sanitizeMetric } from '../state/project';
 import { groupPatterns } from '../state/selectors';
@@ -145,7 +145,7 @@ describe('the Horizon level column', () => {
   it('glossary and Help explain it', () => {
     const entry = GLOSSARY.find((g) => g.term === 'Horizon level')!;
     for (const text of ['below the strongest point of the whole pattern', '3D peak', 'sidelobe', 'null', 'not the main beam']) expect(entry.text).toContain(text);
-    expect(FEATURE_HELP.find((l) => l.startsWith('Tilt simulation, horizontal cut'))).toContain('Horizon level');
+    expect(helpAbout('horizontal-cut')).toContain('Horizon level');
   });
 });
 

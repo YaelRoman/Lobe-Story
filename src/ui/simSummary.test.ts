@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { anySimulated, AZIMUTH_HINT, exportName, pictureName, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, offsetCountsAmong, simBadge, SIM_SLIDER_HELP, simSummary, simulatedCaption, simulationActive, summaryMethod, WEIGHTED_HORIZON_NOTE, weightedHorizonNote, degreesSpoken } from './simSummary';
 import { exportCaptionLines, withSimulated } from './exportFigure';
-import { FEATURE_HELP, GLOSSARY } from './glossary';
+import { GLOSSARY, helpAbout } from './glossary';
 
 describe('simSummary', () => {
   it('shows the global values', () => {
@@ -138,7 +138,7 @@ describe('Weighted with the cut at the horizon', () => {
 
   it('Help says the same in the Horizon cut entry and the feature line', () => {
     const entry = GLOSSARY.find((g) => g.term === 'Horizon cut')!;
-    const line = FEATURE_HELP.find((l) => l.startsWith('Tilt simulation, horizontal cut'))!;
+    const line = helpAbout('horizontal-cut');
     for (const text of [entry.text, line]) {
       expect(text).toContain('Weighted');
       expect(text).toContain('Summation is the reference');

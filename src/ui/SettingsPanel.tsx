@@ -5,20 +5,15 @@ import { resetPrefs } from '../state/prefs';
 import { confirmDialog } from './dialogs';
 import { trapTab } from './trapTab';
 import { clampFloor, clampSetting, FLOOR_LIMITS, SETTING_LIMITS } from '../core/analysis/settingLimits';
+import { SETTING_HELP, SETTING_LABELS } from './settingsHelp';
 
 const DEFAULT_FLOOR_DB = 40;
 
 const LOBE_LIMIT_TITLE =
   'BASTA uses 1.78. Raise it to report a first sidelobe that lies further from the peak instead of the merged-lobe level.';
 
-const FIELDS: { key: keyof AnalysisSettings; label: string }[] = [
-  { key: 'levelDb', label: 'Beamwidth level (dB)' },
-  { key: 'fbWindowDeg', label: 'F/B window ± (°)' },
-  { key: 'uslsRangeDeg', label: 'USLS window (°)' },
-  { key: 'lobeLimitFactor', label: 'First-lobe limit (× V-HPBW)' },
-  { key: 'sectorEdgeDeg', label: 'Sector edge (±°)' },
-  { key: 'siteSectors', label: 'Sectors per site' },
-];
+/** The analysis settings, in the order of the panel. */
+const FIELDS: (keyof AnalysisSettings)[] = ['levelDb', 'fbWindowDeg', 'uslsRangeDeg', 'lobeLimitFactor', 'sectorEdgeDeg', 'siteSectors'];
 
 /** What a rejected entry is told: the accepted range, and that the previous value stays. */
 function rangeMessage(limit: { min: number; max: number; integer?: boolean }, kept: number): string {
@@ -41,6 +36,7 @@ function NumberField({
   step,
   integer,
   title,
+  help,
   accept,
   adjusted,
   onCommit,
@@ -53,6 +49,8 @@ function NumberField({
   step: number;
   integer?: boolean;
   title?: string;
+  /** One line under the field: what the setting changes. Read out with the field. */
+  help: string;
   /** The value to commit for a typed number, or null to reject it. */
   accept: (n: number) => number | null;
   /** What to tell the user when `accept` returned a different number than the one typed. */
@@ -94,7 +92,7 @@ function NumberField({
           max={max}
           step={step}
           value={text}
-          aria-describedby={message ? `${id}-msg` : undefined}
+          aria-describedby={message ? `${id}-help ${id}-msg` : `${id}-help`}
           onChange={(e) => {
             setText(e.target.value);
             setMessage(null);
@@ -105,6 +103,9 @@ function NumberField({
           }}
         />
       </label>
+      <span id={`${id}-help`} className="setting-help">
+        {help}
+      </span>
       {message && (
         <span id={`${id}-msg`} className={message.kind === 'error' ? 'field-message error' : 'field-message'} role={message.kind === 'error' ? 'alert' : 'status'}>
           {message.text}
@@ -132,6 +133,17 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
   useEffect(() => {
     if (floorLifted && !floorHeld) setFloorLifted(false);
   }, [floorLifted, floorHeld]);
+
+  // With a line of help under each field the panel is taller than a low window: it then ends at the window's foot and scrolls.
+  useEffect(() => {
+    const fit = () => {
+      const panel = ref.current;
+      if (panel) panel.style.maxHeight = `${Math.max(160, window.innerHeight - panel.getBoundingClientRect().top - 8)}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
 
   // The panel takes the focus when it opens and closes when the user clicks outside it.
   useEffect(() => {
@@ -162,18 +174,19 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
         if (to && !ref.current?.contains(to) && !opener.current?.contains(to) && !useStore.getState().dialog) onClose(false);
       }}
     >
-      {FIELDS.map((f) => (
+      {FIELDS.map((key) => (
         <NumberField
-          key={`${f.key}-${epoch}`}
-          id={`setting-${f.key}`}
-          label={f.label}
-          value={settings[f.key]}
-          {...SETTING_LIMITS[f.key]}
-          title={f.key === 'lobeLimitFactor' ? LOBE_LIMIT_TITLE : undefined}
-          accept={(n) => clampSetting(f.key, n)}
+          key={`${key}-${epoch}`}
+          id={`setting-${key}`}
+          label={SETTING_LABELS[key]}
+          value={settings[key]}
+          {...SETTING_LIMITS[key]}
+          title={key === 'lobeLimitFactor' ? LOBE_LIMIT_TITLE : undefined}
+          help={SETTING_HELP[key]}
+          accept={(n) => clampSetting(key, n)}
           onCommit={(n) => {
             const floorBefore = useStore.getState().view.floorDb;
-            updateSettings({ [f.key]: n });
+            updateSettings({ [key]: n });
             const floorNow = useStore.getState().view.floorDb;
             if (floorNow !== floorBefore) setFloorLifted(true);
           }}
@@ -185,6 +198,7 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
         label="Plot floor (dB)"
         value={floorDb}
         {...FLOOR_LIMITS}
+        help={SETTING_HELP.floorDb}
         accept={(n) => clampFloor(n, settings.levelDb)}
         adjusted={(used) => `Used ${used}: the plot floor must lie at least 1 dB beyond the ${settings.levelDb} dB level ring.`}
         onCommit={(n) => {
@@ -197,8 +211,12 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
           Raised to stay below the −{settings.levelDb} dB level
         </span>
       )}
+      <span id="setting-reset-help" className="setting-help">
+        {SETTING_HELP.reset}
+      </span>
       <span />
       <button
+        aria-describedby="setting-reset-help"
         onClick={() => {
           updateSettings(DEFAULT_SETTINGS);
           updateView({ floorDb: DEFAULT_FLOOR_DB });
@@ -208,8 +226,12 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
       >
         Reset
       </button>
+      <span id="setting-reset-prefs-help" className="setting-help">
+        {SETTING_HELP.resetPreferences}
+      </span>
       <button
         style={{ gridColumn: '1 / -1' }}
+        aria-describedby="setting-reset-prefs-help"
         title="Theme, gain unit, cut, plot mode, plot floor, markers, table columns, ticked-files-only table, frequency-chart metric, 3D options, collapsed controls and analysis settings go back to their defaults, and the browser forgets them. Your sub-bands and the loaded files are not touched."
         onClick={() =>
           void confirmDialog('Reset the theme, gain unit, cut, plot mode, plot floor, markers, table columns, ticked-files-only table, frequency-chart metric, 3D options, collapsed controls and analysis settings to their defaults? Your sub-bands and the loaded files are not touched.', 'Reset preferences').then(

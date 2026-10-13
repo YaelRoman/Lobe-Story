@@ -450,11 +450,16 @@ The panel shows each range; the same limits apply to projects and saved preferen
 | Setting | Default | Range | Changes |
 |---|---|---|---|
 | Beamwidth level (dB) | 3 | 0.5 to 20 | Level of H/V-HPBW, Squint, Tilt, Tilt error and the Δ columns. Not the 10 dB or sidelobe columns. |
-| F/B window ± (°) | 30 | 1 to 180 | Width of the F/B ±W° search. |
-| USLS window (°) | 20 | 1 to 90 | R in the two windowed USLS columns. |
-| First-lobe limit (× V-HPBW) | 1.78 | 1 to 10 | Distance within which a first sidelobe counts as distinct. |
+| F/B window ± (°) | 30 | 1 to 180 | Width of the F/B ±W° search: the strongest level within 180° ± W° counts. |
+| USLS window (°) | 20 | 1 to 90 | R in the two windowed USLS columns (peak to R°, horizon to R°). |
+| First-lobe limit (× V-HPBW) | 1.78 | 1 to 10 | Distance within which a first sidelobe counts as distinct. BASTA uses 1.78. |
 | Sector edge (±°) | 60 | 1 to 179 | Sector size for P2P tracking, SPR, AIR, Roll-off, H-SLS and the service region of the angular-region estimate. |
-| Sectors per site | 3 | 2 to 12, whole | Neighbour spacing for D/U aperture. |
+| Sectors per site | 3 | 2 to 12, whole | Neighbour spacing for D/U aperture: 360° divided by this number. |
+
+The panel says the same under each field. It also holds the plot floor (dB, 40 by default, 10 to 80),
+which is a view setting: Lowest level the cut plots and the 3D view draw. It changes the drawing only, no metric.
+Two buttons stand under the fields. Reset puts the settings of this panel back to their defaults.
+Reset preferences does that too, and puts the theme, the gain unit, the view and the table columns back to their defaults; the browser forgets them. Loaded files and your sub-bands are not touched.
 
 ## Known limits and differences from BASTA
 

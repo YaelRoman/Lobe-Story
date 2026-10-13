@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { trapTab } from './trapTab';
-import { FEATURE_HELP, GLOSSARY, METRICS_DOC_URL, PANEL_HELP, README_URL } from './glossary';
+import { GLOSSARY, HELP_SECTIONS, METRICS_DOC_URL, README_URL } from './glossary';
 
 /** What a Help button hands over when clicked: its click event (the dialog gives the focus back to `currentTarget`). */
 export type OpenHelp = (event: { currentTarget: EventTarget | null }, term?: string) => void;
@@ -57,8 +57,9 @@ export function HelpDialog({ onClose, opener, term }: { onClose: () => void; ope
       <h2 id="help-title">Help and glossary</h2>
       <p>
         Lobe-Story shows antenna radiation patterns (Planet files) and works out the usual beam, front/back, sidelobe and
-        sector figures. These are the main terms in one line each.
+        sector figures. First the terms, a few lines each; then how the parts of the page work.
       </p>
+      <h3>Glossary</h3>
       <dl className="glossary">
         {GLOSSARY.map((g) => (
           <div key={g.term}>
@@ -67,12 +68,16 @@ export function HelpDialog({ onClose, opener, term }: { onClose: () => void; ope
           </div>
         ))}
       </dl>
-      <p>{PANEL_HELP}</p>
-      <ul className="feature-help">
-        {FEATURE_HELP.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
+      {HELP_SECTIONS.map((s) => (
+        <section key={s.title} className="help-section">
+          <h3>{s.title}</h3>
+          <ul>
+            {s.lines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </section>
+      ))}
       <p>
         Exact definitions of every column:{' '}
         <a href={METRICS_DOC_URL} target="_blank" rel="noopener noreferrer">

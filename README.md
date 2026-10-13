@@ -108,8 +108,10 @@ and the app asks before opening it. Project files stay on your computer; nothing
 
 ## Settings
 
-The analysis settings (the Settings button) show their accepted range beside each field; an entry outside
-it is not applied and says why. The plot floor is kept at least 1 dB beyond the beamwidth level: if
+The analysis settings (the Settings button) show their accepted range beside each field and, under it,
+one line on what the setting changes; an entry outside the range is not applied and says why. "Reset" puts
+the settings of the panel back; "Reset preferences" also puts the theme, the gain unit, the view and the
+table columns back and makes the browser forget them. The plot floor is kept at least 1 dB beyond the beamwidth level: if
 the level is raised past it, or a project is opened that has it that way, the floor is raised and
 the status line says so.
 
