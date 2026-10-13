@@ -160,15 +160,17 @@ test('table cells: Home/End go to the first/last cell of the row, Ctrl+Home/End 
   await expect(cellsOf(0).nth(2)).toBeFocused();
 });
 
-test('a hidden "Cut plots" heading and the skip links "Skip to plots" / "Skip to table" are the first Tab stops, visible on focus', async ({ page }) => {
+test('a hidden "Cut plots" heading and the skip links to the plots, the table and the band statistics are the first Tab stops, visible on focus', async ({ page }) => {
   await loadExample(page);
   await expect(page.getByRole('heading', { level: 2, name: 'Cut plots' })).toBeAttached();
   const skipPlots = page.getByRole('link', { name: 'Skip to plots' });
   const skipTable = page.getByRole('link', { name: 'Skip to table' });
   // Off screen until focused.
   expect((await skipPlots.boundingBox())!.y).toBeLessThan(0);
-  // They come right before the toolbar: Shift+Tab from its first button reaches the table link, then the plots link.
+  // They come right before the toolbar: Shift+Tab from its first button reaches the band link, the table link, then the plots link.
   await page.getByRole('button', { name: 'Open files' }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('link', { name: 'Skip to band statistics' })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(skipTable).toBeFocused();
   expect((await skipTable.boundingBox())!.y).toBeGreaterThanOrEqual(0);

@@ -351,3 +351,80 @@ test('on a phone, where the file list is a closed drawer, the focus goes to the 
   await page.keyboard.press('Enter');
   await expect(page.locator('#cut-plots-heading')).toBeFocused();
 });
+
+test('the header row of the metrics table is one tab stop, with the arrow keys inside', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  const heads = page.locator('.metrics thead .sort-btn');
+  const count = await heads.count();
+  expect(count).toBeGreaterThan(10);
+  await expect(page.locator('.metrics thead .sort-btn[tabindex="0"]')).toHaveCount(1);
+  // From the controls above the table one Tab reaches the header row, the next one the table's body.
+  await heads.first().focus();
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement?.closest('tbody') !== null && document.activeElement?.closest('.metrics') !== null)).toBe(true);
+  await page.keyboard.press('Shift+Tab');
+  await expect(heads.first()).toBeFocused();
+  // Left and Right move along the headers, Home and End to the ends; the tab stop goes with the focus.
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect(heads.nth(2)).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(heads.nth(1)).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(heads.nth(count - 1)).toBeFocused();
+  await expect(heads.nth(count - 1)).toBeInViewport();
+  await page.keyboard.press('ArrowRight');
+  await expect(heads.nth(count - 1)).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(heads.first()).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  await expect(heads.nth(2)).toBeFocused();
+  // Enter still sorts by the column.
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.metrics thead th').nth(2)).toHaveAttribute('aria-sort', 'ascending');
+  await expect(heads.nth(2)).toBeFocused();
+});
+
+test('the band table is one tab stop, with the arrow keys inside; a third skip link goes to the band statistics', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  const band = page.locator('table.band');
+  const cell = (row: number, col: number) => band.locator('tbody tr').nth(row).locator('td button').nth(col);
+  await expect(band.locator('td button[tabindex="0"]')).toHaveCount(1);
+  await cell(0, 0).focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(cell(1, 0)).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(cell(1, 1)).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(cell(1, 1)).toBeFocused(); // two sub-bands: the edge
+  await page.keyboard.press('Home');
+  await expect(cell(1, 0)).toBeFocused();
+  await page.keyboard.press('Control+End');
+  const rows = await band.locator('tbody tr').count();
+  await expect(cell(rows - 1, 0)).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(cell(rows - 2, 0)).toBeFocused();
+  // Enter picks the cell, as a click does, and the focus stays on it.
+  await page.keyboard.press('Enter');
+  await expect(cell(rows - 2, 0)).toHaveAttribute('aria-pressed', 'true');
+  await expect(cell(rows - 2, 0)).toBeFocused();
+  // One Tab leaves the table; Shift+Tab comes back to the cell that was left.
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement?.closest('table.band') === null)).toBe(true);
+  await page.keyboard.press('Shift+Tab');
+  await expect(cell(rows - 2, 0)).toBeFocused();
+
+  const skip = page.getByRole('link', { name: 'Skip to band statistics' });
+  await skip.focus();
+  expect((await skip.boundingBox())!.y).toBeGreaterThanOrEqual(0);
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Band statistics', exact: true })).toBeFocused();
+  // The next Tab starts inside the section.
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement?.closest('[data-testid="band-stats"]') !== null)).toBe(true);
+});

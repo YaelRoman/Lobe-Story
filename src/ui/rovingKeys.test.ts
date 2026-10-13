@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { KeyboardEvent } from 'react';
-import { cellEndTarget, isSpace, onSpace, rovingTarget, tabStopAfterFold, tabStopKey } from './rovingKeys';
+import { cellEndTarget, isSpace, onSpace, rovingTarget, tabStopAfterFold, tabStopKey, gridTarget, rowTarget } from './rovingKeys';
 
 describe('rovingTarget', () => {
   it('moves one step and stops at the ends', () => {
@@ -80,5 +80,48 @@ describe('cellEndTarget', () => {
   it('is null for other keys and for an empty table', () => {
     expect(cellEndTarget('ArrowRight', false, { row: 0, col: 0 }, size)).toBeNull();
     expect(cellEndTarget('Home', false, { row: 0, col: 0 }, { rows: 0, cols: 0 })).toBeNull();
+  });
+});
+
+describe('rowTarget: Left/Right along a row of controls that is one tab stop', () => {
+  it('moves by one and stops at the ends; Home and End go to them', () => {
+    expect(rowTarget('ArrowRight', 0, 29)).toBe(1);
+    expect(rowTarget('ArrowRight', 28, 29)).toBe(28);
+    expect(rowTarget('ArrowLeft', 5, 29)).toBe(4);
+    expect(rowTarget('ArrowLeft', 0, 29)).toBe(0);
+    expect(rowTarget('Home', 12, 29)).toBe(0);
+    expect(rowTarget('End', 12, 29)).toBe(28);
+  });
+
+  it('leaves every other key alone, and an empty row', () => {
+    for (const key of ['ArrowDown', 'ArrowUp', 'Tab', 'Enter', ' ', 'a']) expect(rowTarget(key, 3, 29), key).toBeNull();
+    expect(rowTarget('ArrowRight', 0, 0)).toBeNull();
+    // From outside the row (nothing of it focused): its first control.
+    expect(rowTarget('ArrowRight', -1, 4)).toBe(0);
+  });
+});
+
+describe('gridTarget: the arrow keys in a table of controls that is one tab stop', () => {
+  const size = { rows: 18, cols: 2 };
+  it('moves by one cell and stops at the edges', () => {
+    expect(gridTarget('ArrowRight', false, { row: 3, col: 0 }, size)).toEqual({ row: 3, col: 1 });
+    expect(gridTarget('ArrowRight', false, { row: 3, col: 1 }, size)).toEqual({ row: 3, col: 1 });
+    expect(gridTarget('ArrowLeft', false, { row: 3, col: 0 }, size)).toEqual({ row: 3, col: 0 });
+    expect(gridTarget('ArrowDown', false, { row: 17, col: 1 }, size)).toEqual({ row: 17, col: 1 });
+    expect(gridTarget('ArrowDown', false, { row: 3, col: 1 }, size)).toEqual({ row: 4, col: 1 });
+    expect(gridTarget('ArrowUp', false, { row: 0, col: 1 }, size)).toEqual({ row: 0, col: 1 });
+    expect(gridTarget('ArrowUp', false, { row: 3, col: 1 }, size)).toEqual({ row: 2, col: 1 });
+  });
+
+  it('Home and End: the ends of the row, with Ctrl/Cmd the first and last row of the column (as in the metrics table)', () => {
+    expect(gridTarget('Home', false, { row: 3, col: 1 }, size)).toEqual({ row: 3, col: 0 });
+    expect(gridTarget('End', false, { row: 3, col: 0 }, size)).toEqual({ row: 3, col: 1 });
+    expect(gridTarget('Home', true, { row: 3, col: 1 }, size)).toEqual({ row: 0, col: 1 });
+    expect(gridTarget('End', true, { row: 3, col: 1 }, size)).toEqual({ row: 17, col: 1 });
+  });
+
+  it('leaves every other key alone, and an empty table', () => {
+    for (const key of ['Tab', 'Enter', ' ', 'PageDown']) expect(gridTarget(key, false, { row: 0, col: 0 }, size), key).toBeNull();
+    expect(gridTarget('ArrowDown', false, { row: 0, col: 0 }, { rows: 0, cols: 0 })).toBeNull();
   });
 });

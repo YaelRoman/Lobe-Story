@@ -74,3 +74,45 @@ export function cellEndTarget(key: string, ctrl: boolean, at: { row: number; col
   const end = key === 'End';
   return ctrl ? { row: end ? size.rows - 1 : 0, col: Math.min(at.col, size.cols - 1) } : { row: at.row, col: end ? size.cols - 1 : 0 };
 }
+
+/**
+ * Where Left/Right, Home and End move the focus in a row of `count` controls that is one tab stop (the header row of
+ * a table): by one, stopping at the ends, or to them. Null for any other key, or an empty row.
+ */
+export function rowTarget(key: string, current: number, count: number): number | null {
+  if (count <= 0) return null;
+  const last = count - 1;
+  switch (key) {
+    case 'ArrowRight':
+      return current < 0 ? 0 : Math.min(current + 1, last);
+    case 'ArrowLeft':
+      return Math.max(current - 1, 0);
+    case 'Home':
+      return 0;
+    case 'End':
+      return last;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Where a key moves the focus in a table of controls that is one tab stop: the arrows by one cell, stopping at the
+ * edges; Home/End as `cellEndTarget`. Null for any other key, or an empty table.
+ */
+export function gridTarget(key: string, ctrl: boolean, at: { row: number; col: number }, size: { rows: number; cols: number }): { row: number; col: number } | null {
+  if (size.rows <= 0 || size.cols <= 0) return null;
+  const clamp = (n: number, max: number) => Math.min(Math.max(n, 0), max - 1);
+  switch (key) {
+    case 'ArrowRight':
+      return { row: at.row, col: clamp(at.col + 1, size.cols) };
+    case 'ArrowLeft':
+      return { row: at.row, col: clamp(at.col - 1, size.cols) };
+    case 'ArrowDown':
+      return { row: clamp(at.row + 1, size.rows), col: at.col };
+    case 'ArrowUp':
+      return { row: clamp(at.row - 1, size.rows), col: at.col };
+    default:
+      return cellEndTarget(key, ctrl, at, size);
+  }
+}

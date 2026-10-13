@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, type KeyboardEvent } from 'react';
 import { useStore } from '../state/store';
 import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
@@ -17,6 +17,8 @@ import { copyAndAnnounce } from './clipboard';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
 import { SubBandEditor } from './SubBandEditor';
+import { SKIP_TARGETS } from './SkipLinks';
+import { gridTarget } from './rovingKeys';
 import { DefinitionsButton, type OpenHelp } from './HelpDialog';
 import type { SimulationResult } from './useSimulation';
 
@@ -56,6 +58,8 @@ export const BandStats = memo(function BandStats({
   const [chosen, setChosen] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);
+  // The one cell of the band table that is a tab stop; the arrow keys move it (roving tabindex), as in the metrics table.
+  const [stop, setStop] = useState({ row: 0, col: 0 });
   const theme = useStore((s) => s.view.theme);
   const method3d = useStore((s) => s.view.method3d);
 
@@ -155,7 +159,7 @@ export const BandStats = memo(function BandStats({
     return (
       <section data-testid="band-stats">
         <div className="controls">
-          <h2>Band statistics</h2>
+          <h2 id={SKIP_TARGETS.band} tabIndex={-1}>Band statistics</h2>
           <DefinitionsButton onHelp={onHelp} />
         </div>
         <p className="count" data-testid="band-stats-hint">
@@ -166,6 +170,21 @@ export const BandStats = memo(function BandStats({
   }
 
   const lobeWarning = lobeLimitWarning(settings);
+  // The tab stop, kept inside the table as its columns change.
+  const stopAt = { row: Math.min(stop.row, BAND_PARAMS.length - 1), col: Math.min(stop.col, Math.max(columns.length - 1, 0)) };
+  const cellAt = (el: HTMLElement): { row: number; col: number } | null => {
+    const button = el.closest<HTMLElement>('button[data-row][data-col]');
+    return button ? { row: Number(button.dataset.row), col: Number(button.dataset.col) } : null;
+  };
+  const onCellKeys = (e: KeyboardEvent<HTMLElement>) => {
+    const at = cellAt(e.target as HTMLElement);
+    const to = at && gridTarget(e.key, e.ctrlKey || e.metaKey, at, { rows: BAND_PARAMS.length, cols: columns.length });
+    if (!to) return;
+    e.preventDefault();
+    const next = e.currentTarget.querySelector<HTMLElement>(`button[data-row="${to.row}"][data-col="${to.col}"]`);
+    next?.focus();
+    next?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  };
   const bandsNote = subBandsNote(dataset.items, userSubBands);
   // Only the files the histogram is made from count; the CSV lists every dataset.
   const histogramSimulated = marks.simulated;
@@ -173,7 +192,7 @@ export const BandStats = memo(function BandStats({
   return (
     <section data-testid="band-stats">
       <div className="controls">
-        <h2>Band statistics</h2>
+        <h2 id={SKIP_TARGETS.band} tabIndex={-1}>Band statistics</h2>
         <DefinitionsButton onHelp={onHelp} />
         {datasets.length > 1 ? (
           <select aria-label="Antenna" value={dataset.key} onChange={(e) => setChosen(e.target.value)}>
@@ -243,8 +262,14 @@ export const BandStats = memo(function BandStats({
               ))}
             </tr>
           </thead>
-          <tbody>
-            {BAND_PARAMS.map((p) => (
+          <tbody
+            onKeyDown={onCellKeys}
+            onFocus={(e) => {
+              const at = cellAt(e.target as HTMLElement);
+              if (at && (at.row !== stopAt.row || at.col !== stopAt.col)) setStop(at);
+            }}
+          >
+            {BAND_PARAMS.map((p, row) => (
               <tr key={p.key}>
                 <th scope="row" title={bandParamTitle(p, settings)}>
                   {bandParamLabel(p, settings)}
@@ -260,7 +285,15 @@ export const BandStats = memo(function BandStats({
                   return (
                     <td key={i} title={d.title} className={d.muted ? 'muted' : undefined}>
                       {/* A cell with no value shows a dash, which is no name for a button. */}
-                      <button type="button" aria-pressed={isPicked} aria-label={d.text === '—' ? 'No value' : undefined} onClick={toggle}>
+                      <button
+                        type="button"
+                        data-row={row}
+                        data-col={i}
+                        tabIndex={stopAt.row === row && stopAt.col === i ? 0 : -1}
+                        aria-pressed={isPicked}
+                        aria-label={d.text === '—' ? 'No value' : undefined}
+                        onClick={toggle}
+                      >
                         {d.text}
                         {shown.n > 0 && <span className="count"> n={shown.n}</span>}
                       </button>

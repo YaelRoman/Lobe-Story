@@ -11,7 +11,7 @@ import { focusPreviews, hoverPreviews } from './hoverPreview';
 import { useTablePreview } from './useTablePreview';
 import { SKIP_TARGETS } from './SkipLinks';
 import { MidName } from './MidName';
-import { cellEndTarget, moveFocus, onSpace, tabStopKey } from './rovingKeys';
+import { cellEndTarget, moveFocus, onSpace, rowTarget, tabStopKey } from './rovingKeys';
 import { neighbourOrder } from './undoKeys';
 import { downloadText } from './download';
 import { catchUpSimulation } from './simCurrent';
@@ -80,6 +80,8 @@ export const MetricsTable = memo(function MetricsTable({
   const wrapRef = useRef<HTMLDivElement>(null);
   // The one row that is a tab stop; Up/Down move it (roving tabindex).
   const [activeRow, setActiveRow] = useState<string | null>(null);
+  // Likewise the one column header that is a tab stop; Left/Right move it.
+  const [activeHead, setActiveHead] = useState<string | null>(null);
   const revealed = useRef<{ id: string | null; sort: SortState | null } | null>(null);
 
   const baseRows = useMemo(
@@ -266,9 +268,24 @@ export const MetricsTable = memo(function MetricsTable({
     });
   };
 
+  const headStop = tabStopKey(['file', 'group', 'freq', 'gain', ...columns.map((c) => c.key)], activeHead);
+  const onHeadKeys = (e: KeyboardEvent<HTMLElement>) => {
+    const heads = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('.sort-btn'));
+    const to = rowTarget(e.key, heads.indexOf(e.target as HTMLElement), heads.length);
+    if (to === null) return;
+    e.preventDefault();
+    heads[to].focus();
+    // The browser's scrolling knows nothing of the sticky File column: move the header out from under it.
+    const wrap = wrapRef.current;
+    const th = heads[to].closest('th');
+    const first = th?.parentElement?.firstElementChild;
+    if (!wrap || !th || !first || th === first) return;
+    const hidden = first.getBoundingClientRect().right - th.getBoundingClientRect().left;
+    if (hidden > 0) wrap.scrollLeft -= hidden;
+  };
   const header = (key: SortKey, content: ReactNode, title?: string, className?: string) => (
     <th key={key} scope="col" title={title} className={className} aria-sort={ariaSort(sort, key)}>
-      <button type="button" className="sort-btn" onClick={() => setSort((cur) => nextSort(cur, key))}>
+      <button type="button" className="sort-btn" data-head={key} tabIndex={headStop === key ? 0 : -1} onClick={() => setSort((cur) => nextSort(cur, key))}>
         {content}
         <span className="sort-arrow" aria-hidden="true">
           {sort?.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
@@ -372,7 +389,8 @@ export const MetricsTable = memo(function MetricsTable({
       <div className="table-wrap metrics-wrap" ref={wrapRef}>
         <table className="metrics" aria-labelledby={SKIP_TARGETS.table}>
           <thead>
-            <tr>
+            {/* One tab stop for the row of headers (29 of them with every column group shown): the arrow keys move along it. */}
+            <tr onKeyDown={onHeadKeys} onFocus={(e) => setActiveHead((e.target as HTMLElement).closest<HTMLElement>('[data-head]')?.dataset.head ?? null)}>
               {header('file', 'File')}
               {header('group', 'Group')}
               {header('freq', 'MHz')}
