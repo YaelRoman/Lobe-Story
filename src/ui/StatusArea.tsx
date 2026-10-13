@@ -4,12 +4,12 @@ import { pendingLabel } from '../state/project';
 import { UndoToast } from './UndoToast';
 import { undoWording } from './undoKeys';
 import { useTouchOnly } from './phoneLayout';
-import { newestSource, useAnnouncement } from './announce';
+import { newestSources, useAnnouncement } from './announce';
 
 /** How long the line of a load where every file simply loaded stays. */
 export const CLEAN_LOAD_MS = 6_000;
 
-/** What speaks in the status region; of two that get a line at the same moment the later one is said (the offer to undo, to act on). */
+/** What speaks in the status region; those that get a line at the same moment are said in this order (the offer to undo, to act on, last). */
 const SOURCES = ['load', 'copy', 'say', 'pending', 'undo'] as const;
 type Source = (typeof SOURCES)[number];
 
@@ -44,8 +44,10 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
   // A line that is only read out (see `announce`): the change it reports is already visible where it was made.
   const spoken = useAnnouncement();
   const undoSpoken = undoWording({ keys: !useTouchOnly(), narrow: false }).spoken;
-  // The region holds its newest line alone: a line that stayed beside a newer one would be found there as one long
-  // sentence ("Loaded 24 files Horizon level column added. Cleared 24 files."). Each was read when it came.
+  // The region holds the lines of its newest moment alone (see `newestSources`): a line that stayed beside a newer one
+  // would be found there as one long sentence ("Loaded 24 files Horizon level column added. Cleared 24 files."). Each
+  // was read when it came. Two that come together (a project opened over a session: its load line and the offer to
+  // undo) are both there.
   const lines: Record<Source, string | null> = {
     load: loadMessage ? `${loadSeq}` : null,
     copy: copyNote ? `${copySeq}` : null,
@@ -53,10 +55,10 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
     pending,
     undo: undoLabel ? `${undoId} ${undoLabel}` : null,
   };
-  const [said, setSaid] = useState<{ lines: Record<Source, string | null>; newest: Source | null }>(() => ({ lines, newest: null }));
+  const [said, setSaid] = useState<{ lines: Record<Source, string | null>; newest: readonly Source[] }>(() => ({ lines, newest: [] }));
   // Derived while rendering (React renders again at once), so the line is in the region in the same commit as on the screen.
-  if (SOURCES.some((k) => said.lines[k] !== lines[k])) setSaid({ lines, newest: newestSource(SOURCES, said.lines, lines, said.newest) });
-  const newest = said.newest;
+  if (SOURCES.some((k) => said.lines[k] !== lines[k])) setSaid({ lines, newest: newestSources(SOURCES, said.lines, lines, said.newest) });
+  const says = (source: Source) => said.newest.includes(source);
 
   // "Loaded 12 files" needs no action: it goes away by itself. Anything that failed, was skipped or renamed stays.
   // The line is in the flow, so the page moves up when it goes: not while a pointer is down (a slider dragged in the
@@ -170,15 +172,15 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
       )}
       <div className="visually-hidden" role="status" aria-atomic="false" data-testid="announcer">
         {/* Keyed by the message count: an identical message is a new node and is read again. */}
-        {newest === 'load' && loadMessage && <span key={loadSeq}>{loadMessage} </span>}
-        {newest === 'copy' && copyNote && <span key={`copy-${copySeq}`}>{copyNote} </span>}
-        {newest === 'say' && spoken && <span key={`say-${spoken.seq}`}>{spoken.text} </span>}
-        {newest === 'undo' && undoLabel && (
+        {says('load') && loadMessage && <span key={loadSeq}>{loadMessage} </span>}
+        {says('copy') && copyNote && <span key={`copy-${copySeq}`}>{copyNote} </span>}
+        {says('say') && spoken && <span key={`say-${spoken.seq}`}>{spoken.text} </span>}
+        {says('pending') && pending && <span key="pending">{pending} </span>}
+        {says('undo') && undoLabel && (
           <span key={`undo-${undoId}`}>
             {undoLabel}.{undoSpoken}{' '}
           </span>
         )}
-        {newest === 'pending' && pending && <span>{pending}</span>}
       </div>
     </div>
   );

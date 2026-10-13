@@ -45,14 +45,20 @@ export const currentAnnouncement = (): Announcement | null => current;
 export const useAnnouncement = (): Announcement | null => useSyncExternalStore(subscribe, currentAnnouncement);
 
 /**
- * Which of the sources of the status region holds its newest line. `before` and `now` give each source's line as a key
- * (null: it has none); `order` breaks a tie between sources that got a new line at the same moment (the last wins).
- * A source that got a new line is the newest. With none, the one that was (`was`) stays while its line does; once
- * that is gone nothing is said: an older line that is still on the screen was read when it came, and is not read
- * again.
+ * Which sources of the status region are in it: those whose line came in its newest moment. `before` and `now` give
+ * each source's line as a key (null: it has none); the answer is in the order of `order`.
+ *
+ * A new line replaces what the region held: that was read when it came, and left beside the new line it would be
+ * found there as one long sentence. Lines that come in the same moment are different messages, though, and neither
+ * replaces the other: a project opened over a session brings the line about what was opened (the only place that
+ * says what could not be loaded) and the offer to undo, and both are said. So the region never holds more than one
+ * line of each source, and only those of one moment.
+ *
+ * With nothing new, those that were in it (`was`) stay while their lines do. Once they are gone nothing is said: an
+ * older line that is still on the screen was read when it came, and is not read again.
  */
-export function newestSource<K extends string>(order: readonly K[], before: Record<K, string | null>, now: Record<K, string | null>, was: K | null): K | null {
+export function newestSources<K extends string>(order: readonly K[], before: Record<K, string | null>, now: Record<K, string | null>, was: readonly K[]): K[] {
   const fresh = order.filter((k) => now[k] !== null && now[k] !== before[k]);
-  if (fresh.length > 0) return fresh[fresh.length - 1];
-  return was !== null && now[was] !== null ? was : null;
+  if (fresh.length > 0) return fresh;
+  return order.filter((k) => was.includes(k) && now[k] !== null);
 }

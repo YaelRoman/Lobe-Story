@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { planetText } from '../src/test/planetText';
 import { openSimulation } from './simulationBar';
 
 async function example(page: Page) {
@@ -17,6 +18,27 @@ test('the status region says the newest line alone: a later line replaces the on
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
   await expect(announcer).toHaveText(/^\s*Cleared 24 files\.[^.]*Undo[^.]*\.\s*$/);
+});
+
+test('a project opened over a session: the line about what was opened is read out, and then the offer to undo', async ({ page }) => {
+  await example(page);
+  const announcer = page.getByTestId('announcer');
+  const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
+  const pattern = planetText({ headers: ['NAME A', 'FREQUENCY 2200', 'GAIN 15 dBd', 'TILT ELECTRICAL'] });
+  const project = JSON.stringify({ format: 'lobe-story-project', version: 1, savedAt: '2026-01-01T00:00:00.000Z', files: [{ path: 'q.MSI', text: pattern }], state: {} });
+  // With it comes a pattern file that cannot be read: the load line is the only place that says so.
+  await page.getByTestId('file-input').setInputFiles([file('q.lobestory.json', project), file('corrupt.pln', 'NAME X\nFREQUENCY 900\n')]);
+  await page.getByRole('dialog', { name: 'This selection contains a project file: q.lobestory.json' }).getByRole('button', { name: 'Open the project' }).click();
+  await page.getByRole('dialog', { name: 'Replace the current session?' }).getByRole('button', { name: 'Replace' }).click();
+  await expect(page.getByTestId('load-status')).toContainText('Opened project q.lobestory.json');
+  await expect(page.getByTestId('load-status')).toContainText('1 could not be loaded');
+  await expect(announcer).toHaveText(/^\s*Opened project q\.lobestory\.json: .*1 could not be loaded\s+Replaced the session with the project\.[^.]*Undo[^.]*\.\s*$/);
+  // The next line still replaces what is there.
+  await openSimulation(page);
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  await expect(announcer).toHaveText(/^\s*Horizontal cut at the horizon[^]*$/);
+  await expect(announcer).not.toContainText('Opened project');
+  await expect(announcer).not.toContainText('Replaced the session');
 });
 
 test('the number of files a filter lists is read out once the typing has stopped', async ({ page }) => {

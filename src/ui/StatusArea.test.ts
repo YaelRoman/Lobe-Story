@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initialState, useStore } from '../state/store';
 import { CLEAN_LOAD_MS, StatusArea } from './StatusArea';
+import { parseProject, serializeProject } from '../state/project';
 import { planetText } from '../test/planetText';
 import { PHONE_QUERY, TOUCH_ONLY_QUERY } from './phoneLayout';
 import { announce } from './announce';
@@ -100,6 +101,41 @@ describe('one status bar, and an undo offer that takes no room', () => {
     expect(status()?.textContent).toContain('Loaded 2 files');
     expect(said().trim()).toBe('');
     act(() => announce(null));
+  });
+
+  it('a project that replaces a session: the line about what was opened is said, and then the offer to undo', () => {
+    act(() => useStore.getState().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    const parsed = parseProject(serializeProject(useStore.getState(), true));
+    if (!parsed.ok) throw new Error(parsed.error);
+    act(() => useStore.getState().setLoadMessage(null));
+    expect(said().trim()).toBe('');
+    // As the page does it (`openSelection`): the project, then the pattern files that came with it, one of which is broken.
+    act(() => {
+      useStore.getState().loadProject(parsed.project, 'p.lobestory.json');
+      useStore.getState().addFiles([{ path: 'broken.MSI', bytes: enc.encode('NAME X\nFREQUENCY 1800\n').buffer as ArrayBuffer }], { keepUndo: true, openedProject: 'p.lobestory.json' });
+    });
+    const line = status()?.querySelector('span')?.textContent ?? '';
+    expect(line).toBe('Opened project p.lobestory.json: 3 files · No new files loaded: 1 could not be loaded');
+    // Both came at the same moment and neither says what the other does: the load line is the only place the failure is told.
+    const spoken = said().replace(/\s+/g, ' ').trim();
+    expect(spoken.startsWith(`${line} Replaced the session with the project.`)).toBe(true);
+    expect(spoken).toMatch(/Undo: (Ctrl\+Z|⌘Z)\.$/);
+    // The offer fades: the load line stays in the region as it stays on the screen (nothing is put there anew).
+    act(() => useStore.getState().fadeUndo());
+    expect(said().replace(/\s+/g, ' ').trim()).toBe(line);
+    // The next line replaces what is there: the region does not grow.
+    act(() => announce('Horizon level column added.'));
+    expect(said().trim()).toBe('Horizon level column added.');
+    act(() => announce(null));
+  });
+
+  it('a project without a session before it has no offer: its load line alone', () => {
+    act(() => useStore.getState().addFiles([file('a.MSI', 1800)]));
+    const parsed = parseProject(serializeProject(useStore.getState(), true));
+    if (!parsed.ok) throw new Error(parsed.error);
+    act(() => useStore.setState(initialState()));
+    act(() => useStore.getState().loadProject(parsed.project, 'p.lobestory.json'));
+    expect(said().trim()).toBe('Opened project p.lobestory.json: 1 file');
   });
 
   it('hiding an offer does not bring back a load line that has run out', () => {
