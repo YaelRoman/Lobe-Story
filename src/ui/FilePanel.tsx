@@ -3,7 +3,8 @@ import { useStore } from '../state/store';
 import type { ErrorEntry, GroupView } from '../state/selectors';
 import { neighbourOrder } from './undoKeys';
 import { moveFocus, tabStopAfterFold, tabStopKey } from './rovingKeys';
-import { filterGroups, filterPending, filterTerms, highlightHiddenByFilter } from './panelFilter';
+import { FILTER_SPOKEN_MS, filterGroups, filterPending, filterSpoken, filterTerms, highlightHiddenByFilter } from './panelFilter';
+import { announce } from './announce';
 import { GroupSection } from './GroupSection';
 import { useSessionSwap } from './useSessionSwap';
 import type { FileStyle } from './colors';
@@ -52,6 +53,13 @@ export const FilePanel = memo(function FilePanel({ groups: allGroups, errors, wa
   const highlightHidden = highlightHiddenByFilter(allGroups, activeQuery, highlighted);
   const { groups, matchIds, allIds } = useMemo(() => filterGroups(allGroups, activeQuery), [allGroups, activeQuery]);
   const tickedCount = allIds.reduce((n, id) => n + (visible[id] ? 1 : 0), 0);
+  // The count beside the box changes silently while one types: once the typing has stopped it is read out.
+  const spokenCount = filtering && !pending ? filterSpoken(matchIds.length, allIds.length) : null;
+  useEffect(() => {
+    if (spokenCount === null) return;
+    const timer = window.setTimeout(() => announce(spokenCount), FILTER_SPOKEN_MS);
+    return () => window.clearTimeout(timer);
+  }, [spokenCount, activeQuery]);
   // The panel's groups for callbacks that must stay stable (a fold must know which rows the group holds).
   const groupsRef = useRef(allGroups);
   useEffect(() => {

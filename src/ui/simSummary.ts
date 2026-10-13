@@ -172,6 +172,9 @@ export function simulatedCaption(s: SimFacts, method: 'summation' | 'weighted', 
 }
 
 /** The tooltip of each global slider: what it does to the files. */
+/** A slider's value as it is read out (`aria-valuetext`): a bare "2.5" does not say what it is. */
+export const degreesSpoken = (deg: number): string => `${deg < 0 ? 'minus ' : ''}${Math.abs(deg)} degree${Math.abs(deg) === 1 ? '' : 's'}`;
+
 export const SIM_SLIDER_HELP: Record<'electricalDeg' | 'mechanicalDeg' | 'azimuthDeg', string> = {
   electricalDeg:
     'Electrical tilt Δ: a change of the electrical tilt, added to the tilt each file already has. The beam moves down (positive) or up along the antenna’s own axis; the vertical cut and its metrics follow.',

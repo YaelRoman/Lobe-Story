@@ -5,7 +5,7 @@ import { anyTilted, combineOffsets, effectiveFor, type HCutMode } from '../core/
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { AZIMUTH_HINT, H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, SIM_SLIDER_HELP, simBadge, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
+import { AZIMUTH_HINT, degreesSpoken, H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, SIM_SLIDER_HELP, simBadge, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
 import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
@@ -58,6 +58,7 @@ function NumberSlider({
         step={step}
         value={value}
         aria-label={label}
+        aria-valuetext={degreesSpoken(value)}
         aria-describedby={describedBy}
         onChange={(e) => onChange(Number(e.target.value))}
         // With many files the page follows when the slider stops, not at every step (see `followsDrag`).

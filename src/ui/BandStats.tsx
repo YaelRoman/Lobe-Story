@@ -259,7 +259,8 @@ export const BandStats = memo(function BandStats({
                   const toggle = () => setPicked(isPicked ? null : { key: p.key, column: i, scope });
                   return (
                     <td key={i} title={d.title} className={d.muted ? 'muted' : undefined}>
-                      <button type="button" aria-pressed={isPicked} onClick={toggle}>
+                      {/* A cell with no value shows a dash, which is no name for a button. */}
+                      <button type="button" aria-pressed={isPicked} aria-label={d.text === '—' ? 'No value' : undefined} onClick={toggle}>
                         {d.text}
                         {shown.n > 0 && <span className="count"> n={shown.n}</span>}
                       </button>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GroupView } from '../state/selectors';
 import type { Pattern } from '../core/types';
-import { filterGroups, filterPending, filterTerms, groupToggleLabel, highlightHiddenByFilter, matchesTerms } from './panelFilter';
+import { filterGroups, filterPending, filterSpoken, filterTerms, groupToggleLabel, highlightHiddenByFilter, matchesTerms } from './panelFilter';
 
 const item = (id: string, frequencyMHz: number, displayName?: string) =>
   ({ pattern: { id, fileName: `${id}.msi`, frequencyMHz, ...(displayName ? { displayName } : {}) } as Pattern, tags: {} });
@@ -82,5 +82,17 @@ describe('filterPending', () => {
     expect(filterPending('171', '17')).toBe(true);
     expect(filterPending('17', '17')).toBe(false);
     expect(filterPending('', '')).toBe(false);
+  });
+});
+
+describe('filterSpoken: what is read out once the typing has stopped', () => {
+  it('says how many files the filter lists, of how many', () => {
+    expect(filterSpoken(3, 24)).toBe('3 of 24 files match the filter');
+    expect(filterSpoken(1, 24)).toBe('1 of 24 files matches the filter');
+    expect(filterSpoken(24, 24)).toBe('24 of 24 files match the filter');
+  });
+
+  it('says nothing for no match: the panel has a line of its own for that, which is read out', () => {
+    expect(filterSpoken(0, 24)).toBeNull();
   });
 });

@@ -10,6 +10,9 @@
   --hl: #ddf4ff;
   --danger: #cf222e;
   --warn: #8a5a00;
+  /* A pressed button that is disabled: grey, with text at 4.5:1 or more on it. */
+  --pressed-off: #57606a;
+  --pressed-off-fg: #ffffff;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -23,6 +26,8 @@
   --hl: #1f2d3d;
   --danger: #ff7b72;
   --warn: #d29922;
+  --pressed-off: #3d444d;
+  --pressed-off-fg: #e6edf3;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -165,6 +170,8 @@ main[data-sim-behind] .modebar-btn[data-title^='Download plot'] { opacity: 0.35;
 .method-tag { font-weight: 400; color: var(--muted); }
 button.link { padding: 0 2px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
 .seg button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* The pressed one of a disabled pair still says which choice is in force: readable (at least 4.5:1), and grey, not the accent of a live control. */
+.seg button:disabled[aria-pressed='true'] { opacity: 1; background: var(--pressed-off); border-color: var(--pressed-off); color: var(--pressed-off-fg); }
 .sim-offsets { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; flex-basis: 100%; padding-top: 6px; border-top: 1px dashed var(--border); }
 .offset-badge { padding: 0 6px; border-radius: 999px; background: var(--accent-fill); color: #fff; font-size: 11px; }
 .menu { position: relative; }

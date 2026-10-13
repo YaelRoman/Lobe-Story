@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anySimulated, AZIMUTH_HINT, exportName, pictureName, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, offsetCountsAmong, simBadge, SIM_SLIDER_HELP, simSummary, simulatedCaption, simulationActive, summaryMethod, WEIGHTED_HORIZON_NOTE, weightedHorizonNote } from './simSummary';
+import { anySimulated, AZIMUTH_HINT, exportName, pictureName, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, offsetCountsAmong, simBadge, SIM_SLIDER_HELP, simSummary, simulatedCaption, simulationActive, summaryMethod, WEIGHTED_HORIZON_NOTE, weightedHorizonNote, degreesSpoken } from './simSummary';
 import { exportCaptionLines, withSimulated } from './exportFigure';
 import { FEATURE_HELP, GLOSSARY } from './glossary';
 
@@ -187,5 +187,16 @@ describe('the badge of the Simulation bar', () => {
     expect(simBadge({ valuesSimulated: false, turned: true, offsets: true })).toBe('Turned');
     // Offsets that cancel out (or sit on files that failed to load) keep the badge as it was.
     expect(simBadge({ valuesSimulated: false, turned: false, offsets: true })).toBe('Simulated');
+  });
+});
+
+describe('degreesSpoken: a slider value as a screen reader says it', () => {
+  it('names the unit, in the singular for one degree either way', () => {
+    expect(degreesSpoken(2.5)).toBe('2.5 degrees');
+    expect(degreesSpoken(0)).toBe('0 degrees');
+    expect(degreesSpoken(1)).toBe('1 degree');
+    expect(degreesSpoken(-1)).toBe('minus 1 degree');
+    expect(degreesSpoken(-12.5)).toBe('minus 12.5 degrees');
+    expect(degreesSpoken(180)).toBe('180 degrees');
   });
 });

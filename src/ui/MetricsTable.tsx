@@ -370,7 +370,7 @@ export const MetricsTable = memo(function MetricsTable({
       </div>
       <SelectedCellLine describe={describeCell} />
       <div className="table-wrap metrics-wrap" ref={wrapRef}>
-        <table className="metrics">
+        <table className="metrics" aria-labelledby={SKIP_TARGETS.table}>
           <thead>
             <tr>
               {header('file', 'File')}

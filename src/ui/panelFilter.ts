@@ -53,5 +53,12 @@ export function groupToggleLabel(groupLabel: string, listed: number, filtering: 
   return filtering ? `Show the ${listed} matching file${listed === 1 ? '' : 's'} in ${groupLabel}` : `Show all in ${groupLabel}`;
 }
 
+/** What is read out when a filter has settled on `matches` of `total` files; null for none (the panel's own line says that). */
+export const filterSpoken = (matches: number, total: number): string | null =>
+  matches === 0 ? null : `${matches} of ${total} files ${matches === 1 ? 'matches' : 'match'} the filter`;
+
+/** How long after the last change of the filter its result is read out: the typing has stopped. */
+export const FILTER_SPOKEN_MS = 700;
+
 /** The typed filter text is ahead of the one the list shows (the list follows a moment later): matches are not final yet. */
 export const filterPending = (typed: string, applied: string): boolean => typed !== applied;

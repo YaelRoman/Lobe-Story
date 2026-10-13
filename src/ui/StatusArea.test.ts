@@ -6,6 +6,7 @@ import { initialState, useStore } from '../state/store';
 import { CLEAN_LOAD_MS, StatusArea } from './StatusArea';
 import { planetText } from '../test/planetText';
 import { PHONE_QUERY, TOUCH_ONLY_QUERY } from './phoneLayout';
+import { announce } from './announce';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -73,14 +74,32 @@ describe('one status bar, and an undo offer that takes no room', () => {
     // The line stays where it is (taking it away would move the page under the pointer that made the offer).
     expect(status()?.textContent).toContain('Loaded 2 files');
     expect(bars()).toHaveLength(1);
-    // Both are still read out.
-    expect(said()).toContain('Loaded 2 files');
+    // The status region holds the newer line alone (the load line was read when it came): it replaces, it does not add.
     expect(said()).toContain('Showed all files');
+    expect(said()).not.toContain('Loaded 2 files');
     // The offer hidden: the line is as it was, neither removed nor brought back.
     act(() => useStore.getState().fadeUndo());
     expect(offer()).toBeNull();
     expect(status()?.textContent).toContain('Loaded 2 files');
     expect(bars()).toHaveLength(1);
+  });
+
+  it('the status region says the newest line alone: a later one replaces it, and when that is gone no older one comes back', () => {
+    act(() => useStore.getState().addFiles([file('a.MSI', 1800), file('b.MSI', 1900)]));
+    act(() => useStore.getState().setLoadMessage('Loaded 2 files', 'info'));
+    expect(said().trim()).toBe('Loaded 2 files');
+    act(() => announce('Horizon level column added.'));
+    expect(said().trim()).toBe('Horizon level column added.');
+    act(() => useStore.getState().setCopyNote('Copied 2 rows'));
+    expect(said().trim()).toBe('Copied 2 rows');
+    act(() => useStore.getState().setVisibleOnly(['a.MSI', 'b.MSI'], 'Showed all files'));
+    expect(said()).toMatch(/^Showed all files\./);
+    expect(said()).not.toMatch(/Loaded|Horizon|Copied/);
+    // The offer fades: the load line is still on the screen, and is not read a second time.
+    act(() => useStore.getState().fadeUndo());
+    expect(status()?.textContent).toContain('Loaded 2 files');
+    expect(said().trim()).toBe('');
+    act(() => announce(null));
   });
 
   it('hiding an offer does not bring back a load line that has run out', () => {
