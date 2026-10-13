@@ -1,13 +1,19 @@
 import { useSyncExternalStore } from 'react';
 
-/** The width up to which the stylesheet lays the page out for a phone (one column, touch-sized targets; see theme.css). */
+/** The width up to which the stylesheet lays the page out for a phone (one column of plots, the copy pill, short wording; see theme.css). */
 export const PHONE_QUERY = '(max-width: 760px)';
 
 /**
- * A short window with the file panel as a drawer: a phone on its side, or a laptop window at 200 % zoom. The page scrolls
+ * The width up to which the file panel is a drawer above the page instead of a column beside it: a phone, a tablet
+ * upright, a narrow window. The stylesheet's business; the code asks only whether the panel is shown.
+ */
+export const DRAWER_QUERY = '(max-width: 900px)';
+
+/**
+ * A short window with the file panel as a drawer: a phone or a tablet on its side, or a laptop window at 200 % zoom. The page scrolls
  * as a whole there (the toolbar and the Files bar go with it, the status line stays), see theme.css.
  */
-export const SHORT_QUERY = '(max-height: 600px) and (max-width: 760px)';
+export const SHORT_QUERY = '(max-height: 600px) and (max-width: 900px)';
 
 /**
  * A device used by touch alone: its primary pointer is coarse and cannot hover. No keyboard is likely there, whatever

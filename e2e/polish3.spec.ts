@@ -246,9 +246,10 @@ test.describe('3D side by side titles', () => {
   for (const width of [390, 600, 800, 1024, 1440]) {
     test(`at ${width} px wide the six scene titles do not overlap and sit in their own scene's column`, async ({ page }) => {
       await loadExample(page, width, width < 700 ? 844 : 900);
-      if (width < 700) await page.getByRole('button', { name: /^Files \(/ }).click();
+      // Up to 900 px the file panel is a drawer: opened for the button, and closed again.
+      if (width <= 900) await page.getByRole('button', { name: /^Files \(/ }).click();
       await page.getByRole('button', { name: 'Show all', exact: true }).click();
-      if (width < 700) await page.getByRole('button', { name: /^Files \(/ }).click();
+      if (width <= 900) await page.getByRole('button', { name: /^Files \(/ }).click();
       await page.getByRole('button', { name: '3D', exact: true }).click();
       const plot = page.getByTestId('plot-3d');
       await expect(plot.locator('.infolayer g.annotation')).toHaveCount(6);
@@ -268,9 +269,12 @@ test.describe('3D side by side titles', () => {
     for (const ticked of [2, 3]) {
       test(`at ${width} px wide ${ticked} ticked files have non-overlapping titles in two columns`, async ({ page }) => {
         await loadExample(page, width, 900);
+        // Up to 900 px the file panel is a drawer: opened for the ticks, and closed again.
+        if (width <= 900) await page.getByRole('button', { name: /^Files \(/ }).click();
         await page.getByRole('button', { name: 'Show none', exact: true }).click();
         const boxesToTick = page.locator('.panel li input[type="checkbox"]');
         for (let i = 0; i < ticked; i++) await boxesToTick.nth(i).check();
+        if (width <= 900) await page.getByRole('button', { name: /^Files \(/ }).click();
         await page.getByRole('button', { name: '3D', exact: true }).click();
         const plot = page.getByTestId('plot-3d');
         await expect(plot.locator('.infolayer g.annotation')).toHaveCount(ticked);

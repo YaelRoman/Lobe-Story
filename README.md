@@ -94,8 +94,11 @@ one go.
 - Phones and tablets: on a touch screen one finger moved up or down scrolls the page also when it starts on a cut
   plot, the frequency chart or the histogram (a tap still reads a point); these charts are zoomed with **Zoom in**
   and **Zoom out** in their toolbar there. The 3D view is turned with a finger, so the page is scrolled beside it.
-- Short windows (under 600 px high with the file panel as a drawer: a phone on its side, a laptop window at 200 %
-  zoom): the page scrolls as a whole, the toolbar and the Files bar go with it and only the status line stays at
+- Up to 900 px of width (a phone, a tablet upright, a narrow window) the file panel is a drawer behind the
+  **Files (n)** bar, closed until asked for, so the plots and the table have the whole width. Wherever a finger is
+  the pointer, at any width, the small controls are at least 32 px and the chart toolbars sit above the plots.
+- Short windows (under 600 px high with the file panel as a drawer: a phone or a tablet on its side, a laptop
+  window at 200 % zoom): the page scrolls as a whole, the toolbar and the Files bar go with it and only the status line stays at
   the top. The undo offer moves under the status line there when it would lie on a slider of the Simulation bar.
 
 Metrics follow the NGMN BASTA V13 definitions where the two co-polar cuts allow; see

@@ -127,6 +127,6 @@ describe('a short window: asked of the height and of the drawer layout together'
   it('is one media query', () => {
     stubMatchMedia(true);
     expect(isShortWindow()).toBe(true);
-    expect(SHORT_QUERY).toBe('(max-height: 600px) and (max-width: 760px)');
+    expect(SHORT_QUERY).toBe('(max-height: 600px) and (max-width: 900px)');
   });
 });
