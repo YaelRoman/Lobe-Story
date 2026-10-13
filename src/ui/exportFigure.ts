@@ -26,6 +26,15 @@ const TITLE_PAD_PX = 10;
 /** Between the last caption line and what the figure draws above its plot area. */
 const CAPTION_GAP_PX = 8;
 
+/** The room the foot line takes under what the figure draws below its plot area. */
+export const FOOT_ROOM_PX = 18;
+/** From the image's lower edge up to the foot line. */
+const FOOT_PAD_PX = 4;
+/** What an x axis that makes its own room (`automargin`) takes for its tick labels and its title. */
+const AXIS_ROOM_PX = 60;
+/** The foot line's colour: the page's muted text in the light theme. */
+const FOOT_COLOR = '#57606a';
+
 /** What is printed under the title of the exported image. */
 export interface ExportCaption {
   /** First line: the highlighted file's name (cut plots) or a one-line subtitle (other charts). */
@@ -110,9 +119,10 @@ export function inLightTheme(figure: Figure, from: 'light' | 'dark'): Figure {
  * highlighted file's name and marker values under the title. File traces are the ones carrying
  * `meta` (the full label, which also replaces the compact legend name); marker traces never enter the
  * legend. A figure without file traces (a histogram) gets no legend. It is drawn with the light theme's colours on white
- * whatever `screenTheme` the screen has. The input is not modified.
+ * whatever `screenTheme` the screen has. `foot` is one small line at the foot of the image (see `exportFootLine`). The
+ * input is not modified.
  */
-export function exportFigure(figure: Figure, caption?: ExportCaption, screenTheme: 'light' | 'dark' = 'light'): Figure {
+export function exportFigure(figure: Figure, caption?: ExportCaption, screenTheme: 'light' | 'dark' = 'light', foot?: string): Figure {
   figure = inLightTheme(figure, screenTheme);
   // File traces: legend entry on and no dimming (faint legend swatches are unreadable); the highlighted one keeps its thicker line.
   let data = (figure.data as unknown as Record<string, unknown>[]).map((t): Record<string, unknown> => {
@@ -142,7 +152,11 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
   };
   // The legend hangs from the top of the plot area: the image is made as high as its rows need. Only beyond the
   // tallest image that can be written are entries left out, and then a caption line says how many.
-  const heightFor = (rows: number, captionLines: number) => topFor(captionLines) + (margin.b ?? DEFAULT_MARGIN_B) + rows * LEGEND_ROW_PX + LEGEND_PAD_PX;
+  // The foot line hangs under the plot area by the whole bottom margin, so that margin has to be known: an axis that
+  // would widen it for its labels and title gets that room up front, and the line its own below it.
+  const ownAxisRoom = Object.entries(figure.layout).some(([key, axis]) => key.startsWith('xaxis') && (axis as { automargin?: boolean } | undefined)?.automargin === true);
+  const bottom = foot ? Math.max(margin.b ?? DEFAULT_MARGIN_B, ownAxisRoom ? AXIS_ROOM_PX : 0) + FOOT_ROOM_PX : (margin.b ?? DEFAULT_MARGIN_B);
+  const heightFor = (rows: number, captionLines: number) => topFor(captionLines) + bottom + rows * LEGEND_ROW_PX + LEGEND_PAD_PX;
   let files = traces;
   if (heightFor(traces, lines.length) > EXPORT_MAX_HEIGHT) {
     files = Math.max(0, Math.floor((EXPORT_MAX_HEIGHT - heightFor(0, lines.length + 1)) / LEGEND_ROW_PX));
@@ -178,7 +192,15 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
     autosize: false,
     width: EXPORT_WIDTH,
     height: Math.max(EXPORT_MIN_HEIGHT, heightFor(files, lines.length)),
-    margin: { ...margin, ...(files > 0 ? { r: legendWidth } : {}), t: topFor(lines.length) },
+    margin: { ...margin, ...(files > 0 ? { r: legendWidth } : {}), t: topFor(lines.length), ...(foot ? { b: bottom } : {}) },
+    ...(foot
+      ? {
+          annotations: [
+            ...(figure.layout.annotations ?? []),
+            { text: foot, xref: 'paper', yref: 'paper', x: 0, y: 0, xanchor: 'left', yanchor: 'bottom', yshift: FOOT_PAD_PX - bottom, showarrow: false, font: { size: 10, color: FOOT_COLOR } },
+          ],
+        }
+      : {}),
   };
   return { data: data as unknown as Data[], layout };
 }

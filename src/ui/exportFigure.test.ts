@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Data } from 'plotly.js';
-import { exportCaptionLines, exportFigure, withCoinciding, withSimulated, CAPTION_LINE_EM, TITLE_FIRST_LINE_EM, EXPORT_MAX_HEIGHT, EXPORT_WIDTH, LEGEND_ROW_PX } from './exportFigure';
+import { exportCaptionLines, exportFigure, withCoinciding, withSimulated, CAPTION_LINE_EM, FOOT_ROOM_PX, TITLE_FIRST_LINE_EM, EXPORT_MAX_HEIGHT, EXPORT_WIDTH, LEGEND_ROW_PX } from './exportFigure';
 import type { Figure } from './figureTheme';
 import { FIGURE_THEMES, LEGEND } from './figureTheme';
 
@@ -275,5 +275,51 @@ describe('lines that coincide are said in the image', () => {
     expect(withCoinciding({ items: ['a'] }, '2 lines coincide: A = B.')).toEqual({ items: ['a'], coincide: '2 lines coincide: A = B.' });
     expect(withCoinciding({ items: ['a'] }, null)).toEqual({ items: ['a'] });
     expect(withCoinciding(undefined, null)).toBeUndefined();
+  });
+});
+
+describe('the foot line of an exported image', () => {
+  type Note = { text: string; xref?: string; yref?: string; x?: number; y?: number; xanchor?: string; yanchor?: string; yshift?: number; showarrow?: boolean; font?: { size?: number; color?: string } };
+  const notes = (f: Figure) => (f.layout.annotations ?? []) as unknown as Note[];
+  const FOOT = 'Beamwidth level 3 dB · Sector edge ±60° · F/B window ±30° · 2026-10-13 · Lobe-Story';
+
+  it('is one small line under the plot area, at the foot of the image', () => {
+    const out = exportFigure(figure(2), undefined, 'light', FOOT);
+    const foot = notes(out).filter((a) => a.text === FOOT);
+    expect(foot).toHaveLength(1);
+    expect(foot[0]).toMatchObject({ xref: 'paper', yref: 'paper', x: 0, y: 0, xanchor: 'left', yanchor: 'bottom', showarrow: false });
+    expect(foot[0].font?.size).toBeLessThanOrEqual(11);
+    // From the plot area's lower edge down to a few px above the image's.
+    const b = out.layout.margin?.b ?? 0;
+    expect(foot[0].yshift).toBeLessThan(0);
+    expect(b + (foot[0].yshift ?? 0)).toBeGreaterThanOrEqual(2);
+    expect(b + (foot[0].yshift ?? 0)).toBeLessThanOrEqual(8);
+  });
+
+  it('gets room of its own under what the figure draws below the plot area', () => {
+    const without = exportFigure(figure(2));
+    const withFoot = exportFigure(figure(2), undefined, 'light', FOOT);
+    expect((withFoot.layout.margin?.b ?? 0) - (without.layout.margin?.b ?? 0)).toBeGreaterThanOrEqual(FOOT_ROOM_PX);
+    // 72 legend rows make the image higher than the least height: the foot's room is added to it.
+    expect((exportFigure(figure(72), undefined, 'light', FOOT).layout.height ?? 0) - (exportFigure(figure(72)).layout.height ?? 0)).toBeGreaterThanOrEqual(FOOT_ROOM_PX);
+  });
+
+  it('an x axis that makes its own room for labels and title keeps it: the margin is never less than they need', () => {
+    const f: Figure = { data: [], layout: { margin: { b: 40 }, xaxis: { automargin: true, title: { text: 'Angle (°)' } } } };
+    const out = exportFigure(f, undefined, 'light', FOOT);
+    expect(out.layout.margin?.b).toBeGreaterThanOrEqual(60 + FOOT_ROOM_PX);
+  });
+
+  it('keeps the labels the figure has (the histogram’s line names), and is drawn in the light theme’s colours', () => {
+    const hist: Figure = { data: [], layout: { font: { color: FIGURE_THEMES.dark.fg }, annotations: [{ text: 'mean', font: { color: FIGURE_THEMES.dark.fg } }] } };
+    const out = exportFigure(hist, { title: 't', items: [] }, 'dark', FOOT);
+    expect(notes(out).map((a) => a.text)).toEqual(['mean', FOOT]);
+    expect(JSON.stringify(out).toLowerCase()).not.toContain(FIGURE_THEMES.dark.fg.toLowerCase());
+  });
+
+  it('without a foot line nothing is added', () => {
+    const out = exportFigure(figure(2));
+    expect(out.layout.annotations).toBeUndefined();
+    expect(out.layout.margin?.b).toBe(40);
   });
 });

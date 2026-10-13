@@ -4,6 +4,7 @@ import Plotly from 'plotly.js-dist-min';
 import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
 import type { Figure } from './figureTheme';
 import { exportFigure, type ExportCaption } from './exportFigure';
+import { exportFootLine } from './exportFoot';
 import { imageExportHeld } from './simCurrent';
 import { PlotBoundary } from './ErrorBoundary';
 import { CHART_PRIVACY, guardedReset, toolbarButtons, viewReset, type ChartToolbar } from './chartToolbar';
@@ -162,7 +163,8 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
         // A picture of an older simulation than the sliders show is not saved without a word: the reason is said instead.
         if (imageExportHeld(cur.labelledExport?.behind)) return;
         // Always light colours on white, whatever the screen theme: the image is rebuilt from a copy, the drawn figure is not touched.
-        const out = exportFigure(cur.labelledExport?.figure?.() ?? cur.figure, cur.labelledExport?.caption, useStore.getState().view.theme);
+        const { view, settings } = useStore.getState();
+        const out = exportFigure(cur.labelledExport?.figure?.() ?? cur.figure, cur.labelledExport?.caption, view.theme, exportFootLine(settings, view, new Date()));
         Plotly.downloadImage(
           { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
           { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },
