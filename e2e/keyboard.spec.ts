@@ -16,6 +16,15 @@ async function tabTo(page: Page, target: Locator, max = 80, key = 'Tab'): Promis
   throw new Error(`not reached in ${max} presses of ${key}`);
 }
 
+/** Whether the focused element is one the browser shows the focus on, and is drawn with an outline. */
+const focusRing = (page: Page) =>
+  page.evaluate(() => {
+    const el = document.activeElement;
+    if (!(el instanceof HTMLElement) || el === document.body) return false;
+    const style = getComputedStyle(el);
+    return el.matches(':focus-visible') && style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2;
+  });
+
 const FILES = ['a.msi', 'b.msi', 'c.msi'];
 async function load(page: Page) {
   await page.goto('/');
@@ -319,6 +328,8 @@ test('after Load example by the keyboard the focus is on the first file row, not
   const rows = page.locator('.panel li [data-nav]');
   await expect(rows).toHaveCount(24);
   await expect(rows.first()).toBeFocused();
+  // Where the focus was put is shown: the row has its ring.
+  expect(await focusRing(page)).toBe(true);
   // The next Tab goes on from the file list, not from the top of the document.
   await page.keyboard.press('Shift+Tab');
   expect(await page.evaluate(() => document.activeElement?.closest('.panel, .toolbar') !== null)).toBe(true);
@@ -333,6 +344,7 @@ test('after the first files opened from the empty page by the keyboard the focus
   const rows = page.locator('.panel li [data-nav]');
   await expect(rows).toHaveCount(3);
   await expect(rows.first()).toBeFocused();
+  expect(await focusRing(page)).toBe(true);
   // Files opened from the toolbar leave the focus where it is: on the toolbar's own control.
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
@@ -350,6 +362,51 @@ test('on a phone, where the file list is a closed drawer, the focus goes to the 
   await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#cut-plots-heading')).toBeFocused();
+  expect(await focusRing(page)).toBe(true);
+});
+
+/** How many files are ticked in the panel. */
+const ticked = (page: Page) => page.locator('.panel li input[type="checkbox"]:checked').count();
+
+test('after a mouse click on Load example the focus is not moved, and Space does not untick the shown file', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  const rows = page.locator('.panel li [data-nav]');
+  await expect(rows).toHaveCount(24);
+  await expect(page.getByTestId('plot-h').locator('.main-svg').first()).toBeVisible();
+  // The focus went with the button, as it does for any button that is gone: nothing was focused without a ring to show it.
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+  const before = await ticked(page);
+  expect(before).toBeGreaterThan(0);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(300);
+  expect(await ticked(page)).toBe(before);
+  await expect(page.getByTestId('plot-h').locator('.main-svg').first()).toBeVisible();
+});
+
+test('after the empty page’s Open files by a mouse click the focus is not moved either', async ({ page }) => {
+  const nextChooser = collectFileChoosers(page);
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Open files' }).click();
+  await (await nextChooser()).setFiles(FILES.map((n, i) => file(n, msi(1800 + 100 * i))));
+  await expect(page.locator('.panel li [data-nav]')).toHaveCount(3);
+  expect(await page.evaluate(() => document.activeElement?.closest('.panel') ?? null)).toBeNull();
+  const before = await ticked(page);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(300);
+  expect(await ticked(page)).toBe(before);
+});
+
+test.describe('by a finger', () => {
+  test.use({ hasTouch: true });
+  test('after a tap on Load example the focus is not moved', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto('/');
+    await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).tap();
+    await expect(page.locator('.panel li [data-nav]')).toHaveCount(24);
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+  });
 });
 
 test('the header row of the metrics table is one tab stop, with the arrow keys inside', async ({ page }) => {
