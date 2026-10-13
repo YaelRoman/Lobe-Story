@@ -72,7 +72,7 @@ export function Pattern3D({
   // Only the surfaces drawn count: an offset on a file that is not drawn does not make the picture simulated.
   // The 3D view does not depend on the horizontal cut shown.
   const simulated = sim.simulatedAmong(drawn.map((i) => i.pattern.id), false);
-  const exportCaption = useMemo(() => surfaceExportCaption(layout, drawn.length, capped.total), [layout, drawn.length, capped.total]);
+  const exportCaption = useMemo(() => surfaceExportCaption(layout, drawn.length, capped.total, method, floorDb), [layout, drawn.length, capped.total, method, floorDb]);
   const sceneCount = layout === 'grid' ? series.length : 1;
   // Our own relayout fires plotly_relayout again; skipping a camera we just applied prevents a loop.
   const lastCamera = useRef('');

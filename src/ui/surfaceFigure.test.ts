@@ -62,7 +62,7 @@ describe('buildSurfaceFigure', () => {
 
   it('exports with a legend of the drawn files and the cap caption under the title', () => {
     const f = buildSurfaceFigure({ series: series(3), layout: 'overlay', floorDb: 40, theme });
-    const out = exportFigure(f, surfaceExportCaption('overlay', 3, 40));
+    const out = exportFigure(f, surfaceExportCaption('overlay', 3, 40, 'summation', 40));
     expect(out.layout.showlegend).toBe(true);
     expect((out.data as unknown as { name: string }[]).map((t) => t.name)).toEqual(['file 0', 'file 1', 'file 2']);
     const title = (out.layout.title as { text: string }).text;

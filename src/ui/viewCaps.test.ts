@@ -45,10 +45,24 @@ describe('capNotice', () => {
 });
 
 describe('surfaceExportCaption', () => {
-  it('says how many of the ticked files a capped 3D view shows, and nothing extra when all are drawn', () => {
-    expect(surfaceExportCaption('overlay', 12, 40)).toEqual({ title: '3D radiation pattern, overlay', file: 'Showing 12 of 40 ticked files', items: [] });
-    expect(surfaceExportCaption('grid', 6, 15).title).toBe('3D radiation pattern, side by side');
-    expect(surfaceExportCaption('grid', 6, 15).file).toBe('Showing 6 of 15 ticked files');
-    expect(surfaceExportCaption('overlay', 5, 5).file).toBeUndefined();
+  it('says how many of the ticked files a capped 3D view shows, and nothing about it when all are drawn', () => {
+    expect(surfaceExportCaption('overlay', 12, 40, 'summation', 40)).toMatchObject({ title: '3D radiation pattern, overlay', file: 'Showing 12 of 40 ticked files' });
+    expect(surfaceExportCaption('grid', 6, 15, 'summation', 40).title).toBe('3D radiation pattern, side by side');
+    expect(surfaceExportCaption('grid', 6, 15, 'summation', 40).file).toBe('Showing 6 of 15 ticked files');
+    expect(surfaceExportCaption('overlay', 5, 5, 'summation', 40).file).toBeUndefined();
+  });
+
+  it('says what the page says above the view: the method, and that the shape is an estimate from two cuts (R4-08)', () => {
+    expect(surfaceExportCaption('overlay', 3, 3, 'summation', 40).items[0]).toBe('Reconstructed from the H and V cuts (summation method): an estimate from two cuts, not measured data');
+    expect(surfaceExportCaption('grid', 3, 3, 'weighted', 40).items[0]).toBe('Reconstructed from the H and V cuts (weighted method): an estimate from two cuts, not measured data');
+  });
+
+  it('says what the radius means, with the floor in use; side by side the colour means the same', () => {
+    expect(surfaceExportCaption('overlay', 3, 3, 'summation', 40).items[1]).toBe('Radius: level relative to the peak, 0 dB outermost, the floor of −40 dB at the centre; one colour per file');
+    expect(surfaceExportCaption('grid', 3, 3, 'summation', 55).items[1]).toBe('Radius and colour: level relative to the peak, 0 dB outermost, the floor of −55 dB at the centre');
+  });
+
+  it('every line fits the caption width', () => {
+    for (const layout of ['grid', 'overlay'] as const) for (const item of surfaceExportCaption(layout, 3, 3, 'summation', 100).items) expect(item.length).toBeLessThanOrEqual(110);
   });
 });
