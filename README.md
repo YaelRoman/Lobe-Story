@@ -97,6 +97,7 @@ one go.
 - Up to 900 px of width (a phone, a tablet upright, a narrow window) the file panel is a drawer behind the
   **Files (n)** bar, closed until asked for, so the plots and the table have the whole width. Wherever a finger is
   the pointer, at any width, the small controls are at least 32 px and the chart toolbars sit above the plots.
+  On a phone each slider of the Simulation bar is as long as the bar, with its number box beside the label.
 - Short windows (under 600 px high with the file panel as a drawer: a phone or a tablet on its side, a laptop
   window at 200 % zoom): the page scrolls as a whole, the toolbar and the Files bar go with it and only the status line stays at
   the top. The undo offer moves under the status line there when it would lie on a slider of the Simulation bar.

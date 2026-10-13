@@ -10,6 +10,13 @@ export const PHONE_QUERY = '(max-width: 760px)';
 export const DRAWER_QUERY = '(max-width: 900px)';
 
 /**
+ * A phone held upright: a slider of the Simulation bar is a line of its own there, as long as the bar, under its label
+ * and number box (see theme.css). The bar puts the number box before the slider in the page then, so that Tab goes as
+ * the bar is read.
+ */
+export const SLIDER_ROWS_QUERY = '(max-width: 520px)';
+
+/**
  * A short window with the file panel as a drawer: a phone or a tablet on its side, or a laptop window at 200 % zoom. The page scrolls
  * as a whole there (the toolbar and the Files bar go with it, the status line stays), see theme.css.
  */
@@ -44,6 +51,7 @@ const phone = media(PHONE_QUERY);
 const touchOnly = media(TOUCH_ONLY_QUERY);
 const coarse = media(COARSE_QUERY);
 const short = media(SHORT_QUERY);
+const sliderRows = media(SLIDER_ROWS_QUERY);
 
 /** Whether the page is laid out for a phone right now. */
 export const isPhoneLayout = phone.is;
@@ -62,3 +70,6 @@ export const useCoarsePointer = coarse.use;
 
 /** Whether the page scrolls as a whole right now (see `SHORT_QUERY`). */
 export const isShortWindow = short.is;
+
+/** Whether a slider of the Simulation bar is a line of its own (see `SLIDER_ROWS_QUERY`); re-renders when that changes. */
+export const useSliderRows = sliderRows.use;

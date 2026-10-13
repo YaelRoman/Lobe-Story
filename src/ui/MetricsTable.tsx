@@ -347,8 +347,16 @@ export const MetricsTable = memo(function MetricsTable({
         )}
         {referenceName !== null && (
           <span className="count ref-note" data-testid="reference-note">
-            <PinMark /> Reference: {referenceName}
-            {deltaTilted && <span data-testid="delta-tilted-note"> · Δ of {pairNote ? 'horizon-cut' : 'tilted'} values</span>}
+            {/* One box for the mark and the name where the line is stacked (a phone); none elsewhere (see `.ref-name`). */}
+            <span className="ref-name">
+              <PinMark /> Reference: {referenceName}
+            </span>
+            {deltaTilted && (
+              <span data-testid="delta-tilted-note">
+                {/* The dot joins the note to the name on one line; on a line of its own (a phone) it is left out. */}
+                <span className="ref-sep"> · </span>Δ of {pairNote ? 'horizon-cut' : 'tilted'} values
+              </span>
+            )}
             <button type="button" onClick={() => setReference(null)}>
               Clear reference
             </button>

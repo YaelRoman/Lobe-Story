@@ -300,6 +300,13 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
   .sim-bar, .controls { max-width: 100%; }
 }
 
+/* A phone held upright (see SLIDER_ROWS_QUERY): a slider field is two lines as wide as the bar. The label with the number box at its
+   end, and under them the slider, as long as the line (at 110 px a half-degree step was two px of travel, and in the offsets the
+   number box fell to a line of its own). The bar puts the number box before the slider in the page there, so Tab goes as it is read. */
+@media (max-width: 520px) {
+  .sim-field { display: grid; grid-template-columns: 1fr auto; flex-basis: 100%; }
+  .sim-field input[type='range'] { grid-column: 1 / -1; width: 100%; min-height: 32px; margin: 0; }
+}
 /* A short window with the file panel as a drawer (a phone on its side, a tablet on its side, a laptop window at 200 % zoom; see SHORT_QUERY): three bars
    that never move left a strip of a few lines to work in. The page scrolls as a whole instead: the toolbar and the Files bar go with
    it, and only the status line stays, at the top (above the plots and the panel's tools, below the Settings panel and the menus). */
@@ -402,5 +409,13 @@ tr.hl .copy-cell { background: var(--hl); }
 .pin-mark { display: inline-flex; vertical-align: -1px; margin-right: 3px; color: var(--accent); }
 .delta-toggle { display: inline-flex; gap: 4px; align-items: center; }
 .ref-note { display: inline-flex; gap: 6px; align-items: center; }
+/* No box of its own beside the page: the mark and the name are items of the line, as they were. */
+.ref-name { display: contents; }
+@media (max-width: 760px) {
+  /* The reference line above the table: a line each for the name, the note and the button (side by side they were three narrow columns). */
+  .ref-note { display: flex; flex-direction: column; align-items: flex-start; flex-basis: 100%; gap: 2px; }
+  .ref-name { display: inline; }
+  .ref-sep { display: none; }
+}
 .metrics tr.ref td { font-weight: 600; box-shadow: inset 0 -1px 0 var(--border), inset 0 1px 0 var(--accent); }
 .metrics tr.ref td:first-child { box-shadow: inset 0 -1px 0 var(--border), inset 0 1px 0 var(--accent), inset 3px 0 0 var(--accent), 1px 0 0 var(--border); }

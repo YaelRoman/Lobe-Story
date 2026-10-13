@@ -10,7 +10,7 @@ import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
 import { gripByKey, gripByPointer, gripKey, sliderKind } from './sliderHold';
-import { usePhoneLayout } from './phoneLayout';
+import { usePhoneLayout, useSliderRows } from './phoneLayout';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
   { key: 'electricalDeg', label: 'Electrical tilt Δ (°)' },
@@ -48,38 +48,49 @@ function NumberSlider({
     } else setText(String(value));
   };
 
+  const rows = useSliderRows();
+  const slider = (
+    <input
+      key="slider"
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      aria-label={label}
+      aria-valuetext={degreesSpoken(value)}
+      aria-describedby={describedBy}
+      onChange={(e) => onChange(Number(e.target.value))}
+      // With many files the page follows when the slider stops, not at every step (see `followsDrag`).
+      onPointerDown={(e) => gripByPointer(e, sliderKind(k))}
+      onKeyDown={(e) => {
+        if (gripKey(e.key)) gripByKey(sliderKind(k));
+      }}
+    />
+  );
+  const box = (
+    <input
+      key="box"
+      type="number"
+      min={min}
+      max={max}
+      step={step}
+      value={text}
+      aria-label={`${label} value`}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+      }}
+    />
+  );
+
   return (
     <div className="sim-field" role="group" aria-label={label} title={SIM_SLIDER_HELP[k]}>
       <span>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        aria-label={label}
-        aria-valuetext={degreesSpoken(value)}
-        aria-describedby={describedBy}
-        onChange={(e) => onChange(Number(e.target.value))}
-        // With many files the page follows when the slider stops, not at every step (see `followsDrag`).
-        onPointerDown={(e) => gripByPointer(e, sliderKind(k))}
-        onKeyDown={(e) => {
-          if (gripKey(e.key)) gripByKey(sliderKind(k));
-        }}
-      />
-      <input
-        type="number"
-        min={min}
-        max={max}
-        step={step}
-        value={text}
-        aria-label={`${label} value`}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit();
-        }}
-      />
+      {/* On a phone held upright the number box ends the label's line and the slider is the line below: the box comes
+          first in the page there, so Tab goes as the bar is read. The keys keep both inputs (and the focus) across the change. */}
+      {rows ? [box, slider] : [slider, box]}
     </div>
   );
 }
