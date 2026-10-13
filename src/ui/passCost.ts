@@ -71,7 +71,7 @@ export function createPassMeter<K extends string>(clock: () => number, kindOf: (
 /** The last passes of each kind timed on this machine, oldest first (none yet: empty). */
 export type TimedPasses = Record<PassKind, readonly PassCost[]>;
 
-/** `timed` with one more pass of `kind`: the last few of each kind are kept. */
+/** `timed` with one more pass of `kind`: the last `PASSES_KEPT` of each kind are kept. */
 export function withPass(timed: TimedPasses, kind: PassKind, cost: PassCost): TimedPasses {
   return { ...timed, [kind]: [...timed[kind], cost].slice(-PASSES_KEPT) };
 }
@@ -93,7 +93,8 @@ function takeTurns(): void {
 /**
  * Whether the page follows a drag of each kind of slider, for this load: by what the passes of that kind took on this
  * machine (see `followsDrag`). What was decided before for this same load stands while the passes do not clearly say
- * otherwise; what was decided for another load says nothing about this one.
+ * otherwise; what was decided for another load says nothing about this one, which starts from its first guess and the
+ * passes kept (those of a load near it count for it too).
  */
 export function useFollowsDrag(load: StepLoad): Record<PassKind, boolean> {
   const timed = useSyncExternalStore(passStore.subscribe, passStore.getState);

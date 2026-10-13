@@ -198,18 +198,25 @@ export function passKind(from: unknown, to: unknown): PassKind | null {
 }
 
 /**
- * Once passes have been timed: a drag is waited for where a step blocks the page for longer than this at a stretch.
- * It takes the last `PASSES_KEPT` passes together to say so, and as many to say that it does not (see `followsDrag`).
+ * Once passes have been timed: a pass that blocks the page for longer than this at a stretch speaks for waiting for
+ * the drag, one that does not speaks for following it (see `followsDrag`).
  */
 export const HOLD_ABOVE_MS = 140;
 
 /**
- * How many timed passes of a kind decide, and are kept: the last four, and only when they agree. A load near the
- * limit has single passes over it in most drags, pairs in many and now and then three in a row; fewer than four
- * would settle such a load by chance. The same number brings a drag back, so a turn costs as much either way: a
- * followed drag times a pass at every step and a waited-for one only at its release, so going back takes four drags.
+ * By how many the passes on one side have to lead those on the other before the decision turns. A load near the
+ * limit has single passes over it in most drags, pairs in many and now and then four in a row; where a third to two
+ * thirds of its passes are over it, any short run settles it by chance and unsettles it a drag later. A lead of
+ * eight is rare there, and a load that is clearly dear still reaches it within its first drag.
  */
-export const PASSES_KEPT = 4;
+export const TURN_LEAD = 8;
+
+/**
+ * How many timed passes of a kind are kept, and counted: the last sixteen. A lead has to be reached within them, so
+ * what was timed long ago does not add up with what is timed now. A followed drag times a pass at every step and a
+ * waited-for one only at its release: going back takes eight drags at least.
+ */
+export const PASSES_KEPT = 16;
 
 /**
  * A load estimated at no more than this is always followed (one ticked file of the built-in example is 26): there is
@@ -248,22 +255,27 @@ export function expectedPassMs(units: number, timed: PassCost): number {
  * (see `useHeldWhile`).
  *
  * `timed` are the last passes of the slider's kind timed on this machine, oldest first, each scaled to the load by
- * the estimate. The last four decide, and only together: all over `HOLD_ABOVE_MS`, the drag is waited for; none over
- * it, it is followed; else what was decided `before` for this load stands. So neither a slow pass or three among quick
- * ones nor a quick one among slow ones turns it round, and a load at the limit does not go from one to the other
- * with every drag. While there are not four of them, or one was timed on a load too far from this one (see
- * `SCALED_UP_TO`), the estimate alone decides, as it did before any pass was timed (the first guess). Either way the
- * page ends as after a typed value.
+ * the estimate. They are counted through from what was decided `before` for this load (from the first guess, the
+ * estimate alone, while nothing was): a pass over `HOLD_ABOVE_MS` is one for waiting, a pass not over it one for
+ * following, and the count never goes beyond nothing or beyond `TURN_LEAD`. Where those for waiting lead by
+ * `TURN_LEAD` the drag is waited for; where the lead is used up again it is followed; in between what was decided
+ * stands. So a pass on the other side is made up for by one more, not by starting again, and it takes a clear lead to
+ * turn a decision either way: neither a slow run among quick passes nor a quick one among slow ones does, and a load
+ * at the limit, where the passes fall on both sides, stays as it is instead of going from one to the other with the
+ * drags. A pass timed on a load too far from this one (see `SCALED_UP_TO`) says nothing and is passed over. Either
+ * way the page ends as after a typed value.
  */
 export function followsDrag(load: StepLoad, timed: readonly PassCost[] = [], before?: boolean): boolean {
   const units = estimatedUnits(load);
   if (units <= ALWAYS_LIVE_UNITS) return true;
-  const firstGuess = units <= LIVE_DRAG_BUDGET_MS;
-  const last = timed.slice(-PASSES_KEPT);
   const near = (pass: PassCost): boolean => units <= pass.units * SCALED_UP_TO && pass.units <= units * SCALED_UP_TO;
-  if (last.length < PASSES_KEPT || !last.every(near)) return firstGuess;
-  const over = last.filter((pass) => expectedPassMs(units, pass) > HOLD_ABOVE_MS).length;
-  if (over === last.length) return false;
-  if (over === 0) return true;
-  return before ?? firstGuess;
+  let follows = before ?? units <= LIVE_DRAG_BUDGET_MS;
+  let lead = follows ? 0 : TURN_LEAD;
+  for (const pass of timed.slice(-PASSES_KEPT)) {
+    if (!near(pass)) continue;
+    lead = Math.max(0, Math.min(TURN_LEAD, lead + (expectedPassMs(units, pass) > HOLD_ABOVE_MS ? 1 : -1)));
+    if (lead === TURN_LEAD) follows = false;
+    else if (lead === 0) follows = true;
+  }
+  return follows;
 }

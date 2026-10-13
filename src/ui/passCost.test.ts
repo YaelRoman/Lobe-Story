@@ -158,24 +158,28 @@ describe('timing a pass: for how long at a stretch the page is blocked between t
   });
 });
 
-describe('the passes kept: the last four of each kind', () => {
-  it('a pass is added to its own kind, and the oldest of five goes', () => {
+describe('the passes kept: the last sixteen of each kind', () => {
+  it('a pass is added to its own kind, and the oldest of seventeen goes', () => {
     let timed: TimedPasses = { tilt: [], azimuth: [] };
     timed = withPass(timed, 'tilt', { ms: 100, units: 30 });
     timed = withPass(timed, 'azimuth', { ms: 20, units: 30 });
     timed = withPass(timed, 'tilt', { ms: 110, units: 30 });
     expect(timed).toEqual({ tilt: [{ ms: 100, units: 30 }, { ms: 110, units: 30 }], azimuth: [{ ms: 20, units: 30 }] });
     // A cheap azimuth pass does not push a tilt pass out, however many come.
-    for (let i = 0; i < 7; i++) timed = withPass(timed, 'azimuth', { ms: 20 + i, units: 30 });
+    for (let i = 0; i < 19; i++) timed = withPass(timed, 'azimuth', { ms: 20 + i, units: 30 });
     expect(timed.tilt.map((p) => p.ms)).toEqual([100, 110]);
-    expect(timed.azimuth.map((p) => p.ms)).toEqual([23, 24, 25, 26]);
-    for (const ms of [120, 130, 140]) timed = withPass(timed, 'tilt', { ms, units: 30 });
-    expect(timed.tilt.map((p) => p.ms)).toEqual([110, 120, 130, 140]);
+    expect(timed.azimuth.map((p) => p.ms)).toEqual(Array.from({ length: 16 }, (_, i) => 23 + i));
+    for (let i = 0; i < 15; i++) timed = withPass(timed, 'tilt', { ms: 120 + i, units: 30 });
+    expect(timed.tilt.map((p) => p.ms)).toEqual([110, ...Array.from({ length: 15 }, (_, i) => 120 + i)]);
   });
 });
 
 describe('what the page decides for a drag of each kind of slider, as passes are timed', () => {
   const ticked = (drawn: number, files = 24): StepLoad => ({ files, drawn, angularRegions: false });
+  /** The passes kept are the page's, not a test's: sixteen of a load far from any other push out what the test before left. */
+  const forget = () => {
+    for (const kind of ['tilt', 'azimuth'] as const) for (let i = 0; i < 16; i++) noteTimedPass(kind, { ms: 1, units: 1e9 });
+  };
   function mount(load: StepLoad) {
     const container = document.createElement('div');
     let root!: Root;
@@ -184,6 +188,7 @@ describe('what the page decides for a drag of each kind of slider, as passes are
       follows = useFollowsDrag(load);
       return null;
     }
+    forget();
     act(() => {
       root = createRoot(container);
       root.render(createElement(Probe, { load }));
@@ -196,33 +201,33 @@ describe('what the page decides for a drag of each kind of slider, as passes are
     };
   }
 
-  it('each kind goes by its own passes, what was decided stands while they do not agree, and another load starts from the first guess', () => {
+  it('each kind goes by its own passes, what was decided stands while neither side leads by eight, and another load starts from the first guess', () => {
     const all = ticked(24);
     const page = mount(all);
     expect(page.follows()).toEqual({ tilt: true, azimuth: true }); // the first guess
-    // Three slow tilt passes decide nothing; the fourth one does. The azimuth slider is not touched by it.
-    for (const ms of [220, 180, 200]) page.timed('tilt', ms, all);
+    // Seven slow tilt passes decide nothing; the eighth one does. The azimuth slider is not touched by it.
+    for (const ms of [220, 180, 200, 190, 210, 230, 185]) page.timed('tilt', ms, all);
     expect(page.follows()).toEqual({ tilt: true, azimuth: true });
     page.timed('tilt', 190, all);
     expect(page.follows()).toEqual({ tilt: false, azimuth: true });
     // Quick azimuth passes, however many, do not bring the tilt drag back.
-    for (const ms of [30, 35, 32, 31, 29]) page.timed('azimuth', ms, all);
+    for (const ms of [30, 35, 32, 31, 29, 30, 33, 28, 31]) page.timed('azimuth', ms, all);
     expect(page.follows()).toEqual({ tilt: false, azimuth: true });
     // Quick tilt passes among the slow ones: still waited for.
     for (const ms of [60, 190, 120, 110, 125, 150]) {
       page.timed('tilt', ms, all);
       expect(page.follows().tilt, `${ms} ms`).toBe(false);
     }
-    // Four in a row not over the limit: followed again, and it stays so while some are over it and some are not.
-    for (const ms of [95, 90, 130]) page.timed('tilt', ms, all);
+    // Those not over the limit lead by eight with the sixth more: followed again, and it stays so while some are over it and some are not.
+    for (const ms of [95, 90, 130, 120, 100]) page.timed('tilt', ms, all);
     expect(page.follows().tilt).toBe(false);
-    page.timed('tilt', 120, all);
+    page.timed('tilt', 110, all);
     expect(page.follows().tilt).toBe(true);
     for (const ms of [150, 160, 128, 235, 150, 145, 99]) {
       page.timed('tilt', ms, all);
       expect(page.follows().tilt, `${ms} ms`).toBe(true);
     }
-    for (const ms of [150, 160, 170, 155]) page.timed('tilt', ms, all);
+    for (const ms of [150, 160, 170, 155, 165, 175, 150, 160, 170, 180]) page.timed('tilt', ms, all);
     expect(page.follows().tilt).toBe(false);
     // Two ticked files: the passes of the 24 say nothing about them, they are followed as before anything was timed.
     page.setLoad(ticked(2));
@@ -233,11 +238,11 @@ describe('what the page decides for a drag of each kind of slider, as passes are
     page.unmount();
   });
 
-  it('what was decided belongs to its load: after a change of load, passes that do not agree leave the first guess, not the old decision', () => {
+  it('what was decided belongs to its load: after a change of load, passes with no lead leave the first guess, not the old decision', () => {
     const all = ticked(24);
     const page = mount(all);
-    // 190 to 215 ms with all 24 ticked: waited for. Scaled to 12 ticked they lie on both sides of the limit.
-    for (const ms of [190, 215, 195, 210]) page.timed('tilt', ms, all);
+    // 190 to 215 ms with all 24 ticked: waited for. Scaled to 12 ticked they lie on both sides of the limit, in turn.
+    for (const ms of [190, 215, 195, 210, 192, 212, 198, 208]) page.timed('tilt', ms, all);
     expect(page.follows().tilt).toBe(false);
     page.setLoad(ticked(12));
     expect(page.follows().tilt).toBe(true);
@@ -246,7 +251,7 @@ describe('what the page decides for a drag of each kind of slider, as passes are
     // both sides of the limit: waited for, not followed because the 30 were.
     const thirty = ticked(30, 30);
     const other = mount(thirty);
-    for (const ms of [120, 135, 125, 138]) other.timed('tilt', ms, thirty);
+    for (const ms of [120, 135, 125, 138, 120, 135, 125, 138]) other.timed('tilt', ms, thirty);
     expect(other.follows().tilt).toBe(true);
     other.setLoad(ticked(34, 34));
     expect(other.follows().tilt).toBe(false);
@@ -256,10 +261,21 @@ describe('what the page decides for a drag of each kind of slider, as passes are
     other.unmount();
   });
 
+  it('a load that turned by its own passes takes them along to a load near it: one file unticked is not followed anew', () => {
+    const all = ticked(24);
+    const page = mount(all);
+    for (const ms of [220, 240, 230, 250, 225, 245, 235, 255]) page.timed('tilt', ms, all);
+    expect(page.follows().tilt).toBe(false);
+    // 23 ticked: those passes are expected over the limit there as well.
+    page.setLoad(ticked(23));
+    expect(page.follows().tilt).toBe(false);
+    page.unmount();
+  });
+
   it('96 ticked files are waited for whatever a cheap azimuth pass of them took, until tilt passes of them are timed', () => {
     const all96 = ticked(96, 96);
     const page = mount(all96);
-    for (const ms of [30, 28, 31, 27]) page.timed('azimuth', ms, all96);
+    for (const ms of [30, 28, 31, 27, 29, 30, 28, 31]) page.timed('azimuth', ms, all96);
     // A fast machine: the azimuth drag is followed; the tilt drag is not started live on the strength of it.
     expect(page.follows()).toEqual({ tilt: false, azimuth: true });
     for (const ms of [300, 320, 310, 330]) page.timed('tilt', ms, ticked(48, 96));
