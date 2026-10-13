@@ -203,6 +203,48 @@ describe('store', () => {
     expect(useStore.getState().view.subBands).toEqual(subBands);
   });
 
+  it('going back to automatic sub-bands drops the user\'s, and can be undone', () => {
+    useStore.getState().addFiles([input('a.msi', planetText())]);
+    const subBands = [
+      { name: 'A', minMHz: 1, maxMHz: 2 },
+      { name: 'B', minMHz: 3, maxMHz: 4 },
+    ];
+    useStore.getState().updateView({ subBands, mode: 'rect' });
+    expect(useStore.getState().undo).toBeNull();
+    useStore.getState().dropSubBands();
+    expect(useStore.getState().view.subBands).toEqual([]);
+    expect(useStore.getState().undo).toMatchObject({ label: 'Dropped your 2 sub-bands', shown: true });
+    useStore.getState().undoLast();
+    expect(useStore.getState().view.subBands).toEqual(subBands);
+    expect(useStore.getState().view.mode).toBe('rect');
+    expect(useStore.getState().undo).toBeNull();
+    // One sub-band is said in the singular.
+    useStore.getState().updateView({ subBands: subBands.slice(0, 1) });
+    useStore.getState().dropSubBands();
+    expect(useStore.getState().undo?.label).toBe('Dropped your sub-band');
+  });
+
+  it('with automatic sub-bands already there is nothing to drop: no undo is offered, and one on offer stays', () => {
+    useStore.getState().addFiles([input('a.msi', planetText())]);
+    useStore.getState().dropSubBands();
+    expect(useStore.getState().undo).toBeNull();
+    useStore.getState().resetSimulation();
+    useStore.getState().updateSimulation({ mechanicalDeg: 2 });
+    useStore.getState().resetSimulation();
+    const offered = useStore.getState().undo;
+    expect(offered).not.toBeNull();
+    useStore.getState().dropSubBands();
+    expect(useStore.getState().undo).toBe(offered);
+  });
+
+  it('a later change of the sub-bands withdraws the undo of dropping them', () => {
+    useStore.getState().addFiles([input('a.msi', planetText())]);
+    useStore.getState().updateView({ subBands: [{ name: 'A', minMHz: 1, maxMHz: 2 }] });
+    useStore.getState().dropSubBands();
+    useStore.getState().updateView({ subBands: [{ name: 'C', minMHz: 5, maxMHz: 6 }] });
+    expect(useStore.getState().undo).toBeNull();
+  });
+
   it('starts in 2D with summation and side-by-side 3D defaults', () => {
     expect(useStore.getState().view).toMatchObject({ dimension: '2d', method3d: 'summation', layout3d: 'grid' });
   });

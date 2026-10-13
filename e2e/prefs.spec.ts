@@ -126,6 +126,16 @@ test('user sub-bands stay with the session: not stored in the browser, gone afte
   await band.getByRole('button', { name: 'Back to automatic' }).click();
   await expect(header(/^2500–2580 MHz/)).toBeVisible();
   await expect(band.getByTestId('subband-state')).toHaveCount(0);
+  // It dropped typed work in one click: an undo is offered, and Ctrl+Z brings the sub-bands back as they were.
+  await expect(page.getByTestId('undo-toast')).toContainText('Dropped your sub-band');
+  await page.keyboard.press('Control+z');
+  await expect(band.getByTestId('subband-state')).toContainText('Sub-bands: user-defined (1). 10 of 10 files are in no sub-band.');
+  await expect(header(/^880–960 MHz/)).toBeVisible();
+  // And the offer's own button, after dropping them again.
+  await band.getByRole('button', { name: 'Back to automatic' }).click();
+  await expect(band.getByTestId('subband-state')).toHaveCount(0);
+  await page.getByTestId('undo-toast').getByRole('button', { name: /^Undo/ }).click();
+  await expect(band.getByTestId('subband-state')).toContainText('Sub-bands: user-defined (1).');
 });
 
 test('sub-bands an earlier version left in the browser are not applied, and are forgotten', async ({ page }) => {

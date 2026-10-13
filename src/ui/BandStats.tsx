@@ -51,6 +51,7 @@ export const BandStats = memo(function BandStats({
   const gainUnit = useStore((s) => s.view.gainUnit);
   const settings = useStore((s) => s.settings);
   const updateView = useStore((s) => s.updateView);
+  const dropSubBands = useStore((s) => s.dropSubBands);
   const setCopyNote = useStore((s) => s.setCopyNote);
   const [chosen, setChosen] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -217,8 +218,8 @@ export const BandStats = memo(function BandStats({
           {bandsNote.text}{' '}
           <button
             type="button"
-            title="Drop your sub-bands and use one per cluster of loaded frequencies again"
-            onClick={() => updateView({ subBands: [] })}
+            title="Drop your sub-bands and use one per cluster of loaded frequencies again (can be undone)"
+            onClick={dropSubBands}
           >
             Back to automatic
           </button>

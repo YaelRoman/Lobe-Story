@@ -179,6 +179,8 @@ export interface StoreActions {
   setHighlighted(id: string | null): void;
   updateSettings(partial: Partial<AnalysisSettings>): void;
   updateView(partial: Partial<ViewState>): void;
+  /** Back to automatic sub-bands: the user's are dropped, and an undo is offered (they are typed work). Nothing changes when there are none. */
+  dropSubBands(): void;
   setLoadMessage(message: string | null, tone?: 'info' | 'warn'): void;
   /** Shows a transient copy line (it fades by itself after COPY_NOTE_MS); the load status is left alone. */
   setCopyNote(message: string | null): void;
@@ -655,6 +657,13 @@ export const useStore = create<State>()((rawSet, get) => {
     }),
 
   updateView: (partial) => set((state) => (sameValues(state.view, partial) ? state : { view: { ...state.view, ...partial } })),
+
+  dropSubBands: () =>
+    set((state) => {
+      const n = state.view.subBands.length;
+      if (n === 0) return state;
+      return { ...undoEntry(state, n === 1 ? 'Dropped your sub-band' : `Dropped your ${n} sub-bands`), view: { ...state.view, subBands: [] } };
+    }),
 
   setLoadMessage: (message, tone = 'warn') =>
     set((s) => ({ loadMessage: message, loadTone: tone, loadSeq: s.loadSeq + 1, ...(tone === 'info' && message !== null ? {} : { loadFailed: 0 }) })),
