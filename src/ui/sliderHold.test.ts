@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ALWAYS_LIVE_UNITS, estimatedUnits, expectedPassMs, FIXED_UNITS, followsDrag, GRIP_PAUSE_MS, HOLD_ABOVE_MS, gripByKey, gripByPointer, gripKey, KEY_RELEASE_MS, LIVE_BELOW_MS, LIVE_DRAG_BUDGET_MS, passKind, PASSES_KEPT, SCALED_UP_TO, sliderGrip, sliderGripped, sliderKind, sliderKindInHand } from './sliderHold';
+import { ALWAYS_LIVE_UNITS, estimatedUnits, expectedPassMs, FIXED_UNITS, followsDrag, GRIP_PAUSE_MS, HOLD_ABOVE_MS, gripByKey, gripByPointer, gripKey, KEY_RELEASE_MS, LIVE_DRAG_BUDGET_MS, passKind, PASSES_KEPT, SCALED_UP_TO, sliderGrip, sliderGripped, sliderKind, sliderKindInHand, type PassCost, type StepLoad } from './sliderHold';
 import { PAUSE_MS } from './heldValue';
 
 afterEach(() => window.dispatchEvent(new Event('blur')));
@@ -259,6 +259,31 @@ describe('whether the page follows a slider while it is dragged, once passes hav
   const units = estimatedUnits(example);
   /** A pass of `load` that blocked the page for `ms` at a stretch. */
   const pass = (ms: number, load = example) => ({ ms, units: estimatedUnits(load) });
+  const passes = (ms: number[], load = example) => ms.map((m) => pass(m, load));
+  /**
+   * A session on one load: each drag is the passes it would time if it were followed (a step each), then the pass of
+   * its release. The decision of each pass is handed to the next. A drag that is waited for, from the press or from one
+   * of its steps on, times no further step, only its release. Says for each drag whether it was followed at the press
+   * and to its end.
+   */
+  const session = (load: StepLoad, drags: { steps: number[]; release: number }[], start?: boolean) => {
+    let timed: PassCost[] = [];
+    let follows = followsDrag(load, timed, start);
+    const note = (ms: number) => {
+      timed = [...timed, pass(ms, load)].slice(-PASSES_KEPT);
+      follows = followsDrag(load, timed, follows);
+    };
+    return drags.map(({ steps, release }) => {
+      const atPress = follows;
+      for (const ms of steps) {
+        if (!follows) break;
+        note(ms);
+      }
+      const toTheEnd = follows;
+      if (!toTheEnd) note(release);
+      return atPress && toTheEnd ? 'followed' : atPress ? 'turned' : 'held';
+    });
+  };
 
   it('the estimate gives the shape of the cost: 0.8 per loaded file, 2 more with the angular regions, 7 per ticked file', () => {
     expect(units).toBeCloseTo(24 * 0.8 + 24 * 7, 9);
@@ -266,67 +291,90 @@ describe('whether the page follows a slider while it is dragged, once passes hav
     expect(estimatedUnits(ticked(1))).toBeCloseTo(24 * 0.8 + 7, 9);
   });
 
-  it('waits when the last two passes both blocked for more than 140 ms, follows when both for less than 100 ms', () => {
-    expect([HOLD_ABOVE_MS, LIVE_BELOW_MS, PASSES_KEPT]).toEqual([140, 100, 2]);
+  it('waits when the last four passes all blocked for more than 140 ms, follows when none of them did', () => {
+    expect([HOLD_ABOVE_MS, PASSES_KEPT]).toEqual([140, 4]);
     expect(followsDrag(example)).toBe(true); // the first guess
-    expect(followsDrag(example, [pass(154), pass(250)])).toBe(false); // the example with Show all, as measured
-    expect(followsDrag(example, [pass(141), pass(141)])).toBe(false);
-    expect(followsDrag(example, [pass(99), pass(99)])).toBe(true);
-    // Only the last two count.
-    expect(followsDrag(example, [pass(40), pass(40), pass(180), pass(190)])).toBe(false);
-    expect(followsDrag(example, [pass(180), pass(190), pass(40), pass(40)], false)).toBe(true);
+    expect(followsDrag(example, passes([154, 250, 170, 228]))).toBe(false); // the example with Show all, as measured
+    expect(followsDrag(example, passes([141, 141, 141, 141]), true)).toBe(false);
+    expect(followsDrag(example, passes([140, 140, 140, 140]), false)).toBe(true);
+    expect(followsDrag(example, passes([99, 139, 20, 120]), false)).toBe(true);
+    // Only the last four count.
+    expect(followsDrag(example, passes([40, 40, 40, 40, 180, 190, 150, 160]), true)).toBe(false);
+    expect(followsDrag(example, passes([180, 190, 150, 160, 40, 40, 40, 40]), false)).toBe(true);
   });
 
-  it('two to four ticked files of the example, whose steps block for 35 to 105 ms, are followed', () => {
-    for (const n of [2, 4]) {
-      for (const [a, b] of [[98, 80], [49, 85], [104, 74], [88, 66], [36, 79]]) {
-        expect(followsDrag(ticked(n), [pass(a, ticked(n)), pass(b, ticked(n))]), `${n} ticked, ${a} and ${b} ms`).toBe(true);
-      }
-    }
-    // So is one ticked file among 96 loaded ones (57 to 138 ms).
-    const one96 = ticked(1, 96);
-    for (const [a, b] of [[120, 73], [138, 88], [73, 138], [69, 59]]) expect(followsDrag(one96, [pass(a, one96), pass(b, one96)])).toBe(true);
+  it('two to four ticked files of the example, and one ticked among 96 loaded, are followed drag after drag at the timings measured', () => {
+    // Steps as timed in the app on a busy machine, the dearest drags of each load.
+    const two = [[127, 87, 87, 109, 94, 83, 174, 91, 84, 137], [93, 86, 68, 105, 69, 62, 109, 73, 63, 159, 62]];
+    const four = [[112, 80, 129, 120, 165, 117, 114, 82, 135, 77], [89, 123, 71, 89, 93, 124, 56, 189, 80, 96, 64]];
+    expect(session(ticked(2), two.map((steps) => ({ steps, release: 150 })))).toEqual(['followed', 'followed']);
+    expect(session(ticked(4), four.map((steps) => ({ steps, release: 150 })))).toEqual(['followed', 'followed']);
+    // One ticked of 96 sits near the limit: single passes and pairs over it come in most drags, and three in a row
+    // were seen. None of these drags is waited for (two neighbours over the limit used to settle it for the session).
+    const one96 = [
+      [155, 117, 79, 118, 124, 137, 125, 223, 148],
+      [180, 130, 117, 126, 148, 119, 124, 141, 218],
+      [130, 132, 80, 235, 99, 106, 64, 119, 243, 88],
+      [120, 145, 207, 205, 110, 96, 131, 102, 99, 118],
+    ];
+    expect(session(ticked(1, 96), one96.map((steps) => ({ steps, release: 191 })))).toEqual(['followed', 'followed', 'followed', 'followed']);
   });
 
-  it('one pass alone decides nothing: the first guess stands until two were timed', () => {
-    expect(followsDrag(example, [pass(1600)])).toBe(true); // the first pass after a load is often a slow one
+  it('fewer than four passes decide nothing: the first guess stands until four were timed', () => {
+    expect(followsDrag(example, passes([1600]))).toBe(true); // the first pass after a load is often a slow one
+    expect(followsDrag(example, passes([1600, 900, 800]), false)).toBe(true);
     const many = ticked(48, 48);
     expect(followsDrag(many)).toBe(false);
-    expect(followsDrag(many, [pass(20, many)])).toBe(false);
-    expect(followsDrag(many, [pass(20, many), pass(25, many)])).toBe(true); // a fast machine follows more files than the first guess allows
-    expect(followsDrag(ticked(12), [pass(400, ticked(12)), pass(380, ticked(12))])).toBe(false); // and a slow one fewer
+    expect(followsDrag(many, passes([20, 22, 25], many), true)).toBe(false);
+    expect(followsDrag(many, passes([20, 22, 25, 21], many))).toBe(true); // a fast machine follows more files than the first guess allows
+    expect(followsDrag(ticked(12), passes([400, 380, 390, 410], ticked(12)))).toBe(false); // and a slow one fewer
   });
 
-  it('one slow or one quick pass among the others does not turn the decision round', () => {
-    // Followed, then one hiccup: still followed. Waited for, then one quick pass: still waited for.
-    expect(followsDrag(example, [pass(90), pass(1458)], true)).toBe(true);
-    expect(followsDrag(example, [pass(1458), pass(90)], true)).toBe(true);
-    expect(followsDrag(example, [pass(200), pass(60)], false)).toBe(false);
-    expect(followsDrag(example, [pass(60), pass(200)], false)).toBe(false);
-    // A run of passes, the decision of each step handed to the next: it turns only where two in a row agree.
+  it('while the last four do not agree what was decided before stands: no single pass, pair or three of a kind turns it round', () => {
+    for (const ms of [[90, 1458, 85, 95], [300, 300, 300, 90], [150, 60, 160, 170], [139, 141, 139, 141]]) {
+      expect(followsDrag(example, passes(ms), true), `${ms}`).toBe(true);
+      expect(followsDrag(example, passes(ms), false), `${ms}`).toBe(false);
+      expect(followsDrag(example, passes(ms)), `${ms}`).toBe(true); // nothing decided yet: the first guess
+    }
+    // A run of passes, the decision of each handed to the next: it turns only where four in a row agree.
     const run = (start: boolean, ms: number[]) => {
       const out: boolean[] = [];
       let follows = start;
-      ms.forEach((_, i) => out.push((follows = followsDrag(example, ms.slice(0, i + 1).map((m) => pass(m)), follows))));
+      ms.forEach((_, i) => out.push((follows = followsDrag(example, passes(ms.slice(0, i + 1)), follows))));
       return out;
     };
-    expect(run(true, [90, 300, 85, 300, 95, 80])).toEqual([true, true, true, true, true, true]);
-    expect(run(true, [160, 90, 170, 180, 60, 190, 70, 65])).toEqual([true, true, true, false, false, false, false, true]);
+    expect(run(true, [90, 300, 85, 300, 310, 320, 80])).toEqual([true, true, true, true, true, true, true]);
+    expect(run(true, [160, 90, 170, 180, 150, 190, 70, 65, 60, 130, 120])).toEqual([true, true, true, true, true, false, false, false, false, true, true]);
   });
 
-  it('between the two limits what was decided before stands (a load at the limit does not go to and fro)', () => {
-    for (const pair of [[110, 120], [101, 139], [135, 105]]) {
-      const timed = pair.map((ms) => pass(ms));
-      expect(followsDrag(example, timed, true)).toBe(true);
-      expect(followsDrag(example, timed, false)).toBe(false);
-      expect(followsDrag(example, timed)).toBe(true); // nothing decided yet: the first guess
-    }
-    // Passes that hover around one limit: once over it the drag is waited for, and stays so until both are under the other.
-    let follows = true;
-    const seen: boolean[] = [];
-    const ms = [135, 138, 143, 141, 137, 143, 120, 104, 99, 101, 98, 97];
-    for (let i = 1; i < ms.length; i++) seen.push((follows = followsDrag(example, [pass(ms[i - 1]), pass(ms[i])], follows)));
-    expect(seen).toEqual([true, true, false, false, false, false, false, false, false, false, true]);
+  it('a dear load is waited for from the fourth step of its first drag, and stays so', () => {
+    // Twelve ticked files of the example on a busy machine: every pass over the limit, the releases too.
+    const drags = [{ steps: [143, 170, 183, 160, 175, 190], release: 212 }, ...[205, 150, 251, 163].map((release) => ({ steps: [170, 180, 165, 190, 200], release }))];
+    expect(session(ticked(12), drags)).toEqual(['turned', 'held', 'held', 'held', 'held']);
+    // One quick release among them changes nothing.
+    expect(session(ticked(12), [...drags, { steps: [], release: 95 }, { steps: [], release: 180 }, { steps: [], release: 170 }])).toEqual(['turned', 'held', 'held', 'held', 'held', 'held', 'held', 'held']);
+  });
+
+  it('a load that was waited for by chance comes back: once four releases in a row were not over the limit', () => {
+    const one96 = ticked(1, 96);
+    // Four unlucky neighbours in the first drag; the drags after it are waited for, each timing its release alone.
+    const unlucky = { steps: [120, 150, 207, 205, 160, 100, 110], release: 136 };
+    const release = (ms: number) => ({ steps: [110, 95, 120, 105, 99, 118, 101, 96, 130, 104, 92], release: ms });
+    expect(session(one96, [unlucky, release(115), release(125), release(118), release(110), release(120)])).toEqual(['turned', 'held', 'held', 'held', 'followed', 'followed']);
+    // A release over the limit among them puts it off: four in a row are wanted.
+    expect(session(one96, [unlucky, release(115), release(191), release(118), release(110), release(125), release(120), release(100)])).toEqual(['turned', 'held', 'held', 'held', 'held', 'held', 'held', 'followed']);
+  });
+
+  it('a load right on the limit does not go to and fro from drag to drag: a turn takes four agreeing passes each way', () => {
+    const load = ticked(4);
+    // Every other step over the limit, as every other release: never four in a row of a kind, so no turn, whichever way it started.
+    const even = Array.from({ length: 12 }, (_, d) => ({ steps: [150, 120, 160, 130, 145, 135, 170, 110, 155, 125], release: d % 2 ? 150 : 130 }));
+    expect(new Set(session(load, even, true))).toEqual(new Set(['followed']));
+    // Waited for, a turn back needs four drags whose releases agree; followed again, the next drags stay so through pairs and threes over the limit.
+    const held = [{ steps: [150, 160, 170, 180], release: 150 }];
+    const back = [130, 120, 135, 125].map((release) => ({ steps: [150, 120, 160, 130], release }));
+    const after = Array.from({ length: 6 }, () => ({ steps: [150, 160, 120, 145, 150, 155, 130, 110, 160, 125], release: 150 }));
+    expect(session(load, [...held, ...back, ...after])).toEqual(['turned', 'held', 'held', 'held', 'held', ...after.map(() => 'followed')]);
   });
 
   it('a pass timed on another load is scaled by the estimate, with a part that does not grow with the load', () => {
@@ -334,45 +382,48 @@ describe('whether the page follows a slider while it is dragged, once passes hav
     const half = estimatedUnits(ticked(12));
     expect(expectedPassMs(half, pass(200))).toBeCloseTo((200 * (75 + half)) / (75 + units), 9);
     expect(expectedPassMs(units, pass(200))).toBe(200);
-    // 24 ticked blocked for 220 and 230 ms: 12 ticked are expected at about 150 and 156 ms, and are waited for too.
-    expect(followsDrag(ticked(12), [pass(220), pass(230)], true)).toBe(false);
-    // For 180 and 190 ms they are expected at about 122 and 129 ms, between the limits.
-    const timed = [pass(180), pass(190)];
+    // 24 ticked blocked for 220 to 240 ms: 12 ticked are expected at about 150 to 163 ms, and are waited for too.
+    expect(followsDrag(ticked(12), passes([220, 230, 225, 240]), true)).toBe(false);
+    // For 180 to 195 ms they are expected at about 122 to 133 ms, under the limit: followed, where the 24 are not.
+    const timed = passes([180, 190, 185, 195]);
     expect(followsDrag(example, timed, true)).toBe(false);
-    expect(followsDrag(ticked(12), timed, false)).toBe(false);
-    expect(followsDrag(ticked(12), timed, true)).toBe(true);
+    expect(followsDrag(ticked(12), timed, false)).toBe(true);
+    // For 200 and 210 ms among them they are expected on both sides of it: what was decided stands.
+    const mixed = passes([180, 210, 190, 215]);
+    expect(followsDrag(ticked(12), mixed, false)).toBe(false);
+    expect(followsDrag(ticked(12), mixed, true)).toBe(true);
   });
 
   it('a pass timed on a load more than twice or less than half this one says nothing: the first guess stands in', () => {
     expect(SCALED_UP_TO).toBe(2);
     // All 24 were waited for; two ticked files are followed again at once, as before anything was timed.
-    const dear = [pass(200), pass(210)];
+    const dear = passes([200, 210, 190, 220]);
     expect(followsDrag(ticked(2), dear, false)).toBe(true);
     expect(followsDrag(ticked(4), dear, false)).toBe(true);
     // 96 files all ticked took seconds a step; one ticked among them is not judged by that.
     const all96 = ticked(96, 96);
-    expect(followsDrag(ticked(1, 96), [pass(2500, all96), pass(3000, all96)], false)).toBe(true);
-    // Two quick passes of two ticked files do not make 96 ticked ones followed (nor the 24, before their own passes are timed).
-    const cheap = [pass(40, ticked(2)), pass(45, ticked(2))];
+    expect(followsDrag(ticked(1, 96), passes([2500, 3000, 2800, 2600], all96), false)).toBe(true);
+    // Quick passes of two ticked files do not make 96 ticked ones followed (nor the 24, before their own passes are timed).
+    const cheap = passes([40, 45, 42, 38], ticked(2));
     expect(followsDrag(all96, cheap, true)).toBe(false);
     expect(followsDrag(example, cheap, false)).toBe(true);
-    // One near and one far: still the first guess.
-    expect(followsDrag(example, [pass(40, ticked(2)), pass(300)], true)).toBe(true);
-    expect(followsDrag(all96, [pass(40, ticked(2)), pass(20, all96)], true)).toBe(false);
+    // Near ones and a far one: still the first guess.
+    expect(followsDrag(example, [pass(40, ticked(2)), ...passes([300, 310, 320])], false)).toBe(true);
+    expect(followsDrag(all96, [pass(40, ticked(2)), ...passes([20, 22, 21], all96)], true)).toBe(false);
   });
 
   it('a truly expensive pass is waited for: 96 ticked files at seconds a step, whatever was decided before', () => {
     const all96 = ticked(96, 96);
-    for (const before of [true, false, undefined]) expect(followsDrag(all96, [pass(2475, all96), pass(3640, all96)], before)).toBe(false);
+    for (const before of [true, false, undefined]) expect(followsDrag(all96, passes([2475, 3640, 2900, 3100], all96), before)).toBe(false);
     // Also on a page the first guess would follow.
-    expect(followsDrag(example, [pass(900), pass(1100)], true)).toBe(false);
+    expect(followsDrag(example, passes([900, 1100, 950, 1000]), true)).toBe(false);
   });
 
   it('one ticked file of the example stays live whatever was timed: a small load is always followed', () => {
     const one = ticked(1);
     expect(estimatedUnits(one)).toBeLessThanOrEqual(ALWAYS_LIVE_UNITS);
-    for (const ms of [5, 80, 180, 5000]) expect(followsDrag(one, [pass(ms, one), pass(ms, one)], false)).toBe(true);
-    expect(followsDrag({ files: 0, drawn: 0, angularRegions: true }, [pass(5000), pass(5000)])).toBe(true);
+    for (const ms of [5, 80, 180, 5000]) expect(followsDrag(one, passes([ms, ms, ms, ms], one), false)).toBe(true);
+    expect(followsDrag({ files: 0, drawn: 0, angularRegions: true }, passes([5000, 5000, 5000, 5000]))).toBe(true);
   });
 });
 

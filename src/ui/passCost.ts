@@ -87,21 +87,22 @@ function takeTurns(): void {
 
 /**
  * Whether the page follows a drag of each kind of slider, for this load: by what the passes of that kind took on this
- * machine (see `followsDrag`). What was decided before stands while the passes do not clearly say otherwise.
+ * machine (see `followsDrag`). What was decided before for this same load stands while the passes do not clearly say
+ * otherwise; what was decided for another load says nothing about this one.
  */
 export function useFollowsDrag(load: StepLoad): Record<PassKind, boolean> {
   const timed = useSyncExternalStore(passStore.subscribe, passStore.getState);
-  const before = useRef<Record<PassKind, boolean> | null>(null);
-  const follows = useMemo(
-    () => ({
-      tilt: followsDrag(load, timed.tilt, before.current?.tilt),
-      azimuth: followsDrag(load, timed.azimuth, before.current?.azimuth),
-    }),
-    [load, timed],
-  );
+  const decided = useRef<{ load: StepLoad; follows: Record<PassKind, boolean> } | null>(null);
+  const { files, drawn, angularRegions } = load;
+  const follows = useMemo(() => {
+    const was = decided.current;
+    const before = was && was.load.files === files && was.load.drawn === drawn && was.load.angularRegions === angularRegions ? was.follows : null;
+    const now = { files, drawn, angularRegions };
+    return { tilt: followsDrag(now, timed.tilt, before?.tilt), azimuth: followsDrag(now, timed.azimuth, before?.azimuth) };
+  }, [files, drawn, angularRegions, timed]);
   useEffect(() => {
-    before.current = follows;
-  }, [follows]);
+    decided.current = { load: { files, drawn, angularRegions }, follows };
+  }, [files, drawn, angularRegions, follows]);
   return follows;
 }
 
