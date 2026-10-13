@@ -5,7 +5,8 @@ import { SKIP_TARGETS } from './SkipLinks';
 import { isTextEntry, isUndoShortcut, undoWording } from './undoKeys';
 import { splitTail } from './legend';
 import { fittingHead } from './midFit';
-import { usePhoneLayout, useTouchOnly } from './phoneLayout';
+import { isShortWindow, usePhoneLayout, useTouchOnly } from './phoneLayout';
+import { covered, offerPlace } from './offerPlace';
 
 /** How long the toast offering an undo stays; the undo itself stays available to Ctrl/Cmd+Z until a later edit withdraws it. */
 export const UNDO_MS = 10_000;
@@ -142,8 +143,23 @@ function Offer({ label, name }: { label: string; name?: string }) {
     placeBefore()?.focus();
   };
 
+  // In a short window the offer cannot be clear of the page: it moves under the status line when it would lie on a
+  // slider or a number box of the Simulation bar at the foot (see `offerPlace`). Placed once, before it is painted.
+  const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el || !isShortWindow()) return;
+    const controls = Array.from(document.querySelectorAll('.sim-bar input[type="range"], .sim-bar input[type="number"]'), (c) => c.getBoundingClientRect()).filter((r) => r.width > 0);
+    const place = offerPlace(covered(el.getBoundingClientRect(), controls), () => {
+      el.dataset.place = 'top';
+      return covered(el.getBoundingClientRect(), controls);
+    });
+    if (place === 'foot') delete el.dataset.place;
+  }, []);
+
   return (
     <div
+      ref={box}
       className="undo-toast"
       data-testid="undo-toast"
       data-paused={paused || undefined}

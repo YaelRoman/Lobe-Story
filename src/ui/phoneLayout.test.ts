@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { COARSE_QUERY, PHONE_QUERY, TOUCH_ONLY_QUERY, isPhoneLayout, isTouchOnly, useCoarsePointer, usePhoneLayout, useTouchOnly } from './phoneLayout';
+import { COARSE_QUERY, PHONE_QUERY, SHORT_QUERY, TOUCH_ONLY_QUERY, isPhoneLayout, isShortWindow, isTouchOnly, useCoarsePointer, usePhoneLayout, useTouchOnly } from './phoneLayout';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -120,5 +120,13 @@ describe('a coarse pointer (a finger): asked of the input, whatever the width an
     expect(seen[seen.length - 1]).toBe(false);
     act(() => root.unmount());
     expect(media.listeners.size).toBe(0);
+  });
+});
+
+describe('a short window: asked of the height and of the drawer layout together', () => {
+  it('is one media query', () => {
+    stubMatchMedia(true);
+    expect(isShortWindow()).toBe(true);
+    expect(SHORT_QUERY).toBe('(max-height: 600px) and (max-width: 760px)');
   });
 });

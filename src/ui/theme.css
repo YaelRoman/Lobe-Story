@@ -289,6 +289,22 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
   .subband-row input[type='text'] { width: 120px; }
   .sim-bar, .controls { max-width: 100%; }
 }
+/* A short window with the file panel as a drawer (a phone on its side, a laptop window at 200 % zoom; see SHORT_QUERY): three bars
+   that never move left a strip of a few lines to work in. The page scrolls as a whole instead: the toolbar and the Files bar go with
+   it, and only the status line stays, at the top (above the plots and the panel's tools, below the Settings panel and the menus). */
+@media (max-height: 600px) and (max-width: 760px) {
+  .app { height: auto; min-height: 100vh; }
+  .body { flex: none; min-height: auto; }
+  main { flex: none; overflow: visible; }
+  .status-area { position: sticky; top: 0; z-index: 9; }
+  /* What is scrolled or focused into view stops under the status line, not behind it (its height is set by StatusArea). */
+  html { scroll-padding-top: var(--status-h, 0px); }
+  .sim-lag-anchor { top: calc(var(--status-h, 0px) + 12px); }
+  /* The undo offer cannot be clear of the page here. It stays at the foot unless it would lie on a slider or a number box of the
+     Simulation bar there (see offerPlace): then it hangs under the status line. */
+  .undo-toast[data-place='top'] { position: absolute; top: calc(100% + 6px); bottom: auto; }
+  .status-area:has(.undo-toast[data-place='top']) .copy-toast { margin-top: 52px; }
+}
 
 /* First-run empty state and the help dialog. */
 .empty-state { margin: auto; max-width: 560px; display: flex; flex-direction: column; gap: 12px; padding: 24px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; }

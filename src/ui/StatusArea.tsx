@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { pendingLabel } from '../state/project';
 import { UndoToast } from './UndoToast';
@@ -118,8 +118,25 @@ export function StatusArea({ hasErrors, beforeShowErrors }: { hasErrors: boolean
     if (undoId !== undefined) setCopyNote(null);
   }, [undoId, setCopyNote]);
 
+  // The height of the status lines, for the stylesheet: where the status area sticks to the top of a short window, what
+  // is scrolled into view stops under it, and the sentence about a held slider hangs below it.
+  const areaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const area = areaRef.current;
+    if (!area || typeof ResizeObserver === 'undefined') return;
+    const root = document.documentElement;
+    const measure = () => root.style.setProperty('--status-h', `${area.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(area);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--status-h');
+    };
+  }, []);
+
   return (
-    <div className="status-area">
+    <div className="status-area" ref={areaRef}>
       {loadMessage && (
         <div className={loadTone === 'info' ? 'load-message info' : 'load-message'} data-testid="load-status">
           <span>{loadMessage}</span>

@@ -341,6 +341,8 @@ for (const viewport of [
   { width: 1440, height: 900 },
   { width: 1024, height: 768 },
   { width: 390, height: 844 },
+  // A short window: the page scrolls as a whole there, and the status line stays at its top.
+  { width: 640, height: 360 },
 ]) {
   test(`at ${viewport.width} px the sentence about a held slider comes in the Simulation bar, on the screen, and moves nothing under the pointer`, async ({ page }) => {
     await loadMany(page, 48, viewport);
