@@ -9,7 +9,7 @@ import { AZIMUTH_HINT, H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSE
 import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
-import { gripByKey, gripByPointer, gripKey } from './sliderHold';
+import { gripByKey, gripByPointer, gripKey, sliderKind } from './sliderHold';
 import { usePhoneLayout } from './phoneLayout';
 
 const SLIDERS: { key: SimulationKey; label: string }[] = [
@@ -61,9 +61,9 @@ function NumberSlider({
         aria-describedby={describedBy}
         onChange={(e) => onChange(Number(e.target.value))}
         // With many files the page follows when the slider stops, not at every step (see `followsDrag`).
-        onPointerDown={gripByPointer}
+        onPointerDown={(e) => gripByPointer(e, sliderKind(k))}
         onKeyDown={(e) => {
-          if (gripKey(e.key)) gripByKey();
+          if (gripKey(e.key)) gripByKey(sliderKind(k));
         }}
       />
       <input

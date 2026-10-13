@@ -13,8 +13,8 @@ import { needsAngularRegions } from './ui/table';
 import { BandStats } from './ui/BandStats';
 import { Dialog } from './ui/Dialog';
 import { useSettledSimulation, useSimulation } from './ui/useSimulation';
-import { estimatedUnits, followsDrag } from './ui/sliderHold';
-import { usePassStart, useTimedPass } from './ui/passCost';
+import { estimatedUnits, useSliderKind } from './ui/sliderHold';
+import { useFollowsDrag, usePassStart } from './ui/passCost';
 import { StatusArea } from './ui/StatusArea';
 import { useUnsavedGuard } from './ui/useUnsavedGuard';
 import { EmptyState } from './ui/EmptyState';
@@ -48,9 +48,10 @@ export default function App() {
   const metrics = useMemo(() => analyzeAll(tagged, settings, { areMethod }), [tagged, settings, areMethod]);
   // With many files a slider is not followed while it is dragged: the simulation is made once, when it stops.
   const tickedCount = useMemo(() => tagged.reduce((n, i) => n + (visible[i.pattern.id] ? 1 : 0), 0), [tagged, visible]);
-  // Whether it is goes by what a pass last took on this machine (the file counts are the first guess, and scale it).
+  // Whether it is goes by what the passes of the slider's kind took on this machine (the file counts are the first
+  // guess, and scale them): an azimuth is far cheaper than a tilt.
   const load = useMemo(() => ({ files: tagged.length, drawn: tickedCount, angularRegions: withAngularRegions }), [tagged.length, tickedCount, withAngularRegions]);
-  const follows = followsDrag(load, useTimedPass());
+  const follows = useFollowsDrag(load)[useSliderKind()];
   const settled = useSettledSimulation(follows);
   // A pass is timed from here (before the simulation is worked out) to the cut plots having drawn it, and only while
   // nothing else changes: not the files, the ticks, the settings or the view.

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ALWAYS_LIVE_UNITS, estimatedUnits, expectedPassMs, followsDrag, GRIP_PAUSE_MS, HOLD_ABOVE_MS, gripByKey, gripByPointer, gripKey, KEY_RELEASE_MS, LIVE_DRAG_BUDGET_MS, sliderGrip, sliderGripped } from './sliderHold';
+import { ALWAYS_LIVE_UNITS, estimatedUnits, expectedPassMs, FIXED_UNITS, followsDrag, GRIP_PAUSE_MS, HOLD_ABOVE_MS, gripByKey, gripByPointer, gripKey, KEY_RELEASE_MS, LIVE_BELOW_MS, LIVE_DRAG_BUDGET_MS, passKind, PASSES_KEPT, SCALED_UP_TO, sliderGrip, sliderGripped, sliderKind, sliderKindInHand } from './sliderHold';
 import { PAUSE_MS } from './heldValue';
 
 afterEach(() => window.dispatchEvent(new Event('blur')));
@@ -253,62 +253,174 @@ describe('whether the page follows a slider while it is dragged: the first guess
   });
 });
 
-describe('whether the page follows a slider while it is dragged, once a pass has been timed on this machine', () => {
-  const example = { files: 24, drawn: 24, angularRegions: false };
-  const one = { files: 24, drawn: 1, angularRegions: false };
+describe('whether the page follows a slider while it is dragged, once passes have been timed on this machine', () => {
+  const ticked = (drawn: number, files = 24) => ({ files, drawn, angularRegions: false });
+  const example = ticked(24);
   const units = estimatedUnits(example);
+  /** A pass of `load` that blocked the page for `ms` at a stretch. */
+  const pass = (ms: number, load = example) => ({ ms, units: estimatedUnits(load) });
 
   it('the estimate gives the shape of the cost: 0.8 per loaded file, 2 more with the angular regions, 7 per ticked file', () => {
     expect(units).toBeCloseTo(24 * 0.8 + 24 * 7, 9);
     expect(estimatedUnits({ ...example, angularRegions: true })).toBeCloseTo(24 * 2.8 + 24 * 7, 9);
-    expect(estimatedUnits(one)).toBeCloseTo(24 * 0.8 + 7, 9);
+    expect(estimatedUnits(ticked(1))).toBeCloseTo(24 * 0.8 + 7, 9);
   });
 
-  it('holds when a pass of this workload took more than about 80 ms, and follows when it took less', () => {
-    expect(HOLD_ABOVE_MS).toBe(80);
-    expect(followsDrag(example, null)).toBe(true); // the first guess
-    expect(followsDrag(example, { ms: 180, units })).toBe(false); // the example with Show all on a machine where a step blocks for 180 ms
-    expect(followsDrag(example, { ms: 81, units })).toBe(false);
-    expect(followsDrag(example, { ms: 80, units })).toBe(true);
-    expect(followsDrag(example, { ms: 35, units })).toBe(true);
+  it('waits when the last two passes both blocked for more than 140 ms, follows when both for less than 100 ms', () => {
+    expect([HOLD_ABOVE_MS, LIVE_BELOW_MS, PASSES_KEPT]).toEqual([140, 100, 2]);
+    expect(followsDrag(example)).toBe(true); // the first guess
+    expect(followsDrag(example, [pass(154), pass(250)])).toBe(false); // the example with Show all, as measured
+    expect(followsDrag(example, [pass(141), pass(141)])).toBe(false);
+    expect(followsDrag(example, [pass(99), pass(99)])).toBe(true);
+    // Only the last two count.
+    expect(followsDrag(example, [pass(40), pass(40), pass(180), pass(190)])).toBe(false);
+    expect(followsDrag(example, [pass(180), pass(190), pass(40), pass(40)], false)).toBe(true);
   });
 
-  it('a pass timed on another workload is scaled by the estimate of the two', () => {
-    // 180 ms for the 24 ticked files says about 90 ms for half of them, and about 30 ms for one.
-    const timed = { ms: 180, units };
-    expect(expectedPassMs(estimatedUnits({ files: 24, drawn: 12, angularRegions: false }), timed)).toBeCloseTo(180 * (19.2 + 84) / units, 9);
-    expect(followsDrag({ files: 24, drawn: 12, angularRegions: false }, timed)).toBe(false);
-    expect(followsDrag({ files: 24, drawn: 9, angularRegions: false }, timed)).toBe(true);
-    // A fast machine follows more files than the first guess allows; a slow one fewer.
-    const many = { files: 48, drawn: 48, angularRegions: false };
-    expect(followsDrag(many, null)).toBe(false);
-    expect(followsDrag(many, { ms: 30, units })).toBe(true);
-    expect(followsDrag({ files: 12, drawn: 12, angularRegions: false }, { ms: 400, units })).toBe(false);
-  });
-
-  it('one ticked file of the example stays live whatever was timed: a small workload is always followed', () => {
-    expect(estimatedUnits(one)).toBeLessThanOrEqual(ALWAYS_LIVE_UNITS);
-    for (const ms of [5, 80, 180, 5000]) expect(followsDrag(one, { ms, units })).toBe(true);
-    expect(followsDrag({ files: 0, drawn: 0, angularRegions: true }, { ms: 5000, units })).toBe(true);
-    // Not so one ticked file among very many loaded ones: that workload is not small.
-    expect(followsDrag({ files: 192, drawn: 1, angularRegions: false }, { ms: 180, units })).toBe(false);
-  });
-
-  it('a pass timed on a tiny workload says little about the cost per unit (it has a fixed part): it is counted as a small one', () => {
-    // 16 ms (a frame) for one file alone is not "2 ms per unit" (that would hold four ticked files): it counts as 16 ms for a small workload.
-    const tiny = { ms: 16, units: estimatedUnits({ files: 1, drawn: 1, angularRegions: false }) };
-    expect(tiny.units).toBeLessThan(ALWAYS_LIVE_UNITS);
-    expect(expectedPassMs(units, tiny)).toBeCloseTo((16 / ALWAYS_LIVE_UNITS) * units, 9);
-    expect(followsDrag({ files: 4, drawn: 4, angularRegions: false }, tiny)).toBe(true);
-    expect(followsDrag({ files: 24, drawn: 12, angularRegions: false }, tiny)).toBe(true);
-  });
-
-  it('more files never make it follow again, for any timed pass', () => {
-    for (const ms of [20, 80, 300]) {
-      const live = Array.from({ length: 401 }, (_, n) => followsDrag({ files: n, drawn: n, angularRegions: false }, { ms, units }));
-      const firstHeld = live.indexOf(false);
-      expect(firstHeld).toBeGreaterThan(0);
-      expect(live.slice(firstHeld).some(Boolean)).toBe(false);
+  it('two to four ticked files of the example, whose steps block for 35 to 105 ms, are followed', () => {
+    for (const n of [2, 4]) {
+      for (const [a, b] of [[98, 80], [49, 85], [104, 74], [88, 66], [36, 79]]) {
+        expect(followsDrag(ticked(n), [pass(a, ticked(n)), pass(b, ticked(n))]), `${n} ticked, ${a} and ${b} ms`).toBe(true);
+      }
     }
+    // So is one ticked file among 96 loaded ones (57 to 138 ms).
+    const one96 = ticked(1, 96);
+    for (const [a, b] of [[120, 73], [138, 88], [73, 138], [69, 59]]) expect(followsDrag(one96, [pass(a, one96), pass(b, one96)])).toBe(true);
+  });
+
+  it('one pass alone decides nothing: the first guess stands until two were timed', () => {
+    expect(followsDrag(example, [pass(1600)])).toBe(true); // the first pass after a load is often a slow one
+    const many = ticked(48, 48);
+    expect(followsDrag(many)).toBe(false);
+    expect(followsDrag(many, [pass(20, many)])).toBe(false);
+    expect(followsDrag(many, [pass(20, many), pass(25, many)])).toBe(true); // a fast machine follows more files than the first guess allows
+    expect(followsDrag(ticked(12), [pass(400, ticked(12)), pass(380, ticked(12))])).toBe(false); // and a slow one fewer
+  });
+
+  it('one slow or one quick pass among the others does not turn the decision round', () => {
+    // Followed, then one hiccup: still followed. Waited for, then one quick pass: still waited for.
+    expect(followsDrag(example, [pass(90), pass(1458)], true)).toBe(true);
+    expect(followsDrag(example, [pass(1458), pass(90)], true)).toBe(true);
+    expect(followsDrag(example, [pass(200), pass(60)], false)).toBe(false);
+    expect(followsDrag(example, [pass(60), pass(200)], false)).toBe(false);
+    // A run of passes, the decision of each step handed to the next: it turns only where two in a row agree.
+    const run = (start: boolean, ms: number[]) => {
+      const out: boolean[] = [];
+      let follows = start;
+      ms.forEach((_, i) => out.push((follows = followsDrag(example, ms.slice(0, i + 1).map((m) => pass(m)), follows))));
+      return out;
+    };
+    expect(run(true, [90, 300, 85, 300, 95, 80])).toEqual([true, true, true, true, true, true]);
+    expect(run(true, [160, 90, 170, 180, 60, 190, 70, 65])).toEqual([true, true, true, false, false, false, false, true]);
+  });
+
+  it('between the two limits what was decided before stands (a load at the limit does not go to and fro)', () => {
+    for (const pair of [[110, 120], [101, 139], [135, 105]]) {
+      const timed = pair.map((ms) => pass(ms));
+      expect(followsDrag(example, timed, true)).toBe(true);
+      expect(followsDrag(example, timed, false)).toBe(false);
+      expect(followsDrag(example, timed)).toBe(true); // nothing decided yet: the first guess
+    }
+    // Passes that hover around one limit: once over it the drag is waited for, and stays so until both are under the other.
+    let follows = true;
+    const seen: boolean[] = [];
+    const ms = [135, 138, 143, 141, 137, 143, 120, 104, 99, 101, 98, 97];
+    for (let i = 1; i < ms.length; i++) seen.push((follows = followsDrag(example, [pass(ms[i - 1]), pass(ms[i])], follows)));
+    expect(seen).toEqual([true, true, false, false, false, false, false, false, false, false, true]);
+  });
+
+  it('a pass timed on another load is scaled by the estimate, with a part that does not grow with the load', () => {
+    expect(FIXED_UNITS).toBe(75);
+    const half = estimatedUnits(ticked(12));
+    expect(expectedPassMs(half, pass(200))).toBeCloseTo((200 * (75 + half)) / (75 + units), 9);
+    expect(expectedPassMs(units, pass(200))).toBe(200);
+    // 24 ticked blocked for 220 and 230 ms: 12 ticked are expected at about 150 and 156 ms, and are waited for too.
+    expect(followsDrag(ticked(12), [pass(220), pass(230)], true)).toBe(false);
+    // For 180 and 190 ms they are expected at about 122 and 129 ms, between the limits.
+    const timed = [pass(180), pass(190)];
+    expect(followsDrag(example, timed, true)).toBe(false);
+    expect(followsDrag(ticked(12), timed, false)).toBe(false);
+    expect(followsDrag(ticked(12), timed, true)).toBe(true);
+  });
+
+  it('a pass timed on a load more than twice or less than half this one says nothing: the first guess stands in', () => {
+    expect(SCALED_UP_TO).toBe(2);
+    // All 24 were waited for; two ticked files are followed again at once, as before anything was timed.
+    const dear = [pass(200), pass(210)];
+    expect(followsDrag(ticked(2), dear, false)).toBe(true);
+    expect(followsDrag(ticked(4), dear, false)).toBe(true);
+    // 96 files all ticked took seconds a step; one ticked among them is not judged by that.
+    const all96 = ticked(96, 96);
+    expect(followsDrag(ticked(1, 96), [pass(2500, all96), pass(3000, all96)], false)).toBe(true);
+    // Two quick passes of two ticked files do not make 96 ticked ones followed (nor the 24, before their own passes are timed).
+    const cheap = [pass(40, ticked(2)), pass(45, ticked(2))];
+    expect(followsDrag(all96, cheap, true)).toBe(false);
+    expect(followsDrag(example, cheap, false)).toBe(true);
+    // One near and one far: still the first guess.
+    expect(followsDrag(example, [pass(40, ticked(2)), pass(300)], true)).toBe(true);
+    expect(followsDrag(all96, [pass(40, ticked(2)), pass(20, all96)], true)).toBe(false);
+  });
+
+  it('a truly expensive pass is waited for: 96 ticked files at seconds a step, whatever was decided before', () => {
+    const all96 = ticked(96, 96);
+    for (const before of [true, false, undefined]) expect(followsDrag(all96, [pass(2475, all96), pass(3640, all96)], before)).toBe(false);
+    // Also on a page the first guess would follow.
+    expect(followsDrag(example, [pass(900), pass(1100)], true)).toBe(false);
+  });
+
+  it('one ticked file of the example stays live whatever was timed: a small load is always followed', () => {
+    const one = ticked(1);
+    expect(estimatedUnits(one)).toBeLessThanOrEqual(ALWAYS_LIVE_UNITS);
+    for (const ms of [5, 80, 180, 5000]) expect(followsDrag(one, [pass(ms, one), pass(ms, one)], false)).toBe(true);
+    expect(followsDrag({ files: 0, drawn: 0, angularRegions: true }, [pass(5000), pass(5000)])).toBe(true);
+  });
+});
+
+describe('the kind of a pass: a tilt works every file out again, an azimuth turns the drawing only', () => {
+  const state = { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0, showOriginal: true, hCut: 'peak', offsets: {}, groupOffsets: {} };
+
+  it('a slider is of the kind of what it changes', () => {
+    expect([sliderKind('electricalDeg'), sliderKind('mechanicalDeg'), sliderKind('azimuthDeg')]).toEqual(['tilt', 'tilt', 'azimuth']);
+  });
+
+  it('a pass is of the kind of the global slider that alone changed', () => {
+    expect(passKind(state, { ...state, mechanicalDeg: 3 })).toBe('tilt');
+    expect(passKind(state, { ...state, electricalDeg: -2 })).toBe('tilt');
+    expect(passKind(state, { ...state, electricalDeg: -2, mechanicalDeg: 3 })).toBe('tilt');
+    expect(passKind(state, { ...state, azimuthDeg: 20 })).toBe('azimuth');
+  });
+
+  it('anything else is of no kind, and is not timed: both at once, an offset, the cut, Show original, nothing', () => {
+    expect(passKind(state, { ...state, mechanicalDeg: 3, azimuthDeg: 20 })).toBeNull();
+    expect(passKind({ ...state, mechanicalDeg: 3, azimuthDeg: 20 }, state)).toBeNull(); // Reset
+    expect(passKind(state, { ...state, offsets: { a: { electricalDeg: 1, mechanicalDeg: 0, azimuthDeg: 0 } } })).toBeNull();
+    expect(passKind(state, { ...state, mechanicalDeg: 3, groupOffsets: {} })).toBeNull();
+    expect(passKind(state, { ...state, hCut: 'horizon' })).toBeNull();
+    expect(passKind(state, { ...state, showOriginal: false })).toBeNull();
+    expect(passKind(state, { ...state })).toBeNull();
+    expect(passKind(null, state)).toBeNull();
+  });
+});
+
+describe('the kind of the slider in the hand is known from the press on', () => {
+  const kind = sliderKindInHand;
+
+  it('a tilt slider before any was gripped; then the one gripped, also after it was let go', () => {
+    expect(kind()).toBe('tilt');
+    gripByPointer({ pointerId: 1, button: 0, isPrimary: true }, 'azimuth');
+    expect(kind()).toBe('azimuth');
+    window.dispatchEvent(pointer('pointerup'));
+    expect(sliderGripped()).toBe(false);
+    expect(kind()).toBe('azimuth');
+    gripByKey('tilt');
+    expect(kind()).toBe('tilt');
+    gripByKey('azimuth');
+    expect(kind()).toBe('azimuth');
+    // A press that grips nothing (the right button) changes nothing.
+    window.dispatchEvent(new Event('blur'));
+    gripByPointer({ pointerId: 1, button: 2, isPrimary: true }, 'tilt');
+    expect(kind()).toBe('azimuth');
+    gripByPointer({ pointerId: 1, button: 0, isPrimary: true });
+    expect(kind()).toBe('tilt');
   });
 });
