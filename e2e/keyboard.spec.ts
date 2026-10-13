@@ -310,3 +310,44 @@ test('a file row can be dragged by its name onto a custom group', async ({ page 
   await north.locator('li', { hasText: 'b.msi' }).locator('.row-main').click();
   await expect(north.locator('li', { hasText: 'b.msi' })).toHaveClass(/hl/);
 });
+
+test('after Load example by the keyboard the focus is on the first file row, not lost with the empty page', async ({ page }) => {
+  await page.goto('/');
+  const example = page.getByTestId('empty-state').getByRole('button', { name: 'Load example' });
+  await example.focus();
+  await page.keyboard.press('Enter');
+  const rows = page.locator('.panel li [data-nav]');
+  await expect(rows).toHaveCount(24);
+  await expect(rows.first()).toBeFocused();
+  // The next Tab goes on from the file list, not from the top of the document.
+  await page.keyboard.press('Shift+Tab');
+  expect(await page.evaluate(() => document.activeElement?.closest('.panel, .toolbar') !== null)).toBe(true);
+});
+
+test('after the first files opened from the empty page by the keyboard the focus is on the first file row', async ({ page }) => {
+  const nextChooser = collectFileChoosers(page);
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Open files' }).focus();
+  await page.keyboard.press('Enter');
+  await (await nextChooser()).setFiles(FILES.map((n, i) => file(n, msi(1800 + 100 * i))));
+  const rows = page.locator('.panel li [data-nav]');
+  await expect(rows).toHaveCount(3);
+  await expect(rows.first()).toBeFocused();
+  // Files opened from the toolbar leave the focus where it is: on the toolbar's own control.
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(page.locator('.panel')).toHaveCount(0);
+  const input = page.getByTestId('file-input');
+  await input.focus();
+  await input.setInputFiles(FILES.map((n, i) => file(n, msi(1800 + 100 * i))));
+  await expect(rows).toHaveCount(3);
+  await expect(input).toBeFocused();
+});
+
+test('on a phone, where the file list is a closed drawer, the focus goes to the heading of the plots instead', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#cut-plots-heading')).toBeFocused();
+});

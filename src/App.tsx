@@ -20,6 +20,7 @@ import { useUnsavedGuard } from './ui/useUnsavedGuard';
 import { EmptyState } from './ui/EmptyState';
 import { HelpDialog, type OpenHelp } from './ui/HelpDialog';
 import { useEscapeClear } from './ui/useEscapeClear';
+import { useFirstFilesFocus } from './ui/useFirstFilesFocus';
 import { PlotBoundary } from './ui/ErrorBoundary';
 import { SkipLinks } from './ui/SkipLinks';
 
@@ -75,6 +76,7 @@ export default function App() {
   const dragging = useWindowDrop();
   useUnsavedGuard();
   useEscapeClear();
+  useFirstFilesFocus(tagged.length);
   // Phone layout: the file panel is a drawer, closed until asked for (on wider screens it is always shown).
   const [filesOpen, setFilesOpen] = useState(false);
   // The Help dialog is open while `helpOpener` is set: the button that was clicked, which gets the focus back.
