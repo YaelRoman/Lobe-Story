@@ -200,7 +200,12 @@ export const BandStats = memo(function BandStats({
         <SubBandEditor
           subBands={userSubBands}
           automatic={autoSubBands(dataset.items.map((i) => i.pattern.frequencyMHz))}
-          onChange={(next) => updateView({ subBands: sanitizeSubBands(next) })}
+          onChange={(next) => {
+            const subBands = sanitizeSubBands(next);
+            // Emptying the list ("Use automatic", or removing the last one) is "Back to automatic": typed work goes, an undo is offered.
+            if (subBands.length === 0) dropSubBands();
+            else updateView({ subBands });
+          }}
         />
       )}
       <p className="count">
