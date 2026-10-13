@@ -58,7 +58,7 @@ export default function App() {
   const dimension = useStore((s) => s.view.dimension);
   const cutView = useStore((s) => s.view.cut);
   const plotMode = useStore((s) => s.view.mode);
-  usePassStart(settled.state, [tagged, visible, settings, method3d, withAngularRegions, dimension, cutView, plotMode], estimatedUnits(load));
+  usePassStart(settled.state, [tagged, visible, settings, method3d, withAngularRegions, dimension, cutView, plotMode], estimatedUnits(load), dimension !== '3d');
   const sim = useSimulation(tagged, metrics, settings, withAngularRegions, settled.state);
   const simLag = settled.waiting ? 'waiting' : settled.behind ? 'behind' : 'none';
   // Said and shown only where the lag lasts (the page does not follow a drag): where it does, the simulation is a

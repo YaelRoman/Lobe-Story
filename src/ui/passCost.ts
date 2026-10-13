@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { createStore } from 'zustand/vanilla';
 import { followsDrag, passKind, PASSES_KEPT, type PassCost, type PassKind, type StepLoad } from './sliderHold';
 
-/** A pass that has not drawn after this long is given up (the cut plots are not on the page, as in the 3D view): nothing is noted of it. */
+/** A pass that has not drawn after this long is given up (something kept the cut plots from drawing it): nothing is noted of it. */
 export const PASS_GIVEN_UP_MS = 20_000;
 
 /**
@@ -20,7 +20,8 @@ export const PASS_GIVEN_UP_MS = 20_000;
  * Only a pass of the simulation alone says what a slider step costs: one that comes with other files, ticks,
  * settings or another view (`workload` lists them: one of its entries is then another than in the render before), or
  * during which they change, is not noted; nor is one that began or ended while the page was hidden, or was hidden in
- * between (it draws late or not at all, and its timers are slowed).
+ * between (it draws late or not at all, and its timers are slowed). `hidden` is also to be said of a page whose cut
+ * plots are not on it (the 3D view): nothing will draw the pass.
  */
 export function createPassMeter<K extends string>(clock: () => number, kindOf: (from: unknown, to: unknown) => K | null) {
   type Workload = readonly unknown[];
@@ -41,6 +42,10 @@ export function createPassMeter<K extends string>(clock: () => number, kindOf: (
         run.workload = workload;
         run.clean = false;
       }
+    },
+    /** Whether a pass that will be noted runs. */
+    runs(): boolean {
+      return run !== null && !run.done && run.clean;
     },
     /** The page has a turn of its own. Says whether a pass that will be noted still runs (whether to come back). */
     free(hidden: boolean): boolean {
@@ -109,12 +114,13 @@ export function useFollowsDrag(load: StepLoad): Record<PassKind, boolean> {
 /**
  * Tells the meter what the page is rendered from: the simulation state `key`, the `workload` it is made on (the files,
  * the ticks, the settings, the view: whatever else a redraw depends on) and the estimate of its load. Called by the
- * page before it works the simulation out, so that the pass is timed from there.
+ * page before it works the simulation out, so that the pass is timed from there. `cutPlots` says whether the cut plots
+ * are on the page: where they are not (the 3D view) no pass will be drawn, so none is timed and no timer is set.
  */
-export function usePassStart(key: unknown, workload: readonly unknown[], units: number): void {
+export function usePassStart(key: unknown, workload: readonly unknown[], units: number, cutPlots = true): void {
   // In the render itself, not in an effect: the simulation is worked out in this render, after this line. Seeing the
   // same state again (a second render of it) changes nothing.
-  meter.seen(key, workload, pageHidden());
+  meter.seen(key, [...workload, cutPlots], pageHidden() || !cutPlots);
   if (turn === null) takeTurns();
   useEffect(() => {
     current = { key, units };
@@ -128,6 +134,11 @@ export function usePassStart(key: unknown, workload: readonly unknown[], units: 
 export function noteSimulationDrawn(): void {
   if (current === null) return;
   const cost = meter.drawn(current.key, current.units, pageHidden());
+  // The pass is over: so are its turns, now and not at the next one (unless a newer pass is already under way).
+  if (turn !== null && !meter.runs()) {
+    clearTimeout(turn);
+    turn = null;
+  }
   if (cost) noteTimedPass(cost.kind, { ms: cost.ms, units: cost.units });
 }
 

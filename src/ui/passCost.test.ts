@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { describe, expect, it } from 'vitest';
-import { createPassMeter, noteTimedPass, PASS_GIVEN_UP_MS, useFollowsDrag, withPass, type TimedPasses } from './passCost';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createPassMeter, noteSimulationDrawn, noteTimedPass, PASS_GIVEN_UP_MS, useFollowsDrag, usePassStart, withPass, type TimedPasses } from './passCost';
 import { estimatedUnits, type PassKind, type StepLoad } from './sliderHold';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -71,6 +71,20 @@ describe('timing a pass: for how long at a stretch the page is blocked between t
     expect(work(10)).toBe(false); // done
     meter.seen(C, [{ n: 48 }, ticks, 'polar'], false);
     expect(work(10)).toBe(false); // not of the simulation alone
+  });
+
+  it('says whether such a pass runs without counting a turn: the draw of an older state leaves the newer pass running, and its stretch whole', () => {
+    const { meter, clock } = setUp();
+    expect(meter.runs()).toBe(false);
+    meter.seen(A, W, false);
+    expect(meter.runs()).toBe(false);
+    meter.seen(B, W, false);
+    clock.advance(30);
+    expect(meter.drawn(A, 50, false)).toBeNull(); // the plots drew the state before
+    expect(meter.runs()).toBe(true);
+    clock.advance(40);
+    expect(meter.drawn(B, 50, false)).toEqual({ kind: 'tilt', ms: 70, units: 50 });
+    expect(meter.runs()).toBe(false);
   });
 
   it('a newer state that arrives before the plots are done is the pass that is timed, from its own start', () => {
@@ -250,6 +264,60 @@ describe('what the page decides for a drag of each kind of slider, as passes are
     expect(page.follows()).toEqual({ tilt: false, azimuth: true });
     for (const ms of [300, 320, 310, 330]) page.timed('tilt', ms, ticked(48, 96));
     expect(page.follows().tilt).toBe(false);
+    page.unmount();
+  });
+});
+
+describe('the turns the meter takes in the page: a timer runs only while a pass that the cut plots will draw is under way', () => {
+  afterEach(() => vi.useRealTimers());
+  const at = (mechanicalDeg: number) => ({ electricalDeg: 0, mechanicalDeg, azimuthDeg: 0 });
+  const workload = ['files', 'ticks'];
+  function mount(state: unknown, cutPlots: boolean) {
+    let root!: Root;
+    function Probe({ state, cutPlots }: { state: unknown; cutPlots: boolean }) {
+      usePassStart(state, workload, 100, cutPlots);
+      return null;
+    }
+    act(() => {
+      root = createRoot(document.createElement('div'));
+      root.render(createElement(Probe, { state, cutPlots }));
+    });
+    return {
+      render: (next: unknown, plots = cutPlots) => act(() => root.render(createElement(Probe, { state: next, cutPlots: plots }))),
+      unmount: () => act(() => root.unmount()),
+    };
+  }
+
+  it('with the cut plots on the page it takes turns from the step until they have drawn it, and stops at once then', () => {
+    vi.useFakeTimers();
+    const page = mount(at(0), true);
+    expect(vi.getTimerCount()).toBe(0);
+    page.render(at(1));
+    expect(vi.getTimerCount()).toBe(1);
+    vi.advanceTimersByTime(200);
+    expect(vi.getTimerCount()).toBe(1); // still at it: the plots have not drawn
+    act(() => noteSimulationDrawn());
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(1000);
+    expect(vi.getTimerCount()).toBe(0);
+    page.unmount();
+  });
+
+  it('in the 3D view, where no cut plot will draw the step, it takes none at all', () => {
+    vi.useFakeTimers();
+    const page = mount(at(0), false);
+    page.render(at(1));
+    expect(vi.getTimerCount()).toBe(0);
+    page.render(at(2));
+    vi.advanceTimersByTime(1000);
+    expect(vi.getTimerCount()).toBe(0);
+    // Back in the cut plots a step is timed again; leaving them in the middle of a pass ends the turns.
+    page.render(at(2), true);
+    page.render(at(3), true);
+    expect(vi.getTimerCount()).toBe(1);
+    page.render(at(3), false);
+    vi.advanceTimersByTime(8);
+    expect(vi.getTimerCount()).toBe(0);
     page.unmount();
   });
 });
