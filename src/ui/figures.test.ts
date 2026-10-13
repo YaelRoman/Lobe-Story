@@ -114,9 +114,22 @@ describe('buildCutFigure', () => {
     expect((t.y as number[])[179]).toBeCloseTo(0);
   });
 
-  it('unifies hover across traces in rectangular mode but not polar', () => {
-    expect(buildCutFigure(opts({ mode: 'rect' })).layout.hovermode).toBe('x unified');
-    expect(buildCutFigure(opts({ mode: 'polar' })).layout.hovermode).toBeUndefined();
+  it('the hover names the nearest trace only, in rectangular mode as in polar (not every trace at that angle)', () => {
+    expect(buildCutFigure(opts({ mode: 'rect' })).layout.hovermode).toBe('closest');
+    expect(buildCutFigure(opts({ mode: 'polar' })).layout.hovermode).toBeUndefined(); // the library's own: the closest
+    // Each file trace says its angle, its level and its name.
+    const [t] = traces(buildCutFigure(opts({ mode: 'rect' })));
+    expect(t.hovertemplate).toBe('%{x:.0f}°  %{y:.2f} dB<extra>%{meta}</extra>');
+  });
+
+  it('the marker traces of a rectangular plot are left out of the hover: the read-out under the plot lists them', () => {
+    const markers = { hpbw: true, fb: true, usls: true, null: true, peak: true, sector: true };
+    const f = buildCutFigure(opts({ mode: 'rect', markers, markerTarget: 'a' }));
+    const marks = traces(f).filter((t) => t.showlegend === false);
+    expect(marks.length).toBeGreaterThan(1);
+    for (const t of marks) expect(t.hoverinfo, String(t.name)).toBe('skip');
+    // The file traces still answer it.
+    expect(traces(f).filter((t) => t.showlegend !== false).every((t) => t.hoverinfo === undefined && t.hovertemplate !== undefined)).toBe(true);
   });
 
   it('names the beamwidth after the level: HPBW at 3 dB, BW@x dB otherwise', () => {

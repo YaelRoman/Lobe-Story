@@ -230,6 +230,7 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
 
 function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<PlotData>[]; shapes: Partial<Shape>[] } {
   const shapes: Partial<Shape>[] = [];
+  // Left out of the hover: it is for the file traces (the nearest one), and the read-out under the plot lists the marker values.
   const traces: Partial<PlotData>[] = [];
   const rect = (x0: number, x1: number, opacity: number) =>
     shapes.push({ type: 'rect', xref: 'x', yref: 'paper', x0, x1, y0: 0, y1: 1, fillcolor: o.theme.accent, opacity, line: { width: 0 } });
@@ -263,7 +264,7 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
       x: [p.angle],
       y: [Math.max(p.db, -o.floorDb)],
       marker: { color: o.theme.accent, size: 10, symbol: 'x' },
-      hoverinfo: 'name',
+      hoverinfo: 'skip',
       showlegend: false,
     });
   }
@@ -283,7 +284,7 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
       y: x.map(() => -o.floorDb * 0.03 * (a.slot + 1)),
       line: { color: o.theme.accent, width: 5 },
       opacity: 0.6,
-      hoverinfo: 'name',
+      hoverinfo: 'skip',
       showlegend: false,
     });
   }
@@ -523,7 +524,8 @@ function baseLayout(o: CutBaseOptions, top: number): Partial<Layout> {
   }
   return {
     ...base,
-    hovermode: 'x unified',
+    // The nearest trace only, as in the polar plot: with many files a box that lists every trace at the angle covers half the plot.
+    hovermode: 'closest',
     // The x tick labels sit a few pixels lower, so "−180" does not touch the y axis' lowest label ("−40") at the corner.
     // `ticklabelstandoff` is in the library but not in @types/plotly.js.
     xaxis: { range: [-180, 180], dtick: 30, automargin: true, title: { text: 'Angle (°)', standoff: 8 }, gridcolor: o.theme.grid, zeroline: false, ...({ ticklabelstandoff: RECT_TICK_STANDOFF } as object) },
