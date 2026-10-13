@@ -26,12 +26,24 @@ const TITLE_PAD_PX = 10;
 /** Between the last caption line and what the figure draws above its plot area. */
 const CAPTION_GAP_PX = 8;
 
-/** The room the foot line takes under what the figure draws below its plot area. */
+/** The room a foot line of one line takes under what the figure draws below its plot area. */
 export const FOOT_ROOM_PX = 18;
 /** From the image's lower edge up to the foot line. */
 const FOOT_PAD_PX = 4;
-/** What an x axis that makes its own room (`automargin`) takes for its tick labels and its title. */
+/** The foot line's font size, and the height of each further line of it (the library's 1.3 em, rounded up). */
+const FOOT_FONT_PX = 10;
+const FOOT_LINE_PX = 13;
+/** A character of the foot line is narrower than this on average (4.8 px measured in an image). */
+const FOOT_CHAR_PX = 5.5;
+/** The left margin the library uses when the figure sets none. */
+const DEFAULT_MARGIN_L = 80;
+/**
+ * What an x axis takes below the plot area for its tick labels and, a set distance under them, its title: 43 px
+ * measured in the images of the rectangular cut, the frequency chart and the histogram, and some air.
+ */
 const AXIS_ROOM_PX = 60;
+/** The distance from the tick labels to the title of an x axis that sets none. */
+const AXIS_TITLE_STANDOFF_PX = 8;
 /** The foot line's colour: the page's muted text in the light theme. */
 const FOOT_COLOR = '#57606a';
 
@@ -93,6 +105,36 @@ function wrapText(text: string): string[] {
   return out;
 }
 
+/** The foot line as lines no wider than `widthPx`, broken at its separators only. */
+function footLines(foot: string, widthPx: number): string[] {
+  const max = Math.floor(widthPx / FOOT_CHAR_PX);
+  const out: string[] = [];
+  let current = '';
+  for (const item of foot.split(' · ')) {
+    if (current && current.length + 3 + item.length > max) {
+      out.push(current);
+      current = item;
+    } else current = current ? `${current} · ${item}` : item;
+  }
+  if (current) out.push(current);
+  return out;
+}
+
+/**
+ * The x axes of a figure that gets a foot line, each told to keep its title a set distance under its tick labels
+ * (`automargin` with a `standoff`). An axis left to itself hangs its title at the lower edge of the bottom margin,
+ * however deep that is: exactly where the foot line goes. Empty for a figure without such axes (polar, 3D).
+ */
+function footAxes(layout: Partial<Layout>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(layout)) {
+    if (!/^xaxis\d*$/.test(key) || value === null || typeof value !== 'object') continue;
+    const axis = value as { title?: { text?: string; standoff?: number } };
+    out[key] = { ...axis, automargin: true, ...(axis.title ? { title: { ...axis.title, standoff: axis.title.standoff ?? AXIS_TITLE_STANDOFF_PX } } : {}) };
+  }
+  return out;
+}
+
 /**
  * The figure with every colour of the `from` theme replaced by the light theme's (text, grid lines, marker colour and
  * background): an exported image is for a page or a report, so it is white whatever the screen theme. Trace colours of
@@ -119,8 +161,9 @@ export function inLightTheme(figure: Figure, from: 'light' | 'dark'): Figure {
  * highlighted file's name and marker values under the title. File traces are the ones carrying
  * `meta` (the full label, which also replaces the compact legend name); marker traces never enter the
  * legend. A figure without file traces (a histogram) gets no legend. It is drawn with the light theme's colours on white
- * whatever `screenTheme` the screen has. `foot` is one small line at the foot of the image (see `exportFootLine`). The
- * input is not modified.
+ * whatever `screenTheme` the screen has. `foot` is the small line at the foot of the image (see `exportFootLine`): it
+ * lies under everything the figure draws below its plot area, and goes on in a further line when it is longer than
+ * the image is wide. The input is not modified.
  */
 export function exportFigure(figure: Figure, caption?: ExportCaption, screenTheme: 'light' | 'dark' = 'light', foot?: string): Figure {
   figure = inLightTheme(figure, screenTheme);
@@ -152,10 +195,13 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
   };
   // The legend hangs from the top of the plot area: the image is made as high as its rows need. Only beyond the
   // tallest image that can be written are entries left out, and then a caption line says how many.
-  // The foot line hangs under the plot area by the whole bottom margin, so that margin has to be known: an axis that
-  // would widen it for its labels and title gets that room up front, and the line its own below it.
-  const ownAxisRoom = Object.entries(figure.layout).some(([key, axis]) => key.startsWith('xaxis') && (axis as { automargin?: boolean } | undefined)?.automargin === true);
-  const bottom = foot ? Math.max(margin.b ?? DEFAULT_MARGIN_B, ownAxisRoom ? AXIS_ROOM_PX : 0) + FOOT_ROOM_PX : (margin.b ?? DEFAULT_MARGIN_B);
+  // The foot line hangs under the plot area by the whole bottom margin, so that margin has to be known, and what the
+  // figure draws in it has to end above the line: an x axis gets the room of its labels and title up front (see
+  // `footAxes`), and the line its own below that.
+  const axes = foot ? footAxes(figure.layout) : {};
+  const footText = foot ? footLines(foot, EXPORT_WIDTH - (margin.l ?? DEFAULT_MARGIN_L)) : [];
+  const footRoom = FOOT_ROOM_PX + FOOT_LINE_PX * Math.max(0, footText.length - 1);
+  const bottom = foot ? Math.max(margin.b ?? DEFAULT_MARGIN_B, Object.keys(axes).length > 0 ? AXIS_ROOM_PX : 0) + footRoom : (margin.b ?? DEFAULT_MARGIN_B);
   const heightFor = (rows: number, captionLines: number) => topFor(captionLines) + bottom + rows * LEGEND_ROW_PX + LEGEND_PAD_PX;
   let files = traces;
   if (heightFor(traces, lines.length) > EXPORT_MAX_HEIGHT) {
@@ -175,6 +221,7 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
   const legendWidth = Math.min(520, Math.max(280, 50 + longest * 6));
   const layout: Partial<Layout> = {
     ...figure.layout,
+    ...axes,
     paper_bgcolor: FIGURE_THEMES.light.bg,
     title: title as Layout['title'],
     showlegend: files > 0,
@@ -197,7 +244,7 @@ export function exportFigure(figure: Figure, caption?: ExportCaption, screenThem
       ? {
           annotations: [
             ...(figure.layout.annotations ?? []),
-            { text: foot, xref: 'paper', yref: 'paper', x: 0, y: 0, xanchor: 'left', yanchor: 'bottom', yshift: FOOT_PAD_PX - bottom, showarrow: false, font: { size: 10, color: FOOT_COLOR } },
+            { text: footText.join('<br>'), align: 'left', xref: 'paper', yref: 'paper', x: 0, y: 0, xanchor: 'left', yanchor: 'bottom', yshift: FOOT_PAD_PX - bottom, showarrow: false, font: { size: FOOT_FONT_PX, color: FOOT_COLOR } },
           ],
         }
       : {}),

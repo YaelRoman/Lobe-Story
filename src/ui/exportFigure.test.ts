@@ -279,7 +279,7 @@ describe('lines that coincide are said in the image', () => {
 });
 
 describe('the foot line of an exported image', () => {
-  type Note = { text: string; xref?: string; yref?: string; x?: number; y?: number; xanchor?: string; yanchor?: string; yshift?: number; showarrow?: boolean; font?: { size?: number; color?: string } };
+  type Note = { text: string; align?: string; xref?: string; yref?: string; x?: number; y?: number; xanchor?: string; yanchor?: string; yshift?: number; showarrow?: boolean; font?: { size?: number; color?: string } };
   const notes = (f: Figure) => (f.layout.annotations ?? []) as unknown as Note[];
   const FOOT = 'Beamwidth level 3 dB · Sector edge ±60° · F/B window ±30° · 2026-10-13 · Lobe-Story';
 
@@ -310,6 +310,42 @@ describe('the foot line of an exported image', () => {
     expect(out.layout.margin?.b).toBeGreaterThanOrEqual(60 + FOOT_ROOM_PX);
   });
 
+  it('an x axis that hangs its title in the margin (the histogram) puts it under its tick labels instead, where the foot line is not', () => {
+    // Left alone, the library draws such a title at the lower edge of whatever margin there is: on the foot line.
+    const f: Figure = { data: [], layout: { margin: { b: 50 }, xaxis: { title: { text: 'P2P tracking (sector edges) (dB)' }, gridcolor: '#ddd' }, yaxis: { title: { text: 'Samples' } } } };
+    const out = exportFigure(f, { title: 't', items: [] }, 'light', FOOT);
+    expect(out.layout.xaxis).toEqual({ automargin: true, title: { text: 'P2P tracking (sector edges) (dB)', standoff: 8 }, gridcolor: '#ddd' });
+    expect(out.layout.yaxis).toEqual({ title: { text: 'Samples' } });
+    expect(out.layout.margin?.b).toBeGreaterThanOrEqual(60 + FOOT_ROOM_PX);
+    expect(f.layout.xaxis).toEqual({ title: { text: 'P2P tracking (sector edges) (dB)' }, gridcolor: '#ddd' });
+  });
+
+  it('every x axis of the figure is treated so, and one keeps the distance to its title that it sets itself', () => {
+    const f = { data: [], layout: { margin: { b: 50 }, xaxis: { automargin: true, title: { text: 'Frequency (MHz)', standoff: 12 } }, xaxis2: { title: { text: 'Angle (°)' } } } } as unknown as Figure;
+    const out = exportFigure(f, undefined, 'light', FOOT).layout as unknown as Record<string, unknown>;
+    expect(out.xaxis).toEqual({ automargin: true, title: { text: 'Frequency (MHz)', standoff: 12 } });
+    expect(out.xaxis2).toEqual({ automargin: true, title: { text: 'Angle (°)', standoff: 8 } });
+  });
+
+  it('a foot line longer than the image is wide goes on at a separator in a second line, with room for it', () => {
+    const one = exportFigure(figure(2), undefined, 'light', FOOT);
+    const parts = Array.from({ length: 9 }, (_, i) => `Beamwidth level 3.${i}2345678901 dB`);
+    const out = exportFigure(figure(2), undefined, 'light', [...parts, 'Lobe-Story'].join(' · '));
+    const foot = notes(out).slice(-1)[0];
+    const lines = foot.text.split('<br>');
+    expect(lines.length).toBeGreaterThan(1);
+    // Nothing is lost and no line is broken inside an item.
+    expect(lines.join(' · ')).toBe([...parts, 'Lobe-Story'].join(' · '));
+    // About 5.5 px a character at 10 px, from the plot area's left edge (50 px in) to the image's right edge.
+    for (const line of lines) expect(line.length * 5.5).toBeLessThanOrEqual(EXPORT_WIDTH - 50);
+    expect(foot).toMatchObject({ align: 'left', yanchor: 'bottom' });
+    // Each further line takes its own height from the margin, and the block still ends a few px above the image's edge.
+    const extra = (out.layout.margin?.b ?? 0) - (one.layout.margin?.b ?? 0);
+    expect(extra).toBeGreaterThanOrEqual(12 * (lines.length - 1));
+    expect((out.layout.margin?.b ?? 0) + (foot.yshift ?? 0)).toBeLessThanOrEqual(8);
+    expect(notes(one).slice(-1)[0].text).toBe(FOOT);
+  });
+
   it('keeps the labels the figure has (the histogram’s line names), and is drawn in the light theme’s colours', () => {
     const hist: Figure = { data: [], layout: { font: { color: FIGURE_THEMES.dark.fg }, annotations: [{ text: 'mean', font: { color: FIGURE_THEMES.dark.fg } }] } };
     const out = exportFigure(hist, { title: 't', items: [] }, 'dark', FOOT);
@@ -321,5 +357,7 @@ describe('the foot line of an exported image', () => {
     const out = exportFigure(figure(2));
     expect(out.layout.annotations).toBeUndefined();
     expect(out.layout.margin?.b).toBe(40);
+    const hist: Figure = { data: [], layout: { xaxis: { title: { text: 'Gain (dBd)' } } } };
+    expect(exportFigure(hist).layout.xaxis).toEqual({ title: { text: 'Gain (dBd)' } });
   });
 });
