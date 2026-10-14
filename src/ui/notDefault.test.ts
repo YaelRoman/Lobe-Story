@@ -46,12 +46,14 @@ describe('notDefaultChips: one chip per thing that is not at its default and cha
       'gone.msi': { electricalDeg: 4, mechanicalDeg: 0, azimuthDeg: 0 },
     };
     const groupOffsets = { g1: { electricalDeg: 0, mechanicalDeg: 1, azimuthDeg: 0 }, g9: { electricalDeg: 1, mechanicalDeg: 0, azimuthDeg: 0 } };
-    const chips = notDefaultChips(base({ simulation: sim({ offsets, groupOffsets }), groupIds: ['g1'] }));
+    const chips = notDefaultChips(base({ simulation: sim({ offsets, groupOffsets }), groupIds: ['g1'], membership: { 'b.msi': 'g1' } }));
     expect(chips.map((c) => c.text)).toEqual(['Tilt offsets: 1 file, 1 group']);
     expect(chips[0].key).toBe('tiltOffsets');
     expect(chips[0].name).toBe('Tilt offsets: 1 file, 1 group, reset the tilt offsets to 0°');
     expect(texts(base({ simulation: sim({ offsets: { 'a.msi': offsets['a.msi'], 'b.msi': { electricalDeg: 1, mechanicalDeg: 0, azimuthDeg: 0 } } }) }))).toEqual(['Tilt offsets: 2 files']);
-    expect(texts(base({ simulation: sim({ groupOffsets }), groupIds: ['g1', 'g9'] }))).toEqual(['Tilt offsets: 2 groups']);
+    expect(texts(base({ simulation: sim({ groupOffsets }), groupIds: ['g1', 'g9'], membership: { 'a.msi': 'g1', 'b.msi': 'g9' } }))).toEqual(['Tilt offsets: 2 groups']);
+    // A group with no loaded file in it changes no number: no chip for its offset.
+    expect(notDefaultChips(base({ simulation: sim({ groupOffsets }), groupIds: ['g1', 'g9'], membership: { 'gone.msi': 'g1' } }))).toEqual([]);
   });
 
   it('the horizontal cut at the horizon, in the words of its control', () => {

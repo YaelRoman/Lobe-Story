@@ -25,6 +25,7 @@ describe('resetToDefault: the click on a chip of the line under the toolbar', ()
 
   it('the tilt offsets of the loaded files and the groups go to 0; an azimuth offset (a site sector) stays', () => {
     const g = st().createGroup('G');
+    st().setMembership('b.msi', g);
     st().setOffset('a.msi', { electricalDeg: 2, azimuthDeg: 120 });
     st().setOffset('b.msi', { mechanicalDeg: 1 });
     st().setGroupOffset(g, { mechanicalDeg: 3 });
@@ -35,6 +36,17 @@ describe('resetToDefault: the click on a chip of the line under the toolbar', ()
     st().undoLast();
     expect(st().view.simulation.offsets['b.msi']).toEqual({ electricalDeg: 0, mechanicalDeg: 1, azimuthDeg: 0 });
     expect(st().view.simulation.groupOffsets[g]).toEqual({ electricalDeg: 0, mechanicalDeg: 3, azimuthDeg: 0 });
+  });
+
+  it('the tilt offset of a group with no loaded file is not the chip\'s: it stays, and alone it is nothing to reset', () => {
+    const empty = st().createGroup('Empty');
+    st().setGroupOffset(empty, { mechanicalDeg: 2 });
+    const before = st();
+    st().resetToDefault('tiltOffsets');
+    expect(st()).toBe(before);
+    st().setOffset('a.msi', { electricalDeg: 1 });
+    st().resetToDefault('tiltOffsets');
+    expect(st().view.simulation.groupOffsets[empty]).toEqual({ electricalDeg: 0, mechanicalDeg: 2, azimuthDeg: 0 });
   });
 
   it('the horizontal cut goes back through the beam peak, undoably', () => {

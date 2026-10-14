@@ -731,7 +731,9 @@ export const useStore = create<State>()((rawSet, get) => {
             return changed ? out : record;
           };
           const offsets = untilted(sim.offsets, (id) => instanceExists(s, id));
-          const groupOffsets = untilted(sim.groupOffsets, (id) => s.customGroups.some((g) => g.id === id));
+          // A group counts while a loaded file is in it: the offset of an empty one changes no number.
+          const filled = (gid: string) => s.customGroups.some((g) => g.id === gid) && Object.keys(s.membership).some((id) => s.membership[id] === gid && instanceExists(s, id));
+          const groupOffsets = untilted(sim.groupOffsets, filled);
           return offsets === sim.offsets && groupOffsets === sim.groupOffsets ? s : withSim('Reset the tilt offsets', { offsets, groupOffsets });
         }
         case 'hCut':

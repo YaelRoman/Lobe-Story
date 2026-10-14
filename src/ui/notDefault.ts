@@ -11,7 +11,7 @@ export interface NotDefaultInput {
   /** The loaded files (and their copies) that have a pattern: with none there is no number to change. */
   ids: readonly string[];
   membership: Record<string, string>;
-  /** The custom groups that exist. */
+  /** The custom groups that exist (an offset of one counts while a loaded file is in it). */
   groupIds: readonly string[];
   method3d: Method3d;
   /** The angular-region estimate is shown or plotted (it is integrated over the 3D reconstruction). */
@@ -67,7 +67,9 @@ export function notDefaultChips(input: NotDefaultInput): NotDefaultChip[] {
   if (sliders.length > 0) add('tilt', `Simulated: ${sliders.join(', ')}`, 'reset the tilt sliders to 0°');
 
   const files = input.ids.filter((id) => sim.offsets[id] && tilts(sim.offsets[id])).length;
-  const groups = input.groupIds.filter((id) => sim.groupOffsets[id] && tilts(sim.groupOffsets[id])).length;
+  // A group's offset changes a number only through a loaded file in it.
+  const filled = new Set(input.ids.map((id) => input.membership[id]).filter(Boolean));
+  const groups = input.groupIds.filter((id) => filled.has(id) && sim.groupOffsets[id] && tilts(sim.groupOffsets[id])).length;
   if (files + groups > 0) {
     const on = [files > 0 ? plural(files, 'file') : '', groups > 0 ? plural(groups, 'group') : ''].filter(Boolean);
     add('tiltOffsets', `Tilt offsets: ${on.join(', ')}`, 'reset the tilt offsets to 0°');
