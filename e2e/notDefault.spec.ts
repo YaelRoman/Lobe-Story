@@ -389,3 +389,41 @@ test('at the defaults the kept row goes with the fold of the Simulation bar, and
   await expect(fold).toHaveAttribute('aria-expanded', 'false');
   expect((await fold.boundingBox())!).toEqual(open);
 });
+
+test('where the page cannot scroll, a slider gripped again over a kept band does not move under the pointer: the band waits for the release', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 2560 });
+  const prefs = { version: 1, settings: { levelDb: 6, sectorEdgeDeg: 45, fbWindowDeg: 40, uslsRangeDeg: 30, siteSectors: 4, lobeLimitFactor: 2 }, view: { tableTickedOnly: true } };
+  await page.addInitScript((t) => localStorage.setItem('lobe-story:prefs:v1', t), JSON.stringify(prefs));
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800))]);
+  await expect(page.getByTestId('plot-h')).toBeVisible();
+  await dismissLoadLine(page);
+  await openSimulation(page);
+  const value = page.getByLabel('Mechanical tilt (°) value');
+  await value.fill('4');
+  await value.press('Enter');
+  await expect(chip(page, 'Simulated: mechanical 4°')).toBeVisible();
+  expect(await page.locator('main').evaluate((m) => m.scrollHeight - m.clientHeight)).toBe(0);
+  const slider = page.getByRole('slider', { name: 'Mechanical tilt (°)', exact: true });
+  // Dragged to 0 and let go: the tilt's chip goes, the line loses a row and keeps it as a band (nothing to scroll back).
+  const from = await thumbAt(slider, 4);
+  const zero = await thumbAt(slider, 0);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(zero.x, zero.y, { steps: 6 });
+  await page.mouse.up();
+  await expect(chip(page, 'Simulated: mechanical 4°')).toHaveCount(0);
+  expect(await boxHeight(page)).toBeGreaterThan(await rowsHeight(page));
+  // Gripped again where it was let go and dragged well past 24 px: the slider stays under the pointer the whole time.
+  const at = (await slider.boundingBox())!;
+  await page.mouse.down();
+  for (const dx of [10, 30, 60, 90]) {
+    await page.mouse.move(zero.x + dx, zero.y, { steps: 3 });
+    expect((await slider.boundingBox())!, `at +${dx} px`).toEqual(at);
+  }
+  await page.mouse.up();
+  expect((await slider.boundingBox())!).toEqual(at);
+  // After the release, a move away gives the band back.
+  await page.mouse.move(zero.x + 90, zero.y + 300, { steps: 4 });
+  await expect.poll(async () => (await boxHeight(page)) - (await rowsHeight(page))).toBe(0);
+});

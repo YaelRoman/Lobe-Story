@@ -4,7 +4,7 @@ import { useStore, type NotDefaultKey } from '../state/store';
 import { instanceIds } from '../state/selectors';
 import { needsAngularRegions } from './table';
 import { notDefaultChips, type NotDefaultChip } from './notDefault';
-import { useSliderGrip } from './sliderHold';
+import { gripKey, sliderGripped, useSliderGrip } from './sliderHold';
 import { announce } from './announce';
 import { SKIP_TARGETS } from './SkipLinks';
 
@@ -133,7 +133,7 @@ export function NotDefaultLine() {
   // keeps is given back as far as the page has been scrolled down: it is taken from that scroll, and nothing on the screen
   // moves. Where no scroll could ever take it all back (the page is too short to scroll so far), it is given back once
   // the pointer has moved away from where it last pressed, or at a wheel or a key: not under a pointer that rests where
-  // it clicked. A change of the window's size lays the page out anew: the room goes, and the line takes its rows' height.
+  // it clicked, nor while a button is down or a slider is held. A change of the window's size lays the page out anew: the room goes, and the line takes its rows' height.
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -160,10 +160,15 @@ export function NotDefaultLine() {
     const onPress = (e: PointerEvent) => {
       pressed = { x: e.clientX, y: e.clientY };
     };
+    // Not while a button or a finger is down, or a slider is held (by a pointer or a key): a band given back then would
+    // move the slider under it. The next move after the release gives it back.
     const onMove = (e: PointerEvent) => {
+      if (e.buttons !== 0 || sliderGripped()) return;
       if (stuck() && (pressed === null || Math.hypot(e.clientX - pressed.x, e.clientY - pressed.y) > 24)) giveBack(Infinity);
     };
-    const onIntent = () => {
+    const onIntent = (e: Event) => {
+      const key = e instanceof KeyboardEvent ? e.key : '';
+      if (sliderGripped() || (gripKey(key) && e.target instanceof HTMLInputElement && e.target.type === 'range')) return;
       if (stuck()) giveBack(Infinity);
     };
     const onResize = () => {
