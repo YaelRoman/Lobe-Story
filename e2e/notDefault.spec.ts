@@ -124,7 +124,8 @@ test('an opened project is shown in the line at once, and each chip puts back it
   await expect(page.getByRole('checkbox', { name: 'Ticked files only' })).not.toBeChecked();
   await expect(page.getByTestId('announcer')).toContainText('Ticked files only is off: the metrics table lists every file again.');
   await expect(line(page)).toHaveCount(0);
-  expect((await page.locator('.not-default-box').boundingBox())!.height).toBe(0);
+  // The Simulation bar is open: the line keeps its row, and says that nothing differs.
+  await expect(page.getByTestId('not-default-empty')).toHaveText('All at default');
   // "Ticked files only" offers no undo of its own and leaves the one on offer: the sub-bands come back.
   await page.keyboard.press('Control+z');
   await expect(await chipTexts(page)).toEqual(['Sub-bands: 2 user-defined']);
@@ -230,3 +231,42 @@ test('on a phone the line keeps its chips and its height through a drag, also wh
   await expect(line(page).getByRole('button', { name: /^Simulated/ })).toHaveCount(0);
   await expect.poll(height).toBe(oneRow);
 });
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`at ${viewport.width} px the open Simulation bar keeps a row for the line: the first chip fills it, and nothing in the bar moves or is hidden`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await load(page);
+    // Folded (the default): no line and no room, as before the line existed.
+    expect((await page.locator('.not-default-box').boundingBox())!.height).toBe(0);
+    await openSimulation(page);
+    const reserved = page.getByTestId('not-default-empty');
+    await expect(reserved).toHaveText('All at default');
+    const row = (await page.locator('.not-default-box').boundingBox())!.height;
+    expect(row).toBeGreaterThan(0);
+    const main = page.locator('main');
+    await main.evaluate((m) => (m.scrollTop = 0));
+    const fold = page.getByRole('button', { name: /Simulation/ });
+    const value = page.getByLabel('Mechanical tilt (°) value');
+    const [foldAt, valueAt] = [(await fold.boundingBox())!, (await value.boundingBox())!];
+
+    await value.fill('4');
+    await value.press('Enter');
+    await expect(chip(page, 'Simulated: mechanical 4°')).toBeVisible();
+    await expect(reserved).toHaveCount(0);
+    expect((await page.locator('.not-default-box').boundingBox())!.height).toBe(row);
+    expect(await main.evaluate((m) => m.scrollTop)).toBe(0);
+    expect((await fold.boundingBox())!).toEqual(foldAt);
+    expect((await value.boundingBox())!).toEqual(valueAt);
+    // The bar's top is not under the line: the fold button and the field just used lie wholly inside the working area.
+    const top = (await main.boundingBox())!.y;
+    expect(foldAt.y).toBeGreaterThanOrEqual(top);
+
+    // The horizon cut too: a second chip in the row (desktop) or the measured scroll for a second row (phone); never a hidden bar at the first.
+    await chip(page, 'Simulated: mechanical 4°').click();
+    await expect(reserved).toHaveText('All at default');
+    await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+    await expect(chip(page, 'Horizontal cut: at the horizon')).toBeVisible();
+    expect(await main.evaluate((m) => m.scrollTop)).toBe(0);
+    expect((await fold.boundingBox())!).toEqual(foldAt);
+  });
+}

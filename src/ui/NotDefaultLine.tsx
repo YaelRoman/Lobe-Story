@@ -29,8 +29,9 @@ function keepPageInPlace(delta: number): void {
  * reset of typed work offers the usual undo, which the status region says. With everything at its default the line
  * is not there and takes no room.
  *
- * It comes, goes and changes its height with what is set; nothing under it moves for that: the page is scrolled by as
- * much (see `keepPageInPlace`). While a slider is gripped the line stays as it was when the slider was taken (a tilt
+ * While the Simulation bar is open it keeps one row ("All at default" when empty), so the first chip moves nothing.
+ * Beyond that row it comes, goes and changes its height with what is set; nothing under it moves for that: the page is
+ * scrolled by as much (see `keepPageInPlace`). While a slider is gripped the line stays as it was when the slider was taken (a tilt
  * brings a chip, and makes the 3D method count): the page is then neither moved nor scrolled under the pointer, and the
  * sentence about a held slider stays where the bar has it. The line catches up when the slider is let go.
  */
@@ -46,6 +47,10 @@ export function NotDefaultLine() {
   const subBands = useStore((s) => s.view.subBands.length);
   const tickedOnly = useStore((s) => s.view.tableTickedOnly);
   const resetToDefault = useStore((s) => s.resetToDefault);
+  // While the Simulation bar is open the line keeps one row, empty or not: the first chip (a typed tilt, the horizon cut)
+  // then comes into room that was already there, and nothing under it moves or is scrolled out of sight. The bar keeps
+  // the room of its badge for the same reason. Folded, as the page starts, it keeps none.
+  const barOpen = useStore((s) => !s.view.collapsed.simBar);
   const ids = useMemo(() => instanceIds(files, copies), [files, copies]);
   const groupIds = useMemo(() => customGroups.map((g) => g.id), [customGroups]);
   const live = useMemo(
@@ -59,11 +64,12 @@ export function NotDefaultLine() {
   if (gripped && frozen === null) setFrozen(live);
   if (!gripped && frozen !== null) setFrozen(null);
   const chips = (gripped ? frozen : null) ?? live;
+  const reserve = barOpen && ids.length > 0;
 
   const box = useRef<HTMLDivElement>(null);
   const line = useRef<HTMLDivElement>(null);
   // Where the line ended on the screen when the page under it was last laid out or scrolled, and for which files.
-  const placed = useRef<{ bottom: number; files: unknown } | null>(null);
+  const placed = useRef<{ bottom: number; files: unknown; reserve: boolean } | null>(null);
 
   useLayoutEffect(() => {
     const el = box.current;
@@ -76,8 +82,10 @@ export function NotDefaultLine() {
     // Other files (loaded, removed, a project opened, the session cleared) are another page: nothing to keep in place.
     // The move is measured, not taken from the height: where the window scrolls, the browser may have kept the page in
     // place already, and it must not be done twice.
-    if (before && before.files === files && bottom !== before.bottom) keepPageInPlace(bottom - before.bottom);
-    placed.current = { bottom: el.getBoundingClientRect().bottom, files };
+    // The row kept for the open bar comes and goes with the click on the bar's fold button, which moves the page
+    // anyway: scrolled away, the bar's own top would go out of sight.
+    if (before && before.files === files && before.reserve === reserve && bottom !== before.bottom) keepPageInPlace(bottom - before.bottom);
+    placed.current = { bottom: el.getBoundingClientRect().bottom, files, reserve };
   });
 
   // A scroll of the window or a change of its size moves the line on the screen without changing it: noted, not undone.
@@ -112,6 +120,12 @@ export function NotDefaultLine() {
 
   return (
     <div className="not-default-box" ref={box}>
+      {chips.length === 0 && reserve && (
+        // The kept row says that it is kept: nothing differs from the defaults.
+        <div className="not-default not-default-empty" data-testid="not-default-empty">
+          <span className="not-default-label">All at default</span>
+        </div>
+      )}
       {chips.length > 0 && (
         <div className="not-default" role="group" aria-label="Not at default" ref={line} data-testid="not-default">
           <span className="not-default-label" aria-hidden="true">

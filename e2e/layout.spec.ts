@@ -265,9 +265,10 @@ test('the open bar at 1024 px is compact: Reset stays on the Horizontal cut row 
   await expect(reason).toBeVisible();
   expect(await placesInBar(page)).toEqual(idle);
 
-  // The first plot: no more of it below the fold than before the hint lines came (about 40 % at 1024 x 768).
+  // The first plot: no more of it below the fold than before the hint lines came (about 40 % at 1024 x 768), and the
+  // row the "Not at default" line keeps while the bar is open (33 px, so that its first chip moves nothing): about 49 %.
   const plot = await box(page.getByTestId('plot-h'));
-  expect((plot.y + plot.height - 768) / plot.height).toBeLessThanOrEqual(0.45);
+  expect((plot.y + plot.height - 768) / plot.height).toBeLessThanOrEqual(0.5);
 });
 
 test('on a phone the line under the 3D method keeps its size when a tilt puts the method to use: nothing in the bar moves', async ({ page }) => {

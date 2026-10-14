@@ -86,7 +86,8 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     topic: 'not-default',
     lines: [
       'The line Not at default, under the toolbar, names what is not at its default and changes the numbers on the page: the tilt sliders, the tilt offsets of files and groups, the horizontal cut at the horizon, the 3D method Weighted while something uses it, each analysis setting that was changed, your sub-bands and Ticked files only.',
-      'A click on a chip puts that one thing back; each reset but Ticked files only (one click on its box brings it back) can be undone with the Undo button or Ctrl/Cmd+Z. With everything at its default there is no line, and while a slider is held the line waits until it is let go.',
+      'A click on a chip puts that one thing back; each reset but Ticked files only (one click on its box brings it back) can be undone with the Undo button or Ctrl/Cmd+Z.',
+      'With everything at its default there is no line, except while the Simulation bar is open: it then keeps its row and says All at default, so that its first chip moves nothing. While a slider is held the line waits until it is let go.',
       'Not listed: the azimuth, which only turns the drawing, and what is written where the numbers are (the gain unit, Δ vs reference). The line is not in any export.',
     ],
   },
