@@ -357,3 +357,35 @@ test('where the page cannot scroll, the room kept after the last chip goes once 
   await page.mouse.move(at.x + at.width / 2 + 200, at.y + 300, { steps: 4 });
   await expect.poll(() => boxHeight(page)).toBe(0);
 });
+
+test('folding the Simulation bar does not move its fold button, whether the line keeps a band or only its row', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await load(page, { settings: { levelDb: 6, sectorEdgeDeg: 45, fbWindowDeg: 40 }, view: { tableTickedOnly: true } });
+  await openSimulation(page);
+  const value = page.getByLabel('Mechanical tilt (°) value');
+  await value.fill('4');
+  await value.press('Enter');
+  await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
+  await page.locator('main').evaluate((m) => (m.scrollTop = 0));
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await expect(chip(page, 'Simulated: mechanical 4°')).toHaveCount(0);
+  expect(await boxHeight(page)).toBeGreaterThan(await rowsHeight(page));
+  const fold = page.getByRole('button', { name: /Simulation/ });
+  const at = (await fold.boundingBox())!;
+  await fold.click();
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  expect((await fold.boundingBox())!).toEqual(at);
+});
+
+test('at the defaults the kept row goes with the fold of the Simulation bar, and the fold button stays under the pointer', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await load(page);
+  const fold = page.getByRole('button', { name: /Simulation/ });
+  await openSimulation(page);
+  await expect(page.getByTestId('not-default-empty')).toBeVisible();
+  await page.locator('main').evaluate((m) => (m.scrollTop = 0));
+  const open = (await fold.boundingBox())!;
+  await fold.click();
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  expect((await fold.boundingBox())!).toEqual(open);
+});

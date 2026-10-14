@@ -107,24 +107,25 @@ export function NotDefaultLine() {
     if (!el) return;
     const before = placed.current;
     // Other files (loaded, removed, a project opened, the session cleared) are another page: nothing to keep in place.
-    // The row kept for the open bar comes and goes with the click on the bar's fold button, which moves the page
-    // anyway: scrolled away, the bar's own top would go out of sight.
-    const keep = before !== null && before.files === files && before.reserve === reserve;
-    if (!keep) floor.current = 0;
+    const sameFiles = before !== null && before.files === files;
+    if (!sameFiles) floor.current = 0;
     setHeight(el, floor.current);
     // The move is measured, not taken from the height: where the window scrolls, the browser may have kept the page in
     // place already, and it must not be done twice.
     let moved = before ? el.getBoundingClientRect().bottom - before.bottom : 0;
-    if (keep && moved < 0) {
+    if (sameFiles && moved < 0) {
       // Lower: what the page cannot be scrolled back by stays as room in the line, so nothing moves under a pointer that
-      // has just clicked (it is given back as the page is scrolled, see below).
+      // has just clicked (it is given back as the page is scrolled, see below). The same when the bar is folded: its
+      // fold button stays under the pointer.
       const short = -moved - scrollRoom();
       if (short > 0) {
         floor.current = el.getBoundingClientRect().height + short;
         moved += setHeight(el, floor.current);
       }
     }
-    if (keep && moved !== 0) keepPageInPlace(moved);
+    // Higher: kept in place by a scroll, except for the row the open bar keeps, which comes with the click on its fold
+    // button: scrolled away, the bar's own top would go out of sight.
+    if (sameFiles && moved !== 0 && (moved < 0 || before.reserve === reserve)) keepPageInPlace(moved);
     placed.current = { bottom: el.getBoundingClientRect().bottom, files, reserve };
   });
 
