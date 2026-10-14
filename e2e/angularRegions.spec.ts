@@ -45,12 +45,12 @@ test('Angular regions (est.): off by default; switched on, three plausible perce
   // The 3D method changes the estimate, so its control (otherwise only for the 3D view and a tilt) is enabled.
   const fold = page.getByRole('button', { name: /Simulation/ });
   if ((await fold.getAttribute('aria-expanded')) !== 'true') await fold.click();
-  const weighted = page.getByRole('button', { name: 'Weighted' });
+  const weighted = page.getByRole('group', { name: '3D method' }).getByRole('button', { name: 'Weighted' });
   await expect(weighted).toBeEnabled();
   await weighted.click();
   await expect(page.getByRole('columnheader', { name: 'Sector eff. est. [Weighted] (%)' })).toHaveAttribute('title', /3D method: Weighted/);
   await expect.poll(async () => (await numbers('areSector'))[0]).toBeLessThan(sector[0]);
-  await page.getByRole('button', { name: 'Summation' }).click();
+  await page.getByRole('group', { name: '3D method' }).getByRole('button', { name: 'Summation' }).click();
   await expect.poll(async () => (await numbers('areSector'))[0]).toBe(sector[0]);
 
   // The frequency chart can plot one of them.

@@ -34,7 +34,7 @@ test('the frequency chart plots any metric, defaults to the beamwidths and remem
 test('Ticked files only limits the table and the CSV to the ticked files and keeps the reference row', async ({ page }) => {
   await loadExample(page);
   const rows = page.locator('.metrics tbody tr');
-  const toggle = page.getByLabel('Ticked files only');
+  const toggle = page.getByRole('checkbox', { name: 'Ticked files only' });
   await expect(toggle).not.toBeChecked();
   await expect(page.getByTestId('table-count')).toHaveCount(0);
   await page.getByRole('button', { name: 'Show none', exact: true }).click();
@@ -342,7 +342,7 @@ test('Ticked files only says when the highlighted file is unticked and its row i
   const boxes = page.locator('.panel li input[type="checkbox"]');
   await boxes.nth(0).check();
   await boxes.nth(1).check();
-  await page.getByLabel('Ticked files only').check();
+  await page.getByRole('checkbox', { name: 'Ticked files only' }).check();
   const count = page.getByTestId('table-count');
   await expect(count).toHaveAttribute('role', 'status');
   await page.locator('.panel li').nth(1).locator('.row-main').click();

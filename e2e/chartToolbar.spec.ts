@@ -186,7 +186,7 @@ test('an offset on a file that is not drawn does not make the exports simulated'
     return (await pending).suggestedFilename();
   };
   expect(await csvName()).toBe('pattern-metrics-simulated.csv');
-  await page.getByLabel('Ticked files only').check();
+  await page.getByRole('checkbox', { name: 'Ticked files only' }).check();
   expect(await csvName()).toBe('pattern-metrics.csv');
   // Drawing the file with the offset makes the picture simulated.
   await page.locator('.panel li input[type="checkbox"]').nth(0).check();

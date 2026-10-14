@@ -23,6 +23,7 @@ import { useEscapeClear } from './ui/useEscapeClear';
 import { useFirstFilesFocus } from './ui/useFirstFilesFocus';
 import { PlotBoundary } from './ui/ErrorBoundary';
 import { SkipLinks } from './ui/SkipLinks';
+import { NotDefaultLine } from './ui/NotDefaultLine';
 import { lagNote } from './ui/updateHint';
 
 export default function App() {
@@ -99,6 +100,8 @@ export default function App() {
     <div className="app">
       {tagged.length > 0 && <SkipLinks />}
       <Toolbar onHelp={openHelp} />
+      {/* What is not at its default and changes the numbers, each with a click to put it back (none: no line, no room). */}
+      <NotDefaultLine />
       <StatusArea hasErrors={errors.length > 0} beforeShowErrors={() => setFilesOpen(true)} />
       <div className="body">
         {files.length > 0 && (

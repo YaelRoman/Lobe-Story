@@ -97,6 +97,14 @@ th[scope='row'] { text-align: left; white-space: nowrap; }
 .subband-row input[type='text'] { width: 160px; }
 .subband-row input[type='number'] { width: 90px; }
 .empty { margin: auto; max-width: 440px; text-align: center; color: var(--muted); }
+/* The line under the toolbar naming what is not at its default (see NotDefaultLine): a chip per thing, each a button that puts it
+   back. Its box has no height while there is no chip; NotDefaultLine keeps the page under it in place when it changes. */
+.not-default-box { flex: none; }
+.not-default { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; padding: 4px 12px; border-bottom: 1px solid var(--border); background: var(--bg); font-size: 13px; }
+.not-default-label { color: var(--muted); }
+.not-default .chip { display: inline-flex; gap: 6px; align-items: center; max-width: 100%; padding: 1px 6px 1px 10px; text-align: left; background: var(--hl); border-color: var(--accent); border-radius: 999px; overflow-wrap: anywhere; }
+.not-default .chip-x { flex: none; color: var(--muted); font-size: 15px; line-height: 1; }
+.not-default .chip:hover .chip-x { color: var(--fg); }
 .status-area { position: relative; flex: none; }
 /* The copy confirmation floats in the corner under the status bars: it takes no room, so the page never moves. */
 .copy-toast { position: absolute; top: 100%; right: 12px; z-index: 9; margin-top: 6px; max-width: min(420px, calc(100vw - 24px)); padding: 4px 12px; font-size: 13px; color: var(--fg); background: var(--panel); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 2px 10px rgb(0 0 0 / 22%); pointer-events: none; overflow-wrap: anywhere; }
@@ -278,6 +286,7 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
   .hit { min-width: 32px; min-height: 32px; }
   .controls label, .sim-bar label, .delta-toggle, .metrics label { min-height: 32px; }
   .load-message button, .undo-toast button { min-width: 32px; min-height: 32px; }
+  .not-default .chip { min-height: 32px; }
   .sort-btn { min-height: 32px; }
   .errors header .dismiss-all { min-height: 32px; }
   /* The library's own rules are as specific as a short selector: this one is longer so it wins. */
@@ -307,6 +316,7 @@ button.link { padding: 0 2px; border: 0; background: none; color: var(--accent);
   .sim-slot { align-items: start; }
   .sim-field input[type='range'] { width: 110px; }
   .toolbar { padding: 6px 8px; }
+  .not-default { padding: 4px 8px; }
   .subband-row input[type='text'] { width: 120px; }
   .sim-bar, .controls { max-width: 100%; }
 }
