@@ -1,6 +1,7 @@
 import type { AnalysisSettings } from '../core/analysis/metrics';
 import type { ViewState } from '../state/store';
 import { needsAngularRegions } from './table';
+import { settingText } from './bwLabel';
 
 /** The app's name as the page's heading writes it. */
 const APP_NAME = 'Lobe-Story';
@@ -37,9 +38,9 @@ const two = (n: number): string => String(n).padStart(2, '0');
  */
 export function exportFootLine(settings: Pick<AnalysisSettings, 'levelDb' | 'sectorEdgeDeg' | 'fbWindowDeg'>, view: FootView, now: Date): string {
   return [
-    `Beamwidth level ${settings.levelDb} dB`,
-    `Sector edge ±${settings.sectorEdgeDeg}°`,
-    `F/B window ±${settings.fbWindowDeg}°`,
+    `Beamwidth level ${settingText(settings.levelDb)} dB`,
+    `Sector edge ±${settingText(settings.sectorEdgeDeg)}°`,
+    `F/B window ±${settingText(settings.fbWindowDeg)}°`,
     ...(methodInUse(view) ? [`3D method: ${view.method3d === 'weighted' ? 'Weighted' : 'Summation'}`] : []),
     `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`,
     APP_NAME,

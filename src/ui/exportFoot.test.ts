@@ -24,6 +24,12 @@ describe('the foot line of an exported image', () => {
     expect(line).toContain('Beamwidth level 10 dB · Sector edge ±45° · F/B window ±20°');
   });
 
+  it('writes a value as the plot labels do: at most two decimals, an integer as it is', () => {
+    const line = exportFootLine({ ...DEFAULT_SETTINGS, levelDb: 19.123456789012344, sectorEdgeDeg: 178.12345678901235, fbWindowDeg: 22.5 }, view(), day);
+    expect(line).toContain('Beamwidth level 19.12 dB · Sector edge ±178.12° · F/B window ±22.5°');
+    expect(exportFootLine({ ...DEFAULT_SETTINGS, levelDb: 9.999 }, view(), day)).toContain('Beamwidth level 10 dB');
+  });
+
   it('names the 3D method only while something uses it', () => {
     expect(exportFootLine(DEFAULT_SETTINGS, view({ dimension: '3d', method3d: 'weighted' }), day)).toBe(
       'Beamwidth level 3 dB · Sector edge ±60° · F/B window ±30° · 3D method: Weighted · 2026-10-03 · Lobe-Story',
