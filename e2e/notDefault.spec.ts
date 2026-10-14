@@ -229,6 +229,11 @@ test('on a phone the line keeps its chips and its height through a drag, also wh
   expect((await slider.boundingBox())!).toEqual(at);
   await page.mouse.up();
   await expect(line(page).getByRole('button', { name: /^Simulated/ })).toHaveCount(0);
+  // Let go: the chip goes, and the line keeps the room (the page is at its top: nothing to scroll back), so the slider
+  // stays under the pointer. Scrolled down, the room is given back.
+  expect(await height()).toBe(twoRows);
+  expect((await slider.boundingBox())!).toEqual(at);
+  await page.locator('main').evaluate((main) => (main.scrollTop += 200));
   await expect.poll(height).toBe(oneRow);
 });
 
@@ -270,3 +275,35 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     expect((await fold.boundingBox())!).toEqual(foldAt);
   });
 }
+
+test('a line that gets lower with the page at its top moves nothing under the pointer: the room is given back when the page is scrolled', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await load(page, { view: { tableTickedOnly: true } });
+  await openSimulation(page);
+  const box = page.locator('.not-default-box');
+  const height = async () => (await box.boundingBox())!.height;
+  const oneRow = await height();
+  const value = page.getByLabel('Mechanical tilt (°) value');
+  await value.fill('4');
+  await value.press('Enter');
+  await expect(chip(page, 'Simulated: mechanical 4°')).toBeVisible();
+  const twoRows = await height();
+  expect(twoRows).toBeGreaterThan(oneRow);
+  // Back at the top, as a user does after the line came; then the bar's Reset takes the tilt's chip away.
+  const main = page.locator('main');
+  await main.evaluate((m) => (m.scrollTop = 0));
+  const reset = page.getByRole('button', { name: 'Reset', exact: true });
+  await reset.scrollIntoViewIfNeeded();
+  const scrolled = await main.evaluate((m) => m.scrollTop);
+  const at = (await reset.boundingBox())!;
+  await reset.click();
+  await expect(chip(page, 'Simulated: mechanical 4°')).toHaveCount(0);
+  // The work area had less room above than the row: the line keeps its height, and Reset stays under the pointer.
+  expect(scrolled).toBeLessThan(twoRows - oneRow);
+  expect(await height()).toBe(twoRows);
+  expect((await reset.boundingBox())!).toEqual(at);
+  // Scrolled down by the user: the room is given back as it can be taken from the scroll, and nothing jumps.
+  await main.evaluate((m) => (m.scrollTop += 200));
+  await expect.poll(height).toBe(oneRow);
+  expect((await reset.boundingBox())!.y).toBeCloseTo(at.y - 200, 0);
+});
