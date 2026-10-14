@@ -48,6 +48,21 @@ const SETTING_TEXT: [keyof AnalysisSettings, string, (v: string) => string][] = 
   ['siteSectors', 'Sectors per site', (v) => v],
 ];
 
+/**
+ * A changed setting as the chip writes it: with at most two decimals, as everywhere on the page, unless that reads as the
+ * default; then with as many as it takes to differ. Such a value still changes numbers (an edge of 59.999° moves SPR and
+ * AIR), and the chip, whose job is to explain a difference, is the one place that writes more.
+ */
+function differingText(v: number, d: number): string {
+  const usual = settingText(v);
+  if (usual !== settingText(d)) return usual;
+  for (let digits = 3; digits <= 12; digits++) {
+    const text = String(Number(v.toFixed(digits)));
+    if (text !== settingText(d)) return text;
+  }
+  return String(v);
+}
+
 const tilts = (o: { electricalDeg: number; mechanicalDeg: number }): boolean => o.electricalDeg !== 0 || o.mechanicalDeg !== 0;
 
 /**
@@ -85,10 +100,8 @@ export function notDefaultChips(input: NotDefaultInput): NotDefaultChip[] {
 
   for (const [key, label, value] of SETTING_TEXT) {
     const v = input.settings[key];
-    // Compared as the page writes them (at most two decimals, as every label and the images' foot line): a value that
-    // reads as its default everywhere is no reason on the screen for a different number, and its chip would say
-    // "3 dB, reset to 3 dB".
-    if (settingText(v) !== settingText(DEFAULT_SETTINGS[key])) add(`setting:${key}`, `${label} ${value(settingText(v))}`, `reset to ${value(settingText(DEFAULT_SETTINGS[key]))}`);
+    const d = DEFAULT_SETTINGS[key];
+    if (v !== d) add(`setting:${key}`, `${label} ${value(differingText(v, d))}`, `reset to ${value(settingText(d))}`);
   }
 
   if (input.subBands > 0) add('subBands', `Sub-bands: ${input.subBands} user-defined`, 'reset to automatic');

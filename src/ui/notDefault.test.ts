@@ -91,13 +91,17 @@ describe('notDefaultChips: one chip per thing that is not at its default and cha
     expect(texts(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 6.123456 } }))).toEqual(['Beamwidth level 6.12 dB']);
   });
 
-  it('a setting that is written as its default (within the two decimals the page writes) gets no chip: none would say "3 dB, reset to 3 dB"', () => {
-    expect(notDefaultChips(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 3.004, sectorEdgeDeg: 59.999 } }))).toEqual([]);
+  it('a setting that differs from its default only beyond two decimals still gets a chip, written with the digits that show it differs', () => {
+    // Such a value changes numbers (an edge of 59.999° moves SPR and AIR): the chip is the one place that writes more than two decimals.
+    expect(notDefaultChips(base({ settings: { ...DEFAULT_SETTINGS, sectorEdgeDeg: 59.999 } })).map((c) => c.name)).toEqual(['Sector edge ±59.999°, reset to ±60°']);
+    expect(texts(base({ settings: { ...DEFAULT_SETTINGS, sectorEdgeDeg: 60.004 } }))).toEqual(['Sector edge ±60.004°']);
+    expect(notDefaultChips(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 3.004 } })).map((c) => c.name)).toEqual(['Beamwidth level 3.004 dB, reset to 3 dB']);
+    expect(texts(base({ settings: { ...DEFAULT_SETTINGS, lobeLimitFactor: 1.7849 } }))).toEqual(['First-lobe limit 1.785 × V-HPBW']);
+    expect(texts(base({ settings: { ...DEFAULT_SETTINGS, fbWindowDeg: 30.0000001 } }))).toEqual(['F/B window ±30.0000001°']);
+    // Where two decimals already differ, two are written, as everywhere.
     expect(texts(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 3.006 } }))).toEqual(['Beamwidth level 3.01 dB']);
-    for (const c of notDefaultChips(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 3.006, lobeLimitFactor: 1.7849 } }))) {
-      const [, value] = c.text.match(/ (\S+(?: × V-HPBW| dB|°)?)$/) ?? [];
-      expect(c.name.endsWith(`reset to ${value}`), c.name).toBe(false);
-    }
+    // The value itself decides: exactly the default, no chip.
+    expect(notDefaultChips(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 3.0 } }))).toEqual([]);
   });
 
   it('user-defined sub-bands, and the ticked-files-only table', () => {
