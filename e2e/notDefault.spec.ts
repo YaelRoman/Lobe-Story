@@ -309,3 +309,51 @@ test('a line that gets lower with the page at its top moves nothing under the po
   await expect.poll(height).toBe(oneRow);
   expect((await reset.boundingBox())!.y).toBeCloseTo(at.y - 200, 0);
 });
+
+const boxHeight = async (page: Page) => (await page.locator('.not-default-box').boundingBox())!.height;
+const rowsHeight = (page: Page) => page.locator('.not-default-box').evaluate((b) => Math.ceil(b.firstElementChild?.getBoundingClientRect().height ?? 0));
+
+test('a wider window gives the line the height of its rows: no empty band is left, with or without one kept for a click', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 768 });
+  await load(page, { settings: { levelDb: 6, sectorEdgeDeg: 45, fbWindowDeg: 40, uslsRangeDeg: 30 }, view: { tableTickedOnly: true } });
+  const twoRows = await boxHeight(page);
+  expect(twoRows).toBeGreaterThan(40);
+  await page.setViewportSize({ width: 1700, height: 768 });
+  await expect.poll(() => boxHeight(page)).toBe(await rowsHeight(page));
+  expect(await boxHeight(page)).toBeLessThan(twoRows);
+
+  // A band kept after a click (the page at its top) goes with a resize too.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openSimulation(page);
+  const value = page.getByLabel('Mechanical tilt (°) value');
+  await value.fill('4');
+  await value.press('Enter');
+  await page.locator('main').evaluate((m) => (m.scrollTop = 0));
+  const reset = page.getByRole('button', { name: 'Reset', exact: true });
+  await reset.click();
+  await expect(chip(page, 'Simulated: mechanical 4°')).toHaveCount(0);
+  expect(await boxHeight(page)).toBeGreaterThan(await rowsHeight(page));
+  await page.setViewportSize({ width: 790, height: 844 });
+  await expect.poll(() => boxHeight(page)).toBe(await rowsHeight(page));
+});
+
+test('where the page cannot scroll, the room kept after the last chip goes once the pointer moves away, not under it', async ({ page }) => {
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.addInitScript(() => localStorage.setItem('lobe-story:prefs:v1', JSON.stringify({ version: 1, settings: {}, view: { tableTickedOnly: true } })));
+  await page.goto('/');
+  await page.getByTestId('file-input').setInputFiles([file('a.msi', msi(1800))]);
+  await expect(page.getByTestId('plot-h')).toBeVisible();
+  await dismissLoadLine(page);
+  const range = await page.locator('main').evaluate((m) => m.scrollHeight - m.clientHeight);
+  expect(range).toBe(0);
+  const last = chip(page, 'Ticked files only, reset to all files');
+  const at = (await last.boundingBox())!;
+  const bodyTop = (await page.locator('.body').boundingBox())!.y;
+  await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+  await expect(line(page)).toHaveCount(0);
+  // The pointer rests where it clicked: nothing has moved under it.
+  expect((await page.locator('.body').boundingBox())!.y).toBe(bodyTop);
+  // It moves away: no scroll can ever take the room back, so it goes now.
+  await page.mouse.move(at.x + at.width / 2 + 200, at.y + 300, { steps: 4 });
+  await expect.poll(() => boxHeight(page)).toBe(0);
+});

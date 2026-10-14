@@ -40,6 +40,14 @@ function scrollingMain(): HTMLElement | null {
   return main && /auto|scroll/.test(getComputedStyle(main).overflowY) ? main : null;
 }
 
+/** How far the page under the line can be scrolled at all. */
+function scrollRange(): number {
+  const main = scrollingMain();
+  if (main) return main.scrollHeight - main.clientHeight;
+  const root = document.scrollingElement ?? document.documentElement;
+  return root.scrollHeight - root.clientHeight;
+}
+
 /** How far the page under the line can be scrolled back up: what it is scrolled down by. */
 const scrollRoom = (): number => scrollingMain()?.scrollTop ?? window.scrollY;
 
@@ -120,33 +128,62 @@ export function NotDefaultLine() {
     placed.current = { bottom: el.getBoundingClientRect().bottom, files, reserve };
   });
 
-  // A scroll of the page or a change of the window's size moves the line on the screen without changing it: noted, not
-  // undone. The room the line still keeps is given back as far as the page has been scrolled down: it is taken from
-  // that scroll, and nothing on the screen moves.
+  // A scroll of the page moves the line on the screen without changing it: noted, not undone. The room the line still
+  // keeps is given back as far as the page has been scrolled down: it is taken from that scroll, and nothing on the screen
+  // moves. Where no scroll could ever take it all back (the page is too short to scroll so far), it is given back once
+  // the pointer has moved away from where it last pressed, or at a wheel or a key: not under a pointer that rests where
+  // it clicked. A change of the window's size lays the page out anew: the room goes, and the line takes its rows' height.
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const note = () => {
-      const extra = floor.current - rowsOf(el);
-      const back = Math.min(extra, scrollRoom());
-      if (extra <= 0) floor.current = 0;
-      else if (back > 0) {
-        floor.current = extra === back ? 0 : floor.current - back;
-        const moved = setHeight(el, floor.current);
-        if (moved !== 0) keepPageInPlace(moved);
-      }
+    const noteBottom = () => {
       if (placed.current) placed.current = { ...placed.current, bottom: el.getBoundingClientRect().bottom };
     };
-    const onScroll = (e: Event) => {
-      if (e.target === document || e.target === document.querySelector('main')) note();
+    const giveBack = (amount: number) => {
+      const extra = floor.current - rowsOf(el);
+      floor.current = amount >= extra ? 0 : floor.current - amount;
+      const moved = setHeight(el, floor.current);
+      if (moved !== 0) keepPageInPlace(moved);
+      noteBottom();
     };
-    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    window.addEventListener('resize', note);
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(note);
+    const extra = () => floor.current - rowsOf(el);
+    const onScroll = (e: Event) => {
+      if (e.target !== document && e.target !== document.querySelector('main')) return;
+      if (extra() <= 0) floor.current = 0;
+      else if (scrollRoom() > 0) giveBack(Math.min(extra(), scrollRoom()));
+      noteBottom();
+    };
+    // Where the page can be scrolled by less than the room kept, no scroll gives all of it back.
+    const stuck = () => extra() > 0 && extra() > scrollRange();
+    let pressed: { x: number; y: number } | null = null;
+    const onPress = (e: PointerEvent) => {
+      pressed = { x: e.clientX, y: e.clientY };
+    };
+    const onMove = (e: PointerEvent) => {
+      if (stuck() && (pressed === null || Math.hypot(e.clientX - pressed.x, e.clientY - pressed.y) > 24)) giveBack(Infinity);
+    };
+    const onIntent = () => {
+      if (stuck()) giveBack(Infinity);
+    };
+    const onResize = () => {
+      floor.current = 0;
+      setHeight(el, 0);
+      noteBottom();
+    };
+    const listeners: [EventTarget, string, EventListener, AddEventListenerOptions][] = [
+      [document, 'scroll', onScroll, { capture: true, passive: true }],
+      [window, 'pointerdown', onPress as EventListener, { capture: true, passive: true }],
+      [window, 'pointerup', onPress as EventListener, { capture: true, passive: true }],
+      [window, 'pointermove', onMove as EventListener, { capture: true, passive: true }],
+      [window, 'wheel', onIntent, { capture: true, passive: true }],
+      [window, 'keydown', onIntent, { capture: true }],
+      [window, 'resize', onResize, {}],
+    ];
+    for (const [target, type, fn, options] of listeners) target.addEventListener(type, fn, options);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(noteBottom);
     observer?.observe(el);
     return () => {
-      document.removeEventListener('scroll', onScroll, { capture: true });
-      window.removeEventListener('resize', note);
+      for (const [target, type, fn, options] of listeners) target.removeEventListener(type, fn, options);
       observer?.disconnect();
     };
   }, []);
