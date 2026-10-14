@@ -6,7 +6,7 @@ import { sanitizeSubBands } from '../core/analysis/subBands';
 import { HORIZON_LEVEL_KEY, METRIC_KEYS, type TableColumn } from './metricKeys';
 import { clampSim, type OffsetState } from './simLimits';
 import { fingerprint, isFingerprint, type PendingFile } from './duplicates';
-import type { CustomGroup, LoadedFile, Selection, SimulationState, StoreData, ViewState } from './store';
+import type { BandCompare, CustomGroup, LoadedFile, Selection, SimulationState, StoreData, ViewState } from './store';
 import { settingText } from '../core/fixed';
 
 export const PROJECT_FORMAT = 'lobe-story-project';
@@ -248,6 +248,13 @@ export function sanitizeSettings(raw: unknown): AnalysisSettings {
 export const sanitizeMetric = (v: unknown, fallback: TableColumn): TableColumn =>
   (METRIC_KEYS as readonly unknown[]).includes(v) || v === HORIZON_LEVEL_KEY ? (v as TableColumn) : fallback;
 
+/** Two different dataset keys, or null (a comparison that cannot be read is no comparison). */
+function sanitizeBandCompare(raw: unknown): BandCompare | null {
+  if (!isObj(raw)) return null;
+  const { a, b } = raw;
+  return typeof a === 'string' && typeof b === 'string' && a !== b ? { a, b } : null;
+}
+
 /** The display part of the view (everything but the theme and the simulation) of a stored object; bad or missing values take `dv`'s. */
 export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewState): Omit<ViewState, 'theme' | 'simulation' | 'freqMetric' | 'tableTickedOnly'> {
   const rawMarkers: Record<string, unknown> = isObj(rawView.markers) ? rawView.markers : {};
@@ -275,6 +282,7 @@ export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewSt
     markers,
     tableGroups,
     subBands: sanitizeSubBands(rawView.subBands),
+    bandCompare: sanitizeBandCompare(rawView.bandCompare),
     deltaVsReference: typeof rawView.deltaVsReference === 'boolean' ? rawView.deltaVsReference : dv.deltaVsReference,
     dimension: oneOf(rawView.dimension, ['2d', '3d'] as const, dv.dimension),
     method3d: oneOf(rawView.method3d, ['summation', 'weighted'] as const, dv.method3d),

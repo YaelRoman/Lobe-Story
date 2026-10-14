@@ -159,6 +159,12 @@ describe('sub-bands are not a preference (they belong to the session and its pro
     expect(serializePrefs(s)).not.toMatch(/subBands|Mid/);
   });
 
+  it('are not remembered in the browser, nor is a comparison of two antennas', () => {
+    const s = defaults();
+    s.view = { ...s.view, bandCompare: { a: 'x', b: 'y' } };
+    expect(serializePrefs(s)).not.toMatch(/bandCompare/);
+  });
+
   it('stored by an earlier version are ignored: the session keeps its own', () => {
     expect(applyPrefs(oldStored(), defaults())!.view.subBands).toEqual([]);
     const base = defaults();

@@ -232,6 +232,16 @@ describe('store', () => {
     expect(useStore.getState().view.subBands).toEqual(subBands);
   });
 
+  it('Clear ends a comparison of two antennas in the band statistics, and its undo brings it back', () => {
+    useStore.getState().addFiles([input('a.msi', planetText())]);
+    const pair = { a: 'x', b: 'y' };
+    useStore.getState().updateView({ bandCompare: pair });
+    useStore.getState().clear();
+    expect(useStore.getState().view.bandCompare).toBeNull();
+    useStore.getState().undoLast();
+    expect(useStore.getState().view.bandCompare).toEqual(pair);
+  });
+
   it('going back to automatic sub-bands drops the user\'s, and can be undone', () => {
     useStore.getState().addFiles([input('a.msi', planetText())]);
     const subBands = [

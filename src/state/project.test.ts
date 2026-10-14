@@ -308,6 +308,17 @@ describe('damaged values', () => {
     expect(restore(serializeProject(before, true)).view.subBands).toEqual(two);
   });
 
+  it('restores and round-trips the two antennas compared in the band statistics, and drops a damaged pair', () => {
+    expect(restore(withState({})).view.bandCompare).toBeNull();
+    const pair = { a: '\u0000Y2', b: 'g1\u0000' };
+    const before = { ...initialState() };
+    before.view = { ...before.view, bandCompare: pair };
+    expect(restore(serializeProject(before, true)).view.bandCompare).toEqual(pair);
+    for (const bad of [{ a: 'x' }, { a: 'x', b: 'x' }, { a: 1, b: 'y' }, 'x', []]) {
+      expect(restore(withState({ view: { bandCompare: bad } })).view.bandCompare).toBeNull();
+    }
+  });
+
   it('dedupes files by path, first wins', () => {
     const s = restore(
       withState({}, [

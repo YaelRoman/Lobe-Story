@@ -66,6 +66,12 @@ function narrowScreen(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 760px)').matches;
 }
 
+/** The two antennas (band-statistics dataset keys) compared in the band statistics. */
+export interface BandCompare {
+  a: string;
+  b: string;
+}
+
 export interface ViewState {
   cut: CutView;
   mode: PlotMode;
@@ -76,6 +82,8 @@ export interface ViewState {
   tableGroups: Record<ColumnGroupKey, boolean>;
   /** User-defined band-statistics sub-bands; empty = automatic. */
   subBands: SubBand[];
+  /** Two antennas compared in the band statistics (A | B | B − A), by dataset key; null = one antenna shown. Saved with the project, not a browser preference. */
+  bandCompare: BandCompare | null;
   dimension: Dimension;
   method3d: Method3d;
   layout3d: Layout3d;
@@ -265,6 +273,7 @@ export function initialState(): StoreData {
       markers: { hpbw: true, fb: false, usls: false, null: false, peak: true, sector: false },
       tableGroups: { ...DEFAULT_TABLE_GROUPS },
       subBands: [],
+      bandCompare: null,
       dimension: '2d',
       method3d: 'summation',
       layout3d: 'grid',
@@ -654,6 +663,8 @@ export const useStore = create<State>()((rawSet, get) => {
           ...s.view,
           deltaVsReference: false,
           subBands: [],
+          // The antennas compared were the files that go.
+          bandCompare: null,
           simulation: { ...s.view.simulation, electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0, hCut: 'beam', offsets: {}, groupOffsets: {} },
         },
       };
