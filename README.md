@@ -96,8 +96,8 @@ no cause.
   default, so that its first chip moves nothing. While a slider is held the line waits until it is let go.
   Not listed: the azimuth, which only turns the drawing, and what is written where the numbers are (the gain
   unit, Δ vs reference). The line is not in any export.
-- Undo: Remove, Delete group, Clear, Show all / none and opening a project over a session can be taken back
-  with the Undo button for a few seconds and then with Ctrl/Cmd+Z until the next change you make (one step; a
+- Undo: Remove, Delete group, Clear, Show all / none, opening a project over a session and the resets of the
+  Not at default line (all but Ticked files only) can be taken back with the Undo button for a few seconds and then with Ctrl/Cmd+Z until the next change you make (one step; a
   later edit withdraws it). Ctrl/Cmd+Z with nothing to undo says so.
   Clear ends the session: besides the files, groups, names and offsets it puts the simulation sliders, the
   horizontal-cut choice and your sub-bands back to their defaults (the question before it says which); the 3D
