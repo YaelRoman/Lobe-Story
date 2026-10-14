@@ -11,7 +11,7 @@ import { chartColumns, chartFileBase, chartFitsData, columnLabel, COLUMN_GROUPS,
 import type { Pattern } from '../core/types';
 import { FIGURE_THEMES } from './figureTheme';
 import { groupLook, PER_FILE_COLOURS } from './colors';
-import { bwName } from './bwLabel';
+import { bwName, settingText } from './bwLabel';
 import { nameOf } from '../core/names';
 import { hasUsableFrequency } from '../core/gain';
 import { withCoinciding, withSimulated } from './exportFigure';
@@ -188,7 +188,7 @@ export const HpbwChart = memo(function HpbwChart({
           build={build}
           ariaLabel={
             both
-              ? `${levelDb === 3 ? 'Half-power beamwidth' : `Beamwidth at ${levelDb} dB`} against frequency, one line per group`
+              ? `${levelDb === 3 ? 'Half-power beamwidth' : `Beamwidth at ${settingText(levelDb)} dB`} against frequency, one line per group`
               : `${plotLabel} (${column.unit}) against frequency, one line per group`
           }
           caption={exportCaption}

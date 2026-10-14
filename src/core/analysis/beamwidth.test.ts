@@ -40,6 +40,7 @@ describe('beamwidth', () => {
     const r = beamwidth(gridFrom(oneSided));
     expect(r.hpbw.value).toBeNull();
     expect(r.hpbw.reason).toMatch(/negative-angle side/);
+    expect(beamwidth(gridFrom(oneSided), 19.123456789012344).hpbw.reason).toBe('Pattern never drops 19.12 dB on the negative-angle side');
     expect(r.direction.value).toBeNull();
     expect(r.edges).toBeNull();
   });

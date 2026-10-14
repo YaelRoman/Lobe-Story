@@ -4,7 +4,7 @@ import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor } from '../core/analysis/subBands';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandHistogramMarks, bandStateNote, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, lobeLimitWarning, subBandsNote, type BandSheet } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandHistogramMarks, bandStateNote, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, levelNote, lobeLimitWarning, subBandsNote, type BandSheet } from './bandView';
 import { bandHistCaption, buildBandHistFigure } from './bandHistFigure';
 import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
@@ -170,6 +170,7 @@ export const BandStats = memo(function BandStats({
   }
 
   const lobeWarning = lobeLimitWarning(settings);
+  const levelLine = levelNote(settings.levelDb);
   // The tab stop, kept inside the table as its columns change.
   const stopAt = { row: Math.min(stop.row, BAND_PARAMS.length - 1), col: Math.min(stop.col, Math.max(columns.length - 1, 0)) };
   const cellAt = (el: HTMLElement): { row: number; col: number } | null => {
@@ -233,8 +234,7 @@ export const BandStats = memo(function BandStats({
         {noFrequency > 0 && ` ${noFrequency} loaded file${noFrequency === 1 ? ' has' : 's have'} no frequency above 0 MHz and ${noFrequency === 1 ? 'is' : 'are'} left out.`}
         {!bandsNote.userDefined && ` ${bandsNote.text}`}
         {sim.simActive && ` ${bandStateNote(sim.hCut, sim.tiltActive)}`}
-        {settings.levelDb !== 3 &&
-          ` Beamwidth level is ${settings.levelDb} dB: the beamwidth, squint and tilt rows are not half-power values.`}
+        {levelLine && ` ${levelLine}`}
         {lobeWarning && ` ${lobeWarning}`}
       </p>
       {bandsNote.userDefined && (

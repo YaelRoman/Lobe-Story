@@ -4,6 +4,7 @@ import type { AnalysisSettings } from '../core/analysis/metrics';
 import { inSubBand, sanitizeSubBands, subBandName, type BandDataset, type SubBand } from '../core/analysis/subBands';
 import { FIRST_LOBE_RANGE } from '../core/analysis/sidelobes';
 import { fixed } from './fixed';
+import { settingText } from './bwLabel';
 import { AT_HORIZON_TAG, csvCell, csvText, tabSafe, TILT_WORDS, tsvText, type PairWords } from './table';
 import { hCutLabel } from './simSummary';
 import type { HCutMode } from '../core/analysis/tilt';
@@ -49,6 +50,11 @@ export function anyAdjusted(columns: readonly BandColumn[], tilted?: readonly Ba
 
 export function largestDataset(datasets: readonly BandDataset[]): number {
   return datasets.reduce((m, d) => Math.max(m, d.items.length), 0);
+}
+
+/** What the band statistics say of a beamwidth level other than half power, else null. */
+export function levelNote(levelDb: number): string | null {
+  return levelDb === 3 ? null : `Beamwidth level is ${settingText(levelDb)} dB: the beamwidth, squint and tilt rows are not half-power values.`;
 }
 
 /** Warning for a first-lobe limit other than the standard one, else null. */

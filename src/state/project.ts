@@ -7,6 +7,7 @@ import { HORIZON_LEVEL_KEY, METRIC_KEYS, type TableColumn } from './metricKeys';
 import { clampSim, type OffsetState } from './simLimits';
 import { fingerprint, isFingerprint, type PendingFile } from './duplicates';
 import type { CustomGroup, LoadedFile, Selection, SimulationState, StoreData, ViewState } from './store';
+import { settingText } from '../core/fixed';
 
 export const PROJECT_FORMAT = 'lobe-story-project';
 export const PROJECT_VERSION = 1;
@@ -354,7 +355,7 @@ export function projectToState(
     selected,
     reference,
     settings,
-    loadMessage: floorRaised ? `Plot floor raised to ${floorDb} dB: it must lie at least 1 dB beyond the ${settings.levelDb} dB beamwidth level.` : null,
+    loadMessage: floorRaised ? `Plot floor raised to ${settingText(floorDb)} dB: it must lie at least 1 dB beyond the ${settingText(settings.levelDb)} dB beamwidth level.` : null,
     view: {
       ...display,
       floorDb,

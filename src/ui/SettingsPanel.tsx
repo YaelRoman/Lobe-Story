@@ -6,6 +6,7 @@ import { confirmDialog } from './dialogs';
 import { trapTab } from './trapTab';
 import { clampFloor, clampSetting, FLOOR_LIMITS, SETTING_LIMITS } from '../core/analysis/settingLimits';
 import { SETTING_HELP, SETTING_LABELS } from './settingsHelp';
+import { settingText } from './bwLabel';
 
 const DEFAULT_FLOOR_DB = 40;
 
@@ -200,7 +201,7 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
         {...FLOOR_LIMITS}
         help={SETTING_HELP.floorDb}
         accept={(n) => clampFloor(n, settings.levelDb)}
-        adjusted={(used) => `Used ${used}: the plot floor must lie at least 1 dB beyond the ${settings.levelDb} dB level ring.`}
+        adjusted={(used) => `Used ${settingText(used)}: the plot floor must lie at least 1 dB beyond the ${settingText(settings.levelDb)} dB level ring.`}
         onCommit={(n) => {
           setFloorLifted(false);
           updateView({ floorDb: n });
@@ -208,7 +209,7 @@ export function SettingsPanel({ onClose, opener }: { onClose: (restoreFocus: boo
       />
       {floorHeld && (
         <span className="field-message" role="status" data-testid="floor-raised-hint">
-          Raised to stay below the −{settings.levelDb} dB level
+          Raised to stay below the −{settingText(settings.levelDb)} dB level
         </span>
       )}
       <span id="setting-reset-help" className="setting-help">

@@ -206,6 +206,7 @@ describe('sidelobe scan prominence (F1)', () => {
     // null 8.05 @ +7, lobe 8.0 @ +8 on the flank; the real nulls (30 dB) are at ±70°, beyond the ±60° sector.
     const h = pwl([[-180, 30], [-110, 30], [-90, 20], [-70, 30], [-10, 15], [-4, 3], [0, 0], [4, 3], [6, 8], [7, 8.05], [8, 8], [10, 15], [70, 30], [90, 20], [110, 30], [180, 30]]);
     expect(horizontalSls(gridFrom(h), 60)).toEqual({ value: null, reason: 'No sidelobe inside the ±60° sector' });
+    expect(horizontalSls(gridFrom(h), 45.678901).reason).toBe('No sidelobe inside the ±45.68° sector');
     const wide = horizontalSls(gridFrom(h), 80);
     expect(wide.value).toBeCloseTo(25, 6); // halfway up the 30 → 20 dB segment
     expect(Math.abs(wide.angle!)).toBeCloseTo(80, 6); // symmetric: the first (−80°) wins the tie

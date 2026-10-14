@@ -1,5 +1,5 @@
 import type { Data, Layout, PlotData, Shape } from 'plotly.js';
-import { bwName } from './bwLabel';
+import { bwName, settingText } from './bwLabel';
 import type { Cut } from '../core/types';
 import type { PatternMetrics } from '../core/analysis/metrics';
 import { signed } from '../core/analysis/grid';
@@ -95,12 +95,12 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
   if (below !== undefined) spec.notes.push(`Horizon cut: maximum ${below.toFixed(1)} dB below the 3D peak`);
 
   if (o.markers.hpbw && beam.edges && beam.hpbw.value !== null) {
-    spec.rings.push({ db: -(offset + o.levelDb), label: `−${o.levelDb} dB` });
+    spec.rings.push({ db: -(offset + o.levelDb), label: `−${settingText(o.levelDb)} dB` });
     spec.sectors.push({ from: beam.edges[0] + rot, to: beam.edges[1] + rot, label: `${bwName(o.levelDb)} ${beam.hpbw.value.toFixed(1)}°`, opacity: 0.15 });
   }
   if (o.markers.fb && o.cut === 'H') {
-    spec.sectors.push({ from: 180 - o.fbWindowDeg + rot, to: 180 + o.fbWindowDeg + rot, label: `F/B window ±${o.fbWindowDeg}°`, opacity: 0.08, readout: false });
-    point(m.fbWindow, (v) => `F/B ±${o.fbWindowDeg}° ${v.toFixed(1)} dB`);
+    spec.sectors.push({ from: 180 - o.fbWindowDeg + rot, to: 180 + o.fbWindowDeg + rot, label: `F/B window ±${settingText(o.fbWindowDeg)}°`, opacity: 0.08, readout: false });
+    point(m.fbWindow, (v) => `F/B ±${settingText(o.fbWindowDeg)}° ${v.toFixed(1)} dB`);
   }
   const lobeMarkers = (items: { label: string; r: LobeResult }[]) => {
     const groups: { angle: number; value: number; labels: string[] }[] = [];
@@ -116,8 +116,8 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
   if (o.markers.usls && o.cut === 'V') {
     lobeMarkers([
       { label: 'First USLS', r: m.firstUsls },
-      { label: `USLS peak to ${o.uslsRangeDeg}°`, r: m.usls },
-      { label: `USLS horizon to ${o.uslsRangeDeg}°`, r: m.uslsHorizon },
+      { label: `USLS peak to ${settingText(o.uslsRangeDeg)}°`, r: m.usls },
+      { label: `USLS horizon to ${settingText(o.uslsRangeDeg)}°`, r: m.uslsHorizon },
     ]);
   }
   if (o.markers.usls && o.cut === 'H') lobeMarkers([{ label: 'H-SLS', r: m.hSls }]);
@@ -137,10 +137,10 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
   if (o.markers.sector && o.cut === 'H') {
     for (const sign of [1, -1]) {
       const angle = signed(sign * o.sectorEdgeDeg + rot);
-      spec.rays.push({ angle, label: `Sector edge ${sign > 0 ? '+' : '−'}${o.sectorEdgeDeg}°`, dash: 'dashdot', readout: false });
+      spec.rays.push({ angle, label: `Sector edge ${sign > 0 ? '+' : '−'}${settingText(o.sectorEdgeDeg)}°`, dash: 'dashdot', readout: false });
     }
     // The edges carry the roll-off value of the table (the worse of the two edges): one item says it.
-    if (m.rollOff.value !== null) spec.notes.push(`Roll-off at ±${o.sectorEdgeDeg}°: ${m.rollOff.value.toFixed(1)} dB`);
+    if (m.rollOff.value !== null) spec.notes.push(`Roll-off at ±${settingText(o.sectorEdgeDeg)}°: ${m.rollOff.value.toFixed(1)} dB`);
     DU_LEVELS.forEach((l, slot) => {
       const r = m.du[l.key];
       if (r.value === null || !r.edges) return;
@@ -572,13 +572,13 @@ export function markerCaption(
 ): string | undefined {
   const polar = (o.mode ?? 'polar') === 'polar';
   const parts: string[] = [];
-  if (markers.hpbw) parts.push(`${polar ? 'dashed ring' : 'dashed line'}: the −${o.levelDb} dB level; ${polar ? 'shaded wedge' : 'shaded band'}: the ${bwName(o.levelDb)}`);
-  if (markers.fb && cut === 'H') parts.push(`${polar ? 'light wedge' : 'light band'}: the F/B window (180° ± ${o.fbWindowDeg}°); ×: the F/B level`);
-  if (markers.usls) parts.push(cut === 'H' ? '×: the highest horizontal sidelobe (H-SLS)' : `×: the first upper sidelobe and the USLS peaks within ${o.uslsRangeDeg}°`);
+  if (markers.hpbw) parts.push(`${polar ? 'dashed ring' : 'dashed line'}: the −${settingText(o.levelDb)} dB level; ${polar ? 'shaded wedge' : 'shaded band'}: the ${bwName(o.levelDb)}`);
+  if (markers.fb && cut === 'H') parts.push(`${polar ? 'light wedge' : 'light band'}: the F/B window (180° ± ${settingText(o.fbWindowDeg)}°); ×: the F/B level`);
+  if (markers.usls) parts.push(cut === 'H' ? '×: the highest horizontal sidelobe (H-SLS)' : `×: the first upper sidelobe and the USLS peaks within ${settingText(o.uslsRangeDeg)}°`);
   if (markers.null && cut === 'V') parts.push('×: the null fill and the first lower sidelobe');
   if (markers.peak) parts.push(`${polar ? 'dotted ray' : 'dotted vertical line'}: the beam direction (${cut === 'H' ? 'squint' : 'tilt'})`);
   if (markers.sector && cut === 'H') {
-    parts.push(`${polar ? 'dash-dot rays' : 'dash-dot vertical lines'}: the sector edges (±${o.sectorEdgeDeg}°); ${polar ? 'thick arcs' : 'thick segments'}: the D/U apertures (16, 64, 256 QAM)`);
+    parts.push(`${polar ? 'dash-dot rays' : 'dash-dot vertical lines'}: the sector edges (±${settingText(o.sectorEdgeDeg)}°); ${polar ? 'thick arcs' : 'thick segments'}: the D/U apertures (16, 64, 256 QAM)`);
   }
   return parts.length > 0 ? `Markers of ${o.highlighted === false ? 'the only ticked file' : 'the highlighted file'}: ${parts.join('; ')}` : undefined;
 }

@@ -1,5 +1,6 @@
 import type { ExportCaption } from './exportFigure';
 import type { Layout3d } from '../state/store';
+import { settingText } from './bwLabel';
 
 export { MAX_3D, MAX_3D_OVERLAY, maxSurfaces } from './surfaceFigure';
 
@@ -31,7 +32,7 @@ export function capNotice(what: string, shown: number, total: number, cap: numbe
  * Side by side each surface is coloured by its level; in the overlay each file has one colour.
  */
 export function surfaceExportCaption(layout: Layout3d, shown: number, total: number, method: 'summation' | 'weighted', floorDb: number): ExportCaption {
-  const scale = `level relative to the peak, 0 dB outermost, the floor of −${floorDb} dB at the centre`;
+  const scale = `level relative to the peak, 0 dB outermost, the floor of −${settingText(floorDb)} dB at the centre`;
   return {
     title: `3D radiation pattern, ${layout === 'grid' ? 'side by side' : 'overlay'}`,
     file: total > shown ? `Showing ${shown} of ${total} ticked files` : undefined,

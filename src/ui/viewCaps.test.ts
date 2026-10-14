@@ -60,6 +60,8 @@ describe('surfaceExportCaption', () => {
   it('says what the radius means, with the floor in use; side by side the colour means the same', () => {
     expect(surfaceExportCaption('overlay', 3, 3, 'summation', 40).items[1]).toBe('Radius: level relative to the peak, 0 dB outermost, the floor of −40 dB at the centre; one colour per file');
     expect(surfaceExportCaption('grid', 3, 3, 'summation', 55).items[1]).toBe('Radius and colour: level relative to the peak, 0 dB outermost, the floor of −55 dB at the centre');
+    // A floor raised past a beamwidth level typed with many decimals: written with at most two.
+    expect(surfaceExportCaption('grid', 3, 3, 'summation', 20.123456789012344).items[1]).toContain('the floor of −20.12 dB at the centre');
   });
 
   it('every line fits the caption width', () => {

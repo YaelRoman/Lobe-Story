@@ -3,7 +3,7 @@ import { BAND_PARAMS, bandTable, type BandCell, type BandColumn } from '../core/
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import type { SubBand } from '../core/analysis/subBands';
 import { bandItems } from '../test/bandFixture';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandFollowsHCut, bandHistogramMarks, bandTsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, lobeLimitWarning, sameSubBands, subBandsNote, swappedNote } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandFollowsHCut, bandHistogramMarks, bandTsv, cellDisplay, defaultDataset, editSubBand, filesText, hintText, largestDataset, levelNote, lobeLimitWarning, sameSubBands, subBandsNote, swappedNote } from './bandView';
 
 const items = bandItems();
 const metrics = analyzeAll(items, DEFAULT_SETTINGS);
@@ -73,6 +73,14 @@ describe('defaultDataset and filesText', () => {
   });
   it('uses the singular for one file', () => {
     expect([0, 1, 2].map(filesText)).toEqual(['0 files', '1 file', '2 files']);
+  });
+});
+
+describe('levelNote', () => {
+  it('says a beamwidth level other than half power, written with at most two decimals', () => {
+    expect(levelNote(3)).toBeNull();
+    expect(levelNote(10)).toBe('Beamwidth level is 10 dB: the beamwidth, squint and tilt rows are not half-power values.');
+    expect(levelNote(19.123456789012344)).toBe('Beamwidth level is 19.12 dB: the beamwidth, squint and tilt rows are not half-power values.');
   });
 });
 

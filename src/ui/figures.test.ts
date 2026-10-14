@@ -888,3 +888,32 @@ describe('the horizon mark on the vertical cut', () => {
     }
   });
 });
+
+describe('settings typed with many decimals', () => {
+  const long = { levelDb: 10.123456789, fbWindowDeg: 29.87654321, sectorEdgeDeg: 45.678901, uslsRangeDeg: 12.3456789 };
+  const all = { hpbw: true, fb: true, usls: true, null: false, peak: false, sector: true };
+  /** Every text a figure writes: trace names, hover texts and annotations. */
+  const texts = (f: ReturnType<typeof buildCutFigure>) => [
+    ...traces(f).flatMap((t) => [t.name, t.text, t.hovertext, t.hovertemplate].flat()),
+    ...(f.layout.annotations ?? []).map((a) => a.text),
+  ].filter((x): x is string => typeof x === 'string');
+
+  it('are written with at most two decimals in the labels of the plot, its read-out and the caption of its image', () => {
+    for (const mode of ['polar', 'rect'] as const) {
+      const h = opts({ ...long, mode, markers: all, markerTarget: 'a' });
+      const v = opts({ ...long, mode, cut: 'V', series: [series('a')[1]], markers: all, markerTarget: 'a' });
+      const written = [...texts(buildCutFigure(h)), ...texts(buildCutFigure(v)), ...markerReadout(h), ...markerReadout(v)].join('\n');
+      expect(written, mode).not.toMatch(/\d\.\d{3}/);
+      // The rectangular plot draws its wedges and rays as shapes with no names: its read-out says the values.
+      const labels = ['F/B ±29.88°', 'Roll-off at ±45.68°', 'BW@10.12 dB', ...(mode === 'polar' ? ['F/B window ±29.88°', 'Sector edge +45.68°', 'Sector edge −45.68°'] : [])];
+      for (const label of labels) expect(written, `${mode}: ${label}`).toContain(label);
+    }
+    const polar = buildCutFigure(opts({ ...long, markers: all, markerTarget: 'a' }));
+    expect(texts(polar).join('\n')).toContain('−10.12 dB');
+    const v = markerReadout(opts({ ...long, cut: 'V', series: [series('a')[1]], markers: all, markerTarget: 'a' })).join('\n');
+    expect(v).toContain('USLS peak to 12.35°');
+    const caption = [markerCaption('H', all, long), markerCaption('V', all, long)].join('\n');
+    expect(caption).not.toMatch(/\d\.\d{3}/);
+    for (const part of ['the −10.12 dB level', 'the BW@10.12 dB', '180° ± 29.88°', 'the sector edges (±45.68°)', 'USLS peaks within 12.35°']) expect(caption).toContain(part);
+  });
+});

@@ -134,6 +134,15 @@ describe('SettingsPanel limits', () => {
     expect(hint()).toBeNull();
   });
 
+  it('writes a level typed with many decimals with at most two in what it says about the floor', () => {
+    typeAndBlur(inputFor('Beamwidth level'), '15.123456789');
+    typeAndBlur(inputFor('Plot floor'), '12');
+    expect(useStore.getState().view.floorDb).toBeCloseTo(16.123456789, 9);
+    expect(messageOf('Plot floor')).toBe('Used 16.12: the plot floor must lie at least 1 dB beyond the 15.12 dB level ring.');
+    typeAndBlur(inputFor('Beamwidth level'), '19.123456789');
+    expect(host.querySelector('[data-testid="floor-raised-hint"]')?.textContent).toBe('Raised to stay below the −19.12 dB level');
+  });
+
   it('shows the accepted range of each setting, from the limits table', () => {
     for (const [label, l] of [
       ['Beamwidth level', SETTING_LIMITS.levelDb],

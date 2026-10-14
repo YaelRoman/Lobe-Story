@@ -1,5 +1,6 @@
 import type { MetricResult } from '../types';
 import { at, peakIndex, refinedPeak, signed, type Grid } from './grid';
+import { settingText } from '../fixed';
 
 export interface BeamResult {
   hpbw: MetricResult;
@@ -23,7 +24,7 @@ export function beamwidth(g: Grid, levelDb = 3): BeamResult {
   const peakAngle = refinedPeak(g);
   if (left === null || right === null) {
     const side = left === null ? 'negative' : 'positive';
-    const reason = `Pattern never drops ${levelDb} dB on the ${side}-angle side`;
+    const reason = `Pattern never drops ${settingText(levelDb)} dB on the ${side}-angle side`;
     return { hpbw: { value: null, reason }, direction: { value: null, reason }, edges: null, peakAngle };
   }
   const lo = p - left;

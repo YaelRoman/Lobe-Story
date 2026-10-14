@@ -1,6 +1,7 @@
 import type { MetricResult } from '../types';
 import { beamwidth } from './beamwidth';
 import { at, attAt, peakCentre, peakIndex, signed, type Grid } from './grid';
+import { settingText } from '../fixed';
 
 /** × V-HPBW: where a distinct first sidelobe peak must lie (BASTA 12.5.1 / 12.5.2). */
 export const FIRST_LOBE_RANGE = 1.78;
@@ -155,7 +156,7 @@ export function horizontalSls(h: Grid, edgeDeg = 60): MetricResult {
   const P = signed(peakIndex(h));
   const kRight = scan(h, 1, 180).kNull;
   const kLeft = scan(h, -1, 180).kNull;
-  let best: MetricResult = { value: null, reason: `No sidelobe inside the ±${edgeDeg}° sector` };
+  let best: MetricResult = { value: null, reason: `No sidelobe inside the ±${settingText(edgeDeg)}° sector` };
   for (let a = Math.ceil(-edgeDeg); a <= Math.floor(edgeDeg); a++) {
     const o = signed(a - P);
     if (!((kRight !== undefined && o >= kRight) || (kLeft !== undefined && -o >= kLeft))) continue;

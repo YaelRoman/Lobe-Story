@@ -377,6 +377,25 @@ describe('sidelobe columns', () => {
     expect(h15).toContain('USLS peak to 15° (dB),USLS horizon to 15° (dB)');
   });
 
+  it('writes a setting typed with many decimals with at most two: in the headers, the CSV and the tooltips', () => {
+    expect(columnLabel({ key: 'fbWindow', label: 'x' }, 29.87654321)).toBe('F/B ±29.88°');
+    expect(columnLabel({ key: 'usls', label: 'x' }, 30, 12.3456789)).toBe('USLS peak to 12.35°');
+    expect(columnLabel({ key: 'uslsHorizon', label: 'x' }, 30, 12.3456789)).toBe('USLS horizon to 12.35°');
+    expect(columnLabel({ key: 'hHpbw', label: 'x' }, 30, 20, 10.123456789)).toBe('H-BW@10.12 dB');
+    const [header] = toCsv(rows, 'dBd', 29.87654321, undefined, 12.3456789).trimEnd().split('\r\n');
+    expect(header).toContain('F/B ±29.88° (dB)');
+    expect(header).toContain('USLS peak to 12.35° (dB),USLS horizon to 12.35° (dB)');
+    const s = { sectorEdgeDeg: 45.678901, siteSectors: 3, uslsRangeDeg: 12.3456789, levelDb: 10.123456789, fbWindowDeg: 29.87654321 };
+    expect(columnTitle('hHpbw', s)).toContain('the two points 10.12 dB below the peak');
+    expect(columnTitle('vHpbw', s)).toContain('the two points 10.12 dB below the peak');
+    expect(columnTitle('fbWindow', s)).toContain('within 180° ± 29.88°');
+    expect(columnTitle('usls', s)).toContain('beam peak to 12.35° above it');
+    expect(columnTitle('uslsHorizon', s)).toContain('horizon to 12.35° above it');
+    expect(columnTitle('hSls', s)).toContain('within ±45.68°');
+    expect(columnTitle('areSector', s)).toContain('within ±45.68° of boresight');
+    expect(columnTitle('areSpatial', s)).toContain('within ±45.68° of boresight');
+  });
+
   it('builds the sidelobe tooltips', () => {
     const s = { sectorEdgeDeg: 45, siteSectors: 3, uslsRangeDeg: 15 };
     expect(columnTitle('firstUsls', s)).toBe(

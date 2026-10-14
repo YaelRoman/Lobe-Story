@@ -99,3 +99,73 @@ test('the foot line of an exported image lies under everything else, whatever th
   await page.locator('#freq-metric').selectOption({ label: 'USLS horizon to 20° (dB)' });
   await check('plot-hpbw');
 });
+
+/** The text of a download. */
+async function downloaded(page: Page, click: () => Promise<void>): Promise<string> {
+  const [file] = await Promise.all([page.waitForEvent('download'), click()]);
+  let text = '';
+  for await (const chunk of (await file.createReadStream())!) text += chunk.toString();
+  return text;
+}
+
+test('settings typed with many decimals are written with at most two: on the page, in the images and in the CSV headers', async ({ page }) => {
+  test.slow();
+  await keepExportedSvgs(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  await page.getByRole('button', { name: 'Settings' }).click();
+  for (const [key, value] of [
+    ['levelDb', '19.123456789012344'],
+    ['fbWindowDeg', '29.87654321'],
+    ['uslsRangeDeg', '12.3456789'],
+    ['sectorEdgeDeg', '45.678901'],
+  ]) {
+    const field = page.locator(`#setting-${key}`);
+    await field.fill(value);
+    await field.press('Enter');
+  }
+  await page.keyboard.press('Escape');
+  // The values are kept as typed: only how they are written changes.
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.locator('#setting-levelDb')).toHaveValue('19.123456789012344');
+  await page.keyboard.press('Escape');
+  await page.getByRole('checkbox', { name: 'F/B window', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Sector', exact: true }).check();
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+
+  // On the page: the band statistics, the table's headers, the plots' labels.
+  await expect(page.getByTestId('band-stats')).toContainText('Beamwidth level is 19.12 dB: the beamwidth');
+  await expect(page.locator('.metrics thead')).toContainText('F/B ±29.88°');
+  await expect(page.locator('.metrics thead')).toContainText('USLS peak to 12.35°');
+  await expect(page.locator('.metrics thead')).toContainText('H-BW@19.12 dB');
+  const names = await page.getByTestId('plot-h').locator('.js-plotly-plot').evaluate((gd) => (gd as unknown as { data: { name?: string }[] }).data.map((t) => t.name ?? ''));
+  expect(names).toEqual(expect.arrayContaining(['F/B window ±29.88°', 'Sector edge +45.68°', 'Sector edge −45.68°']));
+  expect(await page.locator('body').innerText()).not.toMatch(/\d\.\d{3}/);
+
+  // In the image of the horizontal cut.
+  await exportedFoot(page, 'plot-h');
+  const image = await page.evaluate(() => {
+    const svgs = (window as unknown as { exportedSvgs: string[] }).exportedSvgs.filter((s) => s.includes('Lobe-Story'));
+    const host = document.createElement('div');
+    host.innerHTML = svgs[svgs.length - 1];
+    return [...host.querySelectorAll('text')].map((t) => t.textContent ?? '').join('\n');
+  });
+  expect(image).toContain('the −19.12 dB level');
+  expect(image).toContain('Roll-off at ±45.68°');
+  expect(image).toContain('sector edges (±45.68°)');
+  expect(image).not.toMatch(/\d\.\d{3}/);
+
+  // The headers of the metrics CSV and the band statistics CSV.
+  const csv = await downloaded(page, () => page.getByRole('button', { name: 'Export CSV' }).click());
+  const header = csv.split(/\r?\n/)[0];
+  expect(header).toContain('F/B ±29.88° (dB)');
+  expect(header).toContain('USLS peak to 12.35° (dB)');
+  expect(header).not.toMatch(/\d\.\d{3}/);
+  const band = await downloaded(page, () => page.getByRole('button', { name: 'Export band CSV' }).click());
+  expect(band).toContain('F/B ±29.88°');
+  expect(band).toContain('USLS peak to 12.35°');
+  expect(band).not.toContain('29.876');
+  expect(band).not.toContain('12.345');
+});

@@ -6,7 +6,7 @@ import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
 import type { Method3d } from '../core/analysis/pattern3d';
-import { bwName } from './bwLabel';
+import { bwName, settingText } from './bwLabel';
 import { fixed } from './fixed';
 import { HORIZON_LEVEL_KEY, METRIC_KEYS, type MetricColumn, type TableColumn } from '../state/metricKeys';
 
@@ -238,9 +238,9 @@ export function columnLabel(c: { key: TableColumn; label: string }, fbWindowDeg:
   if (c.key === 'vHpbw') return `V-${bwName(levelDb)}`;
   if (c.key === 'dH') return `H-${bwName(levelDb)} − decl.`;
   if (c.key === 'dV') return `V-${bwName(levelDb)} − decl.`;
-  if (c.key === 'fbWindow') return `F/B ±${fbWindowDeg}°`;
-  if (c.key === 'usls') return `USLS peak to ${uslsRangeDeg}°`;
-  if (c.key === 'uslsHorizon') return `USLS horizon to ${uslsRangeDeg}°`;
+  if (c.key === 'fbWindow') return `F/B ±${settingText(fbWindowDeg)}°`;
+  if (c.key === 'usls') return `USLS peak to ${settingText(uslsRangeDeg)}°`;
+  if (c.key === 'uslsHorizon') return `USLS horizon to ${settingText(uslsRangeDeg)}°`;
   return c.label;
 }
 
@@ -300,17 +300,19 @@ export function columnTitle(key: TableColumn, settings: TitleSettings): string |
 }
 
 function baseTitle(key: TableColumn, settings: TitleSettings): string | undefined {
-  const e = settings.sectorEdgeDeg;
-  const r = settings.uslsRangeDeg ?? 20;
+  // The settings as the page writes them (the level is also compared and named: `levelText` is its text).
+  const e = settingText(settings.sectorEdgeDeg);
+  const r = settingText(settings.uslsRangeDeg ?? 20);
   const f = settings.lobeLimitFactor ?? 1.78;
   const level = settings.levelDb ?? 3;
-  const w = settings.fbWindowDeg ?? 30;
+  const levelText = settingText(level);
+  const w = settingText(settings.fbWindowDeg ?? 30);
   const method = settings.method3d ?? 'summation';
   switch (key) {
     case 'hHpbw':
-      return `Horizontal ${level === 3 ? 'half-power ' : ''}beamwidth (BASTA 6.1.6): distance between the two points ${level} dB below the peak of the azimuth cut`;
+      return `Horizontal ${level === 3 ? 'half-power ' : ''}beamwidth (BASTA 6.1.6): distance between the two points ${levelText} dB below the peak of the azimuth cut`;
     case 'vHpbw':
-      return `Vertical ${level === 3 ? 'half-power ' : ''}beamwidth (BASTA 6.1.6): distance between the two points ${level} dB below the peak of the elevation cut`;
+      return `Vertical ${level === 3 ? 'half-power ' : ''}beamwidth (BASTA 6.1.6): distance between the two points ${levelText} dB below the peak of the elevation cut`;
     case 'fbWindow':
       return `Front/back ratio (BASTA 7.2.9.1): highest azimuth level within 180° ± ${w}°, in dB below the peak (co-pol only)`;
     case 'fb180':

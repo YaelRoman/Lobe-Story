@@ -232,6 +232,12 @@ describe('damaged values', () => {
     expect(useStore.getState().loadMessage).toContain('Plot floor raised');
   });
 
+  it('writes the raised floor and the level with at most two decimals; the values are kept as they are', () => {
+    const r = restore(withState({ settings: { levelDb: 19.123456789012344 }, view: { floorDb: 15 } }));
+    expect(r.view.floorDb).toBe(20.123456789012344);
+    expect(r.loadMessage).toBe('Plot floor raised to 20.12 dB: it must lie at least 1 dB beyond the 19.12 dB beamwidth level.');
+  });
+
   it('ignores the removed null search setting', () => {
     const s = restore(withState({ settings: { nullSearchDeg: 45, uslsRangeDeg: 15 } })).settings;
     expect(s.uslsRangeDeg).toBe(15);

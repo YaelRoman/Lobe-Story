@@ -57,6 +57,13 @@ describe('labels and titles', () => {
     expect(bandParamTitle(param('usls'), s)).toContain('beam peak to 15° above it');
     expect(VALIDATION_LABEL.absolute).toBe('nominal range');
   });
+  it('write a setting typed with many decimals with at most two, as the plots do', () => {
+    const long = { ...DEFAULT_SETTINGS, fbWindowDeg: 29.87654321, uslsRangeDeg: 12.3456789 };
+    expect(bandParamLabel(param('fbWindow'), long)).toBe('F/B ±29.88°');
+    expect(bandParamLabel(param('usls'), long)).toBe('USLS peak to 12.35°');
+    expect(bandParamLabel(param('uslsHorizon'), long)).toBe('USLS horizon to 12.35°');
+    expect(bandParamTitle(param('usls'), long)).toContain('beam peak to 12.35° above it');
+  });
 });
 
 describe('gainTilts', () => {

@@ -16,7 +16,7 @@ import {
 } from './bandStats';
 import type { AnalysisSettings, PatternMetrics, TaggedPattern } from './metrics';
 import { inSubBand, type SubBand } from './subBands';
-import { fixed } from '../fixed';
+import { fixed, settingText } from '../fixed';
 
 export type BandParamKey =
   | 'gainAll' | 'gainMinTilt' | 'gainMidTilt' | 'gainMaxTilt' | 'tiltRange'
@@ -76,14 +76,14 @@ export interface BandContext {
 }
 
 export function bandParamLabel(p: BandParam, settings: AnalysisSettings): string {
-  if (p.key === 'fbWindow') return `F/B ±${settings.fbWindowDeg}°`;
-  if (p.key === 'usls') return `USLS peak to ${settings.uslsRangeDeg}°`;
-  if (p.key === 'uslsHorizon') return `USLS horizon to ${settings.uslsRangeDeg}°`;
+  if (p.key === 'fbWindow') return `F/B ±${settingText(settings.fbWindowDeg)}°`;
+  if (p.key === 'usls') return `USLS peak to ${settingText(settings.uslsRangeDeg)}°`;
+  if (p.key === 'uslsHorizon') return `USLS horizon to ${settingText(settings.uslsRangeDeg)}°`;
   return p.label;
 }
 
 export function bandParamTitle(p: BandParam, settings: AnalysisSettings): string {
-  const description = p.description.replace('R°', `${settings.uslsRangeDeg}°`);
+  const description = p.description.replace('R°', `${settingText(settings.uslsRangeDeg)}°`);
   return `${description} (BASTA ${p.basta}) — ${VALIDATION_LABEL[p.type]}`;
 }
 
