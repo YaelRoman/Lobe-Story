@@ -89,6 +89,15 @@ describe('notDefaultChips: one chip per thing that is not at its default and cha
     expect(texts(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 6.123456 } }))).toEqual(['Beamwidth level 6.12 dB']);
   });
 
+  it('a setting that is written as its default (within the two decimals the page writes) gets no chip: none would say "3 dB, reset to 3 dB"', () => {
+    expect(notDefaultChips(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 3.004, sectorEdgeDeg: 59.999 } }))).toEqual([]);
+    expect(texts(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 3.006 } }))).toEqual(['Beamwidth level 3.01 dB']);
+    for (const c of notDefaultChips(base({ settings: { ...DEFAULT_SETTINGS, levelDb: 3.006, lobeLimitFactor: 1.7849 } }))) {
+      const [, value] = c.text.match(/ (\S+(?: × V-HPBW| dB|°)?)$/) ?? [];
+      expect(c.name.endsWith(`reset to ${value}`), c.name).toBe(false);
+    }
+  });
+
   it('user-defined sub-bands, and the ticked-files-only table', () => {
     expect(notDefaultChips(base({ subBands: 1 })).map((c) => [c.key, c.text, c.name])).toEqual([['subBands', 'Sub-bands: 1 user-defined', 'Sub-bands: 1 user-defined, reset to automatic']]);
     expect(texts(base({ subBands: 3 }))).toEqual(['Sub-bands: 3 user-defined']);

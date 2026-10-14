@@ -83,7 +83,10 @@ export function notDefaultChips(input: NotDefaultInput): NotDefaultChip[] {
 
   for (const [key, label, value] of SETTING_TEXT) {
     const v = input.settings[key];
-    if (v !== DEFAULT_SETTINGS[key]) add(`setting:${key}`, `${label} ${value(settingText(v))}`, `reset to ${value(settingText(DEFAULT_SETTINGS[key]))}`);
+    // Compared as the page writes them (at most two decimals, as every label and the images' foot line): a value that
+    // reads as its default everywhere is no reason on the screen for a different number, and its chip would say
+    // "3 dB, reset to 3 dB".
+    if (settingText(v) !== settingText(DEFAULT_SETTINGS[key])) add(`setting:${key}`, `${label} ${value(settingText(v))}`, `reset to ${value(settingText(DEFAULT_SETTINGS[key]))}`);
   }
 
   if (input.subBands > 0) add('subBands', `Sub-bands: ${input.subBands} user-defined`, 'reset to automatic');
