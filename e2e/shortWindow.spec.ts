@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
+import { dismissLoadLine } from './loadLine';
 import { openSimulation } from './simulationBar';
 
 const file = (name: string, content: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(content) });
@@ -57,7 +58,8 @@ for (const [width, height] of [[640, 360], [720, 450]]) {
     await page.setViewportSize({ width, height });
     await page.goto('/');
     await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
-    await page.getByRole('button', { name: 'Dismiss message' }).click();
+    await expect(page.locator('.panel li')).toHaveCount(24);
+    await dismissLoadLine(page);
     await openSimulation(page);
     const value = page.getByLabel('Mechanical tilt (°) value');
     await value.fill('4');

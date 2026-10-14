@@ -3,7 +3,6 @@ import { holdSlider, loadMany, MECHANICAL, settled, stopOn, WAITING } from './ma
 
 test('with the top of the bar scrolled away the sentence about a held slider stays in the top margin of the page, not on a row of controls', async ({ page }) => {
   await loadMany(page, 48);
-  await page.getByRole('button', { name: 'Dismiss message' }).click();
   // Far enough for the bar's top edge to be gone, not so far that the slider's row is.
   await page.locator('main').evaluate((m) => m.scrollBy(0, 20));
   const main = (await page.locator('main').boundingBox())!;
@@ -24,7 +23,6 @@ test('with the top of the bar scrolled away the sentence about a held slider sta
 
 test('a slider moved by a held key with the table on the screen: the dimmed table says why, at the top of the page, and the sentence goes with the dimming', async ({ page }) => {
   await loadMany(page, 48);
-  await page.getByRole('button', { name: 'Dismiss message' }).click();
   const slider = page.getByRole('slider', { name: MECHANICAL, exact: true });
   await slider.focus();
   await page.locator('#metrics-heading').evaluate((h) => h.scrollIntoView({ block: 'start' }));

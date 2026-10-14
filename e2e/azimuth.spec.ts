@@ -1,4 +1,5 @@
 import { expect, test, type Download, type Page } from '@playwright/test';
+import { dismissLoadLine } from './loadLine';
 import { openSimulation } from './simulationBar';
 
 const DOWNLOAD = 'Download plot as a png (with legend and values)';
@@ -110,6 +111,8 @@ test('the Azimuth slider turns the drawing and nothing else: the page, the table
 
 test('the badge keeps its width between "Turned" and "Simulated", so no slider moves when a tilt joins an azimuth', async ({ page }) => {
   await loadExample(page);
+  // The load line goes by itself after six seconds and the page moves up with it: gone before the slider is measured.
+  await dismissLoadLine(page);
   await openSimulation(page);
   const slider = page.getByRole('slider', { name: 'Electrical tilt Δ (°)', exact: true });
   const empty = await slider.boundingBox();

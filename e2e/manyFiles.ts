@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { planetText, points } from '../src/test/planetText';
+import { dismissLoadLine } from './loadLine';
 import { openSimulation } from './simulationBar';
 
 export const WAITING = 'The plots and the table follow when the slider stops.';
@@ -19,7 +20,10 @@ export const manyFiles = (count: number) =>
     ),
   }));
 
-/** Loads `count` synthetic files, ticks them all and opens the Simulation bar. */
+/**
+ * Loads `count` synthetic files, ticks them all and opens the Simulation bar. The load line is taken away: it goes by
+ * itself after a while, and the page would move under a slider that is being measured or dragged.
+ */
 export async function loadMany(page: Page, count: number, viewport = { width: 1440, height: 900 }) {
   await page.setViewportSize(viewport);
   await page.goto('/');
@@ -33,6 +37,7 @@ export async function loadMany(page: Page, count: number, viewport = { width: 14
   if (phone) await drawer.click();
   await openSimulation(page);
   await settled(page);
+  await dismissLoadLine(page);
 }
 
 const signed = (n: number) => `${n > 0 ? '+' : ''}${n}`;

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { dismissLoadLine } from './loadLine';
 import { openSimulation } from './simulationBar';
 
 async function loadExample(page: Page) {
@@ -84,6 +85,8 @@ test.describe('copy to the clipboard', () => {
 
   test('the copy note is a floating toast: the page does not move, and the next status line replaces it', async ({ page }) => {
     await loadExample(page);
+    // The load line goes by itself after six seconds and the page moves up with it: gone before the page is measured.
+    await dismissLoadLine(page);
     const top = () => page.locator('.body').evaluate((el) => el.getBoundingClientRect().top);
     const before = await top();
     await page.getByRole('button', { name: 'Copy table' }).first().click();

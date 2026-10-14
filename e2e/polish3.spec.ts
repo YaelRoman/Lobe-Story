@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { keepLoadLine } from './loadLine';
 import { openSimulation } from './simulationBar';
 import { planetText } from '../src/test/planetText';
 
@@ -486,6 +487,8 @@ test('Load example then Show all leaves one status bar: the undo offer is not a 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+  // Kept on the screen for the whole test: on a busy machine its six seconds could end between two measurements.
+  await keepLoadLine(page);
   await expect(page.locator('.panel li')).toHaveCount(24);
   const bars = page.locator('.status-area .load-message');
   await expect(page.getByTestId('load-status')).toContainText('Loaded the built-in synthetic example');

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
+import { dismissLoadLine, keepLoadLine } from './loadLine';
 import { holdSlider, loadMany, MECHANICAL, settled, stopOn, WAITING } from './manyFiles';
 
 const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
@@ -79,6 +80,8 @@ for (const label of ['Mechanical tilt (°)', 'Electrical tilt Δ (°)']) {
     await page.goto('/');
     await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
     await expect(page.locator('.panel li')).toHaveCount(24);
+    // The load line goes by itself after six seconds and the page moves up with it: gone before the slider is measured.
+    await dismissLoadLine(page);
     const fold = page.getByRole('button', { name: /Simulation/ });
     await fold.click();
     await expect(fold).toHaveAttribute('aria-expanded', 'true');
@@ -135,7 +138,7 @@ test('an undo offer does not move the page: Reset stays under the pointer, and a
   await page.goto('/');
   await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
   await expect(page.locator('.panel li')).toHaveCount(24);
-  await page.getByRole('button', { name: 'Dismiss message' }).click();
+  await dismissLoadLine(page);
   await page.getByRole('button', { name: /Simulation/ }).click();
   const value = page.getByLabel('Mechanical tilt (°) value');
   await value.fill('4');
@@ -179,7 +182,8 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
     await page.setViewportSize({ width, height });
     await page.goto('/');
     await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
-    await expect(page.getByTestId('load-status')).toBeVisible();
+    // Kept on the screen for the whole test: on a busy machine its six seconds could end between two measurements.
+    await keepLoadLine(page);
     if (width < 760) await page.getByRole('button', { name: 'Files (24)' }).click();
     await expect(page.locator('.panel li')).toHaveCount(24);
     const showAll = page.getByRole('button', { name: 'Show all', exact: true });
@@ -346,8 +350,6 @@ for (const viewport of [
 ]) {
   test(`at ${viewport.width} px the sentence about a held slider comes in the Simulation bar, on the screen, and moves nothing under the pointer`, async ({ page }) => {
     await loadMany(page, 48, viewport);
-    // The load line goes by itself after a while and takes its room with it: out of the way before anything is measured.
-    await page.getByRole('button', { name: 'Dismiss message' }).click();
     const slider = page.getByRole('slider', { name: MECHANICAL, exact: true });
     const note = page.getByTestId('sim-lag');
     await expect(note).toHaveCount(0);
