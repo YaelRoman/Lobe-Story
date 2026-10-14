@@ -105,6 +105,16 @@ describe('inputsFromFileList', () => {
       expect((await inputsFromFileList(list(photo.file))).inputs).toEqual([]);
     });
 
+    it('an empty file or UTF-16 text under another name does not look like a pattern: it is not taken, so no cause is listed for it (the README says so)', async () => {
+      // Under .msi, .pln or .txt the same two files are listed with their cause; here only the status line speaks.
+      // UTF-16 (little endian, no byte order mark) of plain text: a zero byte after every character.
+      const utf16 = Array.from(planet.slice(0, 400), (c) => `${c}\u0000`).join('');
+      for (const text of ['', utf16]) {
+        expect((await inputsFromFileList(list(withText('odd.dat', text).file))).inputs, 'picked by itself').toEqual([]);
+        expect((await inputsFromFileList(list(withText('odd.dat', text, 'site/odd.dat').file, fake('a.msi', 'site/a.msi').file))).inputs.map((i) => i.path), 'in a folder').toEqual(['site/a.msi']);
+      }
+    });
+
     it('a .json is never looked into for a pattern', async () => {
       const json = withText('package.json', planet, 'site/package.json');
       expect((await inputsFromFileList(list(json.file))).inputs).toEqual([]);

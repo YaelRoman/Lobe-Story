@@ -5,9 +5,13 @@ A browser-based viewer and analyser for antenna radiation patterns in Planet for
 
 A pattern file under another extension, or none, is taken by its content when it is a valid
 pattern (the file dialog lists the three extensions; choose "All files" there, or drop the file).
-Lines may end in CR LF, LF or CR alone. A file that cannot be loaded is listed with its cause
-(empty, UTF-16 text, decimal commas, a block and line number), and the list can be dismissed in
-one go.
+Lines may end in CR LF, LF or CR alone. A `.msi`, `.pln` or `.txt` file that cannot be loaded is
+listed with its cause (empty, UTF-16 text, decimal commas, a block and line number), and the list
+can be dismissed in one go. A file under another extension that is not a valid pattern is left
+out without a word when it comes with other files or in a folder. Opened or dropped by itself it
+is listed with its cause only when its beginning reads like a pattern file; otherwise (an empty
+file and UTF-16 text among them) the status line says that no pattern file was found, and gives
+no cause.
 
 ## Features
 
