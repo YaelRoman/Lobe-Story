@@ -129,6 +129,27 @@ describe('one status bar, and an undo offer that takes no room', () => {
     act(() => announce(null));
   });
 
+  it('a load line that comes while an older one is still shown, after something else was said, is put into the region', () => {
+    const broken = (path: string) => ({ path, bytes: enc.encode('NAME X\nFREQUENCY 1800\n').buffer as ArrayBuffer });
+    act(() => useStore.getState().addFiles([file('a.MSI', 1800), file('b.MSI', 1900), broken('c.MSI')]));
+    expect(status()?.textContent).toContain('1 could not be loaded');
+    act(() => useStore.getState().setVisibleOnly(['a.MSI', 'b.MSI'], 'Showed all files'));
+    expect(said()).not.toContain('could not be loaded');
+    act(() => useStore.getState().addFiles([broken('d.MSI')]));
+    expect(said().trim()).toBe('No new files loaded: 1 could not be loaded');
+  });
+
+  it('the same load line twice in a row is a new node, so it is read again', () => {
+    act(() => useStore.getState().addFiles([file('a.MSI', 1800)]));
+    const first = host.querySelector('[data-testid="announcer"] span');
+    expect(first?.textContent?.trim()).toBe('Loaded 1 file');
+    act(() => useStore.getState().addFiles([file('b.MSI', 1900)]));
+    const second = host.querySelector('[data-testid="announcer"] span');
+    expect(second?.textContent?.trim()).toBe('Loaded 1 file');
+    expect(second).not.toBe(first);
+    expect(host.querySelectorAll('[data-testid="announcer"] span')).toHaveLength(1);
+  });
+
   it('a project without a session before it has no offer: its load line alone', () => {
     act(() => useStore.getState().addFiles([file('a.MSI', 1800)]));
     const parsed = parseProject(serializeProject(useStore.getState(), true));

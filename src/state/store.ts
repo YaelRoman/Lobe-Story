@@ -443,6 +443,7 @@ export const useStore = create<State>()((rawSet, get) => {
           loadFailed: 0,
           loadTone: 'warn',
           loadMessage: note.length > 0 && unreadable === 0 ? note[0] : [nothing, ...note].join(' · '),
+          loadSeq: state.loadSeq + 1,
         };
       }
       const plan = planLoad(
@@ -460,6 +461,8 @@ export const useStore = create<State>()((rawSet, get) => {
         loadFailed: counts.failed,
         loadTone: (onlyHeld || isCleanLoad(counts)) && (note.length === 0 || options.noteIsInfo) ? 'info' : 'warn',
         loadMessage: [...(options.openedProject !== undefined ? [openedMessage(options.openedProject, filesAfter, plan.pending.length)] : []), ...summary, ...note].join(' · '),
+        // A new line, even one equal to the last: it is said in the status region and its fade starts again.
+        loadSeq: state.loadSeq + 1,
       };
       if (plan.add.length === 0) return report;
 
