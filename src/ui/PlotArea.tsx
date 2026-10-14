@@ -335,7 +335,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
   const is3d = view.dimension === '3d';
   const labels = markerLabels(settings.levelDb);
   return (
-    <section aria-labelledby={SKIP_TARGETS.plots}>
+    <section className="cut-plots" aria-labelledby={SKIP_TARGETS.plots}>
       <h2 id={SKIP_TARGETS.plots} className="visually-hidden" tabIndex={-1}>
         {is3d ? '3D pattern' : 'Cut plots'}
       </h2>

@@ -129,6 +129,12 @@ input[type='number'], input[type='text'] { width: 100%; font: inherit; color: va
 h2:focus { outline: none; }
 h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* Its own box for the hidden heading of the plots: placed in the section, the heading scrolls with the page, so a skip link
+   to it brings the plots into view (placed in the body, it stayed where the page was when it was laid out). */
+.cut-plots { position: relative; }
+/* A hidden heading that takes the focus (the plots': "Skip to plots" and the undo offer put it there) shows while the keyboard
+   has it, with its ring: laid over the top of its section where it stands, so it takes no room and nothing moves. */
+h2.visually-hidden:focus-visible { width: auto; height: auto; overflow: visible; clip: auto; z-index: 5; margin: 0; padding: 4px 10px; font-size: 0.95rem; white-space: nowrap; color: var(--fg); background: var(--bg); border-radius: 6px; outline-offset: -2px; }
 /* Up to 900 px (a phone, a tablet upright, a narrow window: see DRAWER_QUERY) the file panel is a drawer above the page, closed until
    asked for: beside the page its 300 px left a tablet 444 px for the plots, the bar and the table. */
 @media (max-width: 900px) {

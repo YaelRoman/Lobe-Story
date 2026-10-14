@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { planetText } from '../src/test/planetText';
 import { collectFileChoosers } from './fileChooser';
+import { dismissLoadLine } from './loadLine';
 import { openSimulation } from './simulationBar';
 
 const file = (name: string, text: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
@@ -387,6 +388,57 @@ for (const width of [390, 900]) {
     // Enter opens the drawer from there.
     await page.keyboard.press('Enter');
     await expect(page.locator('.files-toggle')).toHaveAttribute('aria-expanded', 'true');
+  });
+}
+
+for (const width of [390, 1440]) {
+  test(`at ${width} px "Skip to plots" takes the focus to the plots with its ring in sight, and the next Tab goes on into them`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/');
+    await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
+    await expect(page.locator('.metrics tbody tr').first()).toBeAttached();
+    // Nothing may move between the two pictures `focusSeen` takes.
+    await dismissLoadLine(page);
+    // From further down the page: the link brings the plots back into view.
+    await page.locator('#metrics-heading').evaluate((h) => h.scrollIntoView({ block: 'start' }));
+    await expect(page.getByTestId('plot-h')).not.toBeInViewport();
+    await tabTo(page, page.getByRole('link', { name: 'Skip to plots' }));
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Cut plots' })).toBeFocused();
+    await expect(page.getByTestId('plot-h')).toBeInViewport();
+    expect(await focusSeen(page)).toBe(true);
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement?.closest('section[aria-labelledby="cut-plots-heading"]') !== null)).toBe(true);
+  });
+
+  test(`at ${width} px the undo offer gives the focus to the plots, with its ring in sight, when the place it came from is gone`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/');
+    await page.getByTestId('file-input').setInputFiles(FILES.map((n, i) => file(n, msi(1800 + 100 * i))));
+    await expect(page.locator('.panel li')).toHaveCount(3);
+    await dismissLoadLine(page);
+    const drawer = page.locator('.files-toggle');
+    const toast = page.getByTestId('undo-toast');
+    const heading = page.getByRole('heading', { name: 'Cut plots' });
+    for (const button of [/^Undo/, /^Hide undo offer$/]) {
+      if (await drawer.isVisible()) {
+        if ((await drawer.getAttribute('aria-expanded')) === 'false') await drawer.click();
+      }
+      await page.getByLabel('Actions for b.msi').click();
+      await page.getByRole('menuitem', { name: 'Remove' }).click();
+      await expect(toast).toBeVisible();
+      // The focus comes into the offer from nowhere: there is no place to give it back to.
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await toast.getByRole('button', { name: button }).focus();
+      await page.keyboard.press('Enter');
+      await expect(toast).toHaveCount(0);
+      await expect(heading).toBeFocused();
+      expect(await focusSeen(page), String(button)).toBe(true);
+      if (String(button).includes('Undo')) await expect(page.getByLabel('Actions for b.msi')).toBeAttached();
+      else break;
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.activeElement?.closest('section[aria-labelledby="cut-plots-heading"]') !== null)).toBe(true);
+    }
   });
 }
 
