@@ -3,13 +3,18 @@ import { SKIP_TARGETS } from './SkipLinks';
 
 /**
  * Where the focus goes when it was lost with the empty page: the first file row, or where the file list is not shown
- * (the closed drawer of a phone) the heading of the plots. Null when the focus is somewhere (it is left there).
+ * (the closed drawer of a narrow window) the Files button that opens it. Both are in sight with their ring; the heading
+ * of the plots, visually hidden, is only the last resort. Null when the focus is somewhere (it is left there).
  */
 export function placeAfterFirstFiles(doc: Document = document): HTMLElement | null {
   const active = doc.activeElement;
   if (active !== null && active !== doc.body) return null;
-  const row = doc.querySelector<HTMLElement>('.panel li [data-nav]');
-  return row !== null && row.getClientRects().length > 0 ? row : doc.getElementById(SKIP_TARGETS.plots);
+  const shown = (el: HTMLElement | null) => (el !== null && el.getClientRects().length > 0 ? el : null);
+  return (
+    shown(doc.querySelector<HTMLElement>('.panel li [data-nav]')) ??
+    shown(doc.querySelector<HTMLElement>('.files-toggle')) ??
+    doc.getElementById(SKIP_TARGETS.plots)
+  );
 }
 
 /**
@@ -46,8 +51,8 @@ export function useEmptyPageFocus(ref: RefObject<HTMLElement | null>): void {
 /**
  * The first files arrive (`shown` goes from none to some). If they were asked for by the keyboard on the empty page
  * ("Load example", its "Open files"), that button is gone with the page and the focus with it, to the document's
- * body: the next Tab would start somewhere in the middle of the page. The focus is put on the first file row instead,
- * and shown there. Files that came another way (a click or a tap on those buttons, the toolbar, a drop) leave the
+ * body: the next Tab would start somewhere in the middle of the page. The focus is put on the first file row instead
+ * (in a narrow window on the Files button), and shown there. Files that came another way (a click or a tap on those buttons, the toolbar, a drop) leave the
  * focus where it is.
  */
 export function useFirstFilesFocus(shown: number): void {

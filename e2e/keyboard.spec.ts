@@ -16,14 +16,34 @@ async function tabTo(page: Page, target: Locator, max = 80, key = 'Tab'): Promis
   throw new Error(`not reached in ${max} presses of ${key}`);
 }
 
-/** Whether the focused element is one the browser shows the focus on, and is drawn with an outline. */
-const focusRing = (page: Page) =>
-  page.evaluate(() => {
+/**
+ * Whether a user sees where the focus is: the focused element is one the browser shows the focus on, its box lies on the
+ * screen with a real size (not a 1 px visually hidden element), and its ring is drawn: the pixels around it differ with
+ * and without the focus. The focus is put back as it was.
+ */
+async function focusSeen(page: Page): Promise<boolean> {
+  const box = await page.evaluate(() => {
     const el = document.activeElement;
-    if (!(el instanceof HTMLElement) || el === document.body) return false;
-    const style = getComputedStyle(el);
-    return el.matches(':focus-visible') && style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2;
+    if (!(el instanceof HTMLElement) || el === document.body || !el.matches(':focus-visible')) return null;
+    const r = el.getBoundingClientRect();
+    const onScreen = r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight;
+    return onScreen && r.width >= 8 && r.height >= 8 ? { x: r.left, y: r.top, width: r.width, height: r.height } : null;
   });
+  if (box === null) return false;
+  const viewport = page.viewportSize() ?? { width: 0, height: 0 };
+  const x = Math.max(0, Math.floor(box.x) - 4);
+  const y = Math.max(0, Math.floor(box.y) - 4);
+  const clip = { x, y, width: Math.min(viewport.width, Math.ceil(box.x + box.width) + 4) - x, height: Math.min(viewport.height, Math.ceil(box.y + box.height) + 4) - y };
+  const focused = await page.screenshot({ clip, animations: 'disabled' });
+  await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement;
+    (window as unknown as { __focusSeen: HTMLElement }).__focusSeen = el;
+    el.blur();
+  });
+  const blurred = await page.screenshot({ clip, animations: 'disabled' });
+  await page.evaluate(() => (window as unknown as { __focusSeen: HTMLElement }).__focusSeen.focus({ focusVisible: true } as FocusOptions));
+  return !focused.equals(blurred);
+}
 
 const FILES = ['a.msi', 'b.msi', 'c.msi'];
 async function load(page: Page) {
@@ -329,7 +349,7 @@ test('after Load example by the keyboard the focus is on the first file row, not
   await expect(rows).toHaveCount(24);
   await expect(rows.first()).toBeFocused();
   // Where the focus was put is shown: the row has its ring.
-  expect(await focusRing(page)).toBe(true);
+  expect(await focusSeen(page)).toBe(true);
   // The next Tab goes on from the file list, not from the top of the document.
   await page.keyboard.press('Shift+Tab');
   expect(await page.evaluate(() => document.activeElement?.closest('.panel, .toolbar') !== null)).toBe(true);
@@ -344,7 +364,7 @@ test('after the first files opened from the empty page by the keyboard the focus
   const rows = page.locator('.panel li [data-nav]');
   await expect(rows).toHaveCount(3);
   await expect(rows.first()).toBeFocused();
-  expect(await focusRing(page)).toBe(true);
+  expect(await focusSeen(page)).toBe(true);
   // Files opened from the toolbar leave the focus where it is: on the toolbar's own control.
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click();
@@ -356,14 +376,19 @@ test('after the first files opened from the empty page by the keyboard the focus
   await expect(input).toBeFocused();
 });
 
-test('on a phone, where the file list is a closed drawer, the focus goes to the heading of the plots instead', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 800 });
-  await page.goto('/');
-  await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).focus();
-  await page.keyboard.press('Enter');
-  await expect(page.locator('#cut-plots-heading')).toBeFocused();
-  expect(await focusRing(page)).toBe(true);
-});
+for (const width of [390, 900]) {
+  test(`in a window of ${width} px, where the file list is a closed drawer, the focus goes to the Files button, with its ring in sight`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/');
+    await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.files-toggle')).toBeFocused();
+    expect(await focusSeen(page)).toBe(true);
+    // Enter opens the drawer from there.
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.files-toggle')).toHaveAttribute('aria-expanded', 'true');
+  });
+}
 
 /** How many files are ticked in the panel. */
 const ticked = (page: Page) => page.locator('.panel li input[type="checkbox"]:checked').count();
