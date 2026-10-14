@@ -195,15 +195,45 @@ export function startPrefs({ storage = browserStorage(), delayMs = 300 }: PrefsO
       // Storage gone: preferences are a convenience, never an error.
     }
   };
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(flush, delayMs);
+  };
+  // What the stored preferences hold for `names` now: a change not written yet, else the stored value, else the default.
+  const storedValues = (names: string[]): Map<string, unknown> => {
+    let text: string | null = null;
+    try {
+      text = storage?.getItem(PREFS_KEY) ?? null;
+    } catch {
+      text = null;
+    }
+    const stored = prefEntries(applyPrefs(text, defaults) ?? defaults);
+    return new Map(names.map((name) => [name, pending.has(name) ? pending.get(name) : stored.get(name)?.value]));
+  };
+  // A change that offers an undo and changes preferences (a reset from the line under the toolbar): what the browser
+  // held for them before it, put back if that undo is taken. An undo restores the session without being remembered (the
+  // values it brings back may be a project's), so without this the reset would stay remembered behind the undone screen.
+  let beforeUndoable: { id: number; values: Map<string, unknown> } | null = null;
   let swaps = sessionSwapCount();
   const unsubscribe = useStore.subscribe((s, prev) => {
     const swapped = sessionSwapCount() !== swaps;
     swaps = sessionSwapCount();
-    if (swapped || (s.settings === prev.settings && s.view === prev.view)) return;
+    const kept = beforeUndoable;
+    if (kept && s.undo?.id !== kept.id) beforeUndoable = null;
+    if (swapped) {
+      if (kept && prev.undo?.id === kept.id && s.undo === null) {
+        for (const [name, value] of kept.values) pending.set(name, value);
+        schedule();
+      }
+      return;
+    }
+    if (s.settings === prev.settings && s.view === prev.view) return;
     const before = prefEntries(prev);
-    for (const [name, now] of prefEntries(s)) if (before.get(name)?.text !== now.text) pending.set(name, now.value);
-    clearTimeout(timer);
-    timer = setTimeout(flush, delayMs);
+    const changed = [...prefEntries(s)].filter(([name, now]) => before.get(name)?.text !== now.text);
+    if (changed.length === 0) return;
+    if (s.undo && s.undo.id !== prev.undo?.id) beforeUndoable = { id: s.undo.id, values: storedValues(changed.map(([name]) => name)) };
+    for (const [name, now] of changed) pending.set(name, now.value);
+    schedule();
   });
   const onHide = () => flush();
   const hasWindow = typeof window !== 'undefined';

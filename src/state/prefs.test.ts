@@ -280,6 +280,65 @@ describe('startPrefs', () => {
     stop();
   });
 
+  it('a reset from the line under the toolbar that is undone leaves the stored preference as it was before the reset', () => {
+    const storage = new FakeStorage();
+    const stop = startPrefs({ storage, delayMs: 10 });
+    useStore.getState().addFiles([{ path: 'a.msi', bytes: new TextEncoder().encode(planetText()).buffer as ArrayBuffer }]);
+    // The user's own level and method, remembered.
+    useStore.getState().updateSettings({ levelDb: 6 });
+    useStore.getState().updateView({ method3d: 'weighted' });
+    vi.advanceTimersByTime(10);
+    const mine = storage.getItem(PREFS_KEY);
+    expect(JSON.parse(mine!).settings.levelDb).toBe(6);
+
+    // Reset: remembered as the user's choice.
+    useStore.getState().resetToDefault('setting:levelDb');
+    vi.advanceTimersByTime(10);
+    expect(JSON.parse(storage.getItem(PREFS_KEY)!).settings.levelDb).toBe(DEFAULT_SETTINGS.levelDb);
+    // Undone: the level the user had is remembered again.
+    useStore.getState().undoLast();
+    vi.advanceTimersByTime(10);
+    expect(useStore.getState().settings.levelDb).toBe(6);
+    expect(storage.getItem(PREFS_KEY)).toBe(mine);
+
+    // Undone inside the quiet time, before the reset was written: the same.
+    useStore.getState().resetToDefault('method3d');
+    useStore.getState().undoLast();
+    vi.advanceTimersByTime(10);
+    expect(storage.getItem(PREFS_KEY)).toBe(mine);
+    stop();
+  });
+
+  it('a setting a project brought that is reset and the reset undone is shown again but not remembered', () => {
+    const storage = new FakeStorage();
+    const stop = startPrefs({ storage, delayMs: 10 });
+    useStore.getState().updateView({ mode: 'rect' });
+    vi.advanceTimersByTime(10);
+    const mine = storage.getItem(PREFS_KEY);
+    useStore.getState().loadProject({
+      format: 'lobe-story-project', version: 1, savedAt: '', files: [{ path: 'a.msi', text: planetText() }], state: { settings: { ...DEFAULT_SETTINGS, sectorEdgeDeg: 45 }, view: { method3d: 'weighted' } as never },
+    });
+    useStore.getState().resetToDefault('setting:sectorEdgeDeg');
+    vi.advanceTimersByTime(10);
+    useStore.getState().undoLast();
+    vi.advanceTimersByTime(10);
+    expect(useStore.getState().settings.sectorEdgeDeg).toBe(45);
+    expect(storage.getItem(PREFS_KEY)).toBe(mine);
+    // A reset that is not undone is the user's choice: remembered.
+    useStore.getState().resetToDefault('method3d');
+    vi.advanceTimersByTime(10);
+    expect(JSON.parse(storage.getItem(PREFS_KEY)!).view.method3d).toBe('summation');
+    // An undo withdrawn by a later edit puts nothing back.
+    useStore.getState().updateView({ method3d: 'weighted' });
+    useStore.getState().resetToDefault('method3d');
+    useStore.getState().updateView({ cut: 'H' });
+    expect(useStore.getState().undo).toBeNull();
+    useStore.getState().undoLast();
+    vi.advanceTimersByTime(10);
+    expect(JSON.parse(storage.getItem(PREFS_KEY)!).view).toMatchObject({ method3d: 'summation', cut: 'H' });
+    stop();
+  });
+
   it('a change still waiting to be written is written with the value the user set, even if a project is opened meanwhile', () => {
     const storage = new FakeStorage();
     const stop = startPrefs({ storage, delayMs: 300 });

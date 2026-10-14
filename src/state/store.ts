@@ -90,6 +90,13 @@ export interface ViewState {
   simulation: SimulationState;
 }
 
+/**
+ * One thing the line under the toolbar names as not at its default (see ui/notDefault.ts), and puts back with a click:
+ * the global tilt sliders, the files' and groups' tilt offsets, the horizontal cut, the 3D method, one analysis
+ * setting, the user's sub-bands, the ticked-files-only table.
+ */
+export type NotDefaultKey = 'tilt' | 'tiltOffsets' | 'hCut' | 'method3d' | `setting:${keyof AnalysisSettings}` | 'subBands' | 'tickedOnly';
+
 export type DialogState =
   | { kind: 'confirm'; message: string; confirmLabel: string }
   | { kind: 'prompt'; message: string; initial: string; confirmLabel: string; hint?: string }
@@ -183,6 +190,12 @@ export interface StoreActions {
   updateView(partial: Partial<ViewState>): void;
   /** Back to automatic sub-bands: the user's are dropped, and an undo is offered (they are typed work). Nothing changes when there are none. */
   dropSubBands(): void;
+  /**
+   * Puts one thing named by the line under the toolbar back to its default. Every reset of typed work or of a choice
+   * that is saved with the project offers the usual undo; "Ticked files only" (a display preference, switched back by
+   * its box in one click) offers none and leaves an offered undo as it is. Nothing changes when it is at its default.
+   */
+  resetToDefault(key: NotDefaultKey): void;
   setLoadMessage(message: string | null, tone?: 'info' | 'warn'): void;
   /** Shows a transient copy line (it fades by itself after COPY_NOTE_MS); the load status is left alone. */
   setCopyNote(message: string | null): void;
@@ -387,6 +400,16 @@ const undoEntry = (s: StoreData, label: string, name?: string): { undo: UndoEntr
 /** Whether every value of `partial` is already what `current` holds (an update that changes nothing). */
 const sameValues = <T extends object>(current: T, partial: Partial<T>): boolean =>
   (Object.keys(partial) as (keyof T)[]).every((k) => Object.is(current[k], partial[k]));
+
+/** The analysis settings as an undo offer names them ("Reset the beamwidth level"). */
+const SETTING_NAMES: Record<keyof AnalysisSettings, string> = {
+  levelDb: 'the beamwidth level',
+  fbWindowDeg: 'the F/B window',
+  uslsRangeDeg: 'the USLS window',
+  lobeLimitFactor: 'the first-lobe limit',
+  sectorEdgeDeg: 'the sector edge',
+  siteSectors: 'the sectors per site',
+};
 
 const ZERO_OFFSET: OffsetState = { electricalDeg: 0, mechanicalDeg: 0, azimuthDeg: 0 };
 const isZeroOffset = (o: OffsetState) => o.electricalDeg === 0 && o.mechanicalDeg === 0 && o.azimuthDeg === 0;
@@ -685,6 +708,54 @@ export const useStore = create<State>()((rawSet, get) => {
       if (n === 0) return state;
       return { ...undoEntry(state, n === 1 ? 'Dropped your sub-band' : `Dropped your ${n} sub-bands`), view: { ...state.view, subBands: [] } };
     }),
+
+  resetToDefault: (key) => {
+    if (key === 'subBands') return get().dropSubBands();
+    set((s) => {
+      const sim = s.view.simulation;
+      const withSim = (label: string, partial: Partial<SimulationState>) => ({ ...undoEntry(s, label), view: { ...s.view, simulation: { ...sim, ...partial } } });
+      switch (key) {
+        case 'tilt':
+          return sim.electricalDeg === 0 && sim.mechanicalDeg === 0 ? s : withSim('Reset the tilt sliders', { electricalDeg: 0, mechanicalDeg: 0 });
+        case 'tiltOffsets': {
+          // The tilt of the loaded files' and the existing groups' offsets (what the chip counts); an azimuth (a site's sectors) stays.
+          const untilted = (record: Record<string, OffsetState>, counts: (id: string) => boolean) => {
+            const out = { ...record };
+            let changed = false;
+            for (const [id, o] of Object.entries(record)) {
+              if (!counts(id) || (o.electricalDeg === 0 && o.mechanicalDeg === 0)) continue;
+              changed = true;
+              if (o.azimuthDeg === 0) delete out[id];
+              else out[id] = { ...o, electricalDeg: 0, mechanicalDeg: 0 };
+            }
+            return changed ? out : record;
+          };
+          const offsets = untilted(sim.offsets, (id) => instanceExists(s, id));
+          const groupOffsets = untilted(sim.groupOffsets, (id) => s.customGroups.some((g) => g.id === id));
+          return offsets === sim.offsets && groupOffsets === sim.groupOffsets ? s : withSim('Reset the tilt offsets', { offsets, groupOffsets });
+        }
+        case 'hCut':
+          return sim.hCut === 'beam' ? s : withSim('Reset the horizontal cut', { hCut: 'beam' });
+        case 'method3d':
+          return s.view.method3d === 'summation' ? s : { ...undoEntry(s, 'Reset the 3D method'), view: { ...s.view, method3d: 'summation' } };
+        case 'tickedOnly':
+          // A display preference (it keeps an offered undo, as its box does): its box puts it back in one click.
+          return s.view.tableTickedOnly ? { view: { ...s.view, tableTickedOnly: false } } : s;
+        default: {
+          const name = key.slice('setting:'.length) as keyof AnalysisSettings;
+          if (s.settings[name] === DEFAULT_SETTINGS[name]) return s;
+          const settings = { ...s.settings, [name]: DEFAULT_SETTINGS[name] };
+          // The plot floor stays beyond the level ring, as for a typed level.
+          const floorDb = clampFloor(s.view.floorDb, settings.levelDb);
+          return {
+            ...undoEntry(s, `Reset ${SETTING_NAMES[name]}`),
+            settings,
+            ...(floorDb !== null && floorDb !== s.view.floorDb ? { view: { ...s.view, floorDb } } : {}),
+          };
+        }
+      }
+    });
+  },
 
   setLoadMessage: (message, tone = 'warn') =>
     set((s) => ({ loadMessage: message, loadTone: tone, loadSeq: s.loadSeq + 1, ...(tone === 'info' && message !== null ? {} : { loadFailed: 0 }) })),
