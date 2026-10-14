@@ -42,6 +42,8 @@ test('at the defaults there is no line and it takes no room; a tilt brings its c
   await azimuth.press('Enter');
   await expect(page.getByTestId('sim-badge')).toHaveText('Turned');
   await expect(line(page)).toHaveCount(0);
+  // The kept row says what is true beside a turned drawing: the numbers are those of the defaults.
+  await expect(page.getByTestId('not-default-empty')).toHaveText('Numbers at default');
 
   const mech = page.getByLabel('Mechanical tilt (°) value');
   await mech.fill('4');
@@ -125,7 +127,7 @@ test('an opened project is shown in the line at once, and each chip puts back it
   await expect(page.getByTestId('announcer')).toContainText('Ticked files only is off: the metrics table lists every file again.');
   await expect(line(page)).toHaveCount(0);
   // The Simulation bar is open: the line keeps its row, and says that nothing differs.
-  await expect(page.getByTestId('not-default-empty')).toHaveText('All at default');
+  await expect(page.getByTestId('not-default-empty')).toHaveText('Numbers at default');
   // "Ticked files only" offers no undo of its own and leaves the one on offer: the sub-bands come back.
   await page.keyboard.press('Control+z');
   await expect(await chipTexts(page)).toEqual(['Sub-bands: 2 user-defined']);
@@ -245,7 +247,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     expect((await page.locator('.not-default-box').boundingBox())!.height).toBe(0);
     await openSimulation(page);
     const reserved = page.getByTestId('not-default-empty');
-    await expect(reserved).toHaveText('All at default');
+    await expect(reserved).toHaveText('Numbers at default');
     const row = (await page.locator('.not-default-box').boundingBox())!.height;
     expect(row).toBeGreaterThan(0);
     const main = page.locator('main');
@@ -268,7 +270,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 
     // The horizon cut too: a second chip in the row (desktop) or the measured scroll for a second row (phone); never a hidden bar at the first.
     await chip(page, 'Simulated: mechanical 4°').click();
-    await expect(reserved).toHaveText('All at default');
+    await expect(reserved).toHaveText('Numbers at default');
     await page.getByRole('group', { name: 'Horizontal cut' }).getByRole('button', { name: 'At the horizon' }).click();
     await expect(chip(page, 'Horizontal cut: at the horizon')).toBeVisible();
     expect(await main.evaluate((m) => m.scrollTop)).toBe(0);

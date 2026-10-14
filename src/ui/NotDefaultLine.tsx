@@ -49,7 +49,7 @@ const scrollRoom = (): number => scrollingMain()?.scrollTop ?? window.scrollY;
  * reset of typed work offers the usual undo, which the status region says. With everything at its default the line
  * is not there and takes no room.
  *
- * While the Simulation bar is open it keeps one row ("All at default" when empty), so the first chip moves nothing.
+ * While the Simulation bar is open it keeps one row ("Numbers at default" when empty: nothing it lists differs), so the first chip moves nothing.
  * Beyond that row it comes, goes and changes its height with what is set; nothing under it moves for that: the page is
  * scrolled by as much (see `keepPageInPlace`). Where the page is too near its top to be scrolled back, a line that gets
  * lower keeps the room as an empty band, given back as the page is scrolled down. While a slider is gripped the line stays as it was when the slider was taken (a tilt
@@ -166,9 +166,10 @@ export function NotDefaultLine() {
   return (
     <div className="not-default-box" ref={box}>
       {chips.length === 0 && reserve && (
-        // The kept row says that it is kept: nothing differs from the defaults.
+        // The kept row says that it is kept, and what is true while it is empty: nothing that changes the numbers differs
+        // from its default (an azimuth, which turns the drawing only, or the gain unit may be set).
         <div className="not-default not-default-empty" data-testid="not-default-empty">
-          <span className="not-default-label">All at default</span>
+          <span className="not-default-label">Numbers at default</span>
         </div>
       )}
       {chips.length > 0 && (

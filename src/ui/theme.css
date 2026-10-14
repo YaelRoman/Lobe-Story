@@ -98,7 +98,7 @@ th[scope='row'] { text-align: left; white-space: nowrap; }
 .subband-row input[type='number'] { width: 90px; }
 .empty { margin: auto; max-width: 440px; text-align: center; color: var(--muted); }
 /* The line under the toolbar naming what is not at its default (see NotDefaultLine): a chip per thing, each a button that puts it
-   back. A row is one chip high whether it holds chips or the "All at default" kept while the Simulation bar is open, so the first
+   back. A row is one chip high whether it holds chips or the "Numbers at default" kept while the Simulation bar is open, so the first
    chip moves nothing. Its box has no height otherwise; NotDefaultLine keeps the page under it in place when it changes. */
 .not-default-box { flex: none; }
 .not-default { --chip-h: 24px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; min-height: calc(var(--chip-h) + 9px); padding: 4px 12px; border-bottom: 1px solid var(--border); background: var(--bg); font-size: 13px; }
