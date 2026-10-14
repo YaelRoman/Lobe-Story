@@ -339,6 +339,40 @@ describe('startPrefs', () => {
     stop();
   });
 
+  it('only an undo of a reset from the line puts stored preferences back: the undo of any other action writes nothing', () => {
+    const storage = new FakeStorage();
+    const stop = startPrefs({ storage, delayMs: 10 });
+    const add = (path: string) => useStore.getState().addFiles([{ path, bytes: new TextEncoder().encode(planetText()).buffer as ArrayBuffer }]);
+    useStore.getState().updateView({ mode: 'rect' });
+    useStore.getState().updateSettings({ levelDb: 6 });
+    vi.advanceTimersByTime(10);
+    const mine = storage.getItem(PREFS_KEY);
+    const set = vi.spyOn(storage, 'setItem');
+    const remove = vi.spyOn(storage, 'removeItem');
+    add('a.msi');
+    add('b.msi');
+    const project = { format: 'lobe-story-project' as const, version: 1, savedAt: '', files: [{ path: 'p.msi', text: planetText() }], state: { settings: { ...DEFAULT_SETTINGS, levelDb: 9 }, view: { mode: 'polar', method3d: 'weighted' } as never } };
+    const actions: [string, () => void][] = [
+      ['remove a file', () => useStore.getState().removeFile('b.msi')],
+      ['show only', () => useStore.getState().setVisibleOnly([], 'Showed no file')],
+      ['reset the simulation', () => (useStore.getState().updateSimulation({ mechanicalDeg: 3 }), useStore.getState().resetSimulation())],
+      ['drop sub-bands', () => (useStore.getState().updateView({ subBands: [{ name: 'A', minMHz: 1, maxMHz: 2 }] }), useStore.getState().dropSubBands())],
+      ['open a project over the session', () => useStore.getState().loadProject(project)],
+      ['clear', () => useStore.getState().clear()],
+    ];
+    for (const [what, act] of actions) {
+      act();
+      expect(useStore.getState().undo, what).not.toBeNull();
+      useStore.getState().undoLast();
+      vi.advanceTimersByTime(50);
+      expect(storage.getItem(PREFS_KEY), what).toBe(mine);
+    }
+    // The sub-bands and the simulation typed before their undoable resets are session work, never preferences.
+    expect(set).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    stop();
+  });
+
   it('a change still waiting to be written is written with the value the user set, even if a project is opened meanwhile', () => {
     const storage = new FakeStorage();
     const stop = startPrefs({ storage, delayMs: 300 });
