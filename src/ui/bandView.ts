@@ -1,5 +1,6 @@
 import { BAND_PARAMS, bandParamLabel, tiltText, type BandCell, type BandColumn, type BandParamKey } from '../core/analysis/bandParams';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
+import { bandDiff, type BandDiff } from '../core/analysis/bandCompare';
 import type { AnalysisSettings } from '../core/analysis/metrics';
 import { inSubBand, sanitizeSubBands, subBandName, type BandDataset, type SubBand } from '../core/analysis/subBands';
 import { FIRST_LOBE_RANGE } from '../core/analysis/sidelobes';
@@ -190,8 +191,49 @@ function csvLine(label: string, state: string | null, column: BandColumn, p: (ty
 /** The State of a tilted line while the simulated horizontal cut is the one at the horizon (comma-free). */
 const TILTED_AT_HORIZON = 'tilted [H cut at the horizon]';
 
-/** The band statistics in long form: one line per antenna × sub-band × parameter (× state with a tilt simulation). */
-export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings, horizonCut = false, tiltActive = true): string {
+/** A difference line of the band CSV: B − A of each numeric column where both antennas have it; N and the 22 dB count stay empty (the two antenna lines have them). */
+function diffCsvLine(label: string, state: string | null, column: BandColumn, p: (typeof BAND_PARAMS)[number], a: BandCell, b: BandCell, d: BandDiff, settings: AnalysisSettings): string[] {
+  const tilts = GAIN_TILT_KEYS.has(p.key) && a.tiltDeg !== undefined && b.tiltDeg !== undefined
+    ? a.tiltDeg === b.tiltDeg ? ` (${tiltText(a.tiltDeg)}°)` : ` (A ${tiltText(a.tiltDeg)}°, B ${tiltText(b.tiltDeg)}°)`
+    : '';
+  const n = d.numbers;
+  const nameIndex = state === null ? 1 : 2;
+  return [
+    csvText(label),
+    ...(state === null ? [] : [state]),
+    csvText(column.subBand.name),
+    String(column.subBand.minMHz),
+    String(column.subBand.maxMHz),
+    bandParamLabel(p, settings) + tilts,
+    d.unit,
+    TYPE_LABEL[p.type],
+    '',
+    d.text,
+    f2(n.value),
+    f2(n.tolerance),
+    f2(n.lower),
+    f2(n.upper),
+    f2(n.percentile),
+    f2(n.min),
+    f2(n.max),
+    f2(n.mean),
+    '',
+    d.adjusted ? 'yes' : '',
+  ].map((f, i) => (i === 0 || i === nameIndex ? f : csvCell(f)));
+}
+
+/** Two antennas compared (same sub-bands): their difference lines are added to the band CSV. */
+export interface BandCsvComparison {
+  a: BandSheet;
+  b: BandSheet;
+}
+
+/**
+ * The band statistics in long form: one line per antenna × sub-band × parameter (× state with a tilt simulation).
+ * With a comparison, a first column Row says `statistic` on those lines, and one `difference` line (B − A) per sub-band ×
+ * parameter (× state) follows them; without one the CSV is as it always was.
+ */
+export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings, horizonCut = false, tiltActive = true, compare?: BandCsvComparison): string {
   // With no tilt on any file nothing is "tilted": the horizontal rows are of the horizon cut, the others the simulated run's (equal to the file's).
   const second = (key: BandParamKey): string =>
     horizonCut && !tiltActive ? (bandFollowsHCut(key) ? 'horizon cut' : 'simulated') : horizonCut && bandFollowsHCut(key) ? TILTED_AT_HORIZON : 'tilted';
@@ -211,6 +253,24 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
         }
       }
     });
+  }
+  if (compare) {
+    const { a, b } = compare;
+    const label = `${b.label} − ${a.label}`;
+    const names = { a: a.label, b: b.label };
+    const out = [['Row', ...lines[0]], ...lines.slice(1).map((l) => ['statistic', ...l])];
+    a.columns.forEach((column, i) => {
+      for (const p of BAND_PARAMS) {
+        const line = (state: string | null, ca: BandColumn, cb: BandColumn) =>
+          out.push(['difference', ...diffCsvLine(label, state, column, p, ca.cells[p.key], cb.cells[p.key], bandDiff(ca.cells[p.key], cb.cells[p.key], names), settings)]);
+        if (!withState) line(null, column, b.columns[i]);
+        else {
+          line('original', column, b.columns[i]);
+          line(second(p.key), (a.tilted ?? a.columns)[i], (b.tilted ?? b.columns)[i]);
+        }
+      }
+    });
+    return out.map((l) => l.join(',')).join('\r\n') + '\r\n';
   }
   return lines.map((l) => l.join(',')).join('\r\n') + '\r\n';
 }
