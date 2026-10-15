@@ -30,9 +30,11 @@ describe('signedDiff', () => {
     expect(signedDiff(-0.96, 'dB')).toBe('-1.0 dB');
     expect(signedDiff(0, 'dB')).toBe('0.0 dB');
   });
-  it('gives a small difference that is not zero the decimals that show it, so two different values never read as equal', () => {
-    expect(signedDiff(0.04, '°')).toBe('+0.04°');
-    expect(signedDiff(-0.004, 'dB')).toBe('-0.004 dB');
+  it('writes a small difference with one decimal like its inputs, never with more digits; one that rounds to zero is 0.0', () => {
+    expect(signedDiff(0.04, '°')).toBe('0.0°');
+    expect(signedDiff(-0.004, 'dB')).toBe('0.0 dB');
+    expect(signedDiff(-0.05, 'dB')).toBe('-0.1 dB');
+    expect(signedDiff(0.002, '°') + ' ' + signedDiff(0.003, '°')).toBe('0.0° 0.0°');
     expect(signedDiff(1e-12, 'dB')).toBe('0.0 dB');
   });
 });
@@ -60,7 +62,7 @@ describe('bandDiff: double-sided cells', () => {
   it('writes a gain difference in dB, whatever the gain unit of the cells', () => {
     const d = bandDiff(double('gainAll', range(17, 0.1), 'dBi'), double('gainAll', range(17.5, 0.1), 'dBi'));
     expect(d.unit).toBe('dB');
-    expect(d.text).toMatch(/^\+0\.5 dB \(tol (0\.0|[+-]0\.0\d+) dB\)$/);
+    expect(d.text).toBe('+0.5 dB (tol 0.0 dB)');
   });
 });
 
@@ -115,7 +117,8 @@ describe('bandDiff: the electrical tilt range', () => {
   it('is one number when both antennas have one tilt', () => {
     expect(bandDiff(tilts([8]), tilts([6])).text).toBe('-2°');
     expect(bandDiff(tilts([8]), tilts([8])).text).toBe('0°');
-    expect(bandDiff(tilts([0.25]), tilts([0.3])).text).toBe('+0.05°');
+    expect(bandDiff(tilts([0.25]), tilts([0.3])).text).toBe('0°');
+    expect(bandDiff(tilts([0.2]), tilts([0.5])).text).toBe('+0.3°');
   });
 });
 

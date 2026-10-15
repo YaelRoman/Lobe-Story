@@ -408,7 +408,8 @@ not check that all frequency samples required by Annex B are present.
 to the first, A: each sub-band has three columns, A, B and B − A, over the same sub-bands (the user's, or
 automatic ones made over the frequencies of both antennas, which can differ from A's own). B − A is a
 signed difference of the two statistics, worked out from their unrounded values and written with one
-decimal (more where a difference that is not zero would read 0.0); it is never graded better or worse,
+decimal like them, never more ("0.0" without a sign where it rounds to zero; tilts as the tilts are written,
+"0°"); so a shown difference can differ by up to 0.1 from the difference of the two shown values. It is never graded better or worse,
 since BASTA gives no direction for most rows. Per kind of cell:
 - double-sided (mean ± tolerance): the difference of the means, and in brackets that of the tolerances ("+1.2° (tol -0.4°)");
 - single-sided (< P84, > P16): the difference of the limits as shown, the adjusted ones where the 3 dB excursion rule moved them; the `*` is kept;

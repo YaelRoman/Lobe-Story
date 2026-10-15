@@ -33,22 +33,21 @@ export interface DiffNames {
   b?: string;
 }
 
-/** The most decimals a small difference is written with (as in the metrics table's difference view). */
-const MAX_DECIMALS = 7;
-
-/** `v` signed with `decimals`, or with as many more as it takes for a difference that is not zero to show a digit. */
+/**
+ * `v` signed with a fixed number of decimals, like the statistics it is the difference of; one that rounds to zero is
+ * written without a sign ("0.0", or "0" with `trim`), as the metrics table's difference view writes it. Never more
+ * digits than the inputs show: a 1° grid does not give a difference of 0.002°.
+ */
 function signedText(v: number, decimals: number, trim: boolean): string {
-  let d = decimals;
-  while (v !== 0 && Number(v.toFixed(d)) === 0 && d < MAX_DECIMALS) d++;
-  const rounded = Number(v.toFixed(d));
+  const rounded = Number(v.toFixed(decimals));
   if (rounded === 0) return trim ? '0' : (0).toFixed(decimals);
-  const text = trim ? String(rounded) : rounded.toFixed(d);
+  const text = trim ? String(rounded) : rounded.toFixed(decimals);
   return rounded > 0 ? `+${text}` : text;
 }
 
 const withUnit = (text: string, unit: string): string => text + (unit === '°' ? '' : ' ') + unit;
 
-/** A difference as the band table writes it: signed, one decimal ("+1.2°", "-0.4 dB", "0.0 dB"), more where a non-zero one would read 0.0. */
+/** A difference as the band table writes it: signed, one decimal ("+1.2°", "-0.4 dB"); "0.0 dB" where it rounds to zero. */
 export const signedDiff = (v: number, unit: string): string => withUnit(signedText(v, 1, false), unit);
 
 /** A difference of nominal tilts, written as the tilts are (at most one decimal, none for whole degrees). */
