@@ -143,3 +143,90 @@ export function buildBandHistFigure({ values, stat, label, unit }: BandHistInput
     },
   };
 }
+
+/** One antenna of a comparison histogram. */
+export interface CompareSide {
+  name: string;
+  values: number[];
+  stat: BandStat | null;
+}
+
+/** Bins shared by both antennas, so the two histograms can be read against each other. */
+function sharedBins(values: readonly number[]): { start: number; end: number; size: number } {
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  if (!(hi > lo)) return { start: lo - 0.5, end: lo + 0.5, size: 1 };
+  const size = (hi - lo) / histBins(values.length);
+  return { start: lo, end: hi + size / 2, size };
+}
+
+/**
+ * The histogram of a B − A cell: the samples of both antennas overlaid on the same bins, each in its colour with its
+ * statistic drawn as in `buildBandHistFigure` and labelled "A …" / "B …".
+ */
+export function buildBandCompareHistFigure({ a, b, label, unit }: { a: CompareSide; b: CompareSide; label: string; unit: string }, theme: FigureTheme): Figure {
+  const xbins = sharedBins([...a.values, ...b.values]);
+  const sides = [
+    { side: 'A', color: PALETTE[0], ...a },
+    { side: 'B', color: PALETTE[1], ...b },
+  ];
+  const data: Data[] = sides.map((s) => {
+    const trace: Partial<PlotData> & { xbins: typeof xbins } = {
+      type: 'histogram',
+      name: s.name,
+      x: s.values,
+      xbins,
+      opacity: 0.6,
+      marker: { color: s.color },
+      hovertemplate: `${s.side} %{x}: %{y}<extra></extra>`,
+    };
+    return trace;
+  });
+  const lines = sides.flatMap((s) => marks(s.stat).map((m) => ({ ...m, text: `${s.side} ${m.text}`, color: s.color })));
+  const all = [...a.values, ...b.values, ...lines.map((m) => m.x)];
+  const levels = labelLevels(lines.map((m) => m.x), Math.min(...all), Math.max(...all));
+  return {
+    data,
+    layout: {
+      paper_bgcolor: theme.bg,
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: theme.fg },
+      margin: { l: 60, r: 20, t: 30 + LABEL_STEP_PX * Math.max(0, ...levels), b: 50 },
+      showlegend: true,
+      legend: { orientation: 'h', x: 0, y: -0.25, yanchor: 'top' },
+      barmode: 'overlay',
+      bargap: 0.05,
+      xaxis: { title: { text: `${label} (${unit})` }, gridcolor: theme.grid },
+      yaxis: { title: { text: 'Samples' }, gridcolor: theme.grid },
+      shapes: lines.map((m) => ({ type: 'line', xref: 'x', yref: 'paper', x0: m.x, x1: m.x, y0: 0, y1: 1, line: { color: m.color, width: 2, dash: m.dash } })),
+      annotations: lines.map((m, i) => ({ x: m.x, xref: 'x', y: 1, yref: 'paper', yanchor: 'bottom', yshift: levels[i] * LABEL_STEP_PX, showarrow: false, text: m.text, font: { color: m.color } })),
+    },
+  };
+}
+
+export interface BandCompareCaptionInput {
+  a: { name: string; stat: BandStat | null; n: number };
+  b: { name: string; stat: BandStat | null; n: number };
+  subBand: { name: string; minMHz: number; maxMHz: number };
+  parameter: string;
+  unit: string;
+  /** The B − A cell as shown. */
+  difference: string;
+  /** What the samples are of under a simulation ("tilted", "horizon cut"). */
+  state?: 'tilted' | 'horizon cut';
+}
+
+/** What the exported comparison histogram says about itself. */
+export function bandCompareHistCaption(c: BandCompareCaptionInput): ExportCaption {
+  const range = `${fmt(c.subBand.minMHz)}–${fmt(c.subBand.maxMHz)} MHz`;
+  const state = c.state ? ` (${c.state})` : '';
+  return {
+    title: `${c.parameter} — histograms of the band samples of A and B`,
+    file: `A: ${c.a.name} · B: ${c.b.name} · Sub-band: ${c.subBand.name}${range.includes(c.subBand.name) || c.subBand.name.includes(range) ? '' : ` (${range})`}`,
+    items: [
+      `B − A: ${c.difference}`,
+      `A: ${statText(c.a.stat, c.unit)}, N = ${c.a.n}${state}`,
+      `B: ${statText(c.b.stat, c.unit)}, N = ${c.b.n}${state}`,
+    ],
+  };
+}

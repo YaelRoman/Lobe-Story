@@ -2,7 +2,6 @@ import { tiltText, type BandCell } from './bandParams';
 import { MIN_SAMPLES } from './bandStats';
 import type { TaggedPattern } from './metrics';
 import { autoSubBands, type SubBand } from './subBands';
-import { fixed } from '../fixed';
 
 /**
  * Two antennas side by side in the band statistics: "B − A" for each parameter and sub-band. A difference is only
@@ -55,7 +54,6 @@ export const signedDiff = (v: number, unit: string): string => withUnit(signedTe
 /** A difference of nominal tilts, written as the tilts are (at most one decimal, none for whole degrees). */
 const signedTilt = (v: number): string => `${signedText(v, 1, true)}°`;
 
-const f2 = (v: number): string => fixed(v, 2);
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 const extent = (values: readonly number[]) => ({ min: Math.min(...values), max: Math.max(...values) });
 
@@ -95,6 +93,8 @@ export function bandDiff(a: BandCell, b: BandCell, names: DiffNames = {}): BandD
     return { state: 'none', text: '—', title: `No difference: ${reasons.join('; ')}`, muted: true, adjusted: false, substituted: false, unit, numbers: {} };
   }
 
+  /** A number of the detail text: signed, two decimals, with the unit. */
+  const u = (v: number): string => withUnit(signedText(v, 2, false), unit);
   const inputs = [`${whoA}: ${a.text} (N = ${a.n})`, `${whoB}: ${b.text} (N = ${b.n})`];
   const sa = a.stat;
   const sb = b.stat;
@@ -120,11 +120,11 @@ export function bandDiff(a: BandCell, b: BandCell, names: DiffNames = {}): BandD
       numbers.lower = sb.lower - sa.lower;
       numbers.upper = sb.upper - sa.upper;
       text = `${signedDiff(numbers.mean, unit)} (tol ${signedDiff(numbers.tolerance, unit)})`;
-      what = `B − A of the mean: ${f2(numbers.mean)} ${unit}; in brackets, of the tolerance: ${f2(numbers.tolerance)} ${unit}`;
+      what = `B − A of the mean: ${u(numbers.mean)}; in brackets, of the tolerance: ${u(numbers.tolerance)}`;
     } else if (sa.kind === 'mean' && sb.kind === 'mean') {
       numbers.value = numbers.mean = sb.mean - sa.mean;
       text = signedDiff(numbers.mean, unit);
-      what = `B − A of the mean gain: ${f2(numbers.mean)} ${unit}`;
+      what = `B − A of the mean gain: ${u(numbers.mean)}`;
       if (a.tiltDeg !== b.tiltDeg) {
         text += ` (A @ ${tiltText(a.tiltDeg!)}°, B @ ${tiltText(b.tiltDeg!)}°)`;
         what += `; the two antennas are not at the same nominal tilt (A ${tiltText(a.tiltDeg!)}°, B ${tiltText(b.tiltDeg!)}°)`;
@@ -133,7 +133,7 @@ export function bandDiff(a: BandCell, b: BandCell, names: DiffNames = {}): BandD
       numbers.value = sb.value - sa.value;
       numbers.percentile = sb.percentile - sa.percentile;
       text = signedDiff(numbers.value, unit);
-      what = `B − A of the single-sided ${sa.kind === 'min' ? 'minimum (16th percentile)' : 'maximum (84th percentile)'}: ${f2(numbers.value)} ${unit}`;
+      what = `B − A of the single-sided ${sa.kind === 'min' ? 'minimum (16th percentile)' : 'maximum (84th percentile)'}: ${u(numbers.value)}`;
     } else {
       // Both cells of one row are always of the same kind; a mismatch has nothing to subtract.
       return { state: 'none', text: '—', title: 'No difference: the two statistics are not of the same kind', muted: true, adjusted: false, substituted: false, unit, numbers: {} };

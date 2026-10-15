@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Annotations, PlotData, Shape } from 'plotly.js';
-import { bandHistCaption, buildBandHistFigure, histBins, labelLevels, statText } from './bandHistFigure';
+import { bandCompareHistCaption, bandHistCaption, buildBandCompareHistFigure, buildBandHistFigure, histBins, labelLevels, statText } from './bandHistFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { PALETTE } from './colors';
 import { doubleSided, meanOnly, singleSided } from '../core/analysis/bandStats';
@@ -121,5 +121,54 @@ describe('statText and bandHistCaption', () => {
     expect(c.title).toContain('Azimuth beamwidth');
     expect(c.file).toBe('Antenna: Antenna A · Sub-band: Band 1 (1710–1880 MHz)');
     expect(c.items).toEqual(['Parameter: Azimuth beamwidth', 'Statistic: mean 65.13 °, P6.7 61.36 °, P93.3 69.4 °', 'N = 126 (tilted)']);
+  });
+});
+
+describe('buildBandCompareHistFigure (a B − A cell: both antennas over the same bins)', () => {
+  const a = [60, 61, 62, 63, 64, 65, 66, 67, 68, 69];
+  const b = [63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74];
+  const f = buildBandCompareHistFigure(
+    {
+      a: { name: 'A: Array Y1', values: a, stat: doubleSided(a, 'arithmetic') },
+      b: { name: 'B: Array Y2', values: b, stat: doubleSided(b, 'arithmetic') },
+      label: 'Azimuth beamwidth',
+      unit: '°',
+    },
+    FIGURE_THEMES.dark,
+  );
+  const traces = f.data as (Partial<PlotData> & { xbins?: { start: number; end: number; size: number } })[];
+  it('overlays one histogram per antenna, named and coloured, on the same bins', () => {
+    expect(traces.map((t) => t.type)).toEqual(['histogram', 'histogram']);
+    expect(traces.map((t) => t.name)).toEqual(['A: Array Y1', 'B: Array Y2']);
+    expect(traces.map((t) => (t.marker as { color: string }).color)).toEqual([PALETTE[0], PALETTE[1]]);
+    expect(traces[0].xbins).toEqual(traces[1].xbins);
+    expect(traces[0].xbins!.start).toBeLessThanOrEqual(60);
+    expect(traces[0].xbins!.end).toBeGreaterThanOrEqual(74);
+    expect(f.layout.barmode).toBe('overlay');
+    expect(f.layout.showlegend).toBe(true);
+    expect(f.layout.paper_bgcolor).toBe(FIGURE_THEMES.dark.bg);
+  });
+  it('draws each statistic in its antenna colour, labelled A or B', () => {
+    expect(notes(f).map((n) => n.text)).toEqual(['A mean', 'A P6.7', 'A P93.3', 'B mean', 'B P6.7', 'B P93.3']);
+    expect(shapes(f).map((s) => s.line?.color)).toEqual([PALETTE[0], PALETTE[0], PALETTE[0], PALETTE[1], PALETTE[1], PALETTE[1]]);
+  });
+  it('has one bin for a single value on both sides', () => {
+    const one = buildBandCompareHistFigure({ a: { name: 'A', values: [8], stat: null }, b: { name: 'B', values: [8], stat: null }, label: 'x', unit: '°' }, FIGURE_THEMES.light);
+    expect((one.data[0] as { xbins: { size: number } }).xbins.size).toBeGreaterThan(0);
+  });
+  it('says in the exported caption what is overlaid', () => {
+    const c = bandCompareHistCaption({
+      a: { name: 'Array Y1', stat: doubleSided(a, 'arithmetic'), n: 10 },
+      b: { name: 'Array Y2', stat: doubleSided(b, 'arithmetic'), n: 12 },
+      subBand: { name: '1800–1900 MHz', minMHz: 1800, maxMHz: 1900 },
+      parameter: 'Azimuth beamwidth',
+      unit: '°',
+      difference: '+3.5° (tol 0.3°)',
+    });
+    expect(c.title).toBe('Azimuth beamwidth — histograms of the band samples of A and B');
+    expect(c.file).toBe('A: Array Y1 · B: Array Y2 · Sub-band: 1800–1900 MHz');
+    expect(c.items[0]).toBe('B − A: +3.5° (tol 0.3°)');
+    expect(c.items[1]).toMatch(/^A: mean 64\.5 °.* N = 10$/);
+    expect(c.items[2]).toMatch(/^B: mean 68\.5 °.* N = 12$/);
   });
 });
