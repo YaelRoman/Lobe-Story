@@ -15,8 +15,8 @@ import {
   type BandCell,
   type BandParam,
 } from './bandParams';
-import { bandDiff } from './bandCompare';
-import { arithmeticMean, doubleSided, powerMeanDb } from './bandStats';
+import { bandDiff, spokenDiff } from './bandCompare';
+import { arithmeticMean, doubleSided, meanOf, powerLevelMeanDb, powerMeanDb } from './bandStats';
 import { analyzeAll, DEFAULT_SETTINGS, type PatternMetrics, type TaggedPattern } from './metrics';
 import { analyzeTilted, tiltEach } from './tilt';
 import { bandItems } from '../../test/bandFixture';
@@ -58,7 +58,7 @@ describe('which rows the band table has', () => {
     expect(bandParamLabel(param('horizonLevel'), s, 'summation')).toBe('Horizon level');
     expect(bandParamTitle(param('areSpatial'), s, 'weighted')).toMatch(/3D method: Weighted\); not BASTA-compliant/);
     expect(bandParamTitle(param('areSpatial'), s, 'weighted')).toMatch(/arithmetic mean/);
-    expect(bandParamTitle(param('horizonLevel'), s)).toMatch(/below the 3D peak.*linear values as for roll-off/);
+    expect(bandParamTitle(param('horizonLevel'), s)).toMatch(/below the 3D peak.*mean is that of the linear power at the horizon/);
     expect(bandParamTitle(param('horizonLevel'), s)).not.toMatch(/\(BASTA \)/);
   });
 });
@@ -107,15 +107,37 @@ describe('angular-region rows', () => {
 });
 
 describe('the Horizon level row', () => {
-  it('one sample per horizon cut (the table column), none of a file cut; mean over linear values as roll-off', () => {
+  it('the mean of levels below the peak is the level of the mean linear power, not pulled to the deepest values', () => {
+    // 1, 1, 16, 16 dB below the peak: the mean power at the horizon is 10^(−0.1)/2 + 10^(−1.6)/2 → 3.87 dB below.
+    expect(powerLevelMeanDb([1, 1, 16, 16])).toBeCloseTo(-10 * Math.log10((10 ** -0.1 + 10 ** -1.6) / 2), 12);
+    expect(powerLevelMeanDb([1, 1, 16, 16])).toBeCloseTo(3.875, 3);
+    expect(meanOf([1, 1, 16, 16], 'powerLevel')).toBeCloseTo(3.875, 3);
+    // The power mean of the other sign (roll-off's) would say 13.1 dB; roll-off keeps it.
+    expect(powerMeanDb([1, 1, 16, 16])).toBeCloseTo(13.12, 2);
+    expect(BAND_PARAMS.find((p) => p.key === 'rollOff')!.mean).toBe('power');
+    // The cell: the tolerance is still that of the dB percentiles, and the mean lies between them.
+    const four = [1, 1, 16, 16, 1, 1, 16, 16, 1, 16].map((v, k) => ({ id: `x${k}`, v }));
+    const m = new Map(four.map(({ id, v }) => [id, { hCutPeakDb: v } as unknown as PatternMetrics]));
+    const its = four.map(({ id }) => ({ pattern: { id, frequencyMHz: 1800 }, tags: {} }) as unknown as TaggedPattern);
+    const c = bandCell(HORIZON_LEVEL_PARAM, its, m, ctx);
+    const st = c.stat!;
+    if (st.kind !== 'double') throw new Error('double-sided');
+    expect(st.mean).toBeCloseTo(powerLevelMeanDb(four.map((f) => f.v)), 12);
+    expect(st.mean).toBeGreaterThanOrEqual(st.lower);
+    expect(st.mean).toBeLessThanOrEqual(st.upper);
+    expect(st.tolerance).toBeCloseTo((st.upper - st.lower) / 2, 12);
+    expect(c.title).toMatch(/linear power at the horizon/);
+  });
+
+  it('one sample per horizon cut (the table column), none of a file cut; mean of the linear power at the horizon', () => {
     const m = horizonMetrics();
     const levels = items.map((i) => m.get(i.pattern.id)!.hCutPeakDb!);
     expect(levels.every((v) => v >= 0)).toBe(true);
     const c = bandCell(HORIZON_LEVEL_PARAM, items, m, ctx);
     expect(c.state).toBe('ok');
     expect(c.values).toEqual(levels);
-    expect(c.stat?.kind === 'double' && c.stat.mean).toBeCloseTo(powerMeanDb(levels), 12);
-    expect(c.title).toMatch(/linear values and converted back to dB/);
+    expect(c.stat?.kind === 'double' && c.stat.mean).toBeCloseTo(powerLevelMeanDb(levels), 12);
+    expect(c.title).toMatch(/linear power at the horizon/);
     const fileCut = bandCell(HORIZON_LEVEL_PARAM, items, analyzeAll(items), ctx);
     expect(fileCut.state).toBe('empty');
     expect(fileCut.missing).toBe(12);
@@ -169,6 +191,22 @@ describe('pairs of a row with its own decimals', () => {
     expect(cellText(b, 4)).toBe('0.0002 %');
     expect(pairDecimals(lower(0.25), lower(0.12))).toBe(3);
   });
+  it('two values that differ are compared at finer precision before they are shown as one (up to the CSV decimals)', () => {
+    // 0.0007 and 0.0012 both read 0.001 with three decimals.
+    const a = lower(0.0007);
+    const b = lower(0.0012);
+    expect(a.text).toBe(b.text);
+    expect(pairDecimals(a, b)).toBe(4);
+    expect(pairDecimals(a, lower(0.0007))).toBe(3);
+    // Equal at four decimals: shown once.
+    expect(pairDecimals(lower(0.00071), lower(0.00072))).toBe(3);
+  });
+  it('a tolerance that is not zero does not read 0.000', () => {
+    const its = Array.from({ length: 10 }, (_, k) => ({ pattern: { id: `y${k}`, frequencyMHz: 1800 }, tags: {} }) as unknown as TaggedPattern);
+    const m = new Map(its.map((it, k) => [it.pattern.id, { are: { lower: { value: 0.0007 + 0.00005 * k } } } as unknown as PatternMetrics]));
+    const c = bandCell(param('areLower'), its, m, ctx);
+    expect(c.text).toMatch(/^0\.001 % ± 0\.000[1-9]\d* %$/);
+  });
   it('other rows keep their decimals', () => {
     const c = bandCell(BAND_PARAMS.find((p) => p.key === 'hHpbw')!, items, analyzeAll(items), ctx);
     expect(pairDecimals(c, c)).toBe(1);
@@ -187,27 +225,32 @@ describe('B − A of the new rows', () => {
         },
       ]),
     );
-  it('a percentage row: percentage points, with the unit %', () => {
+  it('a percentage row: percentage points, written pp', () => {
     const m = areMetrics();
     const a = bandCell(param('areSector'), items, m, ctx);
     const b = bandCell(param('areSector'), items, shifted(m, 2.5), ctx);
     const d = bandDiff(a, b);
-    expect(d.unit).toBe('%');
+    expect(d.unit).toBe('pp');
     expect(d.numbers.mean).toBeCloseTo(2.5, 9);
-    expect(d.text).toBe('+2.5 % (tol 0.0 %)');
-    expect(d.title).toMatch(/B − A of the mean \(percentage points\)/);
+    expect(d.text).toBe('+2.5 pp (tol 0.0 pp)');
+    expect(spokenDiff(d.text)).toBe('+2.5 percentage points (tol 0.0 percentage points)');
+    expect(d.title).toMatch(/B − A of the mean \(pp: percentage points\)/);
   }, HEAVY_TEST_MS);
   it('the lower region ratio: three decimals, more when a difference would read 0.000', () => {
     const m = areMetrics();
     const a = bandCell(param('areLower'), items, m, ctx);
     const d = bandDiff(a, bandCell(param('areLower'), items, shifted(m, 0.4), ctx));
-    expect(d.text).toBe('+0.0004 % (tol 0.000 %)');
+    expect(d.text).toBe('+0.0004 pp (tol 0.000 pp)');
   }, HEAVY_TEST_MS);
-  it('the Horizon level: a dB difference', () => {
+  it('the Horizon level: a dB difference of the two corrected means', () => {
     const m = horizonMetrics();
     const a = bandCell(HORIZON_LEVEL_PARAM, items, m, ctx);
     const d = bandDiff(a, bandCell(HORIZON_LEVEL_PARAM, items, shifted(m, 1), ctx));
     expect(d.unit).toBe('dB');
     expect(d.text).toMatch(/^\+\d\.\d dB \(tol [+-]?\d\.\d dB\)$/);
+    const mean = (x: BandCell) => (x.stat?.kind === 'double' ? x.stat.mean : NaN);
+    const b = bandCell(HORIZON_LEVEL_PARAM, items, shifted(m, 1), ctx);
+    expect(d.numbers.mean).toBeCloseTo(mean(b) - mean(a), 12);
+    expect(mean(a)).toBeCloseTo(powerLevelMeanDb(items.map((i) => m.get(i.pattern.id)!.hCutPeakDb!)), 12);
   });
 });

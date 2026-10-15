@@ -9,7 +9,12 @@ export const P_MAX = 84; // single-sided maximum
 export const EXCURSION_DB = 3; // BASTA 12.2
 export const GAIN_REPEATABILITY_DB = 0.8; // BASTA 12.6
 export const MIN_SAMPLES = 10; // fewer samples make the percentiles interpolations of the extremes
-export type MeanKind = 'arithmetic' | 'power';
+/**
+ * How a mean is taken: of the values ('arithmetic'); of the linear powers of dB values ('power', gain and the dB rows of
+ * Annex C); or of the linear powers of levels written as dB *below* a reference ('powerLevel': 10^(−x/10), the power
+ * that reaches there, so the mean is the level of the mean power and is not pulled towards the deepest values).
+ */
+export type MeanKind = 'arithmetic' | 'power' | 'powerLevel';
 
 /** Percentile on the 1-based index `1 + (N − 1)·p/100` of the ascending values, linearly interpolated, index unrounded. */
 export function percentile(values: readonly number[], p: number): number {
@@ -36,8 +41,13 @@ export function powerMeanDb(values: readonly number[]): number {
   return 10 * Math.log10(arithmeticMean(values.map((x) => 10 ** (x / 10))));
 }
 
+/** Mean of the linear powers of levels given as dB below a reference, as dB below it again: −10·log10(mean 10^(−x/10)). */
+export function powerLevelMeanDb(values: readonly number[]): number {
+  return -powerMeanDb(values.map((x) => -x));
+}
+
 export function meanOf(values: readonly number[], kind: MeanKind): number {
-  return kind === 'power' ? powerMeanDb(values) : arithmeticMean(values);
+  return kind === 'power' ? powerMeanDb(values) : kind === 'powerLevel' ? powerLevelMeanDb(values) : arithmeticMean(values);
 }
 
 export interface DoubleSided {
@@ -134,10 +144,10 @@ export function withUnit(v: number, unit: string, decimals = 1): string {
   return fixed(v, decimals) + (unit === '°' ? '' : ' ') + unit;
 }
 
-export function formatStat(stat: BandStat, unit: string, toleranceUnit: string = unit, decimals = 1): string {
+export function formatStat(stat: BandStat, unit: string, toleranceUnit: string = unit, decimals = 1, toleranceDecimals = decimals): string {
   switch (stat.kind) {
     case 'double':
-      return `${withUnit(stat.mean, unit, decimals)} ± ${withUnit(stat.tolerance, toleranceUnit, decimals)}`;
+      return `${withUnit(stat.mean, unit, decimals)} ± ${withUnit(stat.tolerance, toleranceUnit, toleranceDecimals)}`;
     case 'max':
       return `< ${withUnit(stat.value, unit, decimals)}`;
     case 'min':

@@ -23,14 +23,15 @@ async function tableValues(page: Page, col: string): Promise<number[]> {
 }
 
 const mean = (v: number[]) => v.reduce((s, x) => s + x, 0) / v.length;
-const powerMean = (v: number[]) => 10 * Math.log10(mean(v.map((x) => 10 ** (x / 10))));
+/** The level of the mean linear power of levels given as dB below the peak. */
+const levelMean = (v: number[]) => -10 * Math.log10(mean(v.map((x) => 10 ** (-x / 10))));
 
 /** The band cell's mean (of the simulated statistic under a simulation) is the table's mean, within the table's rounding. */
-async function expectMeanOfTable(page: Page, cell: Locator, col: string, kind: 'arithmetic' | 'power', tolerance = 0.11) {
+async function expectMeanOfTable(page: Page, cell: Locator, col: string, kind: 'arithmetic' | 'powerLevel', tolerance = 0.11) {
   await expect(async () => {
     const values = await tableValues(page, col);
     expect(values.every(Number.isFinite)).toBe(true);
-    const expected = kind === 'power' ? powerMean(values) : mean(values);
+    const expected = kind === 'powerLevel' ? levelMean(values) : mean(values);
     expect(Math.abs(lastValue(await cell.innerText()) - expected), `${await cell.innerText()} vs ${expected}`).toBeLessThanOrEqual(tolerance);
   }).toPass();
 }
@@ -49,7 +50,9 @@ test('angular-region and Horizon level rows come and go with the table columns, 
   await expect(rowHeads(page)).toHaveCount(annexRows + 3);
   expect((await rowHeads(page).allInnerTexts()).slice(-3)).toEqual(ARE_ROWS);
   await expect(bandCell(page, ARE_ROWS[0])).toHaveText(/^\d+\.\d % ± \d+\.\d % n=30$/);
-  await expect(bandCell(page, ARE_ROWS[2])).toHaveText(/^\d+\.\d{3} % ± \d+\.\d{3} % n=30$/);
+  // Three decimals; a tolerance that would read 0.000 gets as many more as it needs to show a digit.
+  await expect(bandCell(page, ARE_ROWS[2])).toHaveText(/^\d+\.\d{3} % ± \d+\.\d{3,7} % n=30$/);
+  await expect(bandCell(page, ARE_ROWS[2])).not.toContainText('± 0.000 %');
   await expect(rowHeads(page).filter({ hasText: ARE_ROWS[0] })).toHaveAttribute('title', /not BASTA-compliant/);
   await expectMeanOfTable(page, bandCell(page, ARE_ROWS[0]), 'areSector', 'arithmetic');
   await expectMeanOfTable(page, bandCell(page, ARE_ROWS[1]), 'areSpatial', 'arithmetic');
@@ -69,14 +72,22 @@ test('angular-region and Horizon level rows come and go with the table columns, 
   await page.getByRole('group', { name: '3D method' }).getByRole('button', { name: 'Summation' }).click();
   await expect(bandCell(page, ARE_ROWS[0])).toHaveText(summation);
 
+  await expect(band(page)).toContainText('The angular-region estimate rows are not BASTA parameters');
+  // The keyboard tab stop stays on its parameter when a row comes in above it.
+  await bandCell(page, 'Elevation beamwidth').focus();
+  const tabStop = band(page).locator('tbody button[tabindex="0"]');
+  await expect(tabStop).toHaveCount(1);
+
   // The cut at the horizon: the Horizon level row after the azimuth beamwidth, one value (no "→"), the table's level.
   await horizontalCut(page, 'At the horizon').click();
+  await expect(band(page)).toContainText('The Horizon level and angular-region estimate rows are not BASTA parameters');
+  await expect(tabStop.locator('xpath=ancestor::tr/th')).toHaveText('Elevation beamwidth');
   await expect(rowHeads(page)).toHaveCount(annexRows + 4);
   const heads = await rowHeads(page).allInnerTexts();
   expect(heads[heads.indexOf('Azimuth beamwidth') + 1]).toBe('Horizon level');
   const level = bandCell(page, 'Horizon level');
   await expect(level).toHaveText(/^\d+\.\d dB ± \d+\.\d dB n=30$/);
-  await expectMeanOfTable(page, level, 'hLevel', 'power');
+  await expectMeanOfTable(page, level, 'hLevel', 'powerLevel');
   // The estimate does not depend on the cut: one value, as before.
   await expect(bandCell(page, ARE_ROWS[0])).toHaveText(summation);
 
@@ -89,7 +100,7 @@ test('angular-region and Horizon level rows come and go with the table columns, 
   await settled(page);
   await expect(level).not.toHaveText(untilted);
   await expect(level).not.toContainText('→');
-  await expectMeanOfTable(page, level, 'hLevel', 'power');
+  await expectMeanOfTable(page, level, 'hLevel', 'powerLevel');
   await expect(bandCell(page, ARE_ROWS[0])).toContainText('→');
   await expectMeanOfTable(page, bandCell(page, ARE_ROWS[0]), 'areSector', 'arithmetic');
 
@@ -102,6 +113,12 @@ test('angular-region and Horizon level rows come and go with the table columns, 
   // Angular regions hidden: their rows go, and so does the picked cell's histogram.
   await toggle(page).uncheck();
   await expect(rowHeads(page)).toHaveCount(annexRows);
+  await expect(page.getByTestId('plot-band')).toHaveCount(0);
+  await expect(band(page)).not.toContainText('not BASTA parameters');
+  // Shown again: the rows come back, the old pick does not (no histogram by itself).
+  await toggle(page).check();
+  await expect(rowHeads(page)).toHaveCount(annexRows + 3);
+  await expect(bandCell(page, ARE_ROWS[0])).toHaveAttribute('aria-pressed', 'false');
   await expect(page.getByTestId('plot-band')).toHaveCount(0);
 });
 

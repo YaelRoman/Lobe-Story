@@ -455,21 +455,29 @@ before.
 | P2P tracking (sector edges) | single-sided max, Exc | 2 per ± pair | 7.8.5, 12.4.5 |
 | Roll-off (both edges) | double-sided, power mean | 2 per file | 7.8.1.4 |
 | AIR | double-sided, power mean | 1 per file | 7.8.1.6 |
-| Horizon level (only with the horizontal cut at the horizon) | double-sided, power mean | 1 per file (its horizon cut) | none (as roll-off) |
+| Horizon level (only with the horizontal cut at the horizon) | double-sided, mean of the linear power at the horizon | 1 per file (its horizon cut) | none |
 | Sector efficiency est., Spatial efficiency est., Lower region ratio est. (only while the Angular regions group is shown) | double-sided, arithmetic mean | 1 per file with a Type A beam | 7.2.4 (estimate) |
 
 **Rows beyond Annex C.** Two kinds of row are added while the metrics table has their values, and go when
-it no longer has them. The Horizon level (after the azimuth beamwidth) is there while the horizontal cut is
-the one at the horizon; it is a level below the 3D peak in dB like the roll-off, so its mean is taken over
-the linear values as for the roll-off. It has one value per file, of its horizon cut: a cell shows that
-statistic alone (not "original → …"), the band CSV has one line of it (State "horizon cut", or "tilted [H cut
-at the horizon]" under a tilt), and B − A is a difference in dB. The three angular-region rows (last) are
-there while the Angular regions group is shown; they are percentages, so the mean is arithmetic, as
-BASTA 12.4.2 takes it for %, and B − A is a difference in percentage points (written with "%"). Their label
-names the 3D method ("Sector efficiency est. [Summation]"), the lower region ratio keeps three decimals
-(four in the CSV numbers), and a file whose beam is not Type A gives no value. The rows read the values the
-table already holds: the estimate is not worked out again. With one file in a sub-band a cell shows that
-file's table value.
+it no longer has them; the line above the table says they are not BASTA parameters. The Horizon level (after
+the azimuth beamwidth) is there while the horizontal cut is the one at the horizon. It is the level of a power
+below the 3D peak, so its mean is that of the linear power reaching the horizon, written again as dB below the
+peak: −10·log10(mean of 10^(−level/10)) (1, 1, 16 and 16 dB give 3.9 dB). The percentiles and the tolerance are
+of the dB values as for every row. Note the sign: the roll-off's power mean (BASTA 7.8.1.4) is taken over
+10^(+level/10), which suits its small spread; the Horizon level spreads over 15 dB and more within a sub-band
+(it moves with each file's tilt), where that mean would land near the deepest files. With a wide spread the
+symmetric "mean ± tolerance" can reach below 0 dB or leave out the deepest files: it is the BASTA form, read the
+histogram for the spread. The row has one value per file, of its horizon cut: a cell shows that statistic alone
+(not "original → …"), the band CSV has one line of it (State "horizon cut", or "tilted [H cut at the horizon]"
+under a tilt), and B − A is a difference in dB of the two means. The three angular-region rows (last) are there
+while the Angular regions group is shown; they are percentages, so the mean is arithmetic, as BASTA 12.4.2 takes
+it for %, and B − A is a difference in percentage points, written "pp" (in the cell, Copy table and the CSV Unit
+column; a screen reader hears "percentage points"). Their label names the 3D method ("Sector efficiency est.
+[Summation]"). The lower region ratio keeps three decimals (four in the CSV numbers), with more where a value,
+a tolerance or a difference that is not zero would read as zero, and an original → simulated pair that differs
+within four decimals is shown as a pair. A file whose beam is not Type A gives no value. The rows read the
+values the table already holds: the estimate is not worked out again. With one file in a sub-band a cell shows
+that file's table value.
 
 **Special rules.**
 - "Not available" sidelobe windows (no sidelobe in the window, per file "—") count as 22 dB when at most half of the samples are not available (12.5.3); otherwise the cell is "n/a". Other missing values (undefined beamwidth, no gain) are left out and counted as "without a value" in the tooltip.

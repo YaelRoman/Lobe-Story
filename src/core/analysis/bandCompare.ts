@@ -23,7 +23,7 @@ export interface BandDiff {
   /** An input counts "not available" values as 22 dB (the text ends in `†`). */
   substituted: boolean;
   /**
-   * "°"; "%" for a percentage row, whose difference is in percentage points; or "dB" for every dB row and for gain (a
+   * "°"; "pp" (percentage points) for a percentage row; or "dB" for every dB row and for gain (a
    * difference of two dBi or dBd values is in dB).
    */
   unit: string;
@@ -47,6 +47,12 @@ function signedText(v: number, decimals: number, trim: boolean): string {
   const text = trim ? String(rounded) : rounded.toFixed(decimals);
   return rounded > 0 ? `+${text}` : text;
 }
+
+/** The unit of a difference of two percentages: percentage points, not a relative percent. */
+export const PERCENTAGE_POINTS = 'pp';
+
+/** What a screen reader reads for a difference text: "pp" in words. */
+export const spokenDiff = (text: string): string => text.replace(/ pp\b/g, ' percentage points');
 
 const withUnit = (text: string, unit: string): string => text + (unit === '°' ? '' : ' ') + unit;
 
@@ -92,7 +98,7 @@ const whoOf = (side: 'A' | 'B', name?: string): string => (name ? `${side} (${na
 export function bandDiff(a: BandCell, b: BandCell, names: DiffNames = {}): BandDiff {
   const whoA = whoOf('A', names.a);
   const whoB = whoOf('B', names.b);
-  const unit = a.unit === '°' || a.unit === '%' ? a.unit : 'dB';
+  const unit = a.unit === '°' ? '°' : a.unit === '%' ? PERCENTAGE_POINTS : 'dB';
   const reasons = [noStatistic(a, whoA), noStatistic(b, whoB)].filter((r): r is string => r !== null);
   if (reasons.length > 0) {
     return { state: 'none', text: '—', title: `No difference: ${reasons.join('; ')}`, muted: true, adjusted: false, substituted: false, unit, numbers: {} };
@@ -102,7 +108,7 @@ export function bandDiff(a: BandCell, b: BandCell, names: DiffNames = {}): BandD
   const u = (v: number): string => withUnit(signedText(v, a.decimals === undefined ? 2 : fineDecimals(v, a.decimals + 1), false), unit);
   /** A difference in the text: the row's decimals, or (a row with its own) as many more as it takes not to read 0 when it is not. */
   const shown = (v: number): string => signedDiff(v, unit, a.decimals === undefined ? 1 : fineDecimals(v, a.decimals));
-  const points = unit === '%' ? ' (percentage points)' : '';
+  const points = unit === PERCENTAGE_POINTS ? ' (pp: percentage points)' : '';
   const inputs = [`${whoA}: ${a.text} (N = ${a.n})`, `${whoB}: ${b.text} (N = ${b.n})`];
   const sa = a.stat;
   const sb = b.stat;

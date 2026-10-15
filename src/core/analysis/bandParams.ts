@@ -76,8 +76,8 @@ export const BAND_PARAMS: AnnexParam[] = [
 
 /** The Horizon level: one value per file, of its horizon cut only (a file cut has none). After the azimuth beamwidth, as in the metrics table. */
 export const HORIZON_LEVEL_PARAM: BandParam = {
-  key: 'horizonLevel', label: 'Horizon level', unit: 'dB', type: 'double', mean: 'power', basta: '',
-  description: 'How far the strongest point of the horizon cut is below the 3D peak, one value per file (not a BASTA parameter: a level below the peak in dB, so its mean is taken over the linear values as for roll-off, BASTA 7.8.1.4)',
+  key: 'horizonLevel', label: 'Horizon level', unit: 'dB', type: 'double', mean: 'powerLevel', basta: '',
+  description: 'How far the strongest point of the horizon cut is below the 3D peak, one value per file (not a BASTA parameter); the mean is that of the linear power at the horizon, written again as dB below the peak',
 };
 
 /**
@@ -319,9 +319,17 @@ export function cellText(cell: BandCell, decimals: number): string {
   if (cell.state === 'few') return rangeText(Math.min(...cell.values), Math.max(...cell.values), cell.unit, decimals);
   if (cell.state !== 'ok' || !cell.stat || cell.key === 'tiltRange') return cell.text;
   const toleranceUnit = cell.unit === 'dBi' || cell.unit === 'dBd' ? 'dB' : cell.unit;
-  let text = formatStat(cell.stat, cell.unit, toleranceUnit, decimals) + (cell.adjusted ? '*' : '');
+  let text = formatStat(cell.stat, cell.unit, toleranceUnit, decimals, toleranceDecimals(cell.stat, decimals, cell.decimals !== undefined)) + (cell.adjusted ? '*' : '');
   if (cell.stat.kind === 'mean') text += ` @ ${tiltText(cell.tiltDeg!)}°`;
   return text;
+}
+
+/**
+ * Decimals of a tolerance: the cell's, or in a row with its own decimals as many more as a tolerance that is not zero
+ * needs to show a digit (a lower region ratio of 0.0007 % ± 0.0002 % does not read "± 0.000 %").
+ */
+function toleranceDecimals(stat: BandStat, decimals: number, fine: boolean): number {
+  return fine && stat.kind === 'double' ? fineDecimals(stat.tolerance, decimals) : decimals;
 }
 
 /** The numbers a cell's text is made of (mean and tolerance, the limit, or the range). */
@@ -351,7 +359,15 @@ export function pairDecimals(a: BandCell, b: BandCell): number {
   const usual = a.decimals ?? 1;
   const spec = ALL_BAND_PARAMS.find((p) => p.key === a.key);
   if (!spec?.decimals) return usual;
-  return Math.max(usual, ...[...headlineNumbers(a), ...headlineNumbers(b)].map((v) => fineDecimals(v, usual)));
+  const numbersA = headlineNumbers(a);
+  const numbersB = headlineNumbers(b);
+  const d = Math.max(usual, ...[...numbersA, ...numbersB].map((v) => fineDecimals(v, usual)));
+  // Two values that differ are not shown as one: up to the row's CSV decimals, as many as it takes for the texts to differ
+  // (0.0007 % → 0.0012 % does not collapse into "0.001 %"). Values equal at that precision are shown once.
+  const differ = numbersA.length !== numbersB.length || numbersA.some((v, i) => v !== numbersB[i]);
+  if (!differ) return d;
+  for (let finer = d; finer <= spec.decimals.csv; finer++) if (cellText(a, finer) !== cellText(b, finer)) return finer;
+  return d;
 }
 
 export function bandCell(
@@ -427,7 +443,7 @@ export function bandCell(
         ? meanOnly(v, p.mean!)!
         : singleSided(v, p.type as 'max' | 'min', p.excursion ? EXCURSION_DB : undefined)!;
   const adjusted = (stat.kind === 'min' || stat.kind === 'max') && stat.adjusted;
-  let text = formatStat(stat, unit, toleranceUnit, decimals) + (adjusted ? '*' : '');
+  let text = formatStat(stat, unit, toleranceUnit, decimals, toleranceDecimals(stat, decimals, p.decimals !== undefined)) + (adjusted ? '*' : '');
   if (stat.kind === 'mean') text += ` @ ${tiltText(s.tiltDeg!)}°`;
 
   const f2 = (x: number) => fixed(x, p.decimals?.csv ?? 2);
@@ -454,6 +470,7 @@ export function bandCell(
   else if (stat.kind === 'min') counts += ` · P16 ${f2(stat.percentile)}`;
   lines.push(counts);
   if (p.mean === 'power' && stat.kind === 'double') lines.push('The mean is taken over the linear values and converted back to dB');
+  if (p.mean === 'powerLevel' && stat.kind === 'double') lines.push('The mean is that of the linear power at the horizon (10^(−level/10)), written again as dB below the 3D peak; the percentiles are of the dB values');
   if (stat.kind === 'min' && stat.adjusted) lines.push('* Lowered to the lowest value + 3 dB (3 dB excursion rule, BASTA 12.2)');
   if (stat.kind === 'max' && stat.adjusted) lines.push('* Raised to the highest value − 3 dB (3 dB excursion rule, BASTA 12.2)');
   if (sub.substituted > 0) lines.push(substitutedNote(sub.substituted, n));

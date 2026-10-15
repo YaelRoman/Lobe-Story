@@ -1,4 +1,4 @@
-import { BAND_PARAMS, bandParamLabel, cellOf, cellText, pairDecimals, simulatedOnly, tiltText, type BandCell, type BandColumn, type BandParam, type BandParamKey } from '../core/analysis/bandParams';
+import { BAND_PARAMS, bandParamLabel, cellOf, cellText, fineDecimals, pairDecimals, simulatedOnly, tiltText, type BandCell, type BandColumn, type BandParam, type BandParamKey } from '../core/analysis/bandParams';
 import type { Method3d } from '../core/analysis/pattern3d';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { bandDiff, type BandDiff } from '../core/analysis/bandCompare';
@@ -34,9 +34,11 @@ export function cellDisplay(original: BandCell, tilted?: BandCell, words: PairWo
   const shown = tilted ?? original;
   const muted = shown.state !== 'ok';
   if (tilted && simulatedOnly(tilted.key)) return { text: tilted.text, title: tilted.title, muted };
-  if (!tilted || tilted.text === original.text) return { text: original.text, title: original.title, muted };
+  if (!tilted) return { text: original.text, title: original.title, muted };
+  // A row with its own decimals is compared at the pair's precision: two values that differ there are not shown as one.
   const decimals = pairDecimals(original, tilted);
   const [from, to] = decimals === (original.decimals ?? 1) ? [original.text, tilted.text] : [cellText(original, decimals), cellText(tilted, decimals)];
+  if (from === to) return { text: original.text, title: original.title, muted };
   return {
     text: `${from} → ${to}`,
     title: `${words.from}: ${original.title}\n${words.to}: ${tilted.title}`,
@@ -49,6 +51,14 @@ export const bandStateNote = (hCut: HCutMode, tiltActive: boolean): string =>
   hCut === 'horizon' && !tiltActive
     ? 'Horizontal cut at the horizon: cells show file cut → horizon cut where they differ.'
     : `Simulation active: cells show original → tilted where they differ (${hCutLabel(hCut)}).`;
+
+/** The intro's sentence on the rows that are not BASTA Annex C parameters, or null while there are none. */
+export function beyondAnnexNote(horizonLevel: boolean, angularRegions: boolean): string | null {
+  if (horizonLevel && angularRegions) return 'The Horizon level and angular-region estimate rows are not BASTA parameters; they are summarised the same way.';
+  if (horizonLevel) return 'The Horizon level row is not a BASTA parameter; it is summarised the same way.';
+  if (angularRegions) return 'The angular-region estimate rows are not BASTA parameters; they are summarised the same way.';
+  return null;
+}
 
 /** Shown under the table while some visible cell ends in `*`. */
 export const ADJUSTED_LEGEND = '* adjusted by the 3 dB excursion rule (BASTA 12.2)';
@@ -209,7 +219,8 @@ const TILTED_AT_HORIZON = 'tilted [H cut at the horizon]';
 
 /** A difference line of the band CSV: B − A of each numeric column where both antennas have it; N and the 22 dB count stay empty (the two antenna lines have them). */
 function diffCsvLine(label: string, state: string | null, column: BandColumn, p: BandParam, a: BandCell, b: BandCell, d: BandDiff, settings: AnalysisSettings, method?: Method3d): string[] {
-  const f2 = (v: number | undefined): string => (v === undefined ? '' : fixed(v, p.decimals?.csv ?? 2));
+  // A row with its own decimals: a small difference that is not zero gets as many more as it needs not to read 0.0000.
+  const f2 = (v: number | undefined): string => (v === undefined ? '' : fixed(v, p.decimals ? fineDecimals(v, p.decimals.csv) : 2));
   const tilts = GAIN_TILT_KEYS.has(p.key) && a.tiltDeg !== undefined && b.tiltDeg !== undefined
     ? a.tiltDeg === b.tiltDeg ? ` (${tiltText(a.tiltDeg)}°)` : ` (A ${tiltText(a.tiltDeg)}°, B ${tiltText(b.tiltDeg)}°)`
     : '';

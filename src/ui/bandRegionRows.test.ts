@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BAND_PARAMS, bandRows, bandTable, cellOf, type BandColumn } from '../core/analysis/bandParams';
+import { ANGULAR_REGION_PARAMS, BAND_PARAMS, bandRows, bandTable, cellOf, type BandColumn } from '../core/analysis/bandParams';
 import { analyzeAll, DEFAULT_SETTINGS, type PatternMetrics, type TaggedPattern } from '../core/analysis/metrics';
 import { analyzeTilted, tiltEach } from '../core/analysis/tilt';
 import { groupPatterns } from '../state/selectors';
 import { bandItems } from '../test/bandFixture';
-import { bandCsv, bandTsv, cellDisplay } from './bandView';
+import { bandCsv, bandTsv, beyondAnnexNote, cellDisplay } from './bandView';
 import { compareDiffs, compareTsv, diffDisplay, diffOf } from './bandCompareView';
 import { buildRows, HORIZON_WORDS, rowCell, TILT_WORDS } from './table';
 import { HORIZON_LEVEL_KEY } from '../state/metricKeys';
@@ -130,12 +130,12 @@ describe('two antennas: A | B | B − A', () => {
     return st?.kind === 'double' ? st.mean : NaN;
   };
 
-  it('percentage rows: a difference in percentage points of the means', () => {
+  it('percentage rows: a difference in percentage points (pp) of the means', () => {
     const d = diffOf(diffs[0], 'areSector');
     expect(d.tilted!.numbers.mean).toBeCloseTo(stat(b.tilted[0], 'areSector') - stat(a.tilted[0], 'areSector'), 9);
-    expect(d.tilted!.unit).toBe('%');
-    expect(d.original.text).toBe('0.0 % (tol 0.0 %)');
-    expect(diffDisplay(d.original, d.tilted).text).toMatch(/^0\.0 % \(tol 0\.0 %\) → [+-]\d+\.\d % \(tol [+-]?\d+\.\d %\)$/);
+    expect(d.tilted!.unit).toBe('pp');
+    expect(d.original.text).toBe('0.0 pp (tol 0.0 pp)');
+    expect(diffDisplay(d.original, d.tilted).text).toMatch(/^0\.0 pp \(tol 0\.0 pp\) → [+-]\d+\.\d pp \(tol [+-]?\d+\.\d pp\)$/);
   });
 
   it('Horizon level: one dB difference, of the horizon cuts', () => {
@@ -155,6 +155,42 @@ describe('two antennas: A | B | B − A', () => {
     const diffLines = csv.filter((l) => l.startsWith('difference,'));
     expect(diffLines.filter((l) => l.includes(',Horizon level,'))).toHaveLength(1);
     expect(diffLines.filter((l) => l.includes(',Spatial efficiency est. [Summation],'))).toHaveLength(2);
-    expect(diffLines.find((l) => l.includes(',Spatial efficiency est. [Summation],'))!.split(',')[7]).toBe('%');
+    expect(diffLines.find((l) => l.includes(',Spatial efficiency est. [Summation],'))!.split(',')[7]).toBe('pp');
+  });
+});
+
+describe('the lower region ratio of the review (S1, C2)', () => {
+  // Ten files whose lower ratio is about 0.0007 %, and the same moved to about 0.0012 % (as a tilt does on the example).
+  const its: TaggedPattern[] = Array.from({ length: 10 }, (_, k) => ({ pattern: { id: `z${k}`, frequencyMHz: 1800 }, tags: {} }) as unknown as TaggedPattern);
+  const at = (base: number) => new Map(its.map((it, k) => [it.pattern.id, { are: { lower: { value: base + 0.00002 * k } } } as unknown as PatternMetrics]));
+  const lowerRows = ANGULAR_REGION_PARAMS.filter((p) => p.key === 'areLower');
+  const a = bandTable(its, at(0.0007), all, ctx, lowerRows)[0];
+  const b = bandTable(its, at(0.0012), all, ctx, lowerRows)[0];
+
+  it('a pair that differs within the CSV decimals is shown as a pair, and the tolerance is not 0.000', () => {
+    expect(cellOf(a, 'areLower').text).toMatch(/^0\.001 % ± 0\.0000?[1-9]\d* %$/);
+    const shown = cellDisplay(cellOf(a, 'areLower'), cellOf(b, 'areLower')).text;
+    expect(shown).toContain('→');
+    expect(shown).toMatch(/^0\.0008 % ± .* → 0\.0013 % ± .*$/);
+    // The same values stay one.
+    expect(cellDisplay(cellOf(a, 'areLower'), cellOf(a, 'areLower')).text).not.toContain('→');
+  });
+
+  it('the difference CSV line writes a small B − A with a digit, not 0.0000', () => {
+    const near = bandTable(its, at(0.000701), all, ctx, lowerRows)[0];
+    const csv = bandCsv([{ label: 'A', columns: [a] }, { label: 'B', columns: [near] }], DEFAULT_SETTINGS, false, true, { a: { label: 'A', columns: [a] }, b: { label: 'B', columns: [near] } }, { rows: lowerRows, method: 'summation' }).split('\r\n');
+    const line = csv.find((l) => l.startsWith('difference,') && l.includes(',Lower region ratio est. [Summation],'))!.split(',');
+    // Row, Antenna, Sub-band, Min, Max, Parameter, Unit, Type, N, Statistic, Value …
+    expect(line[6]).toBe('pp');
+    expect(line[10]).toBe('0.000001');
+  });
+});
+
+describe('the intro says which rows are not BASTA parameters', () => {
+  it('names the rows shown', () => {
+    expect(beyondAnnexNote(false, false)).toBeNull();
+    expect(beyondAnnexNote(true, false)).toBe('The Horizon level row is not a BASTA parameter; it is summarised the same way.');
+    expect(beyondAnnexNote(false, true)).toBe('The angular-region estimate rows are not BASTA parameters; they are summarised the same way.');
+    expect(beyondAnnexNote(true, true)).toMatch(/^The Horizon level and angular-region estimate rows are not BASTA parameters/);
   });
 });

@@ -5,7 +5,8 @@ import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { bandParamLabel, bandParamTitle, bandRows, bandTable, cellOf, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor, type BandDataset } from '../core/analysis/subBands';
 import { compareSubBands } from '../core/analysis/bandCompare';
-import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandHistogramMarks, bandStateNote, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, levelNote, lobeLimitWarning, subBandsNote, type BandSheet } from './bandView';
+import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, beyondAnnexNote, bandHistogramMarks, bandStateNote, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, levelNote, lobeLimitWarning, subBandsNote, type BandSheet } from './bandView';
+import { spokenDiff } from '../core/analysis/bandCompare';
 import { anySubstituted, compareDiffs, compareNote, compareTsv, diffDisplay, diffOf, SUBSTITUTED_LEGEND } from './bandCompareView';
 import { bandCompareHistCaption, bandHistCaption, buildBandCompareHistFigure, buildBandHistFigure } from './bandHistFigure';
 import { hasUsableFrequency } from '../core/gain';
@@ -66,7 +67,8 @@ export const BandStats = memo(function BandStats({
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);
   // The one cell of the band table that is a tab stop; the arrow keys move it (roving tabindex), as in the metrics table.
-  const [stop, setStop] = useState({ row: 0, col: 0 });
+  // It is kept on its parameter (by key) when rows come or go above it.
+  const [stop, setStop] = useState<{ row: number; col: number; key?: BandParamKey }>({ row: 0, col: 0 });
   const theme = useStore((s) => s.view.theme);
   const method3d = useStore((s) => s.view.method3d);
 
@@ -95,6 +97,7 @@ export const BandStats = memo(function BandStats({
   const angularRegions = useStore((s) => s.view.tableGroups.are);
   const horizonLevel = sim.hCut === 'horizon';
   const rows = useMemo(() => bandRows({ angularRegions, horizonLevel }), [angularRegions, horizonLevel]);
+  const beyondAnnex = beyondAnnexNote(horizonLevel, angularRegions);
   const rowsOf = useMemo(() => ({ rows, method: method3d }), [rows, method3d]);
   const columns = useMemo(
     () => (dataset ? bandTable(dataset.items, metrics, subBands, ctx, rows) : []),
@@ -123,6 +126,8 @@ export const BandStats = memo(function BandStats({
 
   // A clicked row that has gone (its columns hidden, the cut back through the beam peak) is no longer picked.
   const pickedSpec = picked ? rows.find((p) => p.key === picked.key) : undefined;
+  // ... and the pick is dropped, so the histogram does not come back by itself when the row does.
+  if (picked && !pickedSpec) setPicked(null);
   const pickedColumn =
     picked && pickedSpec && dataset && columns[picked.column] && scopeOf(scopeKey, columns[picked.column].subBand) === picked.scope && (picked.side === 'a' || sheetB)
       ? columns[picked.column]
@@ -258,7 +263,8 @@ export const BandStats = memo(function BandStats({
   const perBand = sheetB ? SIDES.length : 1;
   const gridCols = columns.length * perBand;
   // The tab stop, kept inside the table as its columns change.
-  const stopAt = { row: Math.min(stop.row, rows.length - 1), col: Math.min(stop.col, Math.max(gridCols - 1, 0)) };
+  const stopRow = stop.key === undefined ? -1 : rows.findIndex((p) => p.key === stop.key);
+  const stopAt = { row: stopRow >= 0 ? stopRow : Math.min(stop.row, rows.length - 1), col: Math.min(stop.col, Math.max(gridCols - 1, 0)) };
   const cellAt = (el: HTMLElement): { row: number; col: number } | null => {
     const button = el.closest<HTMLElement>('button[data-row][data-col]');
     return button ? { row: Number(button.dataset.row), col: Number(button.dataset.col) } : null;
@@ -318,7 +324,7 @@ export const BandStats = memo(function BandStats({
           data-col={col}
           tabIndex={stopAt.row === row && stopAt.col === col ? 0 : -1}
           aria-pressed={isPicked}
-          aria-label={d.text === '—' ? (side === 'd' ? 'No difference' : 'No value') : undefined}
+          aria-label={d.text === '—' ? (side === 'd' ? 'No difference' : 'No value') : side === 'd' && spokenDiff(d.text) !== d.text ? spokenDiff(d.text) : undefined}
           onClick={toggle}
         >
           {d.text}
@@ -384,6 +390,7 @@ export const BandStats = memo(function BandStats({
       <p className="count">
         BASTA V13 Annex C statistics over every loaded file of the antenna in each sub-band (all tilts and ports; copies
         excluded; co-polar cuts).
+        {beyondAnnex && ` ${beyondAnnex}`}
         {noFrequency > 0 && ` ${noFrequency} loaded file${noFrequency === 1 ? ' has' : 's have'} no frequency above 0 MHz and ${noFrequency === 1 ? 'is' : 'are'} left out.`}
         {sheetB && other && ` ${compareNote(dataset.label, other.label, !bandsNote.userDefined, autoSubBands(dataset.items.map((i) => i.pattern.frequencyMHz)), subBands)}`}
         {!bandsNote.userDefined && ` ${bandsNote.text}`}
@@ -450,7 +457,7 @@ export const BandStats = memo(function BandStats({
               onKeyDown={onCellKeys}
               onFocus={(e) => {
                 const at = cellAt(e.target as HTMLElement);
-                if (at && (at.row !== stopAt.row || at.col !== stopAt.col)) setStop(at);
+                if (at && (at.row !== stopAt.row || at.col !== stopAt.col)) setStop({ ...at, key: rows[at.row]?.key });
               }}
             >
               {rows.map((p, row) => (
@@ -480,7 +487,7 @@ export const BandStats = memo(function BandStats({
               onKeyDown={onCellKeys}
               onFocus={(e) => {
                 const at = cellAt(e.target as HTMLElement);
-                if (at && (at.row !== stopAt.row || at.col !== stopAt.col)) setStop(at);
+                if (at && (at.row !== stopAt.row || at.col !== stopAt.col)) setStop({ ...at, key: rows[at.row]?.key });
               }}
             >
               {rows.map((p, row) => (
