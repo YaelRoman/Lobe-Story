@@ -497,6 +497,7 @@ describe('pattern management', () => {
 
   it('creates a site of N sectors', () => {
     load2();
+    st().updateView({ compare3d: true });
     const g = st().createSite('a.MSI', 3)!;
     const s = st();
     expect(s.customGroups.find((x) => x.id === g)!.name).toBe('Site 1');
@@ -508,6 +509,8 @@ describe('pattern management', () => {
     expect(s.selected).toEqual({ kind: 'group', id: g });
     expect(s.view.dimension).toBe('3d');
     expect(s.view.layout3d).toBe('overlay');
+    // A site is shown as an overlay of its sectors, not as one file's methods compared.
+    expect(s.view.compare3d).toBe(false);
     expect(st().createSite('a.MSI', 99)).not.toBeNull();
     expect(Object.keys(st().copies)).toHaveLength(3 + 12);
     expect(st().customGroups.map((x) => x.name)).toEqual(['Site 1', 'Site 2']);

@@ -140,7 +140,9 @@ the elevation cut is not used; the azimuth cut supplies the back). With "Summati
 product of the two cuts in linear power; with "Weighted" it is the cross-weighted combination, which
 puts more power away from the two cut planes and gives a lower sector efficiency (about 7 points
 lower on the built-in example). The 3D method therefore changes these columns; it is chosen in the
-Simulation bar, where the control is enabled while these columns are shown or plotted. The power is integrated in linear terms on the 1° grid,
+Simulation bar, where the control is enabled while these columns are shown or plotted. To see what
+the choice changes, "Compare methods" in the 3D view draws the highlighted file with both methods
+side by side; it does not change the method these columns use. The power is integrated in linear terms on the 1° grid,
 taken as linear between samples, with the solid-angle weight cos(elevation). A region boundary at a
 non-integer angle cuts the 1° cell where it falls; nothing is rounded to a whole degree.
 

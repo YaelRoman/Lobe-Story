@@ -87,6 +87,8 @@ export interface ViewState {
   dimension: Dimension;
   method3d: Method3d;
   layout3d: Layout3d;
+  /** The 3D view shows one file reconstructed with both 3D methods next to each other ("Compare methods"); the numbers keep `method3d`. */
+  compare3d: boolean;
   /** Secondary controls folded to one line. */
   collapsed: CollapsedBars;
   /** The 2D difference view: the metrics table shows each value as the difference from the reference file (saved with the project; inactive while no reference is set). */
@@ -277,6 +279,7 @@ export function initialState(): StoreData {
       dimension: '2d',
       method3d: 'summation',
       layout3d: 'grid',
+      compare3d: false,
       // The simulation bar starts folded everywhere (its one-line summary says what is set); it opens by itself with a project whose simulation is active.
       collapsed: { simBar: true, markers: narrowScreen() },
       freqMetric: 'hHpbw',
@@ -971,7 +974,7 @@ export const useStore = create<State>()((rawSet, get) => {
     }
     for (const k of Object.keys(d.visible)) d.visible[k] = siteIds.includes(k);
     const patch = commit(s, d);
-    set({ ...patch, selected: { kind: 'group', id: gid }, view: { ...patch.view!, dimension: '3d', layout3d: 'overlay' } });
+    set({ ...patch, selected: { kind: 'group', id: gid }, view: { ...patch.view!, dimension: '3d', layout3d: 'overlay', compare3d: false } });
     return gid;
   },
   };

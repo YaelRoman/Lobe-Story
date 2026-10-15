@@ -62,10 +62,11 @@ export function toCartesian(s: Surface3d, floorDb: number) {
 
 export const gridColumns = (n: number): number => (n <= 1 ? 1 : n <= 4 ? 2 : 3);
 
-const PHONE_MAX_WIDTH = 760;
+/** Widest window (px) laid out as a phone. */
+export const PHONE_MAX_WIDTH = 760;
 const NARROW_PHONE_WIDTH = 420;
 /** Height of one row of scenes on a phone, in px. */
-const PHONE_ROW_PX = 300;
+export const PHONE_ROW_PX = 300;
 /** Average width of a character of a scene title (12 px text), in px. */
 const TITLE_CHAR_PX = 6.8;
 /** Width of the file panel next to the plot on a desktop, in px. */
@@ -98,7 +99,8 @@ export function gridHeightPx(n: number, viewportWidth?: number): number | undefi
 
 export const sceneId = (k: number): string => (k === 0 ? 'scene' : `scene${k + 1}`);
 
-function sceneLayout(floorDb: number, theme: FigureTheme, domain?: { x: number[]; y: number[] }) {
+/** A 3D scene's axes and camera: every scene of the 3D view starts with the same ones. */
+export function sceneLayout(floorDb: number, theme: FigureTheme, domain?: { x: number[]; y: number[] }) {
   const axis = {
     range: [-floorDb, floorDb],
     showticklabels: false,
@@ -208,10 +210,16 @@ export function buildSurfaceFigure(o: SurfaceFigureOptions): Figure {
   return { data: data as Data[], layout: layout as Partial<Layout> };
 }
 
-/** Given a plotly_relayout payload, the update that gives every other scene the same camera. */
+/**
+ * Given a plotly_relayout payload, the update that gives every other scene the same camera (null: no other scene).
+ * `withSource`: the turned scene's own camera too. The library writes a turned scene's camera into the layout object
+ * the scene was first drawn with; after a redraw has handed the chart another one, that write is lost, and the
+ * relayout that turns the other scenes puts the turned one back where it was. Written again with them, it stays.
+ */
 export function linkedCameraUpdate(
   update: Record<string, unknown>,
   sceneCount: number,
+  withSource = false,
 ): Record<string, unknown> | null {
   for (const [key, camera] of Object.entries(update)) {
     const m = /^(scene\d*)\.camera$/.exec(key);
@@ -221,9 +229,27 @@ export function linkedCameraUpdate(
       const id = sceneId(k);
       if (id !== m[1]) out[`${id}.camera`] = camera;
     }
-    return Object.keys(out).length ? out : null;
+    if (Object.keys(out).length === 0) return null;
+    return withSource ? { [key]: camera, ...out } : out;
   }
   return null;
+}
+
+/** The camera of a plotly_relayout payload that turned or zoomed a scene (the first one named); undefined: none. */
+export const cameraOf = (update: Record<string, unknown>): unknown => Object.entries(update).find(([key]) => /^scene\d*\.camera$/.test(key))?.[1];
+
+/**
+ * `figure` with every scene seen from `camera` (null: as built). A figure built anew starts from the view the user
+ * turned to: the library keeps a turned view across a redraw only for the scene turned last by hand, and would put a
+ * scene that was turned by the link (see `linkedCameraUpdate`) back to the built view.
+ */
+export function withCamera(figure: Figure, camera: unknown): Figure {
+  if (camera === null || camera === undefined) return figure;
+  const layout: Record<string, unknown> = { ...figure.layout };
+  for (const key of Object.keys(layout)) {
+    if (/^scene\d*$/.test(key)) layout[key] = { ...(layout[key] as object), camera: structuredClone(camera) };
+  }
+  return { data: figure.data, layout: layout as Partial<Layout> };
 }
 
 /**

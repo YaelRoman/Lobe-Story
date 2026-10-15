@@ -53,6 +53,7 @@ const changed = () => {
       tableGroups: { ...d.view.tableGroups, declared: true },
       method3d: 'weighted' as const,
       layout3d: 'overlay' as const,
+      compare3d: true,
       freqMetric: 'fb180' as const,
       tableTickedOnly: true,
     },
@@ -65,7 +66,7 @@ describe('applyPrefs', () => {
     const out = applyPrefs(serializePrefs(c), defaults())!;
     expect(out.settings).toEqual(c.settings);
     expect(out.view).toMatchObject({
-      theme: c.view.theme, gainUnit: 'dBi', mode: 'rect', cut: 'H', floorDb: 55, freqMetric: 'fb180', tableTickedOnly: true, method3d: 'weighted', layout3d: 'overlay',
+      theme: c.view.theme, gainUnit: 'dBi', mode: 'rect', cut: 'H', floorDb: 55, freqMetric: 'fb180', tableTickedOnly: true, method3d: 'weighted', layout3d: 'overlay', compare3d: true,
       markers: c.view.markers, tableGroups: c.view.tableGroups,
     });
   });
@@ -83,7 +84,7 @@ describe('applyPrefs', () => {
     expect(JSON.parse(text).view).not.toHaveProperty('simulation');
     expect(Object.keys(JSON.parse(text)).sort()).toEqual(['settings', 'version', 'view']);
     expect(Object.keys(prefsOf(s).view).sort()).toEqual(
-      ['collapsed', 'cut', 'floorDb', 'freqMetric', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'tableGroups', 'tableTickedOnly', 'theme'],
+      ['collapsed', 'compare3d', 'cut', 'floorDb', 'freqMetric', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'tableGroups', 'tableTickedOnly', 'theme'],
     );
   });
 
@@ -106,7 +107,7 @@ describe('applyPrefs', () => {
         settings: { levelDb: 'ten', fbWindowDeg: 9999, uslsRangeDeg: 30, siteSectors: 2.5, lobeLimitFactor: null },
         view: {
           theme: 'purple', gainUnit: 7, mode: 'rect', cut: 'X', floorDb: 1e9, markers: { hpbw: 'yes', fb: true }, tableGroups: 5,
-          method3d: 'magic', layout3d: 'overlay', subBands: 'nope', freqMetric: 'nonsense', tableTickedOnly: 'yes',
+          method3d: 'magic', layout3d: 'overlay', compare3d: 'yes', subBands: 'nope', freqMetric: 'nonsense', tableTickedOnly: 'yes',
         },
       }),
       d,
@@ -121,6 +122,7 @@ describe('applyPrefs', () => {
     expect(out.view.tableGroups).toEqual(d.view.tableGroups);
     expect(out.view.method3d).toBe(d.view.method3d);
     expect(out.view.layout3d).toBe('overlay');
+    expect(out.view.compare3d).toBe(false);
     expect(out.view.subBands).toEqual([]);
     expect(out.view.freqMetric).toBe('hHpbw');
     expect(out.view.tableTickedOnly).toBe(false);

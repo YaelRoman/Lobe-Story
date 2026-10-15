@@ -33,7 +33,10 @@ no cause.
 - 3D patterns reconstructed from the two cuts (summation or Gil et al. weighted): the side-by-side
   grid with linked cameras draws at most 6 files and the overlay in one scene at most 12. When more
   are ticked, a note under the plot says which are drawn (the highlighted file first, then the
-  others in panel order); untick files or use "Only matches" to choose.
+  others in panel order); untick files or use "Only matches" to choose. **Compare methods** shows
+  the highlighted file with both methods next to each other (stacked on a phone), one colour scale
+  and one camera, with the largest and mean difference in dB; the numbers keep the method chosen
+  in the Simulation bar.
 - Tilt simulation: electrical tilt, mechanical tilt and azimuth for all files, with offsets per file
   or group; the table shows original → tilted. The Simulation bar offers **Horizontal
   cut: Through the beam peak | At the horizon**: the cut through the beam peak (the default: the

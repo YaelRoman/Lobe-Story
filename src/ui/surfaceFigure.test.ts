@@ -7,6 +7,8 @@ import {
   viewportClass,
   widthClass,
   linkedCameraUpdate,
+  cameraOf,
+  withCamera,
   MAX_3D,
   MAX_3D_OVERLAY,
   sceneId,
@@ -117,6 +119,14 @@ describe('grid helpers and camera linking', () => {
     expect(linkedCameraUpdate({ 'xaxis.range': [0, 1] }, 3)).toBeNull();
     expect(linkedCameraUpdate({ 'scene.camera': cam }, 1)).toBeNull();
   });
+
+  it('writes the turned scene’s own camera too when asked, so a relayout of the others cannot put it back', () => {
+    const cam = { eye: { x: 1, y: 2, z: 3 } };
+    expect(linkedCameraUpdate({ 'scene2.camera': cam }, 2, true)).toEqual({ 'scene2.camera': cam, 'scene.camera': cam });
+    // The turned scene first: its camera is the one a repeated event is recognised by.
+    expect(Object.keys(linkedCameraUpdate({ 'scene2.camera': cam }, 3, true)!)[0]).toBe('scene2.camera');
+    expect(linkedCameraUpdate({ 'scene.camera': cam }, 1, true)).toBeNull();
+  });
 });
 
 describe('side-by-side layout on a phone and on a desktop', () => {
@@ -212,5 +222,27 @@ describe('side-by-side layout on a phone and on a desktop', () => {
     expect(gridHeightPx(1, 390)).toBe(480);
     expect(gridHeightPx(6, 1440)).toBeUndefined();
     expect(gridHeightPx(6, undefined)).toBeUndefined();
+  });
+});
+
+describe('withCamera', () => {
+  const cam = { eye: { x: 0.3, y: 2, z: 0.1 }, up: { x: 0, y: 0, z: 1 }, center: { x: 0, y: 0, z: 0 } };
+  it('sees every scene from the camera given, and leaves the rest of the figure alone', () => {
+    const f = buildSurfaceFigure({ series: series(3), layout: 'grid', floorDb: 40, theme: FIGURE_THEMES.light });
+    const out = withCamera(f, cam);
+    for (const k of [0, 1, 2]) expect((out.layout as Record<string, { camera: unknown }>)[sceneId(k)].camera).toEqual(cam);
+    expect(out.data).toBe(f.data);
+    expect(out.layout.annotations).toBe(f.layout.annotations);
+    // The figure built is not changed (the library writes into the camera it is given).
+    expect((f.layout as Record<string, { camera: unknown }>).scene.camera).toEqual({ eye: { x: 1.5, y: -1.5, z: 0.9 } });
+    expect((out.layout as Record<string, { camera: unknown }>).scene.camera).not.toBe((out.layout as Record<string, { camera: unknown }>).scene2.camera);
+  });
+  it('is the figure itself without a camera', () => {
+    const f = buildSurfaceFigure({ series: series(1), layout: 'overlay', floorDb: 40, theme: FIGURE_THEMES.light });
+    expect(withCamera(f, null)).toBe(f);
+  });
+  it('reads the camera of a relayout payload', () => {
+    expect(cameraOf({ 'scene2.camera': cam })).toBe(cam);
+    expect(cameraOf({ 'xaxis.range': [0, 1] })).toBeUndefined();
   });
 });

@@ -288,6 +288,14 @@ describe('damaged values', () => {
     expect(restore(JSON.stringify(raw), 'light', folded).view.collapsed).toEqual({ ...folded, simBar: false });
   });
 
+  it('round-trips the 3D method comparison, and falls back to off for a damaged value', () => {
+    expect(restore(withState({})).view.compare3d).toBe(false);
+    const before = { ...initialState() };
+    before.view = { ...before.view, compare3d: true };
+    expect(restore(serializeProject(before, true)).view.compare3d).toBe(true);
+    expect(restore(withState({ view: { compare3d: 'yes' } })).view.compare3d).toBe(false);
+  });
+
   it('round-trips the table column groups', () => {
     const before = { ...initialState() };
     before.view = { ...before.view, tableGroups: { ...DEFAULT_TABLE_GROUPS, sector: false, declared: true } };

@@ -345,6 +345,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
     useShallow((s) => ({
       dimension: s.view.dimension,
       layout3d: s.view.layout3d,
+      compare3d: s.view.compare3d,
       cut: s.view.cut,
       mode: s.view.mode,
       floorDb: s.view.floorDb,
@@ -383,15 +384,23 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
           onChange={(dimension) => updateView({ dimension })}
         />
         {is3d ? (
-          <Seg<Layout3d>
-            label="3D layout"
-            value={view.layout3d}
-            options={[
-              ['grid', 'Side by side'],
-              ['overlay', 'Overlay'],
-            ]}
-            onChange={(layout3d) => updateView({ layout3d })}
-          />
+          <>
+            {/* Comparing the methods shows one file in its own two panels: the layout of several files has nothing to lay out then. */}
+            <Seg<Layout3d>
+              label="3D layout"
+              value={view.layout3d}
+              options={[
+                ['grid', 'Side by side'],
+                ['overlay', 'Overlay'],
+              ]}
+              disabled={view.compare3d}
+              onChange={(layout3d) => updateView({ layout3d })}
+            />
+            <label title="Show the highlighted file reconstructed with both 3D methods, next to each other. The numbers keep the method of the Simulation bar.">
+              <input type="checkbox" checked={view.compare3d} onChange={(e) => updateView({ compare3d: e.target.checked })} />
+              Compare methods
+            </label>
+          </>
         ) : (
           <>
             <Seg<CutView>
@@ -444,7 +453,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
         // when anything the figure is made from changes.
         <PlotBoundary
           className="plot"
-          resetKeys={[is3d, items, drawnItems, metrics, colors, styles, sim, reference, markerTarget, settings, view.layout3d, view.cut, view.mode, view.floorDb, view.markers, view.theme]}
+          resetKeys={[is3d, items, drawnItems, metrics, colors, styles, sim, reference, markerTarget, settings, view.layout3d, view.compare3d, view.cut, view.mode, view.floorDb, view.markers, view.theme]}
         >
           {is3d ? (
             <Pattern3D items={items} colors={colors} sim={sim} waiting={simLag === 'waiting'} />
