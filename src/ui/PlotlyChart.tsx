@@ -29,10 +29,15 @@ type PlotlyElement = HTMLDivElement & {
 /** The marker layer has no toolbar and takes no pointer: the chart under it hands it the hover it has none for. */
 const LAYER_CONFIG: Partial<PlotlyConfig> = { displayModeBar: false, responsive: true, doubleClick: false, scrollZoom: false, showTips: false };
 
-const layerFailed = (error: unknown) => console.error('The markers could not be drawn', error);
+/** The library's hover calls, which its types leave out (without them the layer names nothing on hover). */
+const Fx = (Plotly as unknown as { Fx?: { hover?: (gd: HTMLElement, evt: MouseEvent, subplot?: string) => void; unhover?: (gd: HTMLElement) => void } }).Fx;
+const hoverAt = (gd: HTMLElement, pointer: MouseEvent) => Fx?.hover?.(gd, pointer, 'polar');
+const unhover = (gd: HTMLElement) => Fx?.unhover?.(gd);
 
-/** The library's hover calls, which its types leave out. */
-const Fx = (Plotly as unknown as { Fx: { hover: (gd: HTMLElement, evt: MouseEvent, subplot?: string) => void; unhover: (gd: HTMLElement) => void } }).Fx;
+/** What a hover of the marker layer names: a marker's point (a ring, a ray, a cross), or only a filled area (a wedge). */
+type LayerHover = 'none' | 'point' | 'fill';
+const layerHoverKind = (event: { points?: { data?: { fill?: string } }[] }): LayerHover =>
+  (event.points ?? []).some((p) => p.data?.fill !== 'toself') ? 'point' : (event.points ?? []).length > 0 ? 'fill' : 'none';
 
 /** The uid of the file trace a drawn trace group (`g.trace`) is: the library names it `trace<uid>`. */
 const drawnUid = (node: Element): string | null => {
@@ -184,7 +189,13 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
   const redrawGate = useRef(createRedrawGate());
   // The marker layer (see `overlayLayer`): its element while it is on the page, what it was last given, the view it
   // was last given (the chart's, as JSON), and what the handlers that keep it in step read.
-  const layered = overlay !== undefined && overlayLayer === true;
+  // A layer the library failed to draw is given up for this chart: the markers are drawn among its traces again.
+  const [layerBroken, setLayerBroken] = useState(false);
+  const layered = overlay !== undefined && overlayLayer === true && !layerBroken;
+  const layerFailed = (error: unknown) => {
+    console.error('The markers could not be drawn over the plot; they are drawn in it from now on', error);
+    setLayerBroken(true);
+  };
   const layerEl = useRef<PlotlyElement | null>(null);
   const layerDrawn = useRef<{ figure: Figure; overlay: FigureOverlay } | null>(null);
   const layerView = useRef<string | null>(null);
@@ -270,7 +281,18 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
     const view = viewReset(kind, el._fullLayout ?? fig.layout);
     layerView.current = JSON.stringify(view);
     layerDrawn.current = { figure: fig, overlay: ov };
-    return Plotly.react(node, markerLayerData(ov.data, fig.layout) as unknown as PlotlyNativeData[], { ...markerLayerLayout(fig.layout, ov.layout, view), autosize: true } as Partial<PlotlyNativeLayout>, LAYER_CONFIG);
+    try {
+      const drawn = Plotly.react(node, markerLayerData(ov.data, fig.layout) as unknown as PlotlyNativeData[], { ...markerLayerLayout(fig.layout, ov.layout, view), autosize: true } as Partial<PlotlyNativeLayout>, LAYER_CONFIG);
+      const layer = node as PlotlyElement;
+      layer.removeListener?.('plotly_hover', onLayerHover.current);
+      layer.on?.('plotly_hover', onLayerHover.current);
+      layer.removeListener?.('plotly_unhover', onLayerUnhover.current);
+      layer.on?.('plotly_unhover', onLayerUnhover.current);
+      return drawn;
+    } catch (error) {
+      // A throw as a failed draw: either way the layer is given up (see `layerFailed`).
+      return Promise.reject(error);
+    }
   };
 
   /** The highlighted file's traces on top of the others in the page (see `drawingOrder`), with the chart drawn as it is. */
@@ -308,26 +330,60 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
   const followDrag = useRef((update: Record<string, unknown>) => {
     if (ref.current) following.current(ref.current, update);
   });
-  // Whether the chart under the layer shows a hover label now (its `plotly_hover` and `plotly_unhover`).
-  const chartHovers = useRef(false);
-  const lastPointer = useRef<MouseEvent | null>(null);
-  /**
-   * The layer's hover, where the chart has none: the pointer over the plot area of a polar chart (the layer's markers
-   * have hover names there; the rectangular plot's have none) and no trace of the chart close enough to name.
+  /*
+   * Hover over a polar chart under a marker layer, as in one chart: both are asked at every move of the pointer. A
+   * marker's point within reach (a −3 dB point, the squint, a sidelobe cross: most lie on the highlighted trace) is
+   * named rather than the trace; a filled area (the beamwidth wedge) only where the chart names no trace.
    */
+  const chartHovers = useRef(false);
+  const layerHovers = useRef<LayerHover>('none');
+  // The chart's label was taken off for a marker's: it is asked again when the marker is no longer under the pointer.
+  const chartSilenced = useRef(false);
+  const lastPointer = useRef<MouseEvent | null>(null);
+  const settleHover = useRef(() => {
+    const el = ref.current;
+    const node = layerEl.current;
+    if (!el || !node) return;
+    // (What is taken off is noted here: the library does not always say so with an unhover event.)
+    if (layerHovers.current === 'point' && chartHovers.current) {
+      chartSilenced.current = true;
+      chartHovers.current = false;
+      unhover(el);
+    } else if (layerHovers.current === 'fill' && chartHovers.current) {
+      layerHovers.current = 'none';
+      unhover(node);
+    } else if (layerHovers.current !== 'point' && chartSilenced.current) {
+      chartSilenced.current = false;
+      if (lastPointer.current) hoverAt(el, lastPointer.current);
+    }
+  });
+  const onChartHover = useRef(() => {
+    chartHovers.current = true;
+    settleHover.current();
+  });
+  const onChartUnhover = useRef(() => {
+    chartHovers.current = false;
+    settleHover.current();
+  });
+  const onLayerHover = useRef((event: Record<string, unknown>) => {
+    layerHovers.current = layerHoverKind(event as Parameters<typeof layerHoverKind>[0]);
+    settleHover.current();
+  });
+  const onLayerUnhover = useRef(() => {
+    layerHovers.current = 'none';
+    settleHover.current();
+  });
+  /** Asks the layer for its hover at the pointer (none: the pointer left the plot area). */
   const layerHover = useRef(() => {
     const node = layerEl.current;
     const pointer = lastPointer.current;
     if (!node || !layerDrawn.current) return;
-    if (chartHovers.current || !pointer) Fx.unhover(node);
-    else Fx.hover(node, pointer, 'polar');
+    if (pointer) hoverAt(node, pointer);
+    else {
+      unhover(node);
+      chartSilenced.current = false;
+    }
   });
-  const chartHover = useRef((hovers: boolean) => {
-    chartHovers.current = hovers;
-    layerHover.current();
-  });
-  const onChartHover = useRef(() => chartHover.current(true));
-  const onChartUnhover = useRef(() => chartHover.current(false));
 
   /** Brings the drawn traces to the current preview, restyling only those whose look changes. */
   const restylePreview = (el: HTMLElement) => {
@@ -383,6 +439,8 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
         applied.current = look;
       }
       const { traces } = owned.current;
+      // The same figure drawn again (another toolbar): the chart under a layer keeps its view in its own copy of the layout.
+      const keptView = layered && lastDraw.current?.figure === figure ? viewReset(layerState.current.toolbar, el._fullLayout ?? figure.layout) : null;
       lastDraw.current = { figure, config };
       // The 3D scenes this redraw drops (another 3D layout, fewer files) leave their WebGL contexts behind: release them.
       const scenes = canvasesOf(el);
@@ -391,7 +449,7 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
       void Plotly.react(
         el,
         [...order.map((index) => traces[index]), ...(layered ? [] : (overlay?.data ?? []))] as unknown as PlotlyNativeData[],
-        { ...(layered ? underLayerLayout(figure.layout) : { ...figure.layout, ...overlay?.layout }), autosize: true } as Partial<PlotlyNativeLayout>,
+        { ...(layered ? withView(underLayerLayout(figure.layout), keptView) : { ...figure.layout, ...overlay?.layout }), autosize: true } as Partial<PlotlyNativeLayout>,
         config,
       )
         // The layer after the chart, in its view (a failed layer leaves the chart as it is: its own message is logged).
@@ -446,7 +504,8 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
             return;
           }
           setError('This plot could not be drawn (WebGL unavailable?)');
-          drawnHandler.current?.(figure, overlay);
+          // Over a layer, an overlay that came while the chart was drawn waited for it: that one is the latest.
+          drawnHandler.current?.(figure, layered ? layerState.current.overlay : overlay);
         });
     };
     if (lastDraw.current?.figure !== figure || lastDraw.current.config !== config) {
@@ -499,7 +558,7 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
     if (el && touchScrolls(toolbar, coarse)) return leaveTouchesToThePage(el);
   }, [toolbar, coarse]);
 
-  // The pointer over a polar chart under a marker layer: the layer names its markers where the chart names no trace.
+  // The pointer over a polar chart under a marker layer: the layer is asked for its markers' hover (see `settleHover`).
   useEffect(() => {
     const el = ref.current;
     if (!el || !layered || toolbar !== 'polar') return;

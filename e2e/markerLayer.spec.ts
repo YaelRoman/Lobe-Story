@@ -166,3 +166,161 @@ test('48 files, polar: the marker layer follows a turn, a zoom and a reset of th
   await expect.poll(chartView).toEqual([90, [-40, 0]]);
   await expect.poll(async () => (await drawn(page)).view).toEqual([90, [-40, 0]]);
 });
+
+/** The hover text shown over the horizontal plot now (the chart's or the layer's), or '' for none. */
+const hoverText = (page: Page) =>
+  page.evaluate(() => Array.from(document.querySelectorAll('[data-testid="plot-h"] .hovertext')).map((el) => el.textContent ?? '').join(' | '));
+
+/** Hover texts along the beam (the 0° ray of the horizontal polar plot), from the centre out to beyond the peak. */
+async function beamSweep(page: Page): Promise<string[]> {
+  const plot = page.getByTestId('plot-h');
+  await plot.scrollIntoViewIfNeeded();
+  const box = (await plot.locator('.js-plotly-plot .maindrag').first().boundingBox())!;
+  const x = box.x + box.width / 2;
+  const centre = box.y + box.height / 2;
+  const out: string[] = [];
+  await page.mouse.move(x, centre + 30);
+  for (const f of [0.01, 0.03, 0.1, 0.2, 0.3, 0.4, 0.43, 0.46, 0.48, 0.5]) {
+    await page.mouse.move(x, centre - box.height * f, { steps: 3 });
+    await page.waitForTimeout(250);
+    out.push(await hoverText(page));
+  }
+  await page.mouse.move(2, 2);
+  return out;
+}
+
+test('polar hover over the marker layer names the markers that lie on the highlighted trace, as one chart does', async ({ page }) => {
+  await loadMany(page, 25);
+  await clickRow(page, 5);
+  const target = await rowId(page, 5);
+  await expect(page.locator(`tr.hl[data-row-id="${target}"]`)).toHaveCount(1);
+  // Another file unticked: 24 traces, one chart with the markers among its traces.
+  const other = page.locator('.panel li').filter({ hasNotText: target }).last().locator('input[type="checkbox"]');
+  await other.uncheck();
+  await expect(page.getByTestId('plot-h-layer')).toHaveCount(0);
+  await settledState2d(page);
+  const single = await beamSweep(page);
+  // Ticked again: 25 traces, markers in the layer.
+  await other.check();
+  await expect(page.getByTestId('plot-h-layer')).toHaveCount(1);
+  await settledState2d(page);
+  const layered = await beamSweep(page);
+  // Where one chart names a marker (not a file's trace), the layered plot names the same marker.
+  const markerAt = single.map((text, k) => [k, text] as const).filter(([, text]) => text !== '' && !text.includes('.msi'));
+  expect(markerAt.map(([, text]) => text).join(' ')).toMatch(/Squint/);
+  expect(markerAt.map(([, text]) => text).join(' ')).toMatch(/−3 dB/);
+  for (const [k, text] of markerAt) expect(layered[k], `position ${k}`).toBe(text);
+});
+
+/** The plots have settled after a change of the drawn files. */
+async function settledState2d(page: Page) {
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+  await page.waitForTimeout(300);
+}
+
+/** Where a cut plot draws the highlighted file's part: in its layer (with no marker or title in the chart), or in the chart. */
+const markersIn = (page: Page, id = 'plot-h') =>
+  page.evaluate((testId) => {
+    type Gd = HTMLElement & { data: { uid?: string }[]; layout: { title?: { text?: string }; shapes?: unknown[] }; _fullLayout: { _size: { w: number; h: number } } };
+    const chart = document.querySelector(`[data-testid="${testId}"] .js-plotly-plot`) as Gd;
+    const layer = document.querySelector(`[data-testid="${testId}-layer"]`) as Gd | null;
+    const inChart = chart.data.filter((t) => typeof t.uid !== 'string').length;
+    return {
+      where: layer ? 'layer' : 'chart',
+      chartMarkers: inChart,
+      chartTitle: chart.layout.title?.text ?? '',
+      // Marker traces and (rectangular) marker shapes.
+      layerMarkers: layer ? layer.data.length - 1 + (layer.layout.shapes?.length ?? 0) : 0,
+      sameArea: layer ? JSON.stringify([chart._fullLayout._size.w, chart._fullLayout._size.h]) === JSON.stringify([layer._fullLayout._size.w, layer._fullLayout._size.h]) : null,
+    };
+  }, id);
+
+test('25 files: the layer comes and goes across 24 by untick, Remove and Undo, and with plot type changes', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error') problems.push(m.text());
+  });
+  await loadMany(page, 25);
+  await clickRow(page, 3);
+  const target = await rowId(page, 3);
+  const layeredNow = async () => {
+    await settledState2d(page);
+    await expect.poll(async () => (await markersIn(page)).where).toBe('layer');
+    const m = await markersIn(page);
+    expect(m).toMatchObject({ chartMarkers: 0, chartTitle: '', sameArea: true });
+    expect(m.layerMarkers).toBeGreaterThan(0);
+  };
+  const singleNow = async () => {
+    await settledState2d(page);
+    await expect.poll(async () => (await markersIn(page)).where).toBe('chart');
+    const m = await markersIn(page);
+    expect(m.chartTitle).toMatch(/^Horizontal cut/);
+  };
+  await layeredNow();
+
+  // Untick one (24): markers back in the chart; tick it again (25): in the layer.
+  const other = page.locator('.panel li').filter({ hasNotText: target }).last();
+  await other.locator('input[type="checkbox"]').uncheck();
+  await singleNow();
+  expect((await markersIn(page)).chartMarkers).toBeGreaterThan(0);
+  await other.locator('input[type="checkbox"]').check();
+  await layeredNow();
+
+  // Remove the highlighted file (24, nothing highlighted any more), then Undo (25 again).
+  const row = page.locator('.panel li').filter({ hasText: target }).first();
+  await row.getByLabel(/^Actions for /).click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
+  await expect(page.locator('.panel li')).toHaveCount(24);
+  await singleNow();
+  expect((await markersIn(page)).chartMarkers).toBe(0);
+  await page.locator('body').click({ position: { x: 2, y: 2 } });
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('.panel li')).toHaveCount(25);
+  // (Undo may bring the highlight back with the file.)
+  if ((await page.locator('tr.hl[data-row-id]').count()) === 0) await clickRow(page, 3);
+  await expect(page.locator('tr.hl[data-row-id]')).toHaveCount(1);
+  await layeredNow();
+
+  // Rectangular, 3D and back: the layer is laid out as the chart each time.
+  await page.getByRole('group', { name: 'Plot type' }).getByRole('button', { name: 'Rectangular' }).click();
+  await layeredNow();
+  await page.getByRole('group', { name: 'Dimension' }).getByRole('button', { name: '3D' }).click();
+  await expect(page.getByTestId('plot-3d')).toHaveCount(1);
+  await page.getByRole('group', { name: 'Dimension' }).getByRole('button', { name: '2D' }).click();
+  await layeredNow();
+  await page.getByRole('group', { name: 'Plot type' }).getByRole('button', { name: 'Polar' }).click();
+  await layeredNow();
+  expect(problems).toEqual([]);
+});
+
+test('48 files: a marker layer the library fails to draw is given up, and the markers and the title are drawn in the chart', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await loadMany(page, 48);
+  await clickRow(page, 5);
+  await expect(page.locator('tr.hl[data-row-id]')).toHaveCount(1);
+  await expect.poll(async () => (await markersIn(page)).layerMarkers).toBeGreaterThan(0);
+  // The library throws while it takes marker traces out of a chart: here only the layer does (a cleared highlight).
+  await page.evaluate(() => {
+    const original = Element.prototype.querySelector;
+    Element.prototype.querySelector = function (this: Element, selector: string) {
+      if (selector.startsWith('.cb') && this.closest('.marker-layer')) throw new SyntaxError('injected: not a valid selector');
+      return original.call(this, selector);
+    } as typeof original;
+  });
+  await page.locator('body').press('Escape');
+  await expect(page.locator('tr.hl[data-row-id]')).toHaveCount(0);
+  // No layer any more; the chart has its title (and axes) again, and no message replaces the plot.
+  await expect(page.getByTestId('plot-h-layer')).toHaveCount(0);
+  await expect.poll(async () => (await markersIn(page)).chartTitle).toBe('Horizontal cut');
+  await expect(page.getByRole('alert').filter({ hasText: 'This plot could not be drawn' })).toHaveCount(0);
+  const labels = page.getByTestId('plot-h').locator('.angularaxistick text').first();
+  await expect.poll(() => labels.evaluate((el) => getComputedStyle(el).fill)).not.toBe('rgba(0, 0, 0, 0)');
+  // A highlight now draws its markers in the chart, and the plots are not left behind (the export is not held).
+  await clickRow(page, 9);
+  await expect.poll(async () => (await markersIn(page)).chartMarkers).toBeGreaterThan(0);
+  await expect.poll(async () => (await markersIn(page)).chartTitle).toMatch(/ — HPBW /);
+  await expect(page.getByTestId('updating-2d')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
