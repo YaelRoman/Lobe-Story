@@ -424,7 +424,10 @@ tilted where they differ, the difference being taken within each state. A click 
 antenna's histogram; on a B − A cell both, overlaid on the same bins with each statistic. **Copy table**
 copies the three columns per sub-band. The band CSV gets a first column Row: `statistic` on every line it
 always has, and one `difference` line per sub-band × parameter (× state) whose numeric columns are B − A of
-the two antennas' own where both have them (N and Counted as 22 dB stay empty). The pair is saved with the
+the same columns of A's and B's `statistic` lines for that sub-band, where both have them (N and Counted as
+22 dB stay empty). Every value a difference line is computed from is in the file: where the comparison's
+sub-bands are not an antenna's own (automatic ones made over both antennas), A's and B's `statistic` lines
+over them follow their own lines, so A's pooled numbers are there next to its own split. The pair is saved with the
 project, not in the browser, and Clear ends it. Without a comparison the table, the copy and the CSV are as
 before.
 

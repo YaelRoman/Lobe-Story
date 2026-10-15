@@ -125,6 +125,29 @@ describe('bandCsv while comparing', () => {
   });
 });
 
+describe('bandCsv while comparing over sub-bands that are not the antennas\' own', () => {
+  // A's own automatic split is two sub-bands; the comparison pools them into one.
+  const own: BandSheet = { label: 'Array Y1', columns: bandTable(items, metrics, [{ name: '1800 MHz', minMHz: 1800, maxMHz: 1800 }, { name: '1850–1900 MHz', minMHz: 1850, maxMHz: 1900 }], ctx) };
+  const bOwn: BandSheet = { label: 'Array Y2', columns: b.columns.slice(0, 1) };
+  const cmp = { a: { ...a, columns: a.columns.slice(0, 1) }, b: bOwn };
+  const lines = bandCsv([own, bOwn], DEFAULT_SETTINGS, false, true, { a: cmp.a, b: cmp.b }).trimEnd().split('\r\n');
+  const key = (l: string) => l.split(',').slice(2, 5).join(',');
+  it('writes the statistic lines every difference line is computed from: each antenna over the comparison\'s sub-bands', () => {
+    const stats = lines.filter((l) => l.startsWith('statistic,'));
+    for (const d of lines.filter((l) => l.startsWith('difference,'))) {
+      for (const label of ['Array Y1', 'Array Y2']) expect(stats.some((l) => l.startsWith(`statistic,${label},`) && key(l) === key(d)), `${label} ${key(d)}`).toBe(true);
+    }
+    // A's pooled line is there with its own numbers, beside its own split.
+    const pooled = stats.find((l) => l.startsWith('statistic,Array Y1,1800–1900 MHz,') && l.includes(',Azimuth beamwidth,'));
+    expect(pooled).toBe(`statistic,${bandCsv([{ ...a, columns: a.columns.slice(0, 1) }], DEFAULT_SETTINGS).split('\r\n').find((l) => l.includes(',Azimuth beamwidth,'))}`);
+    expect(stats.some((l) => l.startsWith('statistic,Array Y1,1800 MHz,'))).toBe(true);
+  });
+  it('writes no line twice where a comparison sub-band is the antenna\'s own', () => {
+    const b2 = lines.filter((l) => l.startsWith('statistic,Array Y2,1800–1900 MHz,') && l.includes(',Azimuth beamwidth,'));
+    expect(b2).toHaveLength(1);
+  });
+});
+
 describe('legend and note', () => {
   it('has a legend for differences partly of 22 dB substitutes, shown only when one is', () => {
     expect(SUBSTITUTED_LEGEND).toBe('† partly of "not available" values counted as 22 dB (BASTA 12.5.3)');

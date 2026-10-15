@@ -240,8 +240,10 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
   const withState = sheets.some((s) => s.tilted);
   const header = (withState ? [HEADER[0], 'State', ...HEADER.slice(1)] : HEADER).map(csvCell);
   const lines: string[][] = [header];
-  for (const sheet of sheets) {
+  /** The lines of `sheet`, of the columns `keep` lets through (all by default). */
+  const write = (sheet: BandSheet, keep: (column: BandColumn) => boolean = () => true) => {
     sheet.columns.forEach((column, i) => {
+      if (!keep(column)) return;
       for (const p of BAND_PARAMS) {
         if (!withState) {
           lines.push(csvLine(sheet.label, null, column, p, column.cells[p.key], settings));
@@ -253,9 +255,16 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
         }
       }
     });
-  }
+  };
+  for (const sheet of sheets) write(sheet);
   if (compare) {
     const { a, b } = compare;
+    // Every difference line is computed from two statistic lines of the same file: where the comparison's sub-bands are
+    // not an antenna's own (automatic ones made over both antennas), its lines over them are written too.
+    for (const side of [a, b]) {
+      const own = sheets.find((sh) => sh.label === side.label)?.columns ?? [];
+      write(side, (column) => !own.some((o) => sameSubBands([o.subBand], [column.subBand])));
+    }
     const label = `${b.label} − ${a.label}`;
     const names = { a: a.label, b: b.label };
     const out = [['Row', ...lines[0]], ...lines.slice(1).map((l) => ['statistic', ...l])];
