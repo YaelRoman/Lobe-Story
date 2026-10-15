@@ -16,6 +16,14 @@ const scrollRoom = (page: Page) =>
     return { page: document.documentElement.scrollHeight - window.innerHeight, main: main.scrollHeight - main.clientHeight };
   });
 
+/** Chromium scrolls the full wheel distance at once; Firefox scales it, so the wheel goes on until the place is reached. */
+async function wheelDownTo(page: Page, position: () => Promise<number>, target: number) {
+  await expect(async () => {
+    if ((await position()) < target) await page.mouse.wheel(0, target);
+    expect(await position()).toBeGreaterThanOrEqual(target);
+  }).toPass();
+}
+
 // 1280 x 720 and 1440 x 900 at 200 % zoom, as the browser reports them.
 for (const [width, height] of [[640, 360], [720, 450]]) {
   test(`in a ${width} x ${height} window the toolbar and the Files bar scroll away with the page; the status line stays (R4-10)`, async ({ page }) => {
@@ -33,8 +41,7 @@ for (const [width, height] of [[640, 360], [720, 450]]) {
     expect((await box(page, '.toolbar')).y).toBe(0);
 
     await page.mouse.move(width / 2, height / 2);
-    await page.mouse.wheel(0, 700);
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(700);
+    await wheelDownTo(page, () => page.evaluate(() => window.scrollY), 700);
     const toolbar = await box(page, '.toolbar');
     expect(toolbar.y + toolbar.height).toBeLessThanOrEqual(0);
     const toggle = await box(page, '.files-toggle');
@@ -97,8 +104,7 @@ test('a window of ordinary height keeps the toolbar and the Files bar in place: 
   expect(room.page).toBeLessThanOrEqual(0);
   expect(room.main).toBeGreaterThan(1000);
   await page.mouse.move(320, 500);
-  await page.mouse.wheel(0, 700);
-  await expect.poll(() => page.locator('main').evaluate((m) => m.scrollTop)).toBe(700);
+  await wheelDownTo(page, () => page.locator('main').evaluate((m) => m.scrollTop), 700);
   expect((await box(page, '.toolbar')).y).toBe(0);
   expect((await box(page, '.files-toggle')).y).toBeGreaterThan(0);
 });
