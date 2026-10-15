@@ -32,7 +32,7 @@ export const BACK_HALF_NAME = '+ back: use the back of the vertical cut';
 
 /** The tooltip of "Use the back of the vertical cut", beside the 3D method (see docs/metrics.md). */
 export const BACK_HALF_TITLE =
-  'Use the back of the vertical cut. Behind the antenna, read the 3D reconstruction from the back half of the vertical cut instead of the azimuth cut alone, and make it one value straight up and straight down. Changes simulated F/B, the back of the 3D view, horizon cuts and the angular regions. Off: the numbers of earlier versions.';
+  'Use the back of the vertical cut. Behind the antenna, read the 3D reconstruction from the back half of the vertical cut instead of the azimuth cut alone, and make it one value straight up and straight down, which also changes the front away from the beam. Changes simulated F/B, the back of the 3D view, horizon cuts and the angular regions. Off: the numbers of earlier versions.';
 
 /** Beside the 3D method control while it is disabled: what would enable it. */
 export const METHOD_UNUSED_NOTE = 'Used by the 3D view, a tilt, the horizon cut and the angular regions; none of them is on.';
