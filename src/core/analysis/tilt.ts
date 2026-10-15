@@ -2,7 +2,7 @@ import type { Pattern } from '../types';
 import { analyzeAll, angularRegionsOfCuts, gridsFor, type AnalysisSettings, type PatternMetrics, type TaggedPattern } from './metrics';
 import { mod360, peakCentre, peakIndex, rawGrid, signed, type Grid } from './grid';
 import { combine, combineWeighted, reconstruct3d, STEP_3D, type Method3d, type Surface3d } from './pattern3d';
-import { DB_TO_NEPER, efficiencyOf, noAngularRegions, sampledRegionPowers, SPHERE_ROWS, typeABeam, type AngularRegionEfficiency } from './are';
+import { DB_TO_NEPER, efficiencyOf, noAngularRegions, sampledRegionPowers, SPHERE_ROWS, typeABeam, withRegions, type AngularRegionEfficiency } from './are';
 
 export interface TiltSettings {
   /** Extra electrical downtilt added to the measured pattern (degrees, positive = down). */
@@ -423,7 +423,7 @@ export function tiltedAngularRegions(
     const aV = g === 0 ? v[j] : v[j] + (v[j + 1] - v[j]) * g;
     out[k] = powerOf(weighted ? combineWeighted(aH, aV, powerOf(aH), powerOf(aV)) : aH + aV);
   }
-  return efficiencyOf(sampledRegionPowers(out, beam.regions));
+  return withRegions(efficiencyOf(sampledRegionPowers(out, beam.regions)), beam.regions);
 }
 
 export const DECLARED_REASON = 'Declared values describe the measured pattern';

@@ -217,6 +217,8 @@ export interface AngularRegionEfficiency {
   spatial: MetricResult;
   /** Lower region ratio: lower region ÷ whole sphere, percent. */
   lower: MetricResult;
+  /** The regions the values were integrated over (the cut plots shade them); absent when there are no values. */
+  regions?: AngularRegions;
 }
 
 export const noAngularRegions = (reason: string): AngularRegionEfficiency => {
@@ -274,5 +276,9 @@ export function efficiencyOf(p: RegionPowers): AngularRegionEfficiency {
 export function angularRegionEfficiency(h: Grid, v: Grid, sectorEdgeDeg: number, method: Method3d): AngularRegionEfficiency {
   const beam = typeABeam(h, v, sectorEdgeDeg);
   if ('reason' in beam) return noAngularRegions(beam.reason);
-  return efficiencyOf(regionPowers(h, v, beam.regions, method));
+  return withRegions(efficiencyOf(regionPowers(h, v, beam.regions, method)), beam.regions);
 }
+
+/** The values with the regions they were integrated over (none when there is no value). */
+export const withRegions = (e: AngularRegionEfficiency, regions: AngularRegions): AngularRegionEfficiency =>
+  e.sector.value === null ? e : { ...e, regions };

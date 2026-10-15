@@ -188,4 +188,16 @@ describe('the angular-region estimate under a mechanical tilt', () => {
     expect(second).toBe(first);
     expect(third).toBe(first);
   });
+
+  it('carries the regions of the tilted beam (the simulated elevation cut\'s peak and beamwidth), mechanical or electrical', () => {
+    for (const t of [{ electricalDeg: 0, mechanicalDeg: 6 }, { electricalDeg: 4, mechanicalDeg: 0 }, { electricalDeg: 2, mechanicalDeg: -3 }]) {
+      const a = app(file0, t, 'summation');
+      expect(a.tilted.regions, JSON.stringify(t)).toBeDefined();
+      expect(a.tilted.regions!.upperEndDeg).toBeCloseTo(Math.min(0, a.peak - a.hpbw), 9);
+      expect(a.tilted.regions!.serviceStartDeg).toBeCloseTo(a.peak - a.hpbw / 2, 9);
+      expect(a.tilted.regions!.sectorEdgeDeg).toBe(60);
+      // They move with the beam.
+      expect(a.tilted.regions!.serviceStartDeg).not.toBeCloseTo(a.original.regions!.serviceStartDeg, 1);
+    }
+  });
 });

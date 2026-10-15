@@ -234,3 +234,30 @@ describe('angularRegionEfficiency', () => {
     expect(r.sector.reason).toMatch(/peak/i);
   });
 });
+
+describe('the regions an estimate integrates over (for the plots to shade)', () => {
+  it('come with the values, from the elevation cut\'s peak and 3 dB beamwidth and the sector edge', () => {
+    const r = angularRegionEfficiency(h65, v8, 60, 'summation');
+    expect(r.sector.value).not.toBeNull();
+    // quadBeam(8, 6): peak 6°, HPBW 8°.
+    expect(r.regions!.upperEndDeg).toBeCloseTo(-2, 6);
+    expect(r.regions!.serviceStartDeg).toBeCloseTo(2, 6);
+    expect(r.regions!.serviceEndDeg).toBe(75);
+    expect(r.regions!.sectorEdgeDeg).toBe(60);
+    expect(angularRegionEfficiency(h65, v8, 45, 'weighted').regions!.sectorEdgeDeg).toBe(45);
+  });
+
+  it('keep the upper region above the horizon for a beam whose half-power span lies below it', () => {
+    const steep = gridFrom(quadBeam(6, 14, 20));
+    const r = angularRegionEfficiency(h65, steep, 60, 'summation').regions!;
+    expect(r.upperEndDeg).toBe(0);
+    expect(r.serviceStartDeg).toBeCloseTo(11, 6);
+  });
+
+  it('are absent when there is no value (not a Type A beam)', () => {
+    const wide = gridFrom(quadBeam(40, 6, 20));
+    const r = angularRegionEfficiency(h65, wide, 60, 'summation');
+    expect(r.sector.value).toBeNull();
+    expect(r.regions).toBeUndefined();
+  });
+});
