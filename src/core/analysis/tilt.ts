@@ -1,8 +1,13 @@
 import type { Pattern } from '../types';
 import { analyzeAll, angularRegionsOfCuts, gridsFor, type AnalysisSettings, type PatternMetrics, type TaggedPattern } from './metrics';
-import { mod360, peakCentre, peakIndex, rawGrid, signed, type Grid } from './grid';
+import { beamPeakElevation, interp, mod360, rawGrid, type Grid } from './grid';
 import { combine, combineWeighted, reconstruct3d, STEP_3D, type Method3d, type Surface3d } from './pattern3d';
-import { DB_TO_NEPER, efficiencyOf, noAngularRegions, sampledRegionPowers, SPHERE_ROWS, typeABeam, withRegions, type AngularRegionEfficiency } from './are';
+import { tablePower } from './powerTable';
+import { backHalfModel, backHalfModelOf, backHalfAtt, backWeight, mismatchWeight, poleWeight, reconstructBack3d } from './backHalf3d';
+import { efficiencyOf, noAngularRegions, sampledRegionPowers, SPHERE_ROWS, typeABeam, withRegions, type AngularRegionEfficiency } from './are';
+
+// Kept here for their earlier importers; they live with the other grid functions.
+export { beamPeakElevation, interp };
 
 export interface TiltSettings {
   /** Extra electrical downtilt added to the measured pattern (degrees, positive = down). */
@@ -51,16 +56,6 @@ export function anyTilted(ids: string[], global: SimSettings, offsets: Record<st
 const DEG360 = Array.from({ length: 360 }, (_, i) => i);
 const RAD = Math.PI / 180;
 
-/** Linear interpolation of a 360-sample, 1°-step circle at a fractional angle (wraps). */
-export function interp(g: number[], angle: number): number {
-  const a = mod360(angle);
-  const i0 = Math.floor(a);
-  const f = a - i0;
-  const v0 = g[i0 % 360];
-  if (f === 0) return v0;
-  return v0 + (g[(i0 + 1) % 360] - v0) * f;
-}
-
 /** out[t] = g(t − byDeg): the circle rotated forward by byDeg. */
 export function shiftCircle(g: number[], byDeg: number): number[] {
   return DEG360.map((t) => interp(g, t - byDeg));
@@ -108,23 +103,6 @@ const normalise = (g: number[]): number[] => {
 
 function lookup(hN: number[], vN: number[], phi: number, theta: number, method: Method3d): number {
   return combine(interp(hN, phi), interp(vN, theta), method);
-}
-
-/**
- * Elevation (positive = below the horizon) at which the 3D reconstruction of a normalised V grid
- * has its 0 dB: the centre of a flat top, else the strongest sample. This is the cone the file's
- * H cut lies on. Always a front-hemisphere elevation: when the strongest sample lies in the back
- * half (|elevation| > 90°), the strongest sample within −90…90° is used instead. A peak refined between two unequal samples is not used, because the linearly
- * interpolated V grid is above 0 dB attenuation there and the cut would no longer reach the peak.
- */
-export function beamPeakElevation(vN: number[]): number {
-  if (Math.abs(signed(peakIndex(vN))) > 90) {
-    let best = 0;
-    for (let e = -90; e <= 90; e++) if (vN[mod360(e)] < vN[mod360(best)]) best = e;
-    return best;
-  }
-  const centre = peakCentre(vN);
-  return interp(vN, centre) <= 1e-9 ? centre : signed(peakIndex(vN));
 }
 
 /** A pattern's 1° grids: raw (offsets kept) and normalised, the H offset and the beam-peak elevation. */
@@ -181,7 +159,7 @@ export function coneInAntenna(thetaDeg: number, mechanicalDeg: number): Directio
 const tiltedCache = new WeakMap<Pattern, Partial<Record<HCutMode, { key: string; result: Pattern }>>>();
 
 // What each tilted copy was made from: the cuts of a mechanically tilted copy do not describe its whole pattern.
-const tiltedFrom = new WeakMap<Pattern, { source: Pattern; tilt: TiltSettings; method: Method3d; hCut: HCutMode }>();
+const tiltedFrom = new WeakMap<Pattern, { source: Pattern; tilt: TiltSettings; method: Method3d; hCut: HCutMode; backHalf: boolean }>();
 
 /**
  * A copy of the pattern with tilted 1° cuts (raw values, offsets kept).
@@ -197,10 +175,10 @@ const tiltedFrom = new WeakMap<Pattern, { source: Pattern; tilt: TiltSettings; m
  * `horizon` a copy with the file's own V cut (the same object) and the horizon cut of the untilted reconstruction:
  * the file's H cut exactly when the beam peak is at 0° elevation, lower for a file with built-in tilt.
  */
-export function tiltPattern(p: Pattern, t: TiltSettings, method: Method3d, hCut: HCutMode = 'beam'): Pattern {
+export function tiltPattern(p: Pattern, t: TiltSettings, method: Method3d, hCut: HCutMode = 'beam', backHalf = false): Pattern {
   const tilted = isTilted(t);
   if (!tilted && hCut === 'beam') return p;
-  const key = `${method}|${t.electricalDeg}|${t.mechanicalDeg}`;
+  const key = `${backHalf ? 'back|' : ''}${method}|${t.electricalDeg}|${t.mechanicalDeg}`;
   let entry = tiltedCache.get(p);
   const hit = entry?.[hCut];
   if (hit && hit.key === key) return hit.result;
@@ -210,7 +188,9 @@ export function tiltPattern(p: Pattern, t: TiltSettings, method: Method3d, hCut:
   // tilt is a plain shift: Ve(θ) = V(θ − Δe). Reading V directly (not a pre-shifted 1° grid)
   // interpolates once, so a half-degree tilt still finds the exact peak sample.
   const dirs = coneInAntenna(hCut === 'horizon' ? 0 : peakTheta + t.electricalDeg + t.mechanicalDeg, t.mechanicalDeg);
-  const hTilted = dirs.map((d) => hOff + lookup(hN, vN, d.phi, d.theta - t.electricalDeg, method));
+  const hTilted = backHalf
+    ? backHalfCone(baseGrids(p), dirs, t.electricalDeg, method)
+    : dirs.map((d) => hOff + lookup(hN, vN, d.phi, d.theta - t.electricalDeg, method));
   const result: Pattern = {
     ...p,
     horizontal: { angles: [...DEG360], atten: hTilted },
@@ -219,8 +199,21 @@ export function tiltPattern(p: Pattern, t: TiltSettings, method: Method3d, hCut:
   };
   if (!entry) tiltedCache.set(p, (entry = {}));
   entry[hCut] = { key, result };
-  tiltedFrom.set(result, { source: p, tilt: { electricalDeg: t.electricalDeg, mechanicalDeg: t.mechanicalDeg }, method, hCut });
+  tiltedFrom.set(result, { source: p, tilt: { electricalDeg: t.electricalDeg, mechanicalDeg: t.mechanicalDeg }, method, hCut, backHalf });
   return result;
+}
+
+/**
+ * The raw H cut of `tiltPattern` along `dirs` with the back of the vertical cut (`backHalf3d`): the front of the V cut
+ * read as the existing model reads it (V(θ − Δe), one interpolation), its back half from the electrically tilted grid
+ * (whose back moves down by Δe too), the cone where the tilted front has its 0 dB.
+ */
+function backHalfCone({ hN, vN, hOff, peakTheta }: BaseGrids, dirs: Direction[], electricalDeg: number, method: Method3d): number[] {
+  const ve = electricalDeg === 0 ? vN : electricalShift(vN, electricalDeg);
+  const front = (theta: number) => interp(vN, theta - electricalDeg);
+  const back = (theta: number) => interp(ve, 180 - theta);
+  const m = backHalfModel(hN[180], front, back, peakTheta + electricalDeg, method);
+  return dirs.map((d) => hOff + backHalfAtt(m, d.phi, d.theta, interp(hN, d.phi), front(d.theta), back(d.theta)));
 }
 
 /**
@@ -242,17 +235,18 @@ export function tiltEach(
   tiltFor: (id: string) => TiltSettings,
   method: Method3d,
   hCut: HCutMode = 'beam',
+  backHalf = false,
 ): TaggedPattern[] {
   const everyFile = hCut === 'horizon';
   if (!everyFile && !items.some((i) => isTilted(tiltFor(i.pattern.id)))) return items;
   return items.map((i) => {
     const t = tiltFor(i.pattern.id);
-    return everyFile || isTilted(t) ? { ...i, pattern: tiltPattern(i.pattern, t, method, hCut) } : i;
+    return everyFile || isTilted(t) ? { ...i, pattern: tiltPattern(i.pattern, t, method, hCut, backHalf) } : i;
   });
 }
 
-export function tiltTagged(items: TaggedPattern[], t: TiltSettings, method: Method3d, hCut: HCutMode = 'beam'): TaggedPattern[] {
-  return tiltEach(items, () => t, method, hCut);
+export function tiltTagged(items: TaggedPattern[], t: TiltSettings, method: Method3d, hCut: HCutMode = 'beam', backHalf = false): TaggedPattern[] {
+  return tiltEach(items, () => t, method, hCut, backHalf);
 }
 
 /** Per-id total offsets: the file's own offsets plus its custom group's. Only non-zero totals get an entry. */
@@ -280,7 +274,8 @@ export function combineOffsets(
 
 /**
  * The 3D reconstruction of normalised grids `h`, `v` as seen in the world frame after
- * electrical tilt, mechanical tilt and an azimuth (bearing) rotation.
+ * electrical tilt, mechanical tilt and an azimuth (bearing) rotation. With `backHalf`, the reconstruction that reads
+ * the back of the vertical cut (`backHalf3d`).
  */
 export function reconstructTilted3d(
   h: Grid,
@@ -289,7 +284,9 @@ export function reconstructTilted3d(
   azimuthDeg: number,
   method: Method3d,
   step = STEP_3D,
+  backHalf = false,
 ): Surface3d {
+  if (backHalf) return reconstructBackTilted3d(h, v, t, azimuthDeg, method, step);
   const base = reconstruct3d(h, v, method, step);
   if (!isTilted(t) && azimuthDeg === 0) return base;
   const ve = t.electricalDeg === 0 ? v : electricalShift(v, t.electricalDeg);
@@ -302,6 +299,25 @@ export function reconstructTilted3d(
   return { az: base.az, el: base.el, atten };
 }
 
+/** `reconstructTilted3d` with the back of the vertical cut. */
+function reconstructBackTilted3d(h: Grid, v: Grid, t: TiltSettings, azimuthDeg: number, method: Method3d, step: number): Surface3d {
+  if (!isTilted(t) && azimuthDeg === 0) return reconstructBack3d(h, v, method, step);
+  const ve = t.electricalDeg === 0 ? v : electricalShift(v, t.electricalDeg);
+  // The electrically tilted grid's own cone: where the untilted front has its 0 dB, moved down by Δe.
+  const m = backHalfModelOf(h, ve, method, beamPeakElevation(v) + t.electricalDeg);
+  const az: number[] = [];
+  const el: number[] = [];
+  for (let a = -180; a <= 180; a += step) az.push(a);
+  for (let e = -90; e <= 90; e += step) el.push(e);
+  const atten = el.map((e) =>
+    az.map((a) => {
+      const r = rotateToAntenna(a - azimuthDeg, e, t.mechanicalDeg);
+      return backHalfAtt(m, r.phi, r.theta, interp(h, r.phi), interp(ve, r.theta), interp(ve, 180 - r.theta));
+    }),
+  );
+  return { az, el, atten };
+}
+
 /**
  * Every direction of the 1° ground-frame grid (elevation −90…90° row by row, azimuth 0…359°) in the frame of an
  * antenna tilted down by a mechanical angle, as the sample below it and the fraction towards the next one on the
@@ -312,6 +328,8 @@ interface SphereInAntenna {
   hFrac: Float32Array;
   vIndex: Uint16Array;
   vFrac: Float32Array;
+  /** b(φ) of `backHalf3d` in each direction, made the first time the back of the vertical cut asks for it. */
+  backWeights?: Float32Array;
 }
 
 /**
@@ -366,20 +384,6 @@ const closed = (g: number[]): Float64Array => {
   return out;
 };
 
-// Linear power of 0…120 dB in steps of 1/64 dB. Read with linear interpolation it is within 2e-6 (relative) of the
-// exponential, and several times cheaper, which matters for the 65 160 directions of every mechanically tilted file.
-const POWER_STEPS_PER_DB = 64;
-const POWER_TABLE_DB = 120;
-let powerTable: Float64Array | null = null;
-
-function powerSteps(): Float64Array {
-  if (!powerTable) {
-    powerTable = new Float64Array(POWER_TABLE_DB * POWER_STEPS_PER_DB + 2);
-    for (let i = 0; i < powerTable.length; i++) powerTable[i] = Math.exp((-i / POWER_STEPS_PER_DB) * DB_TO_NEPER);
-  }
-  return powerTable;
-}
-
 /**
  * The angular-region estimate of a mechanically tilted file: the power of the ROTATED 3D reconstruction (the
  * model of `reconstructTilted3d`: the file's H cut and its electrically tilted V cut, read in the antenna frame)
@@ -393,26 +397,24 @@ export function tiltedAngularRegions(
   tiltedGrids: { h: Grid; v: Grid },
   sectorEdgeDeg: number,
   method: Method3d,
+  backHalf = false,
 ): AngularRegionEfficiency {
   const beam = typeABeam(tiltedGrids.h, tiltedGrids.v, sectorEdgeDeg);
   if ('reason' in beam) return noAngularRegions(beam.reason);
-  const { hN, vN } = baseGrids(source);
+  const { hN, vN, peakTheta } = baseGrids(source);
   const h = closed(hN);
-  const v = closed(t.electricalDeg === 0 ? vN : electricalShift(vN, t.electricalDeg));
-  const { hIndex, hFrac, vIndex, vFrac } = sphereInAntenna(t.mechanicalDeg);
+  const vGrid = t.electricalDeg === 0 ? vN : electricalShift(vN, t.electricalDeg);
+  const v = closed(vGrid);
+  const sphere = sphereInAntenna(t.mechanicalDeg);
+  const { hIndex, hFrac, vIndex, vFrac } = sphere;
   const out = (sphereIntensity ??= new Float64Array(SPHERE_ROWS * 360));
-  const table = powerSteps();
   // Linear power of a level in dB; a level that is not a finite number carries none (as in `are.ts`).
-  const powerOf = (att: number): number => {
-    if (att >= 0 && att < POWER_TABLE_DB) {
-      const x = att * POWER_STEPS_PER_DB;
-      const n = x | 0;
-      return table[n] + (table[n + 1] - table[n]) * (x - n);
-    }
-    const p = Math.exp(-att * DB_TO_NEPER);
-    return p === p && p !== Infinity ? p : 0;
-  };
+  const powerOf = tablePower;
   const weighted = method === 'weighted';
+  if (backHalf) {
+    backHalfSphere(backHalfModelOf(hN, vGrid, method, peakTheta + t.electricalDeg), h, v, sphere, out, powerOf);
+    return withRegions(efficiencyOf(sampledRegionPowers(out, beam.regions)), beam.regions);
+  }
   for (let k = 0; k < out.length; k++) {
     // As `interp`: linear in dB between the samples, and the sample itself on a whole degree (a level may be infinite).
     const i = hIndex[k];
@@ -424,6 +426,70 @@ export function tiltedAngularRegions(
     out[k] = powerOf(weighted ? combineWeighted(aH, aV, powerOf(aH), powerOf(aV)) : aH + aV);
   }
   return withRegions(efficiencyOf(sampledRegionPowers(out, beam.regions)), beam.regions);
+}
+
+/**
+ * `tiltedAngularRegions`' intensity with the back of the vertical cut: the model `m` (`backHalf3d`) read in each
+ * direction of the table, the cuts read as there (`h`, `v` closed 1° circles); the back half of the vertical cut at
+ * V(180° − θ), interpolated the same way.
+ */
+function backHalfSphere(
+  m: ReturnType<typeof backHalfModelOf>,
+  h: Float64Array,
+  v: Float64Array,
+  table: SphereInAntenna,
+  out: Float64Array,
+  powerOf: (att: number) => number,
+): void {
+  const { hIndex, hFrac, vIndex, vFrac } = table;
+  // b(φ) depends on the direction only (one array per table); q(θ) and w(θ) on the file's cone, so they are taken at
+  // whole degrees of θ mod 360 and read linearly between them (both are smooth: q within 1e-4 of the formula, w within
+  // 0.01).
+  const back = (table.backWeights ??= Float32Array.from(hIndex, (i, k) => backWeight(i + hFrac[k])));
+  const qAt = new Float64Array(361);
+  const wAt = new Float64Array(361);
+  for (let d = 0; d <= 360; d++) {
+    qAt[d] = poleWeight(m.coneDeg, d >= 180 ? d - 360 : d);
+    wAt[d] = mismatchWeight(m.coneDeg, d >= 180 ? d - 360 : d);
+  }
+  const { coneDeg, h180, mismatch, nadir, zenith } = m;
+  const weighted = m.method === 'weighted';
+  const nadirPower = powerOf(nadir.level);
+  const zenithPower = powerOf(zenith.level);
+  const h180Power = powerOf(h180);
+  // `backHalfFrom` written out (the same arithmetic), one loop per method: this runs for 65 160 directions per file.
+  for (let k = 0; k < out.length; k++) {
+    const i = hIndex[k];
+    const f = hFrac[k];
+    const aH = f === 0 ? h[i] : h[i] + (h[i + 1] - h[i]) * f;
+    const j = vIndex[k];
+    const g = vFrac[k];
+    const aF = g === 0 ? v[j] : v[j] + (v[j + 1] - v[j]) * g;
+    const pH = weighted ? powerOf(aH) : 0;
+    const pF = weighted ? powerOf(aF) : 0;
+    const o = weighted ? combineWeighted(aH, aF, pH, pF) : aH + aF;
+    const b = back[k];
+    const q = g === 0 ? qAt[j] : qAt[j] + (qAt[j + 1] - qAt[j]) * g;
+    if (b === 0 && q === 0) {
+      out[k] = powerOf(o);
+      continue;
+    }
+    let r = o;
+    if (q !== 0) {
+      const thetaMod = j + g;
+      const pole = (thetaMod >= 180 ? thetaMod - 360 : thetaMod) >= coneDeg ? nadir : zenith;
+      const atPole = weighted ? combineWeighted(aH, pole.level, pH, pole === nadir ? nadirPower : zenithPower) : aH + pole.level;
+      r += q * (pole.level - atPole - b * pole.behind);
+    }
+    if (b !== 0) {
+      // V(180° − θ): between the samples 179 − j and 180 − j (or on 180 − j when θ is whole).
+      const kb = g === 0 ? (540 - j) % 360 : (539 - j) % 360;
+      const aB = g === 0 ? v[kb] : v[kb] + (v[kb + 1] - v[kb]) * (1 - g);
+      const w = g === 0 ? wAt[j] : wAt[j] + (wAt[j + 1] - wAt[j]) * g;
+      r += b * (aB + w * mismatch - (weighted ? combineWeighted(h180, aF, h180Power, pF) : h180 + aF));
+    }
+    out[k] = powerOf(r > 0 ? r : r === r ? 0 : o);
+  }
 }
 
 export const DECLARED_REASON = 'Declared values describe the measured pattern';
@@ -442,6 +508,7 @@ export function analyzeTilted(
   s: AnalysisSettings,
   t: TiltSettings | ((id: string) => TiltSettings),
   areMethod?: Method3d,
+  backHalf = false,
 ): Map<string, PatternMetrics> {
   const tiltFor = typeof t === 'function' ? t : () => t;
   return analyzeAll(tiltedItems, s, {
@@ -455,19 +522,20 @@ export function analyzeTilted(
     // A horizon cut is not the cut the header describes, tilted or not; the V cut of an untilted copy still is.
     declaredHReason: (pattern) => (tiltedFrom.get(pattern)?.hCut === 'horizon' ? DECLARED_REASON : undefined),
     areMethod,
+    areBackHalf: backHalf,
     areModel: (pattern, grids, sectorEdgeDeg, method) => {
       const origin = tiltedFrom.get(pattern);
       if (!origin) return undefined;
       if (origin.hCut === 'horizon') {
         // The regions follow the beam (its θpeak and HPBW): they are those of the cut through the beam peak, which
         // for an untilted file is the file itself. Its two-cut estimate is shared with the pass that analysed it.
-        const beam = tiltPattern(origin.source, origin.tilt, origin.method, 'beam');
+        const beam = tiltPattern(origin.source, origin.tilt, origin.method, 'beam', origin.backHalf);
         return origin.tilt.mechanicalDeg !== 0
-          ? tiltedAngularRegions(origin.source, origin.tilt, gridsFor(beam), sectorEdgeDeg, method)
-          : angularRegionsOfCuts(beam, sectorEdgeDeg, method);
+          ? tiltedAngularRegions(origin.source, origin.tilt, gridsFor(beam), sectorEdgeDeg, method, backHalf)
+          : angularRegionsOfCuts(beam, sectorEdgeDeg, method, backHalf);
       }
       return origin.tilt.mechanicalDeg !== 0
-        ? tiltedAngularRegions(origin.source, origin.tilt, grids, sectorEdgeDeg, method)
+        ? tiltedAngularRegions(origin.source, origin.tilt, grids, sectorEdgeDeg, method, backHalf)
         : undefined;
     },
     hCutPeakDb: horizonCutPeakDb,

@@ -2,6 +2,7 @@ import type { MetricResult } from '../types';
 import { beamwidth } from './beamwidth';
 import { mod360, type Grid } from './grid';
 import { combineWeighted, type Method3d } from './pattern3d';
+import { backHalfIntensity } from './backHalf3d';
 
 /**
  * Angular region efficiency (NGMN BASTA V13, 7.2.4), beam Type A (macro base-station beam) only, as an
@@ -12,7 +13,9 @@ import { combineWeighted, type Method3d } from './pattern3d';
  * the tilt simulation use), with the selected method, so the numbers describe the surface the 3D view shows:
  * I(az, el) = combine(H(az), V(el)) for elevations −90…90°, where only the front half of the elevation cut
  * is used and the azimuth cut supplies the back. With "Summation" this is the separable product of the two
- * cuts in linear power, and the sphere integral is the product of two 1D integrals.
+ * cuts in linear power, and the sphere integral is the product of two 1D integrals. With the back of the vertical
+ * cut (`backHalf3d`, an option off by default) the back half of the elevation cut is read behind the antenna and the
+ * poles are single-valued; the intensity is then sampled in every direction of the 1° grid (`backHalfIntensity`).
  *
  * Integration: linear power, sampled on the app's 1° grid, taken as linear between samples in both angles,
  * with the exact solid-angle weight cos(elevation) (the document's sin θ, θ measured from the zenith). Region
@@ -22,7 +25,8 @@ import { combineWeighted, type Method3d } from './pattern3d';
  * Known weakness: straight up and straight down every azimuth is the same direction, and the true level there is
  * the elevation cut's alone. "Summation" still multiplies it by H(az), so near the poles it understates the power
  * by up to the azimuth average of H; "Weighted" tends to the elevation cut there. The lower region (and the cap of
- * the upper region) is therefore the least reliable of the estimates, and too low with "Summation".
+ * the upper region) is therefore the least reliable of the estimates, and too low with "Summation" (unless the back
+ * of the vertical cut is used: the poles then have the elevation cut's own level).
  *
  * Tilt simulation. An electrical tilt moves the elevation cut and leaves the pattern the product of its two
  * cuts, so the tilted cuts are integrated as above. A mechanical tilt rotates the whole pattern, and a rotated
@@ -158,7 +162,9 @@ function powersFromRows({ full, sector }: Rows, regions: AngularRegions): Region
  * The power in each region: ∫∫ I(az, el)·cos(el) d el d az (radians; an isotropic pattern gives the regions'
  * solid angles, 4π in all). `h` and `v` are normalised 1° grids (dB below peak).
  */
-export function regionPowers(h: Grid, v: Grid, regions: AngularRegions, method: Method3d): RegionPowers {
+export function regionPowers(h: Grid, v: Grid, regions: AngularRegions, method: Method3d, backHalf = false): RegionPowers {
+  // With the back of the vertical cut the intensity is not separable: it is sampled in every direction of the grid.
+  if (backHalf) return sampledRegionPowers(backHalfIntensity(h, v, method), regions);
   const sectorWeights = sectorArc(regions);
   const hPower = h.map(power);
   const full = new Array<number>(181);
@@ -283,10 +289,10 @@ export function efficiencyOf(p: RegionPowers): AngularRegionEfficiency {
  * `typeABeam`). No number when a beamwidth is undefined or outside the Type A ranges, or when the elevation peak
  * is behind the antenna.
  */
-export function angularRegionEfficiency(h: Grid, v: Grid, sectorEdgeDeg: number, method: Method3d): AngularRegionEfficiency {
+export function angularRegionEfficiency(h: Grid, v: Grid, sectorEdgeDeg: number, method: Method3d, backHalf = false): AngularRegionEfficiency {
   const beam = typeABeam(h, v, sectorEdgeDeg);
   if ('reason' in beam) return noAngularRegions(beam.reason);
-  return withRegions(efficiencyOf(regionPowers(h, v, beam.regions, method)), beam.regions);
+  return withRegions(efficiencyOf(regionPowers(h, v, beam.regions, method, backHalf)), beam.regions);
 }
 
 /** The values with the regions they were integrated over (none when there is no value). */

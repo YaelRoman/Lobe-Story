@@ -49,6 +49,8 @@ export interface AnalyzeOptions {
    * otherwise ("Not computed"): it is the one metric that integrates over the sphere, and its columns are optional.
    */
   areMethod?: Method3d;
+  /** With `areMethod`: the reconstruction reads the back of the vertical cut (`backHalf3d`). */
+  areBackHalf?: boolean;
   /**
    * The estimate of a pattern whose intensity is not the reconstruction of its own two cuts (a mechanically tilted
    * copy, see `analyzeTilted`); `undefined` leaves the pattern to the two-cut estimate. Only asked with `areMethod`.
@@ -143,12 +145,13 @@ function areOf(
   method: Method3d,
   remember: boolean,
   model: AnalyzeOptions['areModel'],
+  backHalf = false,
 ): AngularRegionEfficiency {
-  if (!remember) return model?.(pattern, grids, edgeDeg, method) ?? angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  if (!remember) return model?.(pattern, grids, edgeDeg, method) ?? angularRegionEfficiency(grids.h, grids.v, edgeDeg, method, backHalf);
   // The memo is keyed on what answered: a pattern the model answers for (a mechanically tilted copy) has another value
   // than its two cuts give, but one the model passes on (an untilted file in a tilted list) is the same as in the
   // untilted pass and shares its entry.
-  const base = `${method}|${edgeDeg}`;
+  const base = `${method}|${edgeDeg}${backHalf ? '|back' : ''}`;
   const hit = areCache.get(pattern);
   if (model && hit?.key === `${base}|model`) return hit.value;
   const answered = model?.(pattern, grids, edgeDeg, method);
@@ -157,7 +160,7 @@ function areOf(
     return answered;
   }
   if (hit?.key === `${base}|cuts`) return hit.value;
-  const value = angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  const value = angularRegionEfficiency(grids.h, grids.v, edgeDeg, method, backHalf);
   areCache.set(pattern, { key: `${base}|cuts`, value });
   return value;
 }
@@ -166,12 +169,12 @@ function areOf(
  * The two-cut estimate of a pattern's own cuts, from the per-pattern memo `analyzeAll` uses (so a pattern already
  * analysed with this method and sector edge is not integrated again).
  */
-export function angularRegionsOfCuts(pattern: Pattern, edgeDeg: number, method: Method3d): AngularRegionEfficiency {
-  const key = `${method}|${edgeDeg}|cuts`;
+export function angularRegionsOfCuts(pattern: Pattern, edgeDeg: number, method: Method3d, backHalf = false): AngularRegionEfficiency {
+  const key = `${method}|${edgeDeg}${backHalf ? '|back' : ''}|cuts`;
   const hit = areCache.get(pattern);
   if (hit?.key === key) return hit.value;
   const grids = gridsFor(pattern);
-  const value = angularRegionEfficiency(grids.h, grids.v, edgeDeg, method);
+  const value = angularRegionEfficiency(grids.h, grids.v, edgeDeg, method, backHalf);
   areCache.set(pattern, { key, value });
   return value;
 }
@@ -249,7 +252,7 @@ function analyze(
       vHpbw: declaredReason ? missing(declaredReason) : delta(v.hpbw, declared.vBeamwidth),
       fb: declaredHReason ? missing(declaredHReason) : delta(fb.fb180, declared.frontToBack),
     },
-    are: opts.areMethod ? areOf(item.pattern, grids, s.sectorEdgeDeg, opts.areMethod, ownGrids, opts.areModel) : ARE_NOT_COMPUTED,
+    are: opts.areMethod ? areOf(item.pattern, grids, s.sectorEdgeDeg, opts.areMethod, ownGrids, opts.areModel, opts.areBackHalf) : ARE_NOT_COMPUTED,
     ...(below === undefined ? {} : { hCutPeakDb: below }),
   };
 }

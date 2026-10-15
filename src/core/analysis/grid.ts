@@ -75,3 +75,30 @@ export function peakCentre(g: Grid): number {
   while (up + down < 359 && at(g, p - down - 1) <= g[p] + tol) down++;
   return up + down === 0 ? refinedPeak(g) : signed(p + (up - down) / 2);
 }
+
+/** Linear interpolation of a 360-sample, 1°-step circle at a fractional angle (wraps). */
+export function interp(g: number[], angle: number): number {
+  const a = mod360(angle);
+  const i0 = Math.floor(a);
+  const f = a - i0;
+  const v0 = g[i0 % 360];
+  if (f === 0) return v0;
+  return v0 + (g[(i0 + 1) % 360] - v0) * f;
+}
+
+/**
+ * Elevation (positive = below the horizon) at which the 3D reconstruction of a normalised V grid
+ * has its 0 dB: the centre of a flat top, else the strongest sample. This is the cone the file's
+ * H cut lies on. Always a front-hemisphere elevation: when the strongest sample lies in the back
+ * half (|elevation| > 90°), the strongest sample within −90…90° is used instead. A peak refined between two unequal samples is not used, because the linearly
+ * interpolated V grid is above 0 dB attenuation there and the cut would no longer reach the peak.
+ */
+export function beamPeakElevation(vN: number[]): number {
+  if (Math.abs(signed(peakIndex(vN))) > 90) {
+    let best = 0;
+    for (let e = -90; e <= 90; e++) if (vN[mod360(e)] < vN[mod360(best)]) best = e;
+    return best;
+  }
+  const centre = peakCentre(vN);
+  return interp(vN, centre) <= 1e-9 ? centre : signed(peakIndex(vN));
+}
