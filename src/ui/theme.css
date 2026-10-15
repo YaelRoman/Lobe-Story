@@ -461,7 +461,7 @@ tr.hl .copy-cell { background: var(--hl); }
 /* "Use the back of the vertical cut", beside the 3D method buttons in the Simulation bar: compact, so it fits on their
    row on a phone too. The name of the method control stays on one line; the line about its use gives up the room. */
 .sim-method-name { white-space: nowrap; }
-.sim-back { display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; font-size: 13px; }
+.sim-back { display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; font-size: 13px; min-height: 24px; }
 .sim-back input { margin: 0; }
 /* Where the bar's rows wrap (760 px and under), the line about the method's use stays beside the buttons while it has
    the room of two lines, as it does without the box. */
