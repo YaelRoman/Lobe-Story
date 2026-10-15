@@ -43,7 +43,9 @@ async function swipeOn(context: BrowserContext, page: Page, testId: string): Pro
 test.describe('touch: a swipe that starts on a plot scrolls the page (R4-09)', () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
-  test('one finger moved up on the polar cut, the rectangular cut and the frequency chart moves the page, and nothing in the plot changes', async ({ page, context }) => {
+  test('one finger moved up on the polar cut, the rectangular cut and the frequency chart moves the page, and nothing in the plot changes', async ({ page, context, browserName }) => {
+    // A swipe is sent as raw touch events through a DevTools session; Playwright has no such way in Firefox (only taps).
+    test.skip(browserName !== 'chromium', 'one-finger swipes can only be sent through a Chromium DevTools session');
     await loadExample(page);
     const ranges = (testId: string) =>
       page.getByTestId(testId).locator('.js-plotly-plot').evaluate((el) => {
