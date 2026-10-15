@@ -304,11 +304,13 @@ test('a double click on a point of the frequency chart highlights its file once,
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
   await expect(chart.locator('.hoverlayer .hovertext').first()).toBeAttached();
   // Record every change of the number of highlighted rows and the clicks the page receives, from before the double click.
+  // Only clicks that land on the chart are counted: in Firefox the browser's own click of each press also reaches the
+  // page, with the body as target, beside the click the chart passes on.
   await page.evaluate(() => {
     const w = window as unknown as { hlCounts: number[]; clicks: number };
     w.hlCounts = [];
     w.clicks = 0;
-    document.addEventListener('click', () => w.clicks++, true);
+    document.addEventListener('click', (e) => { if ((e.target as Element).closest('[data-testid="plot-hpbw"]')) w.clicks++; }, true);
     const body = document.querySelector('.metrics tbody')!;
     const count = () => body.querySelectorAll('tr.hl').length;
     new MutationObserver(() => {
