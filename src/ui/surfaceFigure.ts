@@ -74,6 +74,12 @@ const FILE_PANEL_WIDTH_PX = 348;
 /** What the scenes lose to the plot's margins and the colour bar, in px. */
 const SCENE_MARGIN_PX = 80;
 
+/** About how wide the scenes of the 3D plot are together, in px: the window less the side margins (phone) or less the file panel and the colour bar (desktop); undefined window: a wide desktop. */
+export function scenesWidthPx(viewportWidth?: number): number {
+  if (viewportWidth === undefined) return 1100 - SCENE_MARGIN_PX;
+  return viewportWidth <= PHONE_MAX_WIDTH ? viewportWidth - 24 : viewportWidth - FILE_PANEL_WIDTH_PX - SCENE_MARGIN_PX;
+}
+
 /**
  * Columns of the side-by-side layout and the longest scene title (in characters) that fits a scene. A phone (760 px or
  * narrower) gets 2 columns, 1 below 420 px: three scenes of 110 px cannot carry a title. A desktop keeps `gridColumns`; its title length follows the plot width (the window less the file panel).
@@ -82,12 +88,7 @@ export function gridPlan(n: number, viewportWidth?: number): { columns: number; 
   const phone = viewportWidth !== undefined && viewportWidth <= PHONE_MAX_WIDTH;
   const columns = phone ? Math.min(gridColumns(n), viewportWidth < NARROW_PHONE_WIDTH ? 1 : 2) : gridColumns(n);
   // The plot is about the window less the side margins (phone) or less the file panel (desktop).
-  const plotWidth =
-    viewportWidth === undefined
-      ? 1100 - SCENE_MARGIN_PX
-      : phone
-        ? viewportWidth - 24
-        : viewportWidth - FILE_PANEL_WIDTH_PX - SCENE_MARGIN_PX;
+  const plotWidth = scenesWidthPx(viewportWidth);
   return { columns, titleMax: Math.max(12, Math.floor(plotWidth / columns / TITLE_CHAR_PX) - 2), phone };
 }
 
@@ -96,6 +97,9 @@ export function gridHeightPx(n: number, viewportWidth?: number): number | undefi
   if (viewportWidth === undefined || viewportWidth > PHONE_MAX_WIDTH) return undefined;
   return Math.max(480, Math.ceil(n / gridPlan(n, viewportWidth).columns) * PHONE_ROW_PX);
 }
+
+/** The colour bar on a phone: under the scenes, its title above the bar (beside it, "dB" ran into the first tick label). */
+export const PHONE_COLORBAR = { title: { text: 'dB', side: 'top' }, orientation: 'h', thickness: 12, lenmode: 'pixels', len: 200, x: 0.5, xanchor: 'center', y: 0, yanchor: 'top' };
 
 export const sceneId = (k: number): string => (k === 0 ? 'scene' : `scene${k + 1}`);
 
@@ -115,8 +119,25 @@ export function sceneLayout(floorDb: number, theme: FigureTheme, domain?: { x: n
     xaxis: { ...axis, title: { text: 'Boresight' } },
     yaxis: axis,
     zaxis: { ...axis, title: { text: 'Up' } },
-    camera: { eye: { x: 1.5, y: -1.5, z: 0.9 } },
+    camera: { eye: { ...BUILT_CAMERA.eye } },
   };
+}
+
+/**
+ * Scene `k` of a grid of `cols` columns and `rows` rows (filled row by row): its domain, and where its title hangs
+ * from (the title's top edge, centred over the scene). Per row of height 1/rows there is room above the title (so it
+ * does not read as the caption of the scene above) and a title band over its own scene.
+ */
+export function gridCell(k: number, cols: number, rows: number): { domain: { x: number[]; y: number[] }; titleX: number; titleY: number } {
+  const c = k % cols;
+  const r = Math.floor(k / cols);
+  const x0 = c / cols;
+  const x1 = (c + 1) / cols;
+  const y0 = 1 - (r + 1) / rows;
+  const y1 = 1 - r / rows;
+  const gap = 0.14 / rows;
+  const band = 0.07 / rows;
+  return { domain: { x: [x0, x1], y: [y0 + gap, y1 - band] }, titleX: (x0 + x1) / 2, titleY: y1 };
 }
 
 export function buildSurfaceFigure(o: SurfaceFigureOptions): Figure {
@@ -171,15 +192,7 @@ export function buildSurfaceFigure(o: SurfaceFigureOptions): Figure {
     const rows = Math.max(1, Math.ceil(series.length / cols));
     const annotations: Record<string, unknown>[] = [];
     series.forEach((s, k) => {
-      const c = k % cols;
-      const r = Math.floor(k / cols);
-      const x0 = c / cols;
-      const x1 = (c + 1) / cols;
-      const y0 = 1 - (r + 1) / rows;
-      const y1 = 1 - r / rows;
-      // Per row of height 1/rows: room above the title (so it does not read as the caption of the scene above) and a title band over its own scene.
-      const gap = 0.14 / rows;
-      const band = 0.07 / rows;
+      const cell = gridCell(k, cols, rows);
       data.push({
         ...surfaceTrace(s),
         scene: sceneId(k),
@@ -187,14 +200,14 @@ export function buildSurfaceFigure(o: SurfaceFigureOptions): Figure {
         showscale: k === 0,
         // A phone has no room beside the scenes: the bar lies under them.
         colorbar: phone
-          ? { title: { text: 'dB', side: 'right' }, orientation: 'h', thickness: 12, lenmode: 'pixels', len: 200, x: 0.5, xanchor: 'center', y: 0, yanchor: 'top' }
+          ? PHONE_COLORBAR
           : { title: { text: 'dB' }, len: 0.5 },
       });
-      layout[sceneId(k)] = sceneLayout(o.floorDb, o.theme, { x: [x0, x1], y: [y0 + gap, y1 - band] });
+      layout[sceneId(k)] = sceneLayout(o.floorDb, o.theme, cell.domain);
       annotations.push({
         text: middleEllipsis(s.label, titleMax),
-        x: (x0 + x1) / 2,
-        y: y1,
+        x: cell.titleX,
+        y: cell.titleY,
         xref: 'paper',
         yref: 'paper',
         xanchor: 'center',
@@ -234,6 +247,33 @@ export function linkedCameraUpdate(
   }
   return null;
 }
+
+/** The view every scene is built with (see `sceneLayout`), in full: where "Reset camera to default" returns to. */
+export const BUILT_CAMERA = { up: { x: 0, y: 0, z: 1 }, center: { x: 0, y: 0, z: 0 }, eye: { x: 1.5, y: -1.5, z: 0.9 } };
+
+const CAMERA_KEY = /^(scene\d*)\.camera(\.(eye|up|center|projection)(\.[xyz]|\.type)?)?$/;
+
+/** The scene whose camera a plotly_relayout payload changed (the first one named, also for a part of a camera); null: none. */
+export function cameraSceneOf(update: Record<string, unknown>): string | null {
+  for (const key of Object.keys(update)) {
+    const m = CAMERA_KEY.exec(key);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/** Whether a plotly_relayout payload is the toolbar's "Reset camera to default": it sets the parts of the cameras to null (the library's defaults). */
+export const isCameraReset = (update: Record<string, unknown>): boolean => Object.entries(update).some(([key, value]) => value === null && CAMERA_KEY.test(key));
+
+/** The update that gives each of `sceneCount` scenes `camera`. */
+export function allScenesCamera(sceneCount: number, camera: unknown): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (let k = 0; k < sceneCount; k++) out[`${sceneId(k)}.camera`] = structuredClone(camera);
+  return out;
+}
+
+/** A camera as text, its numbers to 4 decimals: the same view read back from the library (with rounding noise) gives the same text. */
+export const cameraKey = (camera: unknown): string => JSON.stringify(camera, (_, v: unknown) => (typeof v === 'number' ? Math.round(v * 1e4) / 1e4 : v));
 
 /** The camera of a plotly_relayout payload that turned or zoomed a scene (the first one named); undefined: none. */
 export const cameraOf = (update: Record<string, unknown>): unknown => Object.entries(update).find(([key]) => /^scene\d*\.camera$/.test(key))?.[1];

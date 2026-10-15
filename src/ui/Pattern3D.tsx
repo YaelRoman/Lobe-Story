@@ -5,7 +5,7 @@ import { useStore } from '../state/store';
 import type { TaggedPattern } from '../core/analysis/metrics';
 import type { Pattern } from '../core/types';
 import { nameOf } from '../core/names';
-import { buildSurfaceFigure, cameraOf, gridHeightPx, linkedCameraUpdate, maxSurfaces, viewportClass, withCamera, type SurfaceSeries } from './surfaceFigure';
+import { allScenesCamera, BUILT_CAMERA, buildSurfaceFigure, cameraKey, cameraOf, cameraSceneOf, gridHeightPx, isCameraReset, linkedCameraUpdate, maxSurfaces, viewportClass, withCamera, type SurfaceSeries } from './surfaceFigure';
 import { capItems, capNotice, surfaceExportCaption } from './viewCaps';
 import { FIGURE_THEMES } from './figureTheme';
 import { PlotlyChart } from './PlotlyChart';
@@ -53,7 +53,7 @@ export function Pattern3D({
   const capped = useMemo(() => capItems(items, cap, highlighted), [items, cap, highlighted]);
   // The surfaces follow the ticks a moment later, so a click on a checkbox is answered before the 3D redraw starts.
   // The comparison is switched with them: one redraw, never one file laid out side by side on the way.
-  const asked = useMemo(() => ({ compare: compareAsked, shown: capped.shown }), [compareAsked, capped.shown]);
+  const asked = useMemo(() => ({ compare: compareAsked, shown: capped.shown, total: capped.total }), [compareAsked, capped.shown, capped.total]);
   const shown = useDeferredValue(asked);
   const { compare, shown: drawn } = shown;
   const updating = shown !== asked;
@@ -112,14 +112,28 @@ export function Pattern3D({
   const lastCamera = useRef('');
   const onRelayout = useCallback(
     (el: HTMLElement, update: Record<string, unknown>) => {
-      const turned = cameraOf(update);
-      if (turned !== undefined) camera.current = turned;
-      const next = linkedCameraUpdate(update, sceneCount, true);
-      if (!next) return;
-      const key = JSON.stringify(Object.values(next)[0]);
-      if (key === lastCamera.current) return;
-      lastCamera.current = key;
-      void Plotly.relayout(el, next as Partial<Layout>);
+      const id = cameraSceneOf(update);
+      if (id === null) return;
+      const apply = (next: Record<string, unknown>) => {
+        const key = cameraKey(Object.values(next)[0]);
+        if (key === lastCamera.current) return;
+        lastCamera.current = key;
+        void Plotly.relayout(el, next as Partial<Layout>);
+      };
+      // "Reset camera to default" returns every scene to the view it is built with (the library's own default
+      // differs, and a scene made after a turn would take that turn for its default).
+      if (isCameraReset(update)) {
+        camera.current = null;
+        apply(allScenesCamera(sceneCount, BUILT_CAMERA));
+        return;
+      }
+      // The view the scene shows now, as the library holds it: the payload may name only part of it.
+      const live = (el as { _fullLayout?: Record<string, { _scene?: { getCamera?: () => unknown } } | undefined> })._fullLayout?.[id]?._scene?.getCamera?.();
+      const shown = live ?? cameraOf(update);
+      if (shown === undefined) return;
+      camera.current = shown;
+      const next = linkedCameraUpdate({ [`${id}.camera`]: shown }, sceneCount, true);
+      if (next) apply(next);
     },
     [sceneCount],
   );
@@ -133,7 +147,7 @@ export function Pattern3D({
         <>
           <p className="count" data-testid="compare-intro">
             Both 3D methods for {compared?.label ?? 'the highlighted file'}, reconstructed from the H and V cuts; estimates, not measured data.
-            {capped.total > 1 ? ' One file is compared: the highlighted one, else the first ticked. Highlight another to compare it.' : ''}
+            {shown.total > 1 ? ' One file is compared: the highlighted one, else the first ticked. Highlight another to compare it.' : ''}
             {state}
           </p>
           <p className="count" data-testid="compare-numbers-method">
@@ -153,6 +167,8 @@ export function Pattern3D({
         </p>
       )}
       <PlotlyChart
+        // Drawn anew when the phone layout starts or ends: updated in place, the scenes kept the size of the old layout.
+        key={stacked ? 'phone' : 'wide'}
         className="plot plot3d"
         height={compared ? compareHeightPx(viewportWidth) : layout === 'grid' ? gridHeightPx(series.length, viewportWidth) : undefined}
         figure={figure}

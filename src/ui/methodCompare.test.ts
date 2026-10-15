@@ -7,6 +7,7 @@ import {
   differenceText,
   methodDifference,
   stacksMethods,
+  sideBySideHeight,
   COMPARED_METHODS,
 } from './methodCompare';
 import { linkedCameraUpdate } from './surfaceFigure';
@@ -48,8 +49,9 @@ describe('buildMethodCompareFigure', () => {
     expect(l.scene.camera).toEqual(l.scene2.camera);
     expect(l.scene.xaxis.range).toEqual(l.scene2.xaxis.range);
     const camera = { eye: { x: 0.2, y: 2, z: 0.5 } };
-    expect(linkedCameraUpdate({ 'scene2.camera': camera }, 2)).toEqual({ 'scene.camera': camera });
-    expect(linkedCameraUpdate({ 'scene.camera': camera }, 2)).toEqual({ 'scene2.camera': camera });
+    // As the page links them: the turned panel's own camera is written too (see `linkedCameraUpdate`).
+    expect(linkedCameraUpdate({ 'scene2.camera': camera }, 2, true)).toEqual({ 'scene2.camera': camera, 'scene.camera': camera });
+    expect(linkedCameraUpdate({ 'scene.camera': camera }, 2, true)).toEqual({ 'scene.camera': camera, 'scene2.camera': camera });
   });
 
   it('keeps the camera the user turned to across redraws', () => {
@@ -93,6 +95,21 @@ describe('buildMethodCompareFigure', () => {
     expect((traces(build({ viewportWidth: 390 }))[0].colorbar as { orientation?: string }).orientation).toBe('h');
   });
 
+  it('keeps a side-by-side panel no taller than it is wide, so the box fits a narrow window, and leaves a wide one as the grid has it', () => {
+    const height = (w?: number) => {
+      const d = (build({ viewportWidth: w }).layout as Record<string, Scene>).scene.domain.y;
+      return d[1] - d[0];
+    };
+    expect(height(1400)).toBeCloseTo(0.79, 9);
+    expect(height(undefined)).toBeCloseTo(0.79, 9);
+    expect(height(1000)).toBeLessThan(0.6);
+    expect(height(1000)).toBeCloseTo(sideBySideHeight(1000), 9);
+    // Both panels the same, under their titles.
+    const l = build({ viewportWidth: 1000 }).layout as Record<string, Scene>;
+    expect(l.scene.domain.y).toEqual(l.scene2.domain.y);
+    expect(l.scene.domain.y[1]).toBeCloseTo(0.93, 9);
+  });
+
   it('gives stacked panels a taller plot on a phone, and leaves the style sheet’s height elsewhere', () => {
     expect(compareHeightPx(undefined)).toBeUndefined();
     expect(compareHeightPx(1000)).toBeUndefined();
@@ -124,6 +141,12 @@ describe('methodDifference', () => {
     const d = methodDifference(flat(0), poles, 40);
     expect(d.maxDb).toBe(10);
     expect(d.meanDb).toBeCloseTo(0, 9);
+  });
+
+  it('counts the ±180° meridian once', () => {
+    const level = (back: number): Surface3d => ({ az: [-180, 0, 180], el: [0], atten: [[back, 0, 0]] });
+    // The −180° column differs and the 180° one (the same direction) does not: it weighs as one of two columns.
+    expect(methodDifference(level(0), level(4), 40)).toEqual({ maxDb: 4, meanDb: 2 });
   });
 
   it('finds the two methods apart on a real reconstruction', () => {

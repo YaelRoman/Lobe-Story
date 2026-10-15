@@ -9,6 +9,12 @@ import {
   linkedCameraUpdate,
   cameraOf,
   withCamera,
+  cameraSceneOf,
+  isCameraReset,
+  allScenesCamera,
+  cameraKey,
+  gridCell,
+  BUILT_CAMERA,
   MAX_3D,
   MAX_3D_OVERLAY,
   sceneId,
@@ -244,5 +250,47 @@ describe('withCamera', () => {
   it('reads the camera of a relayout payload', () => {
     expect(cameraOf({ 'scene2.camera': cam })).toBe(cam);
     expect(cameraOf({ 'xaxis.range': [0, 1] })).toBeUndefined();
+  });
+});
+
+describe('camera events', () => {
+  const cam = { eye: { x: 0.3, y: 2, z: 0.1 } };
+  it('names the scene whose camera an event changed, whole or in part', () => {
+    expect(cameraSceneOf({ 'scene2.camera': cam })).toBe('scene2');
+    expect(cameraSceneOf({ 'scene.camera.eye': null, 'scene.camera.up': null })).toBe('scene');
+    expect(cameraSceneOf({ 'scene3.camera.eye.x': 1 })).toBe('scene3');
+    expect(cameraSceneOf({ 'xaxis.range': [0, 1], 'scenery.camera': cam })).toBeNull();
+  });
+  it('tells the toolbar’s reset (parts set to null) from a turn', () => {
+    expect(isCameraReset({ 'scene.camera.up': null, 'scene.camera.eye': null, 'scene.camera.center': null, 'scene2.camera.eye': null })).toBe(true);
+    expect(isCameraReset({ 'scene.camera': cam })).toBe(false);
+    expect(isCameraReset({ 'xaxis.range': null })).toBe(false);
+  });
+  it('gives every scene one camera, each its own copy', () => {
+    const out = allScenesCamera(3, BUILT_CAMERA);
+    expect(Object.keys(out)).toEqual(['scene.camera', 'scene2.camera', 'scene3.camera']);
+    expect(out['scene2.camera']).toEqual(BUILT_CAMERA);
+    expect(out['scene.camera']).not.toBe(out['scene2.camera']);
+  });
+  it('is the built view the scenes start from', () => {
+    const f = buildSurfaceFigure({ series: series(1), layout: 'overlay', floorDb: 40, theme: FIGURE_THEMES.light });
+    expect((f.layout as Record<string, { camera: { eye: unknown } }>).scene.camera.eye).toEqual(BUILT_CAMERA.eye);
+  });
+  it('reads a camera read back with rounding noise as the same view', () => {
+    expect(cameraKey({ eye: { x: 1.5000000000000004, y: -1.5, z: 0.9 } })).toBe(cameraKey({ eye: { x: 1.5, y: -1.5000000000000007, z: 0.8999999999999992 } }));
+    expect(cameraKey({ eye: { x: 1.5, y: -1.5, z: 0.9 } })).not.toBe(cameraKey({ eye: { x: 1.51, y: -1.5, z: 0.9 } }));
+  });
+});
+
+describe('gridCell', () => {
+  it('is the cell the side-by-side layout gives a scene: two columns, or one column of two rows', () => {
+    const c = gridCell(1, 2, 1);
+    expect(c.domain.x).toEqual([0.5, 1]);
+    expect(c.domain.y[0]).toBeCloseTo(0.14, 9);
+    expect(c.domain.y[1]).toBeCloseTo(0.93, 9);
+    expect([c.titleX, c.titleY]).toEqual([0.75, 1]);
+    const f = buildSurfaceFigure({ series: series(2), layout: 'grid', floorDb: 40, theme: FIGURE_THEMES.light });
+    expect((f.layout as Record<string, { domain: unknown }>).scene2.domain).toEqual(gridCell(1, 2, 1).domain);
+    expect(gridCell(1, 1, 2).domain.y[1]).toBeLessThanOrEqual(gridCell(0, 1, 2).domain.y[0]);
   });
 });

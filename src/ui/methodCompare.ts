@@ -3,7 +3,7 @@ import type { Method3d, Surface3d } from '../core/analysis/pattern3d';
 import type { ExportCaption } from './exportFigure';
 import type { Figure, FigureTheme } from './figureTheme';
 import { settingText } from './bwLabel';
-import { PHONE_MAX_WIDTH, PHONE_ROW_PX, sceneId, sceneLayout, toCartesian } from './surfaceFigure';
+import { gridCell, PHONE_COLORBAR, PHONE_MAX_WIDTH, PHONE_ROW_PX, scenesWidthPx, sceneId, sceneLayout, toCartesian } from './surfaceFigure';
 
 /**
  * "Compare methods" in the 3D view: one file reconstructed with both 3D methods, in two scenes of one chart that share
@@ -21,6 +21,15 @@ export const stacksMethods = (viewportWidth?: number): boolean => viewportWidth 
 
 /** The plot's height in px when the panels are stacked (two rows of a phone's 3D scene, and the colour bar under them); undefined: the style sheet's. */
 export const compareHeightPx = (viewportWidth?: number): number | undefined => (stacksMethods(viewportWidth) ? 2 * PHONE_ROW_PX + 56 : undefined);
+
+/** The style sheet's height of the 3D plot on a desktop, in px (theme.css `.plot3d`), less its top margin. */
+const DESKTOP_PLOT_PX = 640 - 30;
+
+/**
+ * The height share of a side-by-side panel: the scene's box is scaled to the panel's height, so a panel narrower than
+ * it is tall (a window of about 1024 px) is made as tall as it is wide, and the box stays inside it.
+ */
+export const sideBySideHeight = (viewportWidth?: number): number => Math.min(1, scenesWidthPx(viewportWidth) / 2 / DESKTOP_PLOT_PX);
 
 export interface MethodCompareOptions {
   surfaces: Record<Method3d, Surface3d>;
@@ -46,8 +55,10 @@ export function buildMethodCompareFigure(o: MethodCompareOptions): Figure {
   COMPARED_METHODS.forEach((method, k) => {
     const c = toCartesian(o.surfaces[method], o.floorDb);
     const name = METHOD_TITLE[method];
-    // Side by side: halves of the width; stacked: halves of the height with room for the lower panel's title.
-    const domain = stacked ? { x: [0, 1], y: k === 0 ? [0.55, 0.96] : [0, 0.45] } : { x: k === 0 ? [0.03, 0.49] : [0.53, 0.99], y: [0, 0.94] };
+    // The side-by-side 3D view's cells for two files (two columns, or one column of two rows when stacked): the
+    // same room for the scene, its axis titles and its title.
+    const cell = stacked ? gridCell(k, 1, 2) : gridCell(k, 2, 1);
+    const domain = stacked ? cell.domain : { x: cell.domain.x, y: [Math.max(cell.domain.y[0], cell.domain.y[1] - sideBySideHeight(o.viewportWidth)), cell.domain.y[1]] };
     // No `meta`: the image's legend lists files, and both surfaces are of one file (the caption names it).
     data.push({
       type: 'surface',
@@ -64,19 +75,19 @@ export function buildMethodCompareFigure(o: MethodCompareOptions): Figure {
       colorscale: 'Viridis',
       showscale: k === 0,
       colorbar: stacked
-        ? { title: { text: 'dB', side: 'right' }, orientation: 'h', thickness: 12, lenmode: 'pixels', len: 200, x: 0.5, xanchor: 'center', y: 0, yanchor: 'top' }
+        ? PHONE_COLORBAR
         : { title: { text: 'dB' }, len: 0.5 },
       hovertemplate: `%{text}<br>%{surfacecolor:.1f} dB<extra>${name}</extra>`,
     });
     layout[sceneId(k)] = sceneLayout(o.floorDb, o.theme, domain);
     annotations.push({
       text: `<b>${name}</b>${method === o.selected ? ` · ${USED}` : ''}`,
-      x: (domain.x[0] + domain.x[1]) / 2,
-      y: stacked && k === 1 ? 0.5 : 1,
+      x: cell.titleX,
+      y: cell.titleY,
       xref: 'paper',
       yref: 'paper',
       xanchor: 'center',
-      yanchor: stacked && k === 1 ? 'middle' : 'bottom',
+      yanchor: 'top',
       showarrow: false,
       font: { size: 13 },
     });
@@ -101,9 +112,11 @@ export function methodDifference(a: Surface3d, b: Surface3d, floorDb: number): M
   let maxDb = 0;
   let sum = 0;
   let weights = 0;
+  // A grid that runs from −180° to 180° has the same meridian at both ends: it is counted once.
+  const columns = a.az.length > 1 && a.az[a.az.length - 1] - a.az[0] === 360 ? a.az.length - 1 : a.az.length;
   a.el.forEach((e, i) => {
     const w = Math.max(0, Math.cos((e * Math.PI) / 180));
-    a.az.forEach((_, j) => {
+    a.az.slice(0, columns).forEach((_, j) => {
       const d = Math.abs(Math.max(-a.atten[i][j], -floorDb) - Math.max(-b.atten[i][j], -floorDb));
       if (d > maxDb) maxDb = d;
       sum += w * d;

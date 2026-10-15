@@ -25,14 +25,47 @@ const drawnSurfaces = (page: Page) =>
     return gd.data.map((t) => ({ scene: t.scene, name: t.name, color: t.surfacecolor.flat().reduce((a, b) => a + b, 0).toFixed(6), z: t.z.flat().reduce((a, b) => a + b, 0).toFixed(6) }));
   });
 /** The camera eye each scene of the 3D chart shows (the scene's own camera: the library's layout can lag behind it). */
-const eyes = (page: Page) =>
+const allEyes = (page: Page) =>
   page.evaluate(() => {
     const gd = document.querySelector('[data-testid="plot-3d"] .js-plotly-plot') as unknown as { _fullLayout: Record<string, { _scene?: { getCamera(): { eye: { x: number; y: number; z: number } } } }> };
-    return ['scene', 'scene2'].map((id) => {
-      const e = gd._fullLayout[id]?._scene?.getCamera().eye;
-      return e ? [e.x, e.y, e.z].map((v) => Number(v.toFixed(4))) : null;
-    });
+    return Object.keys(gd._fullLayout)
+      .filter((id) => /^scene\d*$/.test(id))
+      .sort((a, b) => Number(a.slice(5) || 1) - Number(b.slice(5) || 1))
+      .map((id) => {
+        const e = gd._fullLayout[id]?._scene?.getCamera().eye;
+        return e ? [e.x, e.y, e.z].map((v) => Number(v.toFixed(3))) : null;
+      });
   });
+const eyes = async (page: Page) => {
+  const all = await allEyes(page);
+  return [all[0] ?? null, all[1] ?? null];
+};
+/** The view the scenes are built with (surfaceFigure `BUILT_CAMERA`). */
+const BUILT_EYE = [1.5, -1.5, 0.9];
+/** All scenes show one view, other than `not`. */
+const inStepAway = (page: Page, not: number[] | null) =>
+  expect
+    .poll(async () => {
+      const all = await allEyes(page);
+      return all.length > 0 && all.every((e) => e !== null && JSON.stringify(e) === JSON.stringify(all[0])) && JSON.stringify(all[0]) !== JSON.stringify(not);
+    })
+    .toBe(true);
+/** A sideways drag on scene `k` of the 3D chart (a turn about the vertical axis). */
+async function turnScene(page: Page, k: number, dx: number) {
+  const box = (await page.locator('[data-testid="plot-3d"] canvas').nth(k).boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(x + (dx * i) / 6, y);
+  await page.mouse.up();
+}
+const switchTheme = async (page: Page) => {
+  const before = await page.evaluate(() => getComputedStyle(document.querySelector('[data-testid="plot-3d"] .main-svg')!).backgroundColor);
+  await page.getByRole('button', { name: 'Dark mode' }).click();
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('[data-testid="plot-3d"] .main-svg')!).backgroundColor)).not.toBe(before);
+};
+const RESET_CAMERA = 'Reset camera to default';
 
 /** Counts the WebGL contexts the page makes and the ones released (see plotEngine.spec). */
 async function countContexts(page: Page) {
@@ -305,3 +338,113 @@ test('the comparison is remembered in the browser, like the 3D layout', async ({
   await expect(page.getByRole('checkbox', { name: COMPARE })).toBeChecked();
   await expect(scenes(page)).toHaveCount(2);
 });
+
+for (const view of ['compare', 'grid', 'overlay'] as const) {
+  test(`${view}: "Reset camera to default" returns every scene to the built view, and a redraw keeps it`, async ({ page }) => {
+    await loadExample(page);
+    const scenesWanted = view === 'compare' ? 2 : view === 'grid' ? 6 : 1;
+    if (view !== 'compare') await page.getByRole('button', { name: 'Show all', exact: true }).click();
+    await to3d(page);
+    if (view === 'compare') await page.getByRole('checkbox', { name: COMPARE }).check();
+    if (view === 'overlay') await page.getByRole('group', { name: '3D layout' }).getByRole('button', { name: 'Overlay' }).click();
+    await expect(scenes(page)).toHaveCount(scenesWanted);
+    await expect.poll(async () => (await allEyes(page)).every((e) => JSON.stringify(e) === JSON.stringify(BUILT_EYE))).toBe(true);
+    // A redraw first (the scenes then outlive the layout they were made with), then a turn.
+    await switchTheme(page);
+    await turnScene(page, 0, 120);
+    await inStepAway(page, BUILT_EYE);
+    await plot(page).getByRole('button', { name: RESET_CAMERA }).click();
+    await expect.poll(async () => (await allEyes(page)).every((e) => JSON.stringify(e) === JSON.stringify(BUILT_EYE))).toBe(true);
+    await switchTheme(page);
+    await expect.poll(async () => (await allEyes(page)).every((e) => JSON.stringify(e) === JSON.stringify(BUILT_EYE))).toBe(true);
+    expect((await allEyes(page)).length).toBe(scenesWanted);
+  });
+}
+
+test('the exported image of the comparison shows the view on screen: the turned one, and after a reset the built one', async ({ page }) => {
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { exportedSvgs: string[] }).exportedSvgs = seen;
+    const create = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (obj: Blob | MediaSource) => {
+      if (obj instanceof Blob && obj.type.includes('svg')) void obj.text().then((t) => seen.push(t));
+      return create(obj);
+    };
+    const src = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')!;
+    Object.defineProperty(HTMLImageElement.prototype, 'src', {
+      ...src,
+      set(value: string) {
+        if (typeof value === 'string' && value.startsWith('data:image/svg+xml')) seen.push(decodeURIComponent(value.slice(value.indexOf(',') + 1)));
+        src.set!.call(this, value);
+      },
+    });
+  });
+  /** The scene pictures of the next exported image. */
+  const exported = async () => {
+    await page.evaluate(() => ((window as unknown as { exportedSvgs: string[] }).exportedSvgs.length = 0));
+    await Promise.all([page.waitForEvent('download'), plot(page).getByRole('button', { name: DOWNLOAD }).click()]);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { exportedSvgs: string[] }).exportedSvgs.some((s) => s.includes('Lobe-Story')))).toBe(true);
+    const svg = await page.evaluate(() => (window as unknown as { exportedSvgs: string[] }).exportedSvgs.filter((s) => s.includes('Lobe-Story')).pop()!);
+    return svg.match(/<image[^>]*>/g) ?? [];
+  };
+  await loadExample(page);
+  await to3d(page);
+  await page.getByRole('checkbox', { name: COMPARE }).check();
+  await expect(scenes(page)).toHaveCount(2);
+  const built = await exported();
+  expect(built.length).toBeGreaterThanOrEqual(2);
+  await turnScene(page, 0, 120);
+  await inStepAway(page, BUILT_EYE);
+  const turned = await exported();
+  expect(turned).not.toEqual(built);
+  await plot(page).getByRole('button', { name: RESET_CAMERA }).click();
+  await expect.poll(async () => (await allEyes(page)).every((e) => JSON.stringify(e) === JSON.stringify(BUILT_EYE))).toBe(true);
+  expect(await exported()).toEqual(built);
+});
+
+test('side by side with six files: turning any panel turns all, and they stay in step through a redraw and a resize', async ({ page }) => {
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Show all', exact: true }).click();
+  await to3d(page);
+  await expect(scenes(page)).toHaveCount(6);
+  await switchTheme(page);
+  await turnScene(page, 0, 120);
+  await inStepAway(page, BUILT_EYE);
+  let now = (await allEyes(page))[0];
+  await switchTheme(page);
+  await expect.poll(async () => (await allEyes(page)).every((e) => JSON.stringify(e) === JSON.stringify(now))).toBe(true);
+  await turnScene(page, 3, -60);
+  await inStepAway(page, now);
+  now = (await allEyes(page))[0];
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await expect.poll(async () => (await allEyes(page)).every((e) => JSON.stringify(e) === JSON.stringify(now))).toBe(true);
+  expect((await allEyes(page)).length).toBe(6);
+});
+
+for (const view of ['compare', 'grid'] as const) {
+  test(`${view}: crossing the phone width both ways redraws the panels at the new size`, async ({ page }) => {
+    await loadExample(page);
+    if (view === 'grid') await page.getByRole('button', { name: 'Show all', exact: true }).click();
+    await to3d(page);
+    if (view === 'compare') await page.getByRole('checkbox', { name: COMPARE }).check();
+    const n = view === 'compare' ? 2 : 6;
+    await expect(scenes(page)).toHaveCount(n);
+    /** Each canvas's width as a share of the chart's. */
+    const shares = () => scenes(page).evaluateAll((els) => {
+      const chart = document.querySelector('[data-testid="plot-3d"]')!.getBoundingClientRect().width;
+      return els.map((e) => Math.round((e.getBoundingClientRect().width / chart) * 100) / 100);
+    });
+    const desk = await shares();
+    const columns = view === 'compare' ? 2 : 3;
+    // A share of the width each, less the colour bar and margins (broken, they kept a phone’s size: about a third of this).
+    for (const s of desk) expect(s).toBeGreaterThan(0.8 / columns);
+    await page.setViewportSize({ width: 390, height: 844 });
+    // A phone: the comparison stacks (whole width), the grid takes one column below 420 px.
+    await expect.poll(async () => (await shares()).every((s) => s > 0.9)).toBe(true);
+    await expect(scenes(page)).toHaveCount(n);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect.poll(async () => (await shares()).every((s) => s > 0.8 / columns && s < 1 / columns + 0.01)).toBe(true);
+    await expect(scenes(page)).toHaveCount(n);
+  });
+}
