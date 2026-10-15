@@ -124,6 +124,8 @@ export function Pattern3D({
       // differs, and a scene made after a turn would take that turn for its default).
       if (isCameraReset(update)) {
         camera.current = null;
+        // Always applied: a second reset in a row must not be skipped as a camera we just applied.
+        lastCamera.current = '';
         apply(allScenesCamera(sceneCount, BUILT_CAMERA));
         return;
       }

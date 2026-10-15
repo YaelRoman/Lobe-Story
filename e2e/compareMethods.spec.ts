@@ -357,6 +357,9 @@ for (const view of ['compare', 'grid', 'overlay'] as const) {
     await expect.poll(async () => (await allEyes(page)).every((e) => JSON.stringify(e) === JSON.stringify(BUILT_EYE))).toBe(true);
     await switchTheme(page);
     await expect.poll(async () => (await allEyes(page)).every((e) => JSON.stringify(e) === JSON.stringify(BUILT_EYE))).toBe(true);
+    // A second reset in a row, with no turn between, still lands on the built view (not the library's default).
+    await plot(page).getByRole('button', { name: RESET_CAMERA }).click();
+    await expect.poll(async () => (await allEyes(page)).every((e) => JSON.stringify(e) === JSON.stringify(BUILT_EYE))).toBe(true);
     expect((await allEyes(page)).length).toBe(scenesWanted);
   });
 }
