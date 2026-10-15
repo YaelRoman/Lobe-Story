@@ -142,7 +142,9 @@ puts more power away from the two cut planes and gives a lower sector efficiency
 lower on the built-in example). The 3D method therefore changes these columns; it is chosen in the
 Simulation bar, where the control is enabled while these columns are shown or plotted. To see what
 the choice changes, "Compare methods" in the 3D view draws the highlighted file with both methods
-side by side; it does not change the method these columns use. The power is integrated in linear terms on the 1° grid,
+side by side; it does not change the method these columns use. With **Use the back of the vertical cut** on (see
+"Back of the vertical cut" below) the reconstruction reads the back half of the elevation cut behind the antenna
+and is single-valued at the poles; the headers then name it ("[Summation + back of V cut]"). The power is integrated in linear terms on the 1° grid,
 taken as linear between samples, with the solid-angle weight cos(elevation). A region boundary at a
 non-integer angle cuts the 1° cell where it falls; nothing is rounded to a whole degree.
 
@@ -152,7 +154,12 @@ multiplies it by the azimuth cut, so close to the poles it understates the power
 average of the azimuth cut; "Weighted" tends to the elevation cut there and gives three to four times
 more. "Lower region est." (and the part of the upper region near the zenith) is therefore biased low
 with "Summation". Sector and spatial efficiency are hardly affected: the power near the poles is a
-small part of the whole.
+small part of the whole. With **Use the back of the vertical cut** on, straight up and straight down are the
+elevation cut's own level from every azimuth, so this bias is gone with either method; on the built-in example
+the lower region with Summation then reads 3.3 to 3.5 times its value with the option off, close to what Weighted
+gives (Weighted itself moves by about 5 %). Sector efficiency moves by 0.1 (Summation) to 0.7 (Weighted) point on the example; on measured
+panels by less than 1 point typically, and by several points where the back half of the vertical cut shows much more
+power behind the antenna, away from the horizon, than the azimuth cut does at the horizon (see the section below).
 
 **No value.** "—" with the reason in the tooltip (and, for the focused or tapped cell, in the line above the table, together with what the column means) when the beam is outside the Type A ranges (vertical
 HPBW 0.5° to 25°, horizontal HPBW 50° to 130°, both at 3 dB whatever the beamwidth level setting), when
@@ -251,7 +258,10 @@ leaves F/B almost unchanged.
 While a file shown is tipped mechanically on this cut, the tooltips of the two F/B headers and the
 note above the table say so: "Under a mechanical tilt, F/B on this cut is a rough estimate (the back
 is read off a tilted cone)". A rise of F/B by ten or more dB under a few degrees of mechanical tilt
-is this artefact, not an improvement of the antenna.
+is this artefact, not an improvement of the antenna. With **Use the back of the vertical cut** on, the back of
+this cut is read from the back half of the vertical cut instead (straight behind the antenna, the ground cone
+at θpeak + m is the vertical cut's direction 180° − (θpeak + 2·m)), so F/B follows the antenna's own back lobe
+and the artefact is gone; the note is still shown, since the rest of the back is still interpolated.
 
 **At the horizon.** The cut at ground elevation 0°: what the antenna radiates towards the horizon
 in every azimuth. This is where the widening known from mechanical tilt is seen, and how much is
@@ -373,6 +383,90 @@ maximum staying at boresight; "Weighted" 73.9° / 90.0° / 104.8°, with the max
 boresight (to about ±36° at +6°). On the cut through the beam peak "Summation" narrows the same
 panel instead (64.4° at +2°). Up-tilt and down-tilt are the same on the horizon cut of a symmetric
 elevation beam.
+
+## Back of the vertical cut
+
+**Use the back of the vertical cut** is a box beside the 3D method in the Simulation bar, written "+ back" (as the
+table headers write it; its tooltip and its spoken name say the rest), off by default. It changes the 3D reconstruction that the 3D view, the tilt simulation, the horizon cut and the angular-region
+estimate read; with it off every number is exactly the one of the versions before it (the code path is the same,
+and a test compares the two). It is enabled, and named, on the same occasions as the 3D method: in the 3D view,
+under a tilt, for the horizon cut and while the angular regions are shown. It is a browser preference, saved with
+projects too, and has a chip in the "Not at default" line while something uses it ("3D: back of the vertical cut
+used"; a click switches it off, and can be undone).
+
+**What it changes.** Without it, the reconstruction in direction (azimuth φ, elevation θ) is
+O(φ, θ) = combine(H(φ), V(θ)) with the front half of the vertical cut only: straight behind the antenna it is
+H(180°) + V(θ) (Summation), so the back follows the shape of the front beam in elevation, and straight up and down
+(where every azimuth is one direction) it still depends on the azimuth. The vertical cut is the plane through
+azimuth 0° and 180°: its sample at 180° − θ is the level behind the antenna at elevation θ (180° is straight
+behind at the horizon, 170° is 10° below the horizon behind, 90° is straight down from both halves). With the
+choice on:
+
+R(φ, θ) = O(φ, θ) + b(φ)·[T(θ) − O(180°, θ)] + q(θ)·[P − O(φ, ±90°) − b(φ)·(P − O(180°, ±90°))]
+
+- b(φ) = cos²φ behind the antenna (|φ| > 90°) and 0 in front: 1 straight behind, 0 at the sides, with no kink
+  at either. The front hemisphere keeps the existing model, which is the one the main beam is read from; the back
+  half of the vertical cut says nothing about the front. A blend over the whole circle (cos²(φ/2)) was not used: it
+  would mix the back half into the front hemisphere (a quarter of it at 60° off boresight), where the beam and the
+  service region are.
+- q(θ) = 1 − cos(90°·s), where s runs from 0 on the cone θc of the azimuth cut (the elevation where the front of
+  the vertical cut has its 0 dB, the beam peak) to 1 at the pole on that side: 0 with no slope on the cone, 1 at the
+  poles. For a beam peak on the horizon it is 1 − cos θ, how much the circle of constant elevation has shrunk.
+- P is the vertical cut at the pole (V(90°) below, V(270°) above).
+- T(θ) = V(180° − θ) + w(θ)·m: the back half of the vertical cut, moved by m = O(180°, θc) − V(180° − θc),
+  how much the two cuts disagree where they cross behind the antenna, so that it meets the azimuth cut there.
+  w(θ) = cos²(90°·(θ − θc)/10°) within 10° of the cone and 0 beyond: the two cuts meet in one direction, and a
+  disagreement there is a matter of the two measurements in that place (one of them in a null a degree away, or an
+  azimuth cut taken at another elevation than the beam peak). Measured files disagree there by about 1 dB typically
+  and by 20 dB or more now and then (a deep null of the vertical cut just behind the antenna); spreading the shift
+  over the whole back would move the whole back by that much, so beyond 10° the back half is taken as measured.
+
+What it reproduces, for both methods (unit tests check every 1° sample):
+
+- on the cone θc it is the existing model, so the azimuth cut H(φ) at every azimuth;
+- at φ = 180° it is the back half of the vertical cut at every elevation (within 10° of the cone moved towards
+  the azimuth cut when the two disagree there);
+- at φ = 0° it is the front half of the vertical cut, when the azimuth cut peaks at 0° (the existing model's own
+  condition);
+- straight up and straight down it is the vertical cut's level, from every azimuth;
+- its strongest direction is the azimuth cut's peak on the cone, 0 dB, as before; a value that the correction would
+  put above the peak (only with cuts that disagree by more than their back level) is clipped at 0 dB, and a level
+  that is not a number (an infinite level in a file) leaves the existing model's value.
+
+Under a tilt the same model is turned: an electrical tilt moves both halves of the vertical cut down (as before)
+and the cone with them; a mechanical tilt rotates the reconstructed pattern.
+
+**Its limits.** It is still an estimate from two cuts. Between the two cut planes (the sides, |φ| near 90°, and
+everything off both planes) the pattern is interpolated, and the pole term also changes the front hemisphere away
+from the cone: towards straight up and down the azimuth cut's variation is faded out (to nothing at the poles).
+For a pattern that really is the product of its two cuts in angle (which no real antenna is near the poles) that
+fade makes the front less accurate: on such a synthetic pattern Summation moves from exact to about 2 dB RMS off
+in front. Cross-polar power is still missing.
+
+**Validation.** A synthetic panel with a known 3D pattern (an 8-element vertical array with a cardioid element
+and a horizontal element factor, front and back different: a back lobe from a short array of its own pointing up
+or down), its two cuts sampled as a file gives them, both reconstructions compared with the truth on the 1° sphere
+(levels below 40 dB taken as 40 dB, weighted by the solid angle). RMS error in dB, off → on:
+
+| Synthetic panel | Summation, front | Summation, back | Weighted, front | Weighted, back |
+|---|---|---|---|---|
+| beam on the horizon, back lobe 15° up | 4.6 → 2.5 | 8.4 → 3.3 | 5.3 → 5.3 | 8.1 → 5.5 |
+| 6° down-tilt, back lobe 15° up | 4.4 → 2.6 | 8.6 → 3.4 | 5.3 → 5.2 | 7.5 → 5.7 |
+| 4° down-tilt, back lobe 20° down | 4.6 → 2.8 | 8.8 → 3.7 | 5.4 → 5.4 | 8.4 → 5.6 |
+
+F/B on the cut through the tilted beam peak, under a mechanical tilt of 4° and 10°, is within 0.1 dB of the
+truth with the choice on (both methods); off, Summation overstates it by 6 to 28 dB and Weighted misses it by up
+to 18 dB. Without a tilt the horizon cut behind the antenna is the vertical cut's own level at 180° (for cuts that
+agree behind the antenna). The test (`backHalf3d.validation.test.ts`) keeps these as limits.
+
+**Cost** (measured on 96 and 192 files). The 3D view and the horizon cut cost about the same as before (within
+some 20 %); the simulated cuts under a mechanical tilt 1.3 to 1.6 times as much (some 10 to 20 ms more per pass).
+The angular-region estimate costs more: with Summation and the choice off the sphere integral is a
+product of two 1° sums, with it on every direction of the 1° sphere is summed, as Weighted always does; it then
+costs about what Weighted costs off (about 1.5 ms per file on the machine it was measured on). Weighted itself costs
+some 15 % more. Under a mechanical tilt the estimate costs about 1.3 to 1.5 times (Summation) and 1.7 times
+(Weighted) what it costs off. A slider held over many files is applied when it stops, as before, and that decision
+is taken from the measured cost.
 
 ## Difference from a reference
 
@@ -560,6 +654,8 @@ Reset preferences does that too, and puts the theme, the gain unit, the view and
 - **Tilt simulation.** Metrics of a simulated tilt are estimates from a two-cut reconstruction.
   The elevation cut is shifted. The simulated horizontal cut is read from the 3D reconstruction
   of the two cuts (selected 3D method), turned by the mechanical tilt; which cut is read is a
-  choice in the Simulation bar, see "The simulated horizontal cut" above. The back hemisphere is
-  rebuilt from the front half of the vertical cut (the back half of the vertical cut is not used),
-  so the simulated F/B is a rough estimate.
+  choice in the Simulation bar, see "The simulated horizontal cut" above. By default the back
+  hemisphere is rebuilt from the front half of the vertical cut (the back half of the vertical cut
+  is not used), so the simulated F/B is a rough estimate; **Use the back of the vertical cut** reads
+  the back half there (see "Back of the vertical cut"), which still leaves everything between the
+  two cut planes an interpolation.
