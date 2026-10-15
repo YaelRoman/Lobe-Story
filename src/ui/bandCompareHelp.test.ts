@@ -8,7 +8,7 @@ describe('comparing two antennas in Help and in the README', () => {
     const sections = HELP_SECTIONS.filter((s) => s.topic === 'band-compare');
     expect(sections.map((s) => s.title)).toEqual(['Two antennas in Band statistics']);
     for (const line of sections[0].lines) expect(readme, line).toContain(line);
-    for (const part of ['Compare with', 'No comparison', 'B − A', 'never graded', 'too few', '22 dB', 'excursion', 'both antennas', 'Copy table', 'Row column', 'saved with the project']) {
+    for (const part of ['Compare with', 'No comparison', 'B − A', 'never graded', 'too few', '22 dB', 'excursion', 'both antennas', 'Copy table', 'Row column', 'saved with the project', 'unrounded statistics', 'up to 0.1']) {
       expect(helpAbout('band-compare')).toContain(part);
     }
   });
