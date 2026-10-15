@@ -36,11 +36,12 @@ no cause.
   others in panel order); untick files or use "Only matches" to choose. **Compare methods** shows
   the highlighted file with both methods next to each other (stacked on a phone), one colour scale
   and one camera, with the largest and mean difference in dB; the numbers keep the method chosen
-  in the Simulation bar. **Use the back of the vertical cut** (beside the 3D method, off by default)
-  rebuilds the back of the antenna from the back half of the vertical cut instead of the azimuth cut
-  alone and makes the pattern one value straight up and down; it changes simulated F/B, horizon cuts
-  and the angular regions, and is then named with them ("[Summation + back of V cut]"). Off, every
-  number is that of earlier versions. See [docs/metrics.md](docs/metrics.md).
+  in the Simulation bar. **Use the back of the vertical cut** (the box "+ back" beside the 3D
+  method, off by default) rebuilds the back of the antenna from the back half of the vertical
+  cut instead of the azimuth cut alone and makes the pattern one value straight up and down; it
+  changes simulated F/B, horizon cuts and the angular regions, and is then named with them
+  ("[Summation + back of V cut]"). Off, every number is that of earlier versions. See
+  [docs/metrics.md](docs/metrics.md).
 - Tilt simulation: electrical tilt, mechanical tilt and azimuth for all files, with offsets per file
   or group; the table shows original → tilted. The Simulation bar offers **Horizontal
   cut: Through the beam peak | At the horizon**: the cut through the beam peak (the default: the

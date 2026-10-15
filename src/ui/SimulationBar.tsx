@@ -6,7 +6,7 @@ import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
 import { methodNameOf } from '../core/analysis/backHalf3d';
-import { AZIMUTH_HINT, BACK_HALF_TITLE, degreesSpoken, H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, SIM_SLIDER_HELP, simBadge, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
+import { AZIMUTH_HINT, BACK_HALF_NAME, BACK_HALF_TITLE, degreesSpoken, H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, SIM_SLIDER_HELP, simBadge, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
 import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
@@ -303,7 +303,7 @@ export function SimulationBar({
         <GlobalField key={s.key} k={s.key} label={s.label} />
       ))}
       <div className="sim-choice">
-        <span>3D method</span>
+        <span className="sim-method-name">3D method</span>
         <Seg<Method3d>
           label="3D method"
           value={method}
@@ -314,20 +314,33 @@ export function SimulationBar({
           onChange={(method3d) => updateView({ method3d })}
           disabled={!methodUsed}
         />
-        <label className="sim-back" title={BACK_HALF_TITLE}>
-          <input type="checkbox" checked={back3d} disabled={!methodUsed} onChange={(e) => updateView({ back3d: e.target.checked })} data-testid="sim-back3d" />
-          Use the back of the vertical cut
-        </label>
-        {/* A disabled button cannot be focused or tapped for a tooltip: the reason is written beside it (under it on a
-            phone). The same place says what uses the method once something does: the two lines lie on one another and
-            the reason, the longer one, sets the size, so nothing in the bar moves when a slider's first step enables
-            the control, and no empty band is kept for it. */}
-        <span className="count sim-hint sim-slot">
-          <span className={methodUsed ? 'ghost' : undefined} aria-hidden={methodUsed || undefined} data-testid="sim-method-hint">
-            {METHOD_UNUSED_NOTE}
-          </span>
-          <span className={methodUsed ? undefined : 'ghost'} aria-hidden={!methodUsed || undefined} data-testid="sim-method-use">
-            {methodUsed ? methodUseNote(methodUses) : ''}
+        {/* The choice and the line about what uses the method go together: on a phone they share one row under the
+            buttons, so the bar is no taller than without the choice. */}
+        <span className="sim-back-slot">
+          {/* Short on the bar, as the table headers write it ("[Sum. + back]"); the full name is the control's own (it
+              starts with what is shown) and the tooltip says what it does. */}
+          <label className="sim-back" title={BACK_HALF_TITLE}>
+            <input
+              type="checkbox"
+              aria-label={BACK_HALF_NAME}
+              checked={back3d}
+              disabled={!methodUsed}
+              onChange={(e) => updateView({ back3d: e.target.checked })}
+              data-testid="sim-back3d"
+            />
+            + back
+          </label>
+          {/* A disabled button cannot be focused or tapped for a tooltip: the reason is written beside it (under it on a
+              phone). The same place says what uses the method once something does: the two lines lie on one another and
+              the reason, the longer one, sets the size, so nothing in the bar moves when a slider's first step enables
+              the control, and no empty band is kept for it. */}
+          <span className="count sim-hint sim-slot">
+            <span className={methodUsed ? 'ghost' : undefined} aria-hidden={methodUsed || undefined} data-testid="sim-method-hint">
+              {METHOD_UNUSED_NOTE}
+            </span>
+            <span className={methodUsed ? undefined : 'ghost'} aria-hidden={!methodUsed || undefined} data-testid="sim-method-use">
+              {methodUsed ? methodUseNote(methodUses) : ''}
+            </span>
           </span>
         </span>
       </div>

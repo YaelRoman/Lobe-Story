@@ -27,9 +27,12 @@ const H_CUT_WHERE: Record<HCutMode, string> = { beam: 'through the beam peak', h
 /** The choice of the simulated horizontal cut in words, as captions and notes name it. */
 export const hCutLabel = (hCut: HCutMode): string => `horizontal cut ${H_CUT_WHERE[hCut]}`;
 
+/** The accessible name of the choice beside the 3D method: what the bar shows ("+ back"), then what it is. */
+export const BACK_HALF_NAME = '+ back: use the back of the vertical cut';
+
 /** The tooltip of "Use the back of the vertical cut", beside the 3D method (see docs/metrics.md). */
 export const BACK_HALF_TITLE =
-  'Behind the antenna, read the 3D reconstruction from the back half of the vertical cut instead of the azimuth cut alone, and make it one value straight up and straight down. Changes simulated F/B, the back of the 3D view, horizon cuts and the angular regions. Off: the numbers of earlier versions.';
+  'Use the back of the vertical cut. Behind the antenna, read the 3D reconstruction from the back half of the vertical cut instead of the azimuth cut alone, and make it one value straight up and straight down. Changes simulated F/B, the back of the 3D view, horizon cuts and the angular regions. Off: the numbers of earlier versions.';
 
 /** Beside the 3D method control while it is disabled: what would enable it. */
 export const METHOD_UNUSED_NOTE = 'Used by the 3D view, a tilt, the horizon cut and the angular regions; none of them is on.';
