@@ -69,8 +69,10 @@ test('Angular regions (est.): off by default; switched on, three plausible perce
   expect(await chart.locator('.scatterlayer .trace .lines path').count()).toBeGreaterThan(0);
 });
 
-test('the 3D method travels with the angular-region estimate: collapsed Simulation summary, copied table and CSV headers', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('the 3D method travels with the angular-region estimate: collapsed Simulation summary, copied table and CSV headers', async ({ page, context, browserName }) => {
+  // Reading the clipboard back needs a permission only Chromium has; the other browsers check everything else.
+  const canReadClipboard = browserName === 'chromium';
+  if (canReadClipboard) await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await page.getByTestId('empty-state').getByRole('button', { name: 'Load example' }).click();
@@ -90,8 +92,10 @@ test('the 3D method travels with the angular-region estimate: collapsed Simulati
   await toggle.check();
   await expect(summary).toContainText('3D method: Summation');
 
-  await page.getByTitle(/^Copy the table as shown \(visible columns/).click();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('Sector eff. est. [Summation] (%)\tSpatial eff. est. [Summation] (%)\tLower region est. [Summation] (%)');
+  if (canReadClipboard) {
+    await page.getByTitle(/^Copy the table as shown \(visible columns/).click();
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('Sector eff. est. [Summation] (%)\tSpatial eff. est. [Summation] (%)\tLower region est. [Summation] (%)');
+  }
 
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
   const stream = await download.createReadStream();
