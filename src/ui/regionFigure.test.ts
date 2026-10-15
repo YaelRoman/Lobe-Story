@@ -6,7 +6,7 @@ import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
 import { typeARegions } from '../core/analysis/are';
 import { patternFrom, quadBeam } from '../test/synthetic';
-import { horizontalCutSpans, REGION_OPACITY, REGION_STYLE, verticalCutSpans } from './regionShading';
+import { horizontalCutSpans, REGION_OPACITY, REGION_STYLE, regionCaptionText, verticalCutSpans } from './regionShading';
 
 const NO_MARKERS = { hpbw: false, fb: false, usls: false, null: false, peak: false, sector: false };
 const ALL = { hpbw: true, fb: true, usls: true, null: true, peak: true, sector: true };
@@ -114,6 +114,7 @@ describe('region shading in the cut figure', () => {
     // Turned with the azimuth of the horizontal cut.
     const turned = shaded(buildCutOverlay(opts({ series: [{ ...h, rotationDeg: 30 }] })).data).find((t) => t.fillcolor === REGION_STYLE.service.colour)!;
     expect((turned.theta as number[])[0]).toBe(-30);
+    expect(regionCaptionText(regionCaptionOf(opts({ series: [{ ...h, rotationDeg: 30 }] }))!)).toContain('of the pointing direction (30°), drawn −30° to 90°');
     // A horizon cut of a beam whose service region starts below the horizon is interference all round.
     const [hSteep] = file('s', 14);
     const horizon = shaded(buildCutOverlay(opts({ series: [{ ...hSteep, horizonCut: true }], markerTarget: 's' })).data);
@@ -146,7 +147,7 @@ describe('region shading in the cut figure', () => {
 
 describe('the region caption in the exported image', () => {
   it('is a line of its own after the markers line, before the simulation line', () => {
-    const lines = exportCaptionLines({ file: 'a', items: ['HPBW 65.0°'], markers: 'Markers of the highlighted file: …', regions: 'Shaded: angular regions (est.) of a: service (green) within ±60°.', simulated: 'Simulated: Δe +2°' });
-    expect(lines).toEqual(['a', 'HPBW 65.0°', 'Markers of the highlighted file: …', 'Shaded: angular regions (est.) of a: service (green) within ±60°.', 'Simulated: Δe +2°']);
+    const lines = exportCaptionLines({ file: 'a', items: ['HPBW 65.0°'], markers: 'Markers of the highlighted file: …', regions: 'Tinted: angular regions (est.) of a: service (green) within ±60°.', simulated: 'Simulated: Δe +2°' });
+    expect(lines).toEqual(['a', 'HPBW 65.0°', 'Markers of the highlighted file: …', 'Tinted: angular regions (est.) of a: service (green) within ±60°.', 'Simulated: Δe +2°']);
   });
 });

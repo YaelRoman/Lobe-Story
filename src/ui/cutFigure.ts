@@ -447,7 +447,8 @@ export function regionCaptionOf(o: CutFigureOptions): RegionCaption | undefined 
   // (Not computed: the estimate is on its way, a moment after the columns were shown.)
   const reason = target.metrics.are.sector.reason;
   if (!regions) return reason === undefined || reason === 'Not computed' ? undefined : { lead: `No angular regions (est.) to shade for ${target.label}: ${reason}`, items: [] };
-  return regionCaption(o.cut, regions, o.cut === 'H' && target.horizonCut === true, target.label);
+  const turned = o.cut === 'H' ? (target.rotationDeg ?? o.rotationDeg ?? 0) : 0;
+  return regionCaption(o.cut, regions, o.cut === 'H' && target.horizonCut === true, target.label, turned);
 }
 
 /** The word written at the horizon mark. */

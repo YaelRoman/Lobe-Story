@@ -1,5 +1,5 @@
 import type { PlotData, Shape } from 'plotly.js';
-import type { AngularRegions } from '../core/analysis/are';
+import { clampedRegions as bounds, type AngularRegions } from '../core/analysis/are';
 import { settingText } from './bwLabel';
 
 /**
@@ -39,15 +39,6 @@ export const REGION_STYLE: Record<RegionName, { colour: string; name: string }> 
 export const REGION_OPACITY = 0.12;
 
 const EMPTY = 1e-9;
-
-/** The bounds as the integration uses them (see `powersFromRows` in `are.ts`): clamped to the sphere and in order. */
-function bounds(r: AngularRegions) {
-  const end = Math.min(90, Math.max(-90, r.serviceEndDeg));
-  const upperEnd = Math.min(end, Math.max(-90, r.upperEndDeg));
-  const serviceStart = Math.min(end, Math.max(upperEnd, r.serviceStartDeg));
-  const sector = Math.min(180, Math.max(0, r.sectorEdgeDeg));
-  return { end, upperEnd, serviceStart, sector };
-}
 
 const nonEmpty = (spans: RegionSpan[]) => spans.filter((s) => s.to - s.from > EMPTY);
 
@@ -184,11 +175,23 @@ export interface RegionCaption {
 
 const named = (region: RegionName) => `${region} (${REGION_STYLE[region].name})`;
 
-/** What the shading of `cut` shows for the regions `r` of the file `file`, in degrees (see `verticalCutSpans`, `horizontalCutSpans`). */
-export function regionCaption(cut: 'H' | 'V', r: AngularRegions, atHorizon: boolean, file: string): RegionCaption {
+/** A plot azimuth, −180…180 (as the axis labels it), with a typographic minus. */
+const azimuth = (deg: number): string => {
+  const a = ((((deg + 180) % 360) + 360) % 360) - 180;
+  const text = Number.isInteger(a) ? String(Math.abs(a)) : Math.abs(a).toFixed(1);
+  return `${a < 0 ? '−' : ''}${text}°`;
+};
+
+/**
+ * What the tint of `cut` shows for the regions `r` of the file `file`, in degrees (see `verticalCutSpans`,
+ * `horizontalCutSpans`). `rotationDeg`: the azimuth the horizontal plot is turned by; the sector then is named against
+ * the pointing direction, with the plot angles it is drawn over.
+ */
+export function regionCaption(cut: 'H' | 'V', r: AngularRegions, atHorizon: boolean, file: string, rotationDeg = 0): RegionCaption {
   const { end, upperEnd: u, serviceStart: s, sector } = bounds(r);
   const edge = `±${settingText(sector)}°`;
-  const lead = `Shaded: angular regions (est.) of ${file}`;
+  // "Tinted": the markers' caption already calls the beamwidth wedge "shaded".
+  const lead = `Tinted: angular regions (est.) of ${file}`;
   if (cut === 'V') {
     const items: RegionCaptionItem[] = [];
     const band = (region: RegionName, from: number, to: number, extra = '') => {
@@ -212,7 +215,13 @@ export function regionCaption(cut: 'H' | 'V', r: AngularRegions, atHorizon: bool
   return {
     lead: inside,
     items: [
-      { region: 'service', text: `${named('service')} within ${edge}` },
+      {
+        region: 'service',
+        text:
+          rotationDeg === 0
+            ? `${named('service')} within ${edge}`
+            : `${named('service')} within ${edge} of the pointing direction (${azimuth(rotationDeg)}), drawn ${azimuth(rotationDeg - sector)} to ${azimuth(rotationDeg + sector)}`,
+      },
       { region: 'interference', text: `${named('interference')} outside` },
     ],
   };

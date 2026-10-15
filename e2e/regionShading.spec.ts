@@ -97,7 +97,7 @@ test('example set: the highlighted file\'s regions are shaded while their column
   expect((await shadingOf(page, 'plot-h')).chart.map(([name]) => name)).toEqual(['service region', 'interference region']);
   // The caption names the file and its bounds, the ones the table's peak tilt and V-HPBW give.
   const label = (await page.getByTestId('readout-v').locator('strong').innerText()).replace(/:$/, '');
-  await expect(page.getByTestId('regions-v')).toContainText(`Shaded: angular regions (est.) of ${label}`);
+  await expect(page.getByTestId('regions-v')).toContainText(`Tinted: angular regions (est.) of ${label}`);
   await expect(page.getByTestId('regions-v')).toContainText('lower (purple) +75° to +90°');
   await expect(page.getByTestId('regions-h')).toContainText('service (green) within ±60°');
   await expectCaptionMatchesTable(page, first);

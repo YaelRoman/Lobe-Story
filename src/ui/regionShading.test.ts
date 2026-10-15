@@ -120,4 +120,18 @@ describe('regionCaption: the text alternative of the shading', () => {
     expect(above).toMatch(/all interference/);
     expect(above).toContain('+8.4°');
   });
+
+  it('names the sector against the pointing direction, with the plot angles it is drawn over, when the plot is turned', () => {
+    const r = typeARegions(6.3, 8, 60);
+    expect(regionCaptionText(regionCaption('H', r, false, 'f', 30))).toContain('service (green) within ±60° of the pointing direction (30°), drawn −30° to 90°');
+    // Across ±180°, as the axis labels it.
+    expect(regionCaptionText(regionCaption('H', r, false, 'f', -150))).toContain('within ±60° of the pointing direction (−150°), drawn 150° to −90°');
+    // Unturned: as before; the vertical cut is never turned.
+    expect(regionCaptionText(regionCaption('H', r, false, 'f'))).toContain('service (green) within ±60°; interference');
+    expect(regionCaptionText(regionCaption('V', r, false, 'f', 30))).toBe(regionCaptionText(regionCaption('V', r, false, 'f')));
+  });
+
+  it('says "tinted", not "shaded" (the markers\' caption calls the beamwidth wedge shaded)', () => {
+    expect(regionCaption('V', typeARegions(6, 8, 60), false, 'f').lead).toMatch(/^Tinted: angular regions \(est\.\) of f/);
+  });
 });

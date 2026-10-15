@@ -126,15 +126,25 @@ interface Rows {
   sector: number[];
 }
 
+/**
+ * The region bounds as they are integrated: elevations clamped to the sphere and put in order (upper end ≤ service
+ * start ≤ service end), the sector edge to 0…180°. The cut plots shade these same bounds (`regionShading`).
+ */
+export function clampedRegions(regions: AngularRegions): { end: number; upperEnd: number; serviceStart: number; sector: number } {
+  const end = Math.min(90, Math.max(-90, regions.serviceEndDeg));
+  const upperEnd = Math.min(end, Math.max(-90, regions.upperEndDeg));
+  const serviceStart = Math.min(end, Math.max(upperEnd, regions.serviceStartDeg));
+  const sector = Math.min(180, Math.max(0, regions.sectorEdgeDeg));
+  return { end, upperEnd, serviceStart, sector };
+}
+
 const sectorArc = (regions: AngularRegions): number[] => {
-  const edge = Math.min(180, Math.max(0, regions.sectorEdgeDeg));
+  const edge = clampedRegions(regions).sector;
   return arcWeights(-edge, edge);
 };
 
 function powersFromRows({ full, sector }: Rows, regions: AngularRegions): RegionPowers {
-  const end = Math.min(90, Math.max(-90, regions.serviceEndDeg));
-  const upperEnd = Math.min(end, Math.max(-90, regions.upperEndDeg));
-  const serviceStart = Math.min(end, Math.max(upperEnd, regions.serviceStartDeg));
+  const { end, upperEnd, serviceStart } = clampedRegions(regions);
   const service = elevationIntegral(sector, serviceStart, end);
   return {
     upper: elevationIntegral(full, -90, upperEnd),

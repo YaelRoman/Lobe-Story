@@ -193,12 +193,16 @@ the kind of tilt:
 analysis markers are drawn (the highlighted file, or the only ticked one; with no such file nothing is shaded),
 the same regions its table values were integrated over: under a tilt simulation those of the tilted beam, and
 after a held slider drag those of the applied simulation. Upper region blue, interference orange, service green,
-lower purple, as a light tint under the markers. The vertical cut is the plane through boresight: in front it
+lower purple, as a light tint under the markers: over the file traces on the polar plots and, from 25 ticked
+files (where the markers are drawn in a layer over the plot), on the rectangular ones too; with fewer files the
+rectangular bands lie under the traces. The vertical cut is the plane through boresight: in front it
 shows the four elevation bands; behind the antenna (azimuth 180°, outside the sector unless the sector edge is
 180°) the same elevations are upper, interference and lower. The horizontal cut lies at one elevation, the beam
 peak (or the horizon, with the horizontal cut at the horizon): where that elevation is inside the service band,
 azimuths within ±S are service and the rest interference; a horizon cut above the service band is all
-interference. A line under each plot names the file and gives the bounds in degrees with the colours, and the
+interference. With an azimuth (pointing direction) the sector turns with the plot, and the line under it gives the
+drawn range ("within ±60° of the pointing direction (30°), drawn −30° to 90°").
+A line under each plot names the file and gives the bounds in degrees with the colours, and the
 exported image carries the shading and that line. A file without an estimate (not a Type A beam) is named with
 the reason, and nothing is shaded.
 
