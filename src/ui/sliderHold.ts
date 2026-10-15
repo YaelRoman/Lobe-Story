@@ -154,6 +154,12 @@ export interface StepLoad {
   angularRegions: boolean;
 }
 
+/**
+ * The files a step redraws, for `StepLoad.drawn`: the ticked ones, except that comparing the 3D methods draws one
+ * file twice (two surfaces), which costs as two drawn files.
+ */
+export const drawnFiles = (ticked: number, comparingMethods: boolean): number => (comparingMethods && ticked > 0 ? Math.max(ticked, 2) : ticked);
+
 /** The estimated cost of a step for a load, in the milliseconds of the machine it was profiled on: the shape of the cost, whatever the machine. */
 export function estimatedUnits({ files, drawn, angularRegions }: StepLoad): number {
   return files * (STEP_MS.perFile + (angularRegions ? STEP_MS.perFileAngularRegions : 0)) + drawn * STEP_MS.perDrawnFile;

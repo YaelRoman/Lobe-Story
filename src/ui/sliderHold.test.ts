@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ALWAYS_LIVE_UNITS, estimatedUnits, expectedPassMs, FIXED_UNITS, followsDrag, GRIP_PAUSE_MS, HOLD_ABOVE_MS, gripByKey, gripByPointer, gripKey, KEY_RELEASE_MS, LIVE_DRAG_BUDGET_MS, passKind, PASSES_KEPT, SCALED_UP_TO, TURN_LEAD, sliderGrip, sliderGripped, sliderKind, sliderKindInHand, type PassCost, type StepLoad } from './sliderHold';
+import { ALWAYS_LIVE_UNITS, drawnFiles, estimatedUnits, expectedPassMs, FIXED_UNITS, followsDrag, GRIP_PAUSE_MS, HOLD_ABOVE_MS, gripByKey, gripByPointer, gripKey, KEY_RELEASE_MS, LIVE_DRAG_BUDGET_MS, passKind, PASSES_KEPT, SCALED_UP_TO, TURN_LEAD, sliderGrip, sliderGripped, sliderKind, sliderKindInHand, type PassCost, type StepLoad } from './sliderHold';
 import { PAUSE_MS } from './heldValue';
 
 afterEach(() => window.dispatchEvent(new Event('blur')));
@@ -542,5 +542,17 @@ describe('the kind of the slider in the hand is known from the press on', () => 
     expect(kind()).toBe('azimuth');
     gripByPointer({ pointerId: 1, button: 0, isPrimary: true });
     expect(kind()).toBe('tilt');
+  });
+});
+
+describe('drawnFiles', () => {
+  it('counts the ticked files, and one file compared with both 3D methods as two', () => {
+    expect(drawnFiles(5, false)).toBe(5);
+    expect(drawnFiles(1, true)).toBe(2);
+    expect(drawnFiles(0, true)).toBe(0);
+    expect(drawnFiles(48, true)).toBe(48);
+    // One example file compared is no longer under the always-followed load, so the measured passes decide.
+    expect(estimatedUnits({ files: 24, drawn: drawnFiles(1, true), angularRegions: false })).toBeGreaterThan(ALWAYS_LIVE_UNITS);
+    expect(estimatedUnits({ files: 24, drawn: drawnFiles(1, false), angularRegions: false })).toBeLessThanOrEqual(ALWAYS_LIVE_UNITS);
   });
 });
