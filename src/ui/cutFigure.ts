@@ -9,6 +9,7 @@ import type { MarkerKey, PlotMode } from '../state/store';
 import { LEGEND, type Figure, type FigureTheme } from './figureTheme';
 import { LEGEND_NAME_MAX, middleEllipsis, showFileLegend } from './legend';
 import { traceUid } from './traceUid';
+import { horizontalCutSpans, polarRegionTraces, rectRegionShapes, regionCaption, verticalCutSpans, type RegionCaption, type RegionSpan } from './regionShading';
 
 export interface PlotSeries {
   id: string;
@@ -47,6 +48,11 @@ export interface CutFigureOptions {
   rotationDeg?: number;
   /** Vertical cut only: mark the horizon (0° elevation), while the horizontal cut shown is the one taken there. */
   horizonMark?: boolean;
+  /**
+   * Shade the angular regions (Type A, est.) of the marker target, those its table values were integrated over (see
+   * `regionShading`): while the angular-region columns are shown.
+   */
+  regions?: boolean;
 }
 
 /** `readout: false` marks a band that only shades the plot and carries no value of its own. */
@@ -408,16 +414,40 @@ function fileTraces(o: CutBaseOptions, emphasised: string | null): { data: FileT
 export function buildCutOverlay(o: CutFigureOptions): CutOverlay {
   const target = o.series.find((s) => s.id === o.markerTarget);
   const spec = target ? markerSpec(target, o) : NO_MARKERS;
+  // Under the markers: the shading is drawn first.
+  const spans = target ? regionSpans(target, o) : [];
   const hpbw = target ? (o.cut === 'H' ? target.metrics.h : target.metrics.v).hpbw.value : null;
   const cone =
     o.cut !== 'H' ? '' : o.series.some((s) => s.horizonCut) ? ' · cut at the horizon' : o.series.some((s) => s.coneCut) ? ' · cut through the tilted beam peak' : '';
   const text = `${o.cut === 'H' ? 'Horizontal' : 'Vertical'} cut${hpbw !== null ? ` — ${bwName(o.levelDb)} ${hpbw.toFixed(1)}°` : ''}${cone}`;
   const title = { text, font: { size: 14 } };
   const horizon = o.cut === 'V' && o.horizonMark === true;
-  if (o.mode === 'polar') return { data: [...polarMarkers(spec, o), ...(horizon ? [polarHorizonMark(o)] : [])] as Data[], layout: { title } };
+  if (o.mode === 'polar') return { data: [...polarRegionTraces(spans, o.floorDb), ...polarMarkers(spec, o), ...(horizon ? [polarHorizonMark(o)] : [])] as Data[], layout: { title } };
   const rect = rectMarkers(spec, o);
-  if (!horizon) return { data: rect.traces as Data[], layout: { title, shapes: rect.shapes } };
-  return { data: rect.traces as Data[], layout: { title, shapes: [...rect.shapes, rectHorizonMark(o)] } };
+  const shapes = [...rectRegionShapes(spans), ...rect.shapes];
+  if (!horizon) return { data: rect.traces as Data[], layout: { title, shapes } };
+  return { data: rect.traces as Data[], layout: { title, shapes: [...shapes, rectHorizonMark(o)] } };
+}
+
+/** The regions of `target` along the cut, while `o.regions` (none when the file has no estimate). */
+function regionSpans(target: PlotSeries, o: CutFigureOptions): RegionSpan[] {
+  const regions = o.regions ? target.metrics.are.regions : undefined;
+  if (!regions) return [];
+  return o.cut === 'V' ? verticalCutSpans(regions) : horizontalCutSpans(regions, target.horizonCut === true, target.rotationDeg ?? o.rotationDeg ?? 0);
+}
+
+/**
+ * What the region shading of the cut shows, as text (under the plot and in the exported image), or undefined while
+ * it is off or there is no marker target. A target without an estimate gets a line saying why nothing is shaded.
+ */
+export function regionCaptionOf(o: CutFigureOptions): RegionCaption | undefined {
+  const target = o.series.find((s) => s.id === o.markerTarget);
+  if (!o.regions || !target) return undefined;
+  const regions = target.metrics.are.regions;
+  // (Not computed: the estimate is on its way, a moment after the columns were shown.)
+  const reason = target.metrics.are.sector.reason;
+  if (!regions) return reason === undefined || reason === 'Not computed' ? undefined : { lead: `No angular regions (est.) to shade for ${target.label}: ${reason}`, items: [] };
+  return regionCaption(o.cut, regions, o.cut === 'H' && target.horizonCut === true, target.label);
 }
 
 /** The word written at the horizon mark. */

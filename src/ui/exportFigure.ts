@@ -59,6 +59,8 @@ export interface ExportCaption {
   coincide?: string;
   /** What the analysis markers that are on mean (cut plots), one wrapped line of its own after the values. */
   markers?: string;
+  /** What the shaded angular regions are and where (cut plots, while shown), wrapped lines of their own after the markers. */
+  regions?: string;
   /** The last line while a simulation is active: the tilt and azimuth values and the method. */
   simulated?: string;
   /** A caveat about the simulated picture, on its own wrapped line after the simulation line. */
@@ -76,7 +78,7 @@ export function exportCaptionLines(caption: ExportCaption): string[] {
     } else current = current ? `${current} · ${item}` : item;
   }
   if (current) lines.push(current);
-  for (const extra of [caption.coincide, caption.markers, caption.simulated, caption.note]) if (extra) lines.push(...wrapText(extra));
+  for (const extra of [caption.coincide, caption.markers, caption.regions, caption.simulated, caption.note]) if (extra) lines.push(...wrapText(extra));
   return lines;
 }
 

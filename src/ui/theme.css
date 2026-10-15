@@ -72,6 +72,7 @@ main { flex: 1; min-width: 0; overflow: auto; padding: 12px; display: flex; flex
 .plot-col { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .readout { font-size: 12px; min-height: 4.2em; }
 .readout p { margin: 0; }
+.region-swatch { display: inline-block; width: 0.8em; height: 0.8em; margin-right: 0.25em; vertical-align: -0.05em; border-radius: 2px; opacity: 0.55; }
 .plot { height: 460px; border: 1px solid var(--border); border-radius: 8px; }
 /* The marker layer of a cut plot with many files (see markerLayer.ts) lies over the chart and takes no pointer. What
    that chart draws over everything (hover labels, the zoom box, annotations) and its toolbar stay above the layer. */

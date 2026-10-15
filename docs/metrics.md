@@ -189,6 +189,19 @@ the kind of tilt:
   simulation does everywhere; that convention alone can move a value by about 0.2 points against a
   finer integration.
 
+**On the cut plots.** While the column group is shown, the cut plots shade the regions of the file whose
+analysis markers are drawn (the highlighted file, or the only ticked one; with no such file nothing is shaded),
+the same regions its table values were integrated over: under a tilt simulation those of the tilted beam, and
+after a held slider drag those of the applied simulation. Upper region blue, interference orange, service green,
+lower purple, as a light tint under the markers. The vertical cut is the plane through boresight: in front it
+shows the four elevation bands; behind the antenna (azimuth 180°, outside the sector unless the sector edge is
+180°) the same elevations are upper, interference and lower. The horizontal cut lies at one elevation, the beam
+peak (or the horizon, with the horizontal cut at the horizon): where that elevation is inside the service band,
+azimuths within ±S are service and the rest interference; a horizon cut above the service band is all
+interference. A line under each plot names the file and gives the bounds in degrees with the colours, and the
+exported image carries the shading and that line. A file without an estimate (not a Type A beam) is named with
+the reason, and nothing is shaded.
+
 ## The three simulation sliders
 
 - **Electrical tilt Δ** changes the electrical tilt of every file by that much, added to the tilt the

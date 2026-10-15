@@ -3,7 +3,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { useStore, type CutView, type Dimension, type Layout3d, type MarkerKey, type PlotMode } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
-import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout } from './cutFigure';
+import { buildCutBase, buildCutFigure, buildCutOverlay, markerCaption, markerReadout, regionCaptionOf } from './cutFigure';
+import { REGION_STYLE, regionCaptionText, type RegionCaption } from './regionShading';
 import { exportName, pictureName, simulatedCaption, weightedHorizonNote } from './simSummary';
 import { withSimulated } from './exportFigure';
 import { bwMarkerLabel } from './bwLabel';
@@ -78,6 +79,8 @@ interface CutPlotProps {
   mode: PlotMode;
   /** What the markers that are on mean, for the exported image's caption. */
   markerLine: string | undefined;
+  /** What the shaded angular regions are (while their columns are shown and a file's markers are drawn). */
+  regionCaption: RegionCaption | undefined;
   /** The simulation line of the exported image's caption (undefined without a simulation). */
   simulatedLine: string | undefined;
   /** A caveat about the simulated picture, the caption's last line (see `weightedHorizonNote`). */
@@ -98,7 +101,7 @@ interface Drawn {
 }
 
 /** One cut plot with the read-out of the highlighted file's marker values underneath. */
-function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, fileCut, emphasised, byGroup, referenceLabel, mode, markerLine, simulatedLine, exportNote, exportBase, exportBehind, farBelowNote, onShowRectangular }: CutPlotProps) {
+function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, traces, originals, fileCut, emphasised, byGroup, referenceLabel, mode, markerLine, regionCaption, simulatedLine, exportNote, exportBase, exportBehind, farBelowNote, onShowRectangular }: CutPlotProps) {
   const noLegend = traces > 0 && !showFileLegend(traces);
   return (
     <div className="plot-col">
@@ -111,7 +114,7 @@ function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, 
         toolbar={mode === 'polar' ? 'polar' : 'rect'}
         ariaLabel={`${id === 'h' ? 'Horizontal' : 'Vertical'} cut of the highlighted and visible patterns`}
         labelledExport={{
-          caption: withSimulated(target ? { file: target, items: readout, ...(markerLine ? { markers: markerLine } : {}) } : undefined, simulatedLine, exportNote),
+          caption: withSimulated(target ? { file: target, items: readout, ...(markerLine ? { markers: markerLine } : {}), ...(regionCaption ? { regions: regionCaptionText(regionCaption) } : {}) } : undefined, simulatedLine, exportNote),
           filename: exportBase,
           figure: exportFigure,
           behind: exportBehind,
@@ -125,6 +128,7 @@ function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, 
             <strong>{target}:</strong> {readout.join(' · ')}
           </p>
         )}
+        {regionCaption && <RegionLine id={id} caption={regionCaption} />}
         {farBelowNote && (
           <p className="count" data-testid="far-below-note">
             {farBelowNote}{' '}
@@ -140,6 +144,24 @@ function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, 
         )}
       </div>
     </div>
+  );
+}
+
+/** The text alternative of the region shading, with a swatch of each region's colour (the words name the colour too). */
+function RegionLine({ id, caption }: { id: 'h' | 'v'; caption: RegionCaption }) {
+  return (
+    <p className="count region-line" data-testid={`regions-${id}`}>
+      {caption.lead}
+      {caption.items.length > 0 && ': '}
+      {caption.items.map((item, k) => (
+        <span key={item.region}>
+          {k > 0 && '; '}
+          <span className="region-swatch" aria-hidden="true" style={{ background: REGION_STYLE[item.region].colour }} />
+          {item.text}
+        </span>
+      ))}
+      .{caption.note && ` ${caption.note}`}
+    </p>
   );
 }
 
@@ -189,6 +211,8 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
   });
   const target = pending ? settledTarget.current : markerTarget;
   const method3d = useStore((s) => s.view.method3d);
+  // The angular regions of the marker target are shaded while their columns are shown (see `regionShading`).
+  const regions = useStore((s) => s.view.tableGroups.are);
   // Only a simulation of what is drawn counts: an offset on an unticked file changes neither picture.
   const drawnIds = drawnItems.map((i) => i.pattern.id);
   const simulatedH = sim.simulatedAmong(drawnIds);
@@ -225,7 +249,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
   // The highlighted file's part: its markers, the title, the read-out. The traces themselves are restyled (`emphasised`).
   const figures = useMemo(() => {
     const make = ({ options: base, figure }: (typeof bases)['h']) => {
-      const options = { ...base, markers: view.markers, markerTarget: target };
+      const options = { ...base, markers: view.markers, markerTarget: target, regions };
       const shown = options.series.find((x) => x.id === target);
       const overlay = buildCutOverlay(options);
       return {
@@ -235,6 +259,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
         exportFigure: () => ({ data: buildCutFigure(options).data, layout: { ...figure.layout, ...overlay.layout } }),
         referenceLabel: options.series.find((x) => x.reference)?.label ?? null,
         markerLine: markerCaption(options.cut, view.markers, { ...options, highlighted: targetHighlighted }),
+        regionCaption: regionCaptionOf(options),
         mode: options.mode,
         readout: markerReadout(options),
         target: shown?.label ?? '',
@@ -245,7 +270,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
       };
     };
     return { h: make(bases.h), v: make(bases.v) };
-  }, [bases, target, targetHighlighted, view.markers, drawn.sim.tiltActive]);
+  }, [bases, target, targetHighlighted, view.markers, regions, drawn.sim.tiltActive]);
 
   // What each cut plot has finished drawing: until the shown ones have caught up (new traces, or another highlighted
   // file's markers, which the charting library also redraws the whole plot for), the redraw is still running.
