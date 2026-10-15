@@ -82,7 +82,12 @@ test('with a mouse at 1024 px nothing is larger than before: the controls keep t
   await loadExample(page);
   expect(await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)).toBe(false);
   // Pinned from the page before this change (main at fc476f6, 1024 x 768, example loaded).
-  expect(await targets(page)).toEqual(DESKTOP_TARGETS);
+  // The tick is the browser's own checkbox: 13 px in Chromium, 14 px in Firefox. A coarse-pointer enlargement is 20 px, far outside 1 px.
+  const { tick, ...others } = await targets(page);
+  const { tick: desktopTick, ...desktopOthers } = DESKTOP_TARGETS;
+  expect(others).toEqual(desktopOthers);
+  expect(Math.abs(tick.width - desktopTick.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(tick.height - desktopTick.height)).toBeLessThanOrEqual(1);
   expect((await size(page, '.panel')).width).toBe(300);
   const plot = (await page.getByTestId('plot-h').boundingBox())!;
   const button = (await page.getByTestId('plot-h').locator('.modebar-btn').first().boundingBox())!;

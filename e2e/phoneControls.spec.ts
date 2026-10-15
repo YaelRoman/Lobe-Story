@@ -89,7 +89,11 @@ test('on a desktop the sliders and the reference line are as before: 140 px slid
   await pinReference(page, false);
   const p = await referenceParts(page);
   // Pinned from the page before this change (1440 x 900): one line, the note and the button where they were.
-  expect({ height: p.note.h, tilted: p.tilted.x - p.note.x, clear: p.clear.x - p.note.x }).toEqual(REFERENCE_LINE_BEFORE);
+  // The note's text width follows the browser's font metrics: the offsets may differ by a pixel (Firefox), a wrapped or
+  // moved line would differ by tens of pixels and by the height.
+  expect(p.note.h).toBe(REFERENCE_LINE_BEFORE.height);
+  expect(Math.abs(p.tilted.x - p.note.x - REFERENCE_LINE_BEFORE.tilted)).toBeLessThanOrEqual(1);
+  expect(Math.abs(p.clear.x - p.note.x - REFERENCE_LINE_BEFORE.clear)).toBeLessThanOrEqual(1);
   expect(Math.abs(p.note.w - 569)).toBeLessThanOrEqual(1);
 });
 
