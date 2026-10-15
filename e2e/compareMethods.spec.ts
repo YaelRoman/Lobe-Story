@@ -341,6 +341,8 @@ test('the comparison is remembered in the browser, like the 3D layout', async ({
 
 for (const view of ['compare', 'grid', 'overlay'] as const) {
   test(`${view}: "Reset camera to default" returns every scene to the built view, and a redraw keeps it`, async ({ page }) => {
+    // Two theme redraws and two resets of up to 24 software-WebGL surfaces: about 29 s for the overlay on a busy machine.
+    test.slow();
     await loadExample(page);
     const scenesWanted = view === 'compare' ? 2 : view === 'grid' ? 6 : 1;
     if (view !== 'compare') await page.getByRole('button', { name: 'Show all', exact: true }).click();
