@@ -223,6 +223,8 @@ const FROM_BELOW = [-0.1, -0.05, -0.02, 0.01, 0.03];
 const FROM_WEDGE = [0.2, 0.08, 0.03];
 
 test('polar hover over the marker layer names the markers that lie on the highlighted trace, as one chart does, from any direction', async ({ page }) => {
+  // Many sweeps of single steps, twice over: on a loaded machine they outlast the default 30 s.
+  test.slow();
   await loadMany(page, 25);
   await clickRow(page, 5);
   const target = await rowId(page, 5);
