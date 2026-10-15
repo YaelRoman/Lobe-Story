@@ -17,10 +17,18 @@ import { tablePower as power } from './powerTable';
  * the vertical cut at the azimuth of the H peak, but behind the antenna it gives H(180°) + V(θ): the back half of the
  * vertical cut is never read, and at the poles (θ = ±90°, where every azimuth is the same direction) it depends on φ.
  *
- * This model keeps O and adds two corrections, as a transfinite (Coons) blend of the errors O makes on the two other
- * boundaries it should honour, the meridian behind the antenna and the poles:
+ * This model keeps O and corrects it on the two other boundaries it should honour, the poles and the meridian behind
+ * the antenna, as a transfinite (Coons) blend of O's errors there. The pole correction is made in dB, giving the
+ * front model
  *
- *   R = O + b(φ)·[T(θ) − O(180°, θ)] + q(θ)·[P − O(φ, ±90°) − b(φ)·(P − O(180°, ±90°))]
+ *   Fm(φ, θ) = O(φ, θ) + q(θ)·[P − O(φ, ±90°)]          (the model in front of the antenna, b = 0)
+ *
+ * and the correction towards the back meridian in linear power (lowercase: powers), within bounds:
+ *
+ *   r = fm + b(φ)·[t(θ) − fm(180°, θ)],   min(fm, t) ≤ R ≤ (1 − b)·max(fm, t) + b·max(t, w(θ)·fm)
+ *
+ * (`backBlendPower`). In dB the same correction transfers the azimuth cut's shape relative to its single sample at
+ * 180° to the whole back: a deep narrow null there turned into back lobes far stronger than anything measured.
  *
  * - b(φ) = cos²φ behind the antenna (cos φ < 0) and 0 in front: 1 at 180°, 0 at ±90° with zero slope at both ends,
  *   so the whole front hemisphere is the existing model (apart from the pole term below).
@@ -40,12 +48,14 @@ import { tablePower as power } from './powerTable';
  * - on the cone θc, R = O: the azimuth cut H(φ) for every azimuth (q = 0 and T(θc) = O(180°, θc));
  * - at φ = 180°, R = T(θ): the back half of the vertical cut at every elevation (B(θ) itself when the cuts agree
  *   behind the antenna, and beyond 10° from the cone whether they agree or not);
- * - at φ = 0, R = O(0, θ) + q(θ)·[P − O(0, ±90°)]: the front half of the vertical cut when H(0°) = 0 (the existing
- *   model's own condition), since then O(0, θ) = V(θ) and O(0, ±90°) = P;
+ * - at φ = 0, R = Fm(0, θ): the front half of the vertical cut when H(0°) = 0 (the existing model's own condition),
+ *   since then O(0, θ) = V(θ) and O(0, ±90°) = P;
  * - at the poles, R = P for every azimuth (single-valued).
+ * Behind the antenna no direction is stronger than the stronger of Fm there and T(θ). With Summation Fm is never
+ * stronger than the front of the vertical cut at that elevation and T is the back half (shifted towards the azimuth
+ * cut within 10° of the cone); with Weighted Fm can be somewhat stronger than either cut, as O is.
  * Between the 1° samples the readings are what the caller passes (the conventions of each path are unchanged).
- * The result is clipped at 0 dB from below (the strongest direction stays the azimuth cut's peak on the cone, as in O),
- * and a correction that is not a number (infinite levels) leaves the existing model's value.
+ * Levels are clipped at 0 dB (the peak) and a correction that is not a number (infinite levels) leaves O.
  */
 export interface BackHalfModel {
   method: Method3d;
@@ -112,6 +122,9 @@ export function mismatchWeight(coneDeg: number, thetaDeg: number): number {
 
 /** q(θ): 0 on the cone θc, 1 at the poles (see `BackHalfModel`). */
 export function poleWeight(coneDeg: number, thetaDeg: number): number {
+  // At a pole every azimuth is one direction: always the pole's level, also for a cone at the pole itself (a beam
+  // straight up or down, where the cone degenerates to that point).
+  if (thetaDeg >= 90 || thetaDeg <= -90) return 1;
   const below = thetaDeg >= coneDeg;
   const along = below ? thetaDeg - coneDeg : coneDeg - thetaDeg;
   if (along === 0) return 0;
@@ -127,21 +140,51 @@ export function backWeight(phiDeg: number): number {
   return c < -1e-12 ? c * c : 0;
 }
 
+/** A level in dB clipped at the peak (0 dB); a level that is not a number gives `fallback`. */
+const clipDb = (r: number, fallback: number): number => (r > 0 ? r : r === r ? 0 : fallback);
+
 /**
- * The model's value from the existing model's three combinations in this direction: `o` = O(φ, θ) = combine(aH, aF),
+ * The blend towards the back half of the vertical cut, in linear power. f, f180 and t are the powers of the front
+ * model here, of the front model at φ = 180° (same θ) and of T(θ); b = b(φ), w = w(θ).
+ * - The transfinite blend r = f + b·(t − f180), in power: a null of the azimuth cut at 180° (f180 tiny) takes away only
+ *   its own power. In dB it would be subtracted from the whole back, and a deep narrow null there made back
+ *   directions far stronger than anything either cut measured behind the antenna.
+ * - Never weaker than the weaker of f and t.
+ * - Never stronger than (1 − b)·max(f, t) + b·max(t, w·f): away from the azimuth cut's cone (w = 0) a direction
+ *   behind the antenna is at most as strong as the stronger of its two readings, and towards straight behind as the
+ *   back half of the vertical cut itself; on the cone (w = 1) the azimuth cut is let through.
+ * The identities hold: on the cone t = f180, so r = f; straight behind (b = 1) f = f180, so r = t; in front (b = 0)
+ * r = f; at the poles f = f180 = t = P. At most the peak (1).
+ */
+export function backBlendPower(f: number, f180: number, t: number, b: number, w: number): number {
+  const r = f + b * (t - f180);
+  const stronger = f > t ? f : t;
+  const cap = (1 - b) * stronger + b * (t > w * f ? t : w * f);
+  const floor = f < t ? f : t;
+  const capped = r < cap ? r : cap;
+  return capped > floor ? (capped < 1 ? capped : 1) : floor;
+}
+
+/**
+ * The model's value (dB) from the existing model's combinations in this direction: `o` = O(φ, θ) = combine(aH, aF),
  * `atPole` = combine(aH, P) for the pole on θ's side, `behind` = O(180°, θ) = combine(H(180°), aF); `aB` = V(180° − θ).
+ * The front model Fm = O + q·(P − O(φ, ±90°)) is in dB; the back blend is `backBlendPower`.
  */
 export function backHalfFrom(m: BackHalfModel, b: number, q: number, thetaDeg: number, o: number, atPole: number, behind: number, aB: number): number {
   if (b === 0 && q === 0) return o;
-  let r = o;
-  if (q !== 0) {
-    const pole = thetaDeg >= m.coneDeg ? m.nadir : m.zenith;
-    r += q * (pole.level - atPole - b * pole.behind);
-  }
-  if (b !== 0) r += b * (aB + mismatchWeight(m.coneDeg, thetaDeg) * m.mismatch - behind);
-  if (r > 0) return r;
-  // r ≤ 0: stronger than the peak by a mismatch of the cuts, clipped; not a number (∞ − ∞): the existing model's value.
-  return r === r ? 0 : o;
+  const pole = thetaDeg >= m.coneDeg ? m.nadir : m.zenith;
+  const fm = q === 0 ? o : clipDb(o + q * (pole.level - atPole), o);
+  // In front, and at the poles (q = 1), where every reading is P: the front model.
+  if (b === 0 || q === 1) return fm;
+  const fm180 = q === 0 ? behind : clipDb(behind + q * pole.behind, behind);
+  const w = mismatchWeight(m.coneDeg, thetaDeg);
+  const t = aB + w * m.mismatch;
+  // On the cone (t = Fm(180°)) nothing is added; straight behind (b = 1) the model is T.
+  if (t === fm180) return fm;
+  if (b === 1 && fm === fm180) return clipDb(t, fm);
+  // Powers from the table (within 2e-6 of the exponential, as the angular-region paths read them).
+  const r = backBlendPower(power(fm), power(fm180), power(t), b, w);
+  return r > 0 ? -10 * Math.log10(r) : r === r ? Infinity : fm;
 }
 
 /**
@@ -207,10 +250,10 @@ export function backHalfIntensity(h: Grid, v: Grid, method: Method3d): Float64Ar
   const comb = (a: number, c: number, pa: number, pc: number): number => (weighted ? combineWeighted(a, c, pa, pc) : a + c);
   const hPower = weighted ? h.map(power) : h;
   const back = h.map((_, a) => backWeight(a));
-  // Per azimuth: combine(H(φ), P) at each pole, the terms of the pole correction that do not depend on θ.
+  // Per azimuth: P − combine(H(φ), P) at each pole (the pole term of the front model, without q).
   const poleTerm = (pole: BackHalfModel['nadir']) => {
     const p = power(pole.level);
-    return h.map((aH, a) => pole.level - comb(aH, pole.level, hPower[a], p) - back[a] * pole.behind);
+    return h.map((aH, a) => pole.level - comb(aH, pole.level, hPower[a], p));
   };
   const belowTerm = poleTerm(nadir);
   const aboveTerm = poleTerm(zenith);
@@ -221,9 +264,15 @@ export function backHalfIntensity(h: Grid, v: Grid, method: Method3d): Float64Ar
     const aF = v[mod360(theta)];
     const pF = weighted ? power(aF) : 0;
     const q = poleWeight(coneDeg, theta);
-    const poleRow = theta >= coneDeg ? belowTerm : aboveTerm;
-    // b(φ)·[T(θ) − O(180°, θ)]: the bracket is the same for the whole row.
-    const behindRow = v[mod360(180 - theta)] + mismatchWeight(coneDeg, theta) * mismatch - comb(h180, aF, h180Power, pF);
+    const pole = theta >= coneDeg ? nadir : zenith;
+    const poleRow = pole === nadir ? belowTerm : aboveTerm;
+    // The front model at 180° and T(θ), the same for the whole row (as `backHalfFrom`).
+    const behind = comb(h180, aF, h180Power, pF);
+    const fm180 = q === 0 ? behind : clipDb(behind + q * pole.behind, behind);
+    const w = mismatchWeight(coneDeg, theta);
+    const t = v[mod360(180 - theta)] + w * mismatch;
+    const p180 = power(fm180);
+    const pT = power(t);
     for (let a = 0; a < 360; a++, at++) {
       const o = weighted ? combineWeighted(h[a], aF, hPower[a], pF) : h[a] + aF;
       const b = back[a];
@@ -231,10 +280,8 @@ export function backHalfIntensity(h: Grid, v: Grid, method: Method3d): Float64Ar
         out[at] = power(o);
         continue;
       }
-      let r = o;
-      if (q !== 0) r += q * poleRow[a];
-      if (b !== 0) r += b * behindRow;
-      out[at] = power(r > 0 ? r : r === r ? 0 : o);
+      const fm = q === 0 ? o : clipDb(o + q * poleRow[a], o);
+      out[at] = b === 0 || t === fm180 ? power(fm) : backBlendPower(power(fm), p180, pT, b, w);
     }
   }
   return out;

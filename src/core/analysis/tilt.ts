@@ -3,7 +3,7 @@ import { analyzeAll, angularRegionsOfCuts, gridsFor, type AnalysisSettings, type
 import { beamPeakElevation, interp, mod360, rawGrid, type Grid } from './grid';
 import { combine, combineWeighted, reconstruct3d, STEP_3D, type Method3d, type Surface3d } from './pattern3d';
 import { tablePower } from './powerTable';
-import { backHalfModel, backHalfModelOf, backHalfAtt, backWeight, mismatchWeight, poleWeight, reconstructBack3d } from './backHalf3d';
+import { backBlendPower, backHalfModel, backHalfModelOf, backHalfAtt, backWeight, mismatchWeight, poleWeight, reconstructBack3d } from './backHalf3d';
 import { efficiencyOf, noAngularRegions, sampledRegionPowers, SPHERE_ROWS, typeABeam, withRegions, type AngularRegionEfficiency } from './are';
 
 // Kept here for their earlier importers; they live with the other grid functions.
@@ -444,7 +444,7 @@ function backHalfSphere(
   const { hIndex, hFrac, vIndex, vFrac } = table;
   // b(φ) depends on the direction only (one array per table); q(θ) and w(θ) on the file's cone, so they are taken at
   // whole degrees of θ mod 360 and read linearly between them (both are smooth: q within 1e-4 of the formula, w within
-  // 0.01).
+  // 0.01). Index 360 is θ = 0 again (the closed circle).
   const back = (table.backWeights ??= Float32Array.from(hIndex, (i, k) => backWeight(i + hFrac[k])));
   const qAt = new Float64Array(361);
   const wAt = new Float64Array(361);
@@ -457,7 +457,19 @@ function backHalfSphere(
   const nadirPower = powerOf(nadir.level);
   const zenithPower = powerOf(zenith.level);
   const h180Power = powerOf(h180);
-  // `backHalfFrom` written out (the same arithmetic), one loop per method: this runs for 65 160 directions per file.
+  // The two readings of the back blend that depend on θ only, as powers at whole degrees of θ mod 360, read linearly
+  // between them as q and w are: the front model straight behind, Fm(180°, θ), and T(θ).
+  const behindAt = new Float64Array(361);
+  const backAt = new Float64Array(361);
+  for (let d = 0; d <= 360; d++) {
+    const theta = d >= 180 ? d - 360 : d;
+    const aF = v[d];
+    const behind = weighted ? combineWeighted(h180, aF, h180Power, powerOf(aF)) : h180 + aF;
+    const r = behind + qAt[d] * (theta >= coneDeg ? nadir : zenith).behind;
+    behindAt[d] = powerOf(r > 0 ? r : r === r ? 0 : behind);
+    backAt[d] = powerOf(v[(540 - d) % 360] + wAt[d] * mismatch);
+  }
+  // `backHalfFrom` written out (powers from the table, the θ-only readings tabulated): 65 160 directions per file.
   for (let k = 0; k < out.length; k++) {
     const i = hIndex[k];
     const f = hFrac[k];
@@ -474,21 +486,22 @@ function backHalfSphere(
       out[k] = powerOf(o);
       continue;
     }
-    let r = o;
+    const thetaMod = j + g;
+    const pole = (thetaMod >= 180 ? thetaMod - 360 : thetaMod) >= coneDeg ? nadir : zenith;
+    let fm = o;
     if (q !== 0) {
-      const thetaMod = j + g;
-      const pole = (thetaMod >= 180 ? thetaMod - 360 : thetaMod) >= coneDeg ? nadir : zenith;
       const atPole = weighted ? combineWeighted(aH, pole.level, pH, pole === nadir ? nadirPower : zenithPower) : aH + pole.level;
-      r += q * (pole.level - atPole - b * pole.behind);
+      const r = o + q * (pole.level - atPole);
+      fm = r > 0 ? r : r === r ? 0 : o;
     }
-    if (b !== 0) {
-      // V(180° − θ): between the samples 179 − j and 180 − j (or on 180 − j when θ is whole).
-      const kb = g === 0 ? (540 - j) % 360 : (539 - j) % 360;
-      const aB = g === 0 ? v[kb] : v[kb] + (v[kb + 1] - v[kb]) * (1 - g);
-      const w = g === 0 ? wAt[j] : wAt[j] + (wAt[j + 1] - wAt[j]) * g;
-      r += b * (aB + w * mismatch - (weighted ? combineWeighted(h180, aF, h180Power, pF) : h180 + aF));
+    if (b === 0) {
+      out[k] = powerOf(fm);
+      continue;
     }
-    out[k] = powerOf(r > 0 ? r : r === r ? 0 : o);
+    const w = g === 0 ? wAt[j] : wAt[j] + (wAt[j + 1] - wAt[j]) * g;
+    const p180 = g === 0 ? behindAt[j] : behindAt[j] + (behindAt[j + 1] - behindAt[j]) * g;
+    const pT = g === 0 ? backAt[j] : backAt[j] + (backAt[j + 1] - backAt[j]) * g;
+    out[k] = backBlendPower(powerOf(fm), p180, pT, b, w);
   }
 }
 

@@ -155,7 +155,7 @@ describe('backHalf3d model', () => {
     expect(poleWeight(CONE, 90)).toBe(1);
     expect(poleWeight(CONE, -90)).toBe(1);
     expect(poleWeight(0, 60)).toBeCloseTo(1 - Math.cos((60 * Math.PI) / 180), 12);
-    expect(poleWeight(90, 90)).toBe(0);
+    expect(poleWeight(90, 90)).toBe(1);
     expect(poleWeight(90, 80)).toBeGreaterThan(0);
     expect(mismatchWeight(CONE, CONE)).toBe(1);
     expect(mismatchWeight(CONE, CONE + 5)).toBeCloseTo(0.5, 12);
@@ -167,6 +167,45 @@ describe('backHalf3d model', () => {
     const { h, v } = mismatched;
     expect(reconstructTilted3d(h, v, NO_TILT, 0, 'summation')).toEqual(reconstruct3d(h, v, 'summation'));
   });
+});
+
+describe('a deep narrow null straight behind the antenna', () => {
+  // Both cuts 25 dB behind the antenna with a 6° wide null at 180° (behind the antenna on the cone), so they agree
+  // where they cross. In dB the back correction transferred the null's depth to the whole back: up to a second
+  // 0 dB direction behind the antenna.
+  const cutsWithNull = (depth: number) => {
+    const behind = (x: number) => (Math.abs(x) <= 3 ? depth : 25);
+    const h = gridFrom((a) => (Math.abs(a) <= 90 ? Math.min(25, 3 * (a / 32.5) ** 2) : behind(180 - Math.abs(a))));
+    const v = gridFrom((a) => (Math.abs(a) <= 90 ? Math.min(25, 3 * (a / 5) ** 2) : behind(180 - Math.abs(a))));
+    return { h, v };
+  };
+  const strongestBehind = (h: Grid, v: Grid): number => Math.min(...h.slice(91, 270), ...v.slice(91, 270));
+
+  for (const depth of [35, 45, 60])
+    for (const method of METHODS)
+      it(`${method}, ${depth} dB: no direction behind the antenna more than 3 dB stronger than either cut measured there`, () => {
+        const { h, v } = cutsWithNull(depth);
+        expect(h[180]).toBe(depth);
+        expect(v[180]).toBe(depth);
+        const limit = strongestBehind(h, v) - 3;
+        const s = reconstructBack3d(h, v, method, 1);
+        let strongest = Infinity;
+        s.az.forEach((a, j) => {
+          if (Math.abs(a) > 90) for (let i = 0; i < s.el.length; i++) strongest = Math.min(strongest, s.atten[i][j]);
+        });
+        expect(strongest).toBeGreaterThan(limit);
+        // The angular-region estimate's sampled intensity, and the cuts the tilt simulation reads.
+        const p = backHalfIntensity(h, v, method);
+        for (let row = 0; row <= 180; row++)
+          for (let a = 91; a <= 269; a++) expect(-10 * Math.log10(p[row * 360 + a])).toBeGreaterThan(limit);
+        const pattern = patternFrom((a) => h[mod360(a)], (a) => v[mod360(a)]);
+        for (const t of [NO_TILT, { electricalDeg: 0, mechanicalDeg: 6 }])
+          for (const hCut of ['beam', 'horizon'] as const) {
+            if (t === NO_TILT && hCut === 'beam') continue;
+            const cut = tiltPattern(pattern, t, method, hCut, true).horizontal.atten;
+            expect(Math.min(...cut.slice(91, 270))).toBeGreaterThan(limit);
+          }
+      });
 });
 
 describe('tilt simulation with the back of the vertical cut', () => {
