@@ -48,11 +48,13 @@ test('compares two antennas: A | B | B − A per sub-band, and leaves the compar
   await expect(b.getByLabel('Compare with').locator('option')).toHaveText(['No comparison', 'Array Y3 (12 files)']);
 
   const table = b.getByRole('table');
-  await expect(table.getByRole('columnheader', { name: '1800–1880 MHz' })).toBeVisible();
-  await expect(table.getByRole('columnheader', { name: '2600 MHz' })).toBeVisible();
-  await expect(table.getByRole('columnheader', { name: 'A: Array Y2, 10 files' })).toHaveCount(1);
-  await expect(table.getByRole('columnheader', { name: 'B: Array Y3, 2 files' })).toHaveCount(1);
-  await expect(table.getByRole('columnheader', { name: 'B − A' })).toHaveCount(2);
+  await expect(table.getByRole('columnheader', { name: '1800–1880 MHz', exact: true })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: '2600 MHz', exact: true })).toBeVisible();
+  // Each header of the second row names its sub-band for a screen reader, which may not read the spanning header.
+  await expect(table.getByRole('columnheader', { name: '1800–1880 MHz, A: Array Y2, 10 files', exact: true })).toHaveCount(1);
+  await expect(table.getByRole('columnheader', { name: '2600 MHz, B: Array Y3, 2 files', exact: true })).toHaveCount(1);
+  await expect(table.getByRole('columnheader', { name: '1800–1880 MHz, B − A', exact: true })).toHaveCount(1);
+  await expect(table.getByRole('columnheader', { name: '2600 MHz, B − A', exact: true })).toHaveCount(1);
   await expect(b).toContainText('Comparing A = Array Y2 with B = Array Y3: B − A per sub-band');
 
   const row = (name: RegExp) => table.getByRole('row', { name });

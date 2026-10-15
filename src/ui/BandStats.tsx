@@ -411,19 +411,24 @@ export const BandStats = memo(function BandStats({
               <tr>
                 {columns.map((c, i) => [
                   <th key={`${i}a`} scope="col" className="band-group" title={`A: ${dataset.label} · ${columnSummary(c)}`}>
-                    {/* Named "A: <antenna>" for a screen reader; seen as "A". */}
-                    <span className="visually-hidden">A: {dataset.label},</span>
+                    {/* Named "<sub-band>, A: <antenna>" for a screen reader (which may not read the spanning header); seen as "A". */}
+                    <span className="visually-hidden">
+                      {c.subBand.name}, A: {dataset.label},
+                    </span>
                     <span aria-hidden="true">A</span>
                     <span className="count"> {filesText(c.files)}</span>
                   </th>,
                   <th key={`${i}b`} scope="col" title={`B: ${other.label} · ${columnSummary(sheetB.columns[i])}`}>
-                    {/* Named "B: <antenna>" for a screen reader; seen as "B". */}
-                    <span className="visually-hidden">B: {other.label},</span>
+                    {/* Named "<sub-band>, B: <antenna>" for a screen reader (which may not read the spanning header); seen as "B". */}
+                    <span className="visually-hidden">
+                      {c.subBand.name}, B: {other.label},
+                    </span>
                     <span aria-hidden="true">B</span>
                     <span className="count"> {filesText(sheetB.columns[i].files)}</span>
                   </th>,
                   <th key={`${i}d`} scope="col" title="B minus A: a signed difference of the two statistics, not a grade">
-                    B − A
+                    <span className="visually-hidden">{c.subBand.name}, B − A</span>
+                    <span aria-hidden="true">B − A</span>
                   </th>,
                 ])}
               </tr>
