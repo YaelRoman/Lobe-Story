@@ -163,4 +163,16 @@ describe('legend and note', () => {
     );
     expect(compareNote('Array Y1', 'Array Y2', false)).not.toContain('Automatic');
   });
+  it('says when the automatic split over both antennas is not A\'s own, and names A\'s own', () => {
+    const own = [
+      { name: '1710–1795 MHz', minMHz: 1710, maxMHz: 1795 },
+      { name: '2110–2170 MHz', minMHz: 2110, maxMHz: 2170 },
+    ];
+    const pooled = [{ name: '1710–2170 MHz', minMHz: 1710, maxMHz: 2170 }];
+    expect(compareNote('Array Y2', 'Array Y4', true, own, pooled)).toBe(
+      'Comparing A = Array Y2 with B = Array Y4: B − A per sub-band, a signed difference (no better or worse). Automatic sub-bands are made over the files of both antennas; they are not A\'s own (1710–1795 MHz, 2110–2170 MHz).',
+    );
+    expect(compareNote('Array Y2', 'Array Y4', true, own, own)).toBe(compareNote('Array Y2', 'Array Y4', true));
+    expect(compareNote('Array Y2', 'Array Y4', false, own, pooled)).not.toContain('own');
+  });
 });

@@ -1,7 +1,8 @@
 import { bandDiff, type BandDiff } from '../core/analysis/bandCompare';
 import { BAND_PARAMS, bandParamLabel, type BandParamKey } from '../core/analysis/bandParams';
 import type { AnalysisSettings } from '../core/analysis/metrics';
-import { cellDisplay, filesText, type BandSheet } from './bandView';
+import { cellDisplay, filesText, sameSubBands, type BandSheet } from './bandView';
+import type { SubBand } from '../core/analysis/subBands';
 import { AT_HORIZON_TAG, tabSafe, TILT_WORDS, tsvText, type PairWords } from './table';
 
 /** A difference cell: B − A of the original run, and of the tilted one under a simulation. */
@@ -38,10 +39,16 @@ export function anySubstituted(diffs: readonly Record<BandParamKey, DiffPair>[])
   return diffs.some((c) => Object.values(c).some((d) => d.original.substituted || d.tilted?.substituted === true));
 }
 
-/** The sentence of the band note while two antennas are compared. */
-export const compareNote = (aLabel: string, bLabel: string, automatic: boolean): string =>
-  `Comparing A = ${aLabel} with B = ${bLabel}: B − A per sub-band, a signed difference (no better or worse).` +
-  (automatic ? ' Automatic sub-bands are made over the files of both antennas.' : '');
+/**
+ * The sentence of the band note while two antennas are compared. With automatic sub-bands it says they are made over
+ * both antennas, and, when that split (`used`) is not A's own (`ownA`), names A's own.
+ */
+export function compareNote(aLabel: string, bLabel: string, automatic: boolean, ownA?: readonly SubBand[], used?: readonly SubBand[]): string {
+  const head = `Comparing A = ${aLabel} with B = ${bLabel}: B − A per sub-band, a signed difference (no better or worse).`;
+  if (!automatic) return head;
+  const notOwn = ownA && used && !sameSubBands(ownA, used) ? `; they are not A's own (${ownA.map((b) => b.name).join(', ')})` : '';
+  return `${head} Automatic sub-bands are made over the files of both antennas${notOwn}.`;
+}
 
 /**
  * The comparison as shown, for a spreadsheet: a header line (Parameter, then for each sub-band "A: …", "B: …" and

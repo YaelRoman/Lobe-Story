@@ -406,7 +406,8 @@ not check that all frequency samples required by Annex B are present.
 
 **Two antennas compared.** **Compare with** beside the antenna selector shows a second antenna, B, next
 to the first, A: each sub-band has three columns, A, B and B − A, over the same sub-bands (the user's, or
-automatic ones made over the frequencies of both antennas, which can differ from A's own). B − A is a
+automatic ones made over the frequencies of both antennas, which can differ from A's own; the note above
+the table then names A's own). B − A is a
 signed difference of the two statistics, worked out from their unrounded values and written with one
 decimal like them, never more ("0.0" without a sign where it rounds to zero; tilts as the tilts are written,
 "0°"); so a shown difference can differ by up to 0.1 from the difference of the two shown values. It is never graded better or worse,

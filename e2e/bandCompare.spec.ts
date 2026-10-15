@@ -56,6 +56,8 @@ test('compares two antennas: A | B | B − A per sub-band, and leaves the compar
   await expect(table.getByRole('columnheader', { name: '1800–1880 MHz, B − A', exact: true })).toHaveCount(1);
   await expect(table.getByRole('columnheader', { name: '2600 MHz, B − A', exact: true })).toHaveCount(1);
   await expect(b).toContainText('Comparing A = Array Y2 with B = Array Y3: B − A per sub-band');
+  // Y3's 2600 MHz files add a sub-band A does not have: the note names A's own.
+  await expect(b).toContainText("Automatic sub-bands are made over the files of both antennas; they are not A's own (1800–1880 MHz).");
 
   const row = (name: RegExp) => table.getByRole('row', { name });
   const cells = (name: RegExp) => row(name).getByRole('button');

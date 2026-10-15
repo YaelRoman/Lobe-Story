@@ -372,7 +372,7 @@ export const BandStats = memo(function BandStats({
         BASTA V13 Annex C statistics over every loaded file of the antenna in each sub-band (all tilts and ports; copies
         excluded; co-polar cuts).
         {noFrequency > 0 && ` ${noFrequency} loaded file${noFrequency === 1 ? ' has' : 's have'} no frequency above 0 MHz and ${noFrequency === 1 ? 'is' : 'are'} left out.`}
-        {sheetB && other && ` ${compareNote(dataset.label, other.label, !bandsNote.userDefined)}`}
+        {sheetB && other && ` ${compareNote(dataset.label, other.label, !bandsNote.userDefined, autoSubBands(dataset.items.map((i) => i.pattern.frequencyMHz)), subBands)}`}
         {!bandsNote.userDefined && ` ${bandsNote.text}`}
         {sim.simActive && ` ${bandStateNote(sim.hCut, sim.tiltActive)}`}
         {levelLine && ` ${levelLine}`}
