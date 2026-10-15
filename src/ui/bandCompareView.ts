@@ -52,7 +52,8 @@ export function compareTsv(a: BandSheet, b: BandSheet, settings: AnalysisSetting
   const tilted = Boolean(a.tilted && b.tilted);
   const diffs = compareDiffs(a, b);
   const first = tilted && horizonCut ? (tiltActive ? 'Parameter [tilted: H cut at the horizon]' : `Parameter ${AT_HORIZON_TAG}`) : 'Parameter';
-  // The sub-band and antenna names are user text (formula-guarded at the start of the cell); the cells are computed.
+  // The sub-band and antenna names are user text (formula-guarded at the start of the cell); the A and B cells are
+  // computed and copied as the band table copies them.
   const header = [
     first,
     ...a.columns.flatMap((c, i) => [
@@ -66,7 +67,8 @@ export function compareTsv(a: BandSheet, b: BandSheet, settings: AnalysisSetting
     ...a.columns.flatMap((c, i) => [
       tabSafe(cellDisplay(c.cells[p.key], a.tilted?.[i].cells[p.key]).text),
       tabSafe(cellDisplay(b.columns[i].cells[p.key], b.tilted?.[i].cells[p.key]).text),
-      tabSafe(diffDisplay(diffs[i][p.key].original, diffs[i][p.key].tilted).text),
+      // A difference mostly starts with + or -: guarded, or a spreadsheet reads "+5.0° (tol 0.0°)" as a broken formula.
+      tsvText(diffDisplay(diffs[i][p.key].original, diffs[i][p.key].tilted).text),
     ]),
   ]);
   return [header, ...lines].map((l) => l.join('\t')).join('\r\n') + '\r\n';

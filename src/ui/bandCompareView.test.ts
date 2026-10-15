@@ -71,17 +71,19 @@ describe('compareTsv (Copy table while comparing)', () => {
       'Azimuth beamwidth',
       cellDisplay(a.columns[0].cells.hHpbw).text,
       cellDisplay(b.columns[0].cells.hHpbw).text,
-      '+2.0° (tol 0.0°)',
+      "'+2.0° (tol 0.0°)",
       '—',
       '—',
       '—',
     ]);
   });
-  it('guards the user text of the header and copies a computed difference as it reads, as the band table does', () => {
+  it('guards the user text of the header, and a difference that starts with a sign, so a spreadsheet does not read it as a formula', () => {
     const odd = compareTsv({ ...a, label: '=x' }, { ...b, columns: b.columns.map((c: BandColumn) => ({ ...c, subBand: { ...c.subBand, name: '-odd' } })) }, DEFAULT_SETTINGS).split('\r\n');
     expect(odd[0].split('\t')[1]).toBe('1800–1900 MHz A: =x (12 files)');
     // The sub-band names are A's (the two sheets have the same sub-bands).
-    expect(row(odd, 'Azimuth beamwidth')[3]).toBe('+2.0° (tol 0.0°)');
+    expect(row(odd, 'Azimuth beamwidth')[3]).toBe("'+2.0° (tol 0.0°)");
+    // A difference with no sign in front is copied as it reads.
+    expect(row(odd, 'Elevation beamwidth')[3]).toBe('0.0° (tol 0.0°)');
   });
   it('says in the first header cell which cut the tilted values are of, as the band table copy does', () => {
     const sim = compareTsv({ ...a, tilted: a.columns }, { ...b, tilted: b.columns }, DEFAULT_SETTINGS, true, true).split('\r\n');
@@ -101,7 +103,7 @@ describe('bandCsv while comparing', () => {
     const diffs = lines.slice(single.length);
     expect(diffs).toHaveLength(bands.length * BAND_PARAMS.length);
     const az = diffs.find((l) => l.includes(',Azimuth beamwidth,'))!.split(',');
-    expect(az.slice(0, 10)).toEqual(['difference', 'Array Y2 − Array Y1', '1800–1900 MHz', '1800', '1900', 'Azimuth beamwidth', '°', 'double-sided', '', '+2.0° (tol 0.0°)']);
+    expect(az.slice(0, 10)).toEqual(['difference', 'Array Y2 − Array Y1', '1800–1900 MHz', '1800', '1900', 'Azimuth beamwidth', '°', 'double-sided', '', "'+2.0° (tol 0.0°)"]);
     // Value, Tolerance, Lower, Upper, Percentile, Min, Max, Mean, Counted as 22 dB, Adjusted.
     expect(az.slice(10)).toEqual(['2.00', '0.00', '2.00', '2.00', '', '2.00', '2.00', '2.00', '', '']);
     const gain = diffs.find((l) => l.includes('Gain, all tilts'))!;

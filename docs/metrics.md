@@ -427,7 +427,9 @@ always has, and one `difference` line per sub-band × parameter (× state) whose
 the same columns of A's and B's `statistic` lines for that sub-band, where both have them (N and Counted as
 22 dB stay empty). Every value a difference line is computed from is in the file: where the comparison's
 sub-bands are not an antenna's own (automatic ones made over both antennas), A's and B's `statistic` lines
-over them follow their own lines, so A's pooled numbers are there next to its own split. The pair is saved with the
+over them follow their own lines, so A's pooled numbers are there next to its own split. In Copy table and in the
+CSV's Statistic column a B − A text that starts with `+` or `-` gets a leading `'`, so a spreadsheet does
+not read it as a formula; the numeric columns are plain numbers. The pair is saved with the
 project, not in the browser, and Clear ends it. Without a comparison the table, the copy and the CSV are as
 before.
 

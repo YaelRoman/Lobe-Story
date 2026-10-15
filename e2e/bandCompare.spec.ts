@@ -141,14 +141,18 @@ test.describe('exports while comparing', () => {
       '2600 MHz B: Array Y3 (2 files)',
       '2600 MHz B − A',
     ]);
-    expect(lines.find((l) => l.startsWith('Azimuth beamwidth\t'))!.split('\t').slice(1, 4)).toEqual(['65.0° ± 0.0°', '70.0° ± 0.0°', '+5.0° (tol 0.0°)']);
+    expect(lines.find((l) => l.startsWith('Azimuth beamwidth\t'))!.split('\t').slice(1, 4)).toEqual(['65.0° ± 0.0°', '70.0° ± 0.0°', "'+5.0° (tol 0.0°)"]);
 
     download = page.waitForEvent('download');
     await b.getByRole('button', { name: 'Export band CSV' }).click();
     const csv = (await text(await download)).replace(/^\ufeff/, '').split('\r\n');
     expect(csv[0].startsWith('Row,Antenna,Sub-band,')).toBe(true);
-    expect(csv.filter((l) => l.startsWith('statistic,'))).toHaveLength(singleCsv.trimEnd().split('\r\n').length - 1);
-    expect(csv.find((l) => l.startsWith('difference,Array Y3 − Array Y2,1800–1880 MHz,1800,1880,Azimuth beamwidth,°,double-sided,,+5.0° (tol 0.0°),5.00,'))).toBeDefined();
+    // Every line of the plain CSV, plus A's lines over 2600 MHz, a comparison sub-band that is not A's own: each
+    // difference line has its two statistic lines in the file.
+    const stats = csv.filter((l) => l.startsWith('statistic,'));
+    expect(stats).toHaveLength(singleCsv.trimEnd().split('\r\n').length - 1 + 20);
+    expect(stats.filter((l) => l.startsWith('statistic,Array Y2,2600 MHz,'))).toHaveLength(20);
+    expect(csv.find((l) => l.startsWith('difference,Array Y3 − Array Y2,1800–1880 MHz,1800,1880,Azimuth beamwidth,°,double-sided,,\'+5.0° (tol 0.0°),5.00,'))).toBeDefined();
 
     await b.getByLabel('Compare with').selectOption({ label: 'No comparison' });
     await b.getByRole('button', { name: 'Copy table' }).click();

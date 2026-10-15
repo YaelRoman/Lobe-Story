@@ -6,7 +6,7 @@ import { inSubBand, sanitizeSubBands, subBandName, type BandDataset, type SubBan
 import { FIRST_LOBE_RANGE } from '../core/analysis/sidelobes';
 import { fixed } from './fixed';
 import { settingText } from './bwLabel';
-import { AT_HORIZON_TAG, csvCell, csvText, tabSafe, TILT_WORDS, tsvText, type PairWords } from './table';
+import { AT_HORIZON_TAG, csvCell, csvText, formulaSafe, tabSafe, TILT_WORDS, tsvText, type PairWords } from './table';
 import { hCutLabel } from './simSummary';
 import type { HCutMode } from '../core/analysis/tilt';
 
@@ -208,7 +208,8 @@ function diffCsvLine(label: string, state: string | null, column: BandColumn, p:
     d.unit,
     TYPE_LABEL[p.type],
     '',
-    d.text,
+    // A difference mostly starts with + or -: guarded like user text, so a spreadsheet does not read it as a formula.
+    formulaSafe(d.text),
     f2(n.value),
     f2(n.tolerance),
     f2(n.lower),
