@@ -8,6 +8,9 @@ import { beamwidth } from './beamwidth';
 import type { Method3d } from './pattern3d';
 import type { Pattern } from '../types';
 
+/** Integrates the 3D reconstruction many times: about 1 s alone, up to ~15 s when the whole suite runs in parallel on a busy machine. */
+const HEAVY_TEST_MS = 30_000;
+
 const RAD = Math.PI / 180;
 
 const example = (index: number): Pattern => {
@@ -172,7 +175,7 @@ describe('the angular-region estimate under a mechanical tilt', () => {
     // A second pass that recomputes every file (another sector edge) builds none.
     analyzeTilted(tilted, { ...DEFAULT_SETTINGS, sectorEdgeDeg: 45 }, tiltFor, 'summation');
     expect(sphereTablesBuilt() - before).toBe(24);
-  });
+  }, HEAVY_TEST_MS);
 
   it('computes an untilted file\'s estimate once across passes that also contain a mechanically tilted file', () => {
     const [a, b] = [example(0), { ...example(0), id: 'tilted.msi' }];

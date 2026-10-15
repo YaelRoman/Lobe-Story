@@ -9,6 +9,9 @@ import { parsePlanet } from '../parse/planet';
 import { inferTags } from '../grouping';
 import { patternFrom, quadBeam, vBeamWithLobes } from '../../test/synthetic';
 
+/** Integrates the 3D reconstruction many times: about 1 s alone, up to ~15 s when the whole suite runs in parallel on a busy machine. */
+const HEAVY_TEST_MS = 30_000;
+
 const METHODS: Method3d[] = ['summation', 'weighted'];
 const RAD = Math.PI / 180;
 const maxAbsDiff = (a: number[], b: number[]) => a.reduce((d, v, i) => Math.max(d, Math.abs(v - b[i])), 0);
@@ -417,5 +420,5 @@ describe('the angular-region estimate does not depend on the horizontal cut show
         }
       }
     }
-  });
+  }, HEAVY_TEST_MS);
 });

@@ -4,6 +4,9 @@ import { combine, type Method3d } from './pattern3d';
 import { gridFrom, quadBeam } from '../../test/synthetic';
 import type { Grid } from './grid';
 
+/** Integrates the 3D reconstruction many times: about 1 s alone, up to ~15 s when the whole suite runs in parallel on a busy machine. */
+const HEAVY_TEST_MS = 30_000;
+
 const RAD = Math.PI / 180;
 const sin = (deg: number) => Math.sin(deg * RAD);
 const METHODS: Method3d[] = ['summation', 'weighted'];
@@ -112,7 +115,7 @@ describe('regionPowers', () => {
     const p = regionPowers(h65, v8, regions, 'weighted');
     expect(p.service).toBeCloseTo(band(2, 75, -60, 60), 6);
     expect(p.lower).toBeCloseTo(band(75, 90, -180, 180), 6);
-  });
+  }, HEAVY_TEST_MS);
 
   it('interpolates at a non-integer elevation boundary instead of snapping to a whole degree', () => {
     // A step in the elevation cut between 3° and 4°: the boundary at 3.5° cuts that step in two.
