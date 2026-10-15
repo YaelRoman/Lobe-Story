@@ -131,7 +131,7 @@ The four regions cover the sphere once.
 |---|---|---|---|
 | Sector eff. est. | % | Power in the service region ÷ power over the whole sphere × 100. | 7.2.4 (estimate) |
 | Spatial eff. est. | % | Power in the service region ÷ power in the service and interference regions × 100. | 7.2.4 (estimate) |
-| Lower region est. | % | Power in the lower region ÷ power over the whole sphere × 100. Shown with three decimals (four in the CSV): it is typically a few thousandths of a percent to a few tenths. In the difference view a difference too small for three decimals is written with as many as it needs (+0.00003), so two files that differ never both read 0.000; an original → simulated pair is written the same way when one side would read 0.000 without being zero (0.0009 → 0.0002). Its frequency chart fits the y axis to the values (never below zero) instead of keeping the 5-point span of the other percent metrics. | 7.2.4 (estimate) |
+| Lower region est. | % | Power in the lower region ÷ power over the whole sphere × 100. Shown with three decimals (four in the CSV): it is typically a few thousandths of a percent to a few tenths. In the difference view a difference too small for three decimals is written with as many as it needs (+0.00003), so two files that differ never both read 0.000; an original → simulated pair is written the same way when one side would read 0.000 without being zero (0.0009 → 0.0002), and a pair that reads the same with three decimals but differs with four is written with four (0.0007 → 0.0012), as the band statistics write it. Its frequency chart fits the y axis to the values (never below zero) instead of keeping the 5-point span of the other percent metrics. | 7.2.4 (estimate) |
 
 **How the power is integrated.** The intensity in a direction is the tool's two-cut 3D reconstruction,
 the same one the 3D view and the tilt simulation use, with the selected 3D method: the azimuth cut
@@ -467,7 +467,8 @@ of the dB values as for every row. Note the sign: the roll-off's power mean (BAS
 10^(+level/10), which suits its small spread; the Horizon level spreads over 15 dB and more within a sub-band
 (it moves with each file's tilt), where that mean would land near the deepest files. With a wide spread the
 symmetric "mean ± tolerance" can reach below 0 dB or leave out the deepest files: it is the BASTA form, read the
-histogram for the spread. The row has one value per file, of its horizon cut: a cell shows that statistic alone
+histogram for the spread. In a strongly skewed set the mean can even fall below the 6.7th percentile (the BASTA
+formula allows it; a power-averaged gain can do the same), and the tolerance is then not half the P6.7…P93.3 span. The row has one value per file, of its horizon cut: a cell shows that statistic alone
 (not "original → …"), the band CSV has one line of it (State "horizon cut", or "tilted [H cut at the horizon]"
 under a tilt), and B − A is a difference in dB of the two means. The three angular-region rows (last) are there
 while the Angular regions group is shown; they are percentages, so the mean is arithmetic, as BASTA 12.4.2 takes

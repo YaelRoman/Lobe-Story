@@ -194,3 +194,31 @@ describe('the intro says which rows are not BASTA parameters', () => {
     expect(beyondAnnexNote(true, true)).toMatch(/^The Horizon level and angular-region estimate rows are not BASTA parameters/);
   });
 });
+
+describe('one file whose lower region ratio is equal at three decimals and differs at four (re-review S1′)', () => {
+  // Tilted (the table shows a pair for the estimate only under a tilt).
+  const m = run(TILT, 'horizon', [items[0]]);
+  const id = items[0].pattern.id;
+  const withLower = (map: Map<string, PatternMetrics>, value: number) => {
+    const x = map.get(id)!;
+    return new Map([[id, { ...x, are: { ...x.are, lower: { value } } }]]);
+  };
+  const pair = { original: withLower(m.original, 0.0007), simulated: withLower(m.simulated, 0.0012) };
+
+  it('the table cell and the band cell both show the two values, with the same digits', () => {
+    const r = table([items[0]], pair, true)[0];
+    const t = rowCell(r, 'areLower').text;
+    expect(t).toBe('0.0007 → 0.0012');
+    const original = bandTable([items[0]], pair.original, all, ctx, rows)[0];
+    const simulated = bandTable([items[0]], pair.simulated, all, ctx, rows)[0];
+    expect(cellDisplay(cellOf(original, 'areLower'), cellOf(simulated, 'areLower')).text).toBe('0.0007 % → 0.0012 %');
+  });
+
+  it('values equal at four decimals stay one; other columns keep their decimals', () => {
+    const same = { original: withLower(m.original, 0.00071), simulated: withLower(m.simulated, 0.00072) };
+    expect(rowCell(table([items[0]], same, true)[0], 'areLower').text).toBe('0.001');
+    const r = table([items[0]], m, true)[0];
+    expect(rowCell(r, 'hHpbw').text).toMatch(/^\d+\.\d( → \d+\.\d)?$/);
+    expect(rowCell(r, 'areSector').text).toMatch(/^\d+\.\d( → \d+\.\d)?$/);
+  });
+});

@@ -327,7 +327,11 @@ describe('a simulated pair of lower region values', () => {
 
   it('keeps three decimals where they show both values, and one value for a pair that reads the same', () => {
     expect(rowCell(pair(0.0031, 0.0127), 'areLower').text).toBe('0.003 → 0.013');
-    expect(rowCell(pair(0.0009, 0.0008), 'areLower')).toEqual({ text: '0.001', title: 'original and tilted are equal under the simulation', equal: true });
+    // Equal at three decimals but not at the CSV's four: written with four, so the change shows (as the band statistics do).
+    expect(rowCell(pair(0.0009, 0.0008), 'areLower').text).toBe('0.0009 → 0.0008');
+    expect(rowCell(pair(0.0007, 0.0012), 'areLower').text).toBe('0.0007 → 0.0012');
+    // Equal at four decimals: one value.
+    expect(rowCell(pair(0.00091, 0.00092), 'areLower')).toEqual({ text: '0.001', title: 'original and tilted are equal under the simulation', equal: true });
     // An exact zero stays 0.000; a value too small for seven decimals too.
     expect(rowCell(pair(0.0012, 0), 'areLower').text).toBe('0.001 → 0.000');
     expect(rowCell(pair(0.0012, 1e-9), 'areLower').text).toBe('0.001 → 0.000');

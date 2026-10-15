@@ -687,8 +687,14 @@ function deltaDecimals(key: TableColumn, v: number | null): number {
  */
 function pairDecimals(key: TableColumn, a: number | null, b: number | null): number {
   const usual = shownDecimals(key);
-  if (DECIMALS[key] === undefined) return usual;
-  return Math.max(deltaDecimals(key, a), deltaDecimals(key, b));
+  const own = DECIMALS[key];
+  if (own === undefined) return usual;
+  const d = Math.max(deltaDecimals(key, a), deltaDecimals(key, b));
+  // Two values that differ are not written as one: up to the CSV's decimals, as many as it takes for them to read
+  // differently ("0.0007 → 0.0012", not "0.001"); values equal there are shown once. As the band statistics do.
+  if (a === null || b === null || a === b) return d;
+  for (let finer = d; finer <= own.csv; finer++) if (fixed(a, finer) !== fixed(b, finer)) return finer;
+  return d;
 }
 
 const fmt = (v: number | null, decimals = 2) => (v === null ? '' : fixed(v, decimals));
