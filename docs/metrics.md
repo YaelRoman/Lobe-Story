@@ -401,8 +401,31 @@ at most 12) replaces the automatic one and is saved with the project. It belongs
 browser: Clear and a fresh page start with automatic sub-bands, and an opened project brings its own. While a
 user-defined list is in use a line above the table says so, says how many files of the antenna shown fall in none
 of the sub-bands (they are in no statistic) and offers "Back to automatic". The editor offers common
-ranges as presets and "Start from automatic" copies the automatic sub-bands of the selected antenna only. A frequency above 100000 MHz is not accepted. BASTA's own sub-band tables are examples and are not enforced, and the tool does
+ranges as presets and "Start from automatic" copies the automatic sub-bands of the selected antenna only (of both antennas while two are compared). A frequency above 100000 MHz is not accepted. BASTA's own sub-band tables are examples and are not enforced, and the tool does
 not check that all frequency samples required by Annex B are present.
+
+**Two antennas compared.** **Compare with** beside the antenna selector shows a second antenna, B, next
+to the first, A: each sub-band has three columns, A, B and B − A, over the same sub-bands (the user's, or
+automatic ones made over the frequencies of both antennas, which can differ from A's own). B − A is a
+signed difference of the two statistics, worked out from their unrounded values and written with one
+decimal (more where a difference that is not zero would read 0.0); it is never graded better or worse,
+since BASTA gives no direction for most rows. Per kind of cell:
+- double-sided (mean ± tolerance): the difference of the means, and in brackets that of the tolerances ("+1.2° (tol -0.4°)");
+- single-sided (< P84, > P16): the difference of the limits as shown, the adjusted ones where the 3 dB excursion rule moved them; the `*` is kept;
+- gain at a tilt (mean only): the difference of the mean gains, with both tilts named when the two antennas' lowest, middle or highest tilt is not the same;
+- electrical tilt range (absolute): the differences of the lowest and of the highest nominal tilt ("lowest +2°, highest 0°"; one number when both antennas have a single tilt);
+- no difference ("—", with the reason of each side in its detail) where either cell has no values, fewer than 10 (a range is shown, which is no statistic) or is n/a;
+- a difference partly of "not available" values counted as 22 dB is dimmed and marked `†`.
+
+A gain difference is in dB, whether the gain is shown in dBi or dBd; the other rows keep their unit (° or
+dB). Under a tilt simulation, or with the horizontal cut at the horizon, A, B and B − A each show original →
+tilted where they differ, the difference being taken within each state. A click on an A or B cell shows that
+antenna's histogram; on a B − A cell both, overlaid on the same bins with each statistic. **Copy table**
+copies the three columns per sub-band. The band CSV gets a first column Row: `statistic` on every line it
+always has, and one `difference` line per sub-band × parameter (× state) whose numeric columns are B − A of
+the two antennas' own where both have them (N and Counted as 22 dB stay empty). The pair is saved with the
+project, not in the browser, and Clear ends it. Without a comparison the table, the copy and the CSV are as
+before.
 
 **Recipe.**
 - Percentile p: index x = 1 + (N − 1)·p/100 into the ascending values, linearly interpolated, x not rounded.

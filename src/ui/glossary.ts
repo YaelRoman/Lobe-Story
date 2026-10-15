@@ -13,7 +13,7 @@ export interface GlossaryEntry {
 export interface HelpSection {
   title: string;
   /** What the section is about; several sections can share one subject (see `helpAbout`). */
-  topic: 'panel' | 'copying' | 'reference' | 'ticked' | 'horizontal-cut' | 'chart' | 'not-default';
+  topic: 'panel' | 'copying' | 'reference' | 'ticked' | 'horizontal-cut' | 'chart' | 'not-default' | 'band-compare';
   lines: readonly string[];
 }
 
@@ -89,6 +89,16 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
       'A click on a chip puts that one thing back; each reset but Ticked files only (one click on its box brings it back) can be undone with the Undo button or Ctrl/Cmd+Z.',
       'With everything at its default there is no line, except while the Simulation bar is open: it then keeps its row and says Numbers at default, so that its first chip moves nothing. While a slider is held the line waits until it is let go.',
       'Not listed: the azimuth, which only turns the drawing, and what is written where the numbers are (the gain unit, Δ vs reference). The line is not in any export.',
+    ],
+  },
+  {
+    title: 'Two antennas in Band statistics',
+    topic: 'band-compare',
+    lines: [
+      'Compare with, beside the antenna in Band statistics, puts a second antenna B next to the first one, A: each sub-band then has three columns, A, B and B − A, and No comparison goes back to one antenna.',
+      'B − A is a signed difference, never graded better or worse: of the means, with that of the tolerances in brackets, for mean ± tolerance; of the limits for a < or > limit; of the mean gains for a gain at one tilt, naming both tilts where they differ; of the lowest and the highest tilt for the tilt range.',
+      'Where either antenna has no values, too few for a statistic or n/a, the cell shows no difference; † marks a difference partly of "not available" values counted as 22 dB, and * one of a limit moved by the 3 dB excursion rule.',
+      'Automatic sub-bands are then made over the files of both antennas. A click on a B − A cell shows the histograms of both antennas on the same bins. Copy table copies the three columns; the band CSV gets a Row column and one difference line per sub-band and parameter. The comparison is saved with the project.',
     ],
   },
   {

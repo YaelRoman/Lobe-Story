@@ -73,6 +73,16 @@ no cause.
 - Band statistics per NGMN BASTA V13 Annex C: mean ± tolerance, 84th / 16th percentile limits and
   gain statistics over every loaded file of an antenna in a frequency sub-band (automatic or
   user-defined sub-bands, saved with the project), with CSV export and a histogram of any cell.
+- **Compare with**, beside the antenna in Band statistics, puts a second antenna B next to the first one, A:
+  each sub-band then has three columns, A, B and B − A, and **No comparison** goes back to one antenna. B − A
+  is a signed difference, never graded better or worse: of the means, with that of the tolerances in brackets,
+  for mean ± tolerance; of the limits for a < or > limit; of the mean gains for a gain at one tilt, naming
+  both tilts where they differ; of the lowest and the highest tilt for the tilt range. Where either antenna
+  has no values, too few for a statistic or n/a, the cell shows no difference; † marks a difference partly of
+  "not available" values counted as 22 dB, and * one of a limit moved by the 3 dB excursion rule. Automatic
+  sub-bands are then made over the files of both antennas. A click on a B − A cell shows the histograms of
+  both antennas on the same bins. Copy table copies the three columns; the band CSV gets a Row column and one
+  difference line per sub-band and parameter. The comparison is saved with the project.
 - Copy to the clipboard for a spreadsheet: **Copy table** on the metrics table and on the band
   statistics (tab-separated, as shown), **Copy row** (the button by the file name, or Ctrl/Cmd+C on
   the name), and a single value (click a cell, then the Copy value button that appears in it; or
