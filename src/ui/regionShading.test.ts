@@ -125,7 +125,9 @@ describe('regionCaption: the text alternative of the shading', () => {
     const r = typeARegions(6.3, 8, 60);
     expect(regionCaptionText(regionCaption('H', r, false, 'f', 30))).toContain('service (green) within ±60° of the pointing direction (30°), drawn −30° to 90°');
     // Across ±180°, as the axis labels it.
-    expect(regionCaptionText(regionCaption('H', r, false, 'f', -150))).toContain('within ±60° of the pointing direction (−150°), drawn 150° to −90°');
+    expect(regionCaptionText(regionCaption('H', r, false, 'f', -150))).toContain('within ±60° of the pointing direction (−150°), drawn 150° to −90° (through 180°)');
+    expect(regionCaptionText(regionCaption('H', r, false, 'f', 180))).toContain('within ±60° of the pointing direction (180°), drawn 120° to −120° (through 180°)');
+    expect(regionCaptionText(regionCaption('H', r, false, 'f', 120))).toContain('drawn 60° to 180°');
     // Unturned: as before; the vertical cut is never turned.
     expect(regionCaptionText(regionCaption('H', r, false, 'f'))).toContain('service (green) within ±60°; interference');
     expect(regionCaptionText(regionCaption('V', r, false, 'f', 30))).toBe(regionCaptionText(regionCaption('V', r, false, 'f')));

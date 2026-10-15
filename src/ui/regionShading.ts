@@ -176,10 +176,20 @@ export interface RegionCaption {
 const named = (region: RegionName) => `${region} (${REGION_STYLE[region].name})`;
 
 /** A plot azimuth, −180…180 (as the axis labels it), with a typographic minus. */
+const plotAzimuth = (deg: number): number => {
+  const w = ((((deg + 180) % 360) + 360) % 360) - 180;
+  return w === -180 ? 180 : w;
+};
 const azimuth = (deg: number): string => {
-  const a = ((((deg + 180) % 360) + 360) % 360) - 180;
+  const a = plotAzimuth(deg);
   const text = Number.isInteger(a) ? String(Math.abs(a)) : Math.abs(a).toFixed(1);
   return `${a < 0 ? '−' : ''}${text}°`;
+};
+
+/** The plot angles from `from` to `to` (increasing, as the sector is drawn), saying so when they pass through 180°. */
+const drawnRange = (from: number, to: number): string => {
+  const wraps = plotAzimuth(from) >= plotAzimuth(to) && to - from < 360;
+  return `${azimuth(from)} to ${azimuth(to)}${wraps ? ' (through 180°)' : ''}`;
 };
 
 /**
@@ -220,7 +230,7 @@ export function regionCaption(cut: 'H' | 'V', r: AngularRegions, atHorizon: bool
         text:
           rotationDeg === 0
             ? `${named('service')} within ${edge}`
-            : `${named('service')} within ${edge} of the pointing direction (${azimuth(rotationDeg)}), drawn ${azimuth(rotationDeg - sector)} to ${azimuth(rotationDeg + sector)}`,
+            : `${named('service')} within ${edge} of the pointing direction (${azimuth(rotationDeg)}), drawn ${drawnRange(rotationDeg - sector, rotationDeg + sector)}`,
       },
       { region: 'interference', text: `${named('interference')} outside` },
     ],
