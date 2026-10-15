@@ -36,7 +36,11 @@ no cause.
   others in panel order); untick files or use "Only matches" to choose. **Compare methods** shows
   the highlighted file with both methods next to each other (stacked on a phone), one colour scale
   and one camera, with the largest and mean difference in dB; the numbers keep the method chosen
-  in the Simulation bar.
+  in the Simulation bar. **Use the back of the vertical cut** (beside the 3D method, off by default)
+  rebuilds the back of the antenna from the back half of the vertical cut instead of the azimuth cut
+  alone and makes the pattern one value straight up and down; it changes simulated F/B, horizon cuts
+  and the angular regions, and is then named with them ("[Summation + back of V cut]"). Off, every
+  number is that of earlier versions. See [docs/metrics.md](docs/metrics.md).
 - Tilt simulation: electrical tilt, mechanical tilt and azimuth for all files, with offsets per file
   or group; the table shows original → tilted. The Simulation bar offers **Horizontal
   cut: Through the beam peak | At the horizon**: the cut through the beam peak (the default: the
@@ -103,8 +107,8 @@ no cause.
   `…-turned.png` and says "Turned on the plot: azimuth …", and the metrics CSV gets a column
   "Azimuth pointing (°)".
 - The line **Not at default**, under the toolbar, names what is not at its default and changes the numbers
-  on the page: the tilt sliders, the tilt offsets of files and groups, the horizontal cut at the horizon,
-  the 3D method Weighted while something uses it, each analysis setting that was changed, your sub-bands and
+  on the page: the tilt sliders, the tilt offsets of files and groups, the horizon cut, the 3D method
+  Weighted and the back of the vertical cut while in use, each changed analysis setting, your sub-bands and
   Ticked files only. A click on a chip puts that one thing back; each reset but Ticked files only (one click
   on its box brings it back) can be undone with the Undo button or Ctrl/Cmd+Z. With everything at its
   default there is no line, except while the Simulation bar is open: it then keeps its row and says Numbers

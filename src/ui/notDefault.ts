@@ -14,6 +14,8 @@ export interface NotDefaultInput {
   /** The custom groups that exist (an offset of one counts while a loaded file is in it). */
   groupIds: readonly string[];
   method3d: Method3d;
+  /** The 3D reconstruction reads the back of the vertical cut. */
+  back3d?: boolean;
   /** The angular-region estimate is shown or plotted (it is integrated over the 3D reconstruction). */
   angularRegions: boolean;
   settings: AnalysisSettings;
@@ -92,10 +94,14 @@ export function notDefaultChips(input: NotDefaultInput): NotDefaultChip[] {
 
   if (sim.hCut === 'horizon') add('hCut', 'Horizontal cut: at the horizon', 'reset to Through the beam peak');
 
-  if (input.method3d === 'weighted') {
+  if (input.method3d === 'weighted' || input.back3d) {
     const ids = [...input.ids];
     const tiltActive = anyTilted(ids, sim, combineOffsets(ids, sim.offsets, sim.groupOffsets, input.membership));
-    if (summaryMethod(input.method3d, tiltActive, input.angularRegions, sim.hCut)) add('method3d', '3D method: Weighted', 'reset to Summation');
+    // Both choices change numbers on the same occasions: under a tilt, for a horizon cut, for the angular regions.
+    if (summaryMethod(input.method3d, tiltActive, input.angularRegions, sim.hCut)) {
+      if (input.method3d === 'weighted') add('method3d', '3D method: Weighted', 'reset to Summation');
+      if (input.back3d) add('back3d', '3D: back of the vertical cut used', 'stop using it');
+    }
   }
 
   for (const [key, label, value] of SETTING_TEXT) {

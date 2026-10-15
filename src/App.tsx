@@ -47,8 +47,11 @@ export default function App() {
   // The angular-region estimate integrates over the sphere: it is computed only while its columns are shown or plotted.
   const withAngularRegions = useStore((s) => needsAngularRegions(s.view.tableGroups, s.view.freqMetric));
   const method3d = useStore((s) => s.view.method3d);
+  const back3d = useStore((s) => s.view.back3d);
   const areMethod = withAngularRegions ? method3d : undefined;
-  const metrics = useMemo(() => analyzeAll(tagged, settings, { areMethod }), [tagged, settings, areMethod]);
+  // The back of the vertical cut changes the untilted files' numbers only through the angular-region estimate.
+  const areBackHalf = withAngularRegions && back3d;
+  const metrics = useMemo(() => analyzeAll(tagged, settings, { areMethod, areBackHalf }), [tagged, settings, areMethod, areBackHalf]);
   // With many files a slider is not followed while it is dragged: the simulation is made once, when it stops.
   const tickedCount = useMemo(() => tagged.reduce((n, i) => n + (visible[i.pattern.id] ? 1 : 0), 0), [tagged, visible]);
   // Whether it is goes by what the passes of the slider's kind took on this machine (the file counts are the first
@@ -64,7 +67,7 @@ export default function App() {
   const dimension = useStore((s) => s.view.dimension);
   const cutView = useStore((s) => s.view.cut);
   const plotMode = useStore((s) => s.view.mode);
-  usePassStart(settled.state, [tagged, visible, settings, method3d, withAngularRegions, dimension, cutView, plotMode], estimatedUnits(load), dimension !== '3d');
+  usePassStart(settled.state, [tagged, visible, settings, method3d, back3d, withAngularRegions, dimension, cutView, plotMode], estimatedUnits(load), dimension !== '3d');
   const sim = useSimulation(tagged, metrics, settings, withAngularRegions, settled.state);
   const simLag = settled.waiting ? 'waiting' : settled.behind ? 'behind' : 'none';
   // Said and shown only where the lag lasts (the page does not follow a drag): where it does, the simulation is a

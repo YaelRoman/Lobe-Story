@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { methodNameOf } from '../core/analysis/backHalf3d';
 import { useStore } from '../state/store';
 import type { GroupView } from '../state/selectors';
 import type { PatternMetrics } from '../core/analysis/metrics';
@@ -54,7 +55,8 @@ export const MetricsTable = memo(function MetricsTable({
   const uslsRangeDeg = useStore((s) => s.settings.uslsRangeDeg);
   const lobeLimitFactor = useStore((s) => s.settings.lobeLimitFactor);
   const levelDb = useStore((s) => s.settings.levelDb);
-  const method3d = useStore((s) => s.view.method3d);
+  // The 3D method as the numbers are named with it (with the back of the vertical cut when that is used).
+  const method3d = useStore((s) => methodNameOf(s.view.method3d, s.view.back3d));
   const tableGroups = useStore((s) => s.view.tableGroups);
   const updateView = useStore((s) => s.updateView);
   // At the horizon the Beam group has one more column: how far each row's horizon cut lies below the 3D peak.

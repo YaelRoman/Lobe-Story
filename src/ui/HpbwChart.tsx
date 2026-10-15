@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import { methodNameOf } from '../core/analysis/backHalf3d';
 import { PlotBoundary } from './ErrorBoundary';
 import type { Figure } from './figureTheme';
 import type { ExportCaption } from './exportFigure';
@@ -63,7 +64,8 @@ export const HpbwChart = memo(function HpbwChart({
   // H-HPBW keeps the two-panel chart of the beamwidths (H above, V below); every other metric has one panel.
   const both = metric === 'hHpbw';
 
-  const method3d = useStore((s) => s.view.method3d);
+  // The 3D method as the numbers are named with it (with the back of the vertical cut when that is used).
+  const method3d = useStore((s) => methodNameOf(s.view.method3d, s.view.back3d));
   const label = labelOf(column);
   // In the picture (axis title, caption) the angular-region estimate carries its 3D method, as its CSV header does.
   const plotLabel = withMethod(column.key, label, method3d);

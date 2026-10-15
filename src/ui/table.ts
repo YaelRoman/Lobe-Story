@@ -5,7 +5,7 @@ import { isTilted, type HCutMode, type TiltSettings, type SimSettings } from '..
 import { convertGain } from '../core/gain';
 import { nameOf } from '../core/names';
 import type { ColumnGroupKey } from '../state/store';
-import type { Method3d } from '../core/analysis/pattern3d';
+import { methodFull, methodShort, type MethodName } from '../core/analysis/backHalf3d';
 import { bwName, settingText } from './bwLabel';
 import { fixed } from './fixed';
 import { HORIZON_LEVEL_KEY, METRIC_KEYS, type MetricColumn, type TableColumn } from '../state/metricKeys';
@@ -164,24 +164,20 @@ export const chartFileBase = (key: TableColumn): string => `${CHART_SLUG[key]}-v
 /** One column's value of a file's metrics (what the frequency chart plots). */
 export const metricValue = (m: PatternMetrics, key: TableColumn): MetricResult => (key === HORIZON_LEVEL_KEY ? horizonLevelOf(m) : cellsOf(m)[key]);
 
-const METHOD_NAME: Record<Method3d, string> = { summation: 'Summation', weighted: 'Weighted' };
-
 /**
  * A column's label where its numbers leave the table (CSV and copied headers, the frequency chart's axis and caption):
  * the angular-region estimate carries the 3D method, which changes it by several points; every other label is as given.
  */
-export function withMethod(key: TableColumn, label: string, method: Method3d): string {
-  return key !== HORIZON_LEVEL_KEY && COLUMN_INFO[key].group === ON_DEMAND_GROUP ? `${label} [${METHOD_NAME[method]}]` : label;
+export function withMethod(key: TableColumn, label: string, method: MethodName): string {
+  return key !== HORIZON_LEVEL_KEY && COLUMN_INFO[key].group === ON_DEMAND_GROUP ? `${label} [${methodFull(method)}]` : label;
 }
-
-const METHOD_SHORT: Record<Method3d, string> = { summation: 'Sum.', weighted: 'Wtd.' };
 
 /**
  * The 3D method as the on-screen header of an angular-region column carries it: a short tag to read ("[Sum.]") and
  * the full one ("[Summation]", as in the exported header) for the accessible name. Undefined for every other column.
  */
-export function methodTag(key: TableColumn, method: Method3d): { short: string; full: string } | undefined {
-  return key !== HORIZON_LEVEL_KEY && COLUMN_INFO[key].group === ON_DEMAND_GROUP ? { short: `[${METHOD_SHORT[method]}]`, full: `[${METHOD_NAME[method]}]` } : undefined;
+export function methodTag(key: TableColumn, method: MethodName): { short: string; full: string } | undefined {
+  return key !== HORIZON_LEVEL_KEY && COLUMN_INFO[key].group === ON_DEMAND_GROUP ? { short: `[${methodShort(method)}]`, full: `[${methodFull(method)}]` } : undefined;
 }
 
 /** The metric columns read from the horizontal cut: the ones that follow the choice of the simulated horizontal cut. */
@@ -222,15 +218,15 @@ export const HORIZON_TAG = '[horizon cut]';
  * The 3D method after a horizon-cut tag, as the angular-region headers carry it ("[horizon cut] [Weighted]", comma-free):
  * a horizon cut is read from the 3D reconstruction, so the method decides its numbers.
  */
-const methodNamed = (tag: string, method: Method3d): string => `${tag} [${METHOD_NAME[method]}]`;
+const methodNamed = (tag: string, method: MethodName): string => `${tag} [${methodFull(method)}]`;
 
 /** The tag for column `key`, with a leading space, or nothing: only horizontal columns, only when `horizonCut`. */
-const horizonTag = (key: TableColumn, horizonCut: boolean, method: Method3d): string =>
+const horizonTag = (key: TableColumn, horizonCut: boolean, method: MethodName): string =>
   horizonCut && (key === HORIZON_LEVEL_KEY || isHorizontal(key)) ? ` ${methodNamed(HORIZON_TAG, method)}` : '';
 
 /** The second half of the three angular-region tooltips: what kind of number this is. */
-const areNote = (method: Method3d, levelDb = 3): string =>
-  `Estimate from the two co-polar cuts, integrated over the 3D reconstruction (3D method: ${METHOD_NAME[method]}, chosen in the Simulation bar); not BASTA-compliant, which needs the measured full sphere and total power. Beam Type A (macro) only: — when V-HPBW is outside 0.5–25° or H-HPBW outside 50–130°${levelDb === 3 ? '' : '. V-HPBW and H-HPBW here are the 3 dB widths, whatever the beamwidth level'}`;
+const areNote = (method: MethodName, levelDb = 3): string =>
+  `Estimate from the two co-polar cuts, integrated over the 3D reconstruction (3D method: ${methodFull(method)}, chosen in the Simulation bar); not BASTA-compliant, which needs the measured full sphere and total power. Beam Type A (macro) only: — when V-HPBW is outside 0.5–25° or H-HPBW outside 50–130°${levelDb === 3 ? '' : '. V-HPBW and H-HPBW here are the 3 dB widths, whatever the beamwidth level'}`;
 
 /** Header text for a column; the beamwidth, F/B window and USLS window labels depend on the current settings. */
 export function columnLabel(c: { key: TableColumn; label: string }, fbWindowDeg: number, uslsRangeDeg = 20, levelDb = 3): string {
@@ -270,7 +266,7 @@ interface TitleSettings {
   lobeLimitFactor?: number;
   levelDb?: number;
   fbWindowDeg?: number;
-  method3d?: Method3d;
+  method3d?: MethodName;
   /** The simulated horizontal cut is the one at the horizon: the columns read from it say which peak they refer to. */
   horizonCut?: boolean;
   /** A file shown is tipped mechanically and its horizontal cut is the cone through the tilted beam peak (see `mechConeCut`): the F/B columns say what that does to them. */
@@ -802,7 +798,7 @@ export function toCsv(
   deltaTilted = false,
   columns: readonly ColumnSpec[] = CSV_DEFAULT_COLUMNS,
   /** The 3D method the angular-region estimate was computed with; named in the headers of its columns. */
-  method3d: Method3d = 'summation',
+  method3d: MethodName = 'summation',
   /** The simulated values of the horizontal columns are of the cut at the horizon: their headers say so. */
   horizonCut = false,
   /** Some file is tilted. Without a tilt (the cut at the horizon alone) no header says "tilted": see `pairWords`. */
@@ -869,7 +865,7 @@ export function rowCell(r: MetricsRow, key: TableColumn, words: PairWords = TILT
 }
 
 /** Header text of a metric column: with a reference, the difference view says "Δ vs <name>". */
-const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false, tag = '', horizonOnly = false, method3d: Method3d = 'summation'): string => {
+const columnHeader = (label: string, unit: string, deltaVs?: string, tilted = false, tag = '', horizonOnly = false, method3d: MethodName = 'summation'): string => {
   if (deltaVs === undefined) return `${label} (${unit})`;
   // With no tilt the differences are of horizon-cut values on the horizontal columns (tagged) and of the file's own elsewhere.
   if (horizonOnly) return `${label} Δ vs ${deltaVs}${tag ? ` ${methodNamed(AT_HORIZON_TAG, method3d)}` : ''} (${unit})`;
@@ -908,7 +904,7 @@ export function toTsv(
   deltaVs?: string,
   deltaTilted = false,
   /** The 3D method the angular-region estimate was computed with; named in the headers of its columns. */
-  method3d: Method3d = 'summation',
+  method3d: MethodName = 'summation',
   /** Tilted values are shown and those of the horizontal columns are of the cut at the horizon: their headers say so. */
   horizonCut = false,
   /** Some file is tilted. Without a tilt (the cut at the horizon alone) no header says "tilted": see `pairWords`. */
@@ -929,7 +925,7 @@ export function toTsv(
     // (The Horizon level is a single value, not a pair: its header needs no such note.)
     if (deltaVs !== undefined || !horizonCut) return label;
     // (The Horizon level is a single value, not a pair: its header says only which reconstruction it is read from.)
-    if (c.key === HORIZON_LEVEL_KEY) return `${label} [${METHOD_NAME[method3d]}]`;
+    if (c.key === HORIZON_LEVEL_KEY) return `${label} [${methodFull(method3d)}]`;
     return isHorizontal(c.key) ? `${label} ${methodNamed(horizonOnly ? AT_HORIZON_TAG : '[tilted: horizon cut]', method3d)}` : label;
   };
   const header = [

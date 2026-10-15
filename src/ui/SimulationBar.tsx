@@ -5,7 +5,8 @@ import { anyTilted, combineOffsets, effectiveFor, type HCutMode } from '../core/
 import { instanceIds, instanceName } from '../state/selectors';
 import { Seg } from './Seg';
 import { choiceDialog } from './dialogs';
-import { AZIMUTH_HINT, degreesSpoken, H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, SIM_SLIDER_HELP, simBadge, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
+import { methodNameOf } from '../core/analysis/backHalf3d';
+import { AZIMUTH_HINT, BACK_HALF_TITLE, degreesSpoken, H_CUT_3D_NOTE, H_CUT_HINT, hCutAnnouncement, METHOD_UNUSED_NOTE, methodUseNote, SIM_SLIDER_HELP, simBadge, simSummary, summaryHCut, summaryMethod, weightedHorizonNote } from './simSummary';
 import type { OpenHelp } from './HelpDialog';
 import { announce } from './announce';
 import { needsAngularRegions } from './table';
@@ -179,6 +180,7 @@ export function SimulationBar({
   const membership = useStore((s) => s.membership);
   const customGroups = useStore((s) => s.customGroups);
   const method = useStore((s) => s.view.method3d);
+  const back3d = useStore((s) => s.view.back3d);
   const withAngularRegions = useStore((s) => needsAngularRegions(s.view.tableGroups, s.view.freqMetric));
   const updateView = useStore((s) => s.updateView);
   const updateSimulation = useStore((s) => s.updateSimulation);
@@ -293,7 +295,7 @@ export function SimulationBar({
       )}
       {collapsed && (
         <span className="count" data-testid="sim-summary">
-          {simSummary(global, fileCount, groupCount, summaryMethod(method, tiltActive, withAngularRegions, sim.hCut), summaryHCut(sim.hCut, tiltActive))}
+          {simSummary(global, fileCount, groupCount, summaryMethod(methodNameOf(method, back3d), tiltActive, withAngularRegions, sim.hCut), summaryHCut(sim.hCut, tiltActive))}
         </span>
       )}
       <div id="sim-body" className="sim-body" hidden={collapsed}>
@@ -312,6 +314,10 @@ export function SimulationBar({
           onChange={(method3d) => updateView({ method3d })}
           disabled={!methodUsed}
         />
+        <label className="sim-back" title={BACK_HALF_TITLE}>
+          <input type="checkbox" checked={back3d} disabled={!methodUsed} onChange={(e) => updateView({ back3d: e.target.checked })} data-testid="sim-back3d" />
+          Use the back of the vertical cut
+        </label>
         {/* A disabled button cannot be focused or tapped for a tooltip: the reason is written beside it (under it on a
             phone). The same place says what uses the method once something does: the two lines lie on one another and
             the reason, the longer one, sets the size, so nothing in the bar moves when a slider's first step enables

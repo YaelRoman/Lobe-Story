@@ -14,7 +14,8 @@ import { withSimulated } from './exportFigure';
 import { pictureName, simulatedCaption } from './simSummary';
 import { WAITING_NOTE_3D } from './updateHint';
 import { surfaceFor } from './surfaceCache';
-import { buildMethodCompareFigure, compareAriaLabel, compareExportCaption, compareHeightPx, differenceText, methodDifference, METHOD_TITLE, stacksMethods } from './methodCompare';
+import { methodFull, methodNameOf } from '../core/analysis/backHalf3d';
+import { buildMethodCompareFigure, compareAriaLabel, compareExportCaption, compareHeightPx, differenceText, methodDifference, stacksMethods } from './methodCompare';
 
 const subscribeResize = (cb: () => void) => {
   window.addEventListener('resize', cb);
@@ -38,6 +39,9 @@ export function Pattern3D({
   waiting: boolean;
 }) {
   const method = useStore((s) => s.view.method3d);
+  // The back of the vertical cut: both the single view and the comparison draw that reconstruction, and say so.
+  const backHalf = useStore((s) => s.view.back3d);
+  const methodName = methodNameOf(method, backHalf);
   const layout = useStore((s) => s.view.layout3d);
   // Both methods for one file (see `methodCompare`): the numbers keep `method`.
   const compareAsked = useStore((s) => s.view.compare3d);
@@ -67,17 +71,20 @@ export function Pattern3D({
             id: pattern.id,
             label: fileLabel(pattern),
             color: colors.get(pattern.id) ?? '#888888',
-            surface: surfaceFor(pattern, effective(pattern.id), method),
+            surface: surfaceFor(pattern, effective(pattern.id), method, backHalf),
           })),
-    [compare, drawn, colors, method, effective],
+    [compare, drawn, colors, method, backHalf, effective],
   );
   // The compared file's two surfaces do not depend on the method chosen: choosing another one only moves the label.
   const comparedPattern = compare ? drawn[0]?.pattern : undefined;
   const compared = useMemo(() => {
     if (!comparedPattern) return null;
     const e = effective(comparedPattern.id);
-    return { label: fileLabel(comparedPattern), surfaces: { summation: surfaceFor(comparedPattern, e, 'summation'), weighted: surfaceFor(comparedPattern, e, 'weighted') } };
-  }, [comparedPattern, effective]);
+    return {
+      label: fileLabel(comparedPattern),
+      surfaces: { summation: surfaceFor(comparedPattern, e, 'summation', backHalf), weighted: surfaceFor(comparedPattern, e, 'weighted', backHalf) },
+    };
+  }, [comparedPattern, effective, backHalf]);
   const difference = useMemo(() => (compared ? methodDifference(compared.surfaces.summation, compared.surfaces.weighted, floorDb) : null), [compared, floorDb]);
 
   // The view the user last turned to (see `withCamera`): a figure built anew starts from it. Kept out of the figure's
@@ -87,11 +94,11 @@ export function Pattern3D({
     () =>
       withCamera(
         compared
-          ? buildMethodCompareFigure({ surfaces: compared.surfaces, selected: method, floorDb, theme: FIGURE_THEMES[theme], viewportWidth })
+          ? buildMethodCompareFigure({ surfaces: compared.surfaces, selected: method, backHalf, floorDb, theme: FIGURE_THEMES[theme], viewportWidth })
           : buildSurfaceFigure({ series, layout, floorDb, theme: FIGURE_THEMES[theme], viewportWidth }),
         camera.current,
       ),
-    [compared, method, series, layout, floorDb, theme, viewportWidth],
+    [compared, method, backHalf, series, layout, floorDb, theme, viewportWidth],
   );
 
   const notice = compare ? null : capNotice(layout === 'grid' ? 'The side-by-side 3D view draws' : 'The 3D overlay draws', capped.shown.length, capped.total, cap);
@@ -99,13 +106,17 @@ export function Pattern3D({
   // The 3D view does not depend on the horizontal cut shown.
   const simulated = sim.simulatedAmong(drawn.map((i) => i.pattern.id), false);
   const exportCaption = useMemo(
-    () => (compared && difference ? compareExportCaption(compared.label, method, floorDb, difference) : surfaceExportCaption(layout, drawn.length, capped.total, method, floorDb)),
-    [compared, difference, layout, drawn.length, capped.total, method, floorDb],
+    () =>
+      compared && difference
+        ? compareExportCaption(compared.label, method, floorDb, difference, backHalf)
+        : surfaceExportCaption(layout, drawn.length, capped.total, methodName, floorDb),
+    [compared, difference, layout, drawn.length, capped.total, method, backHalf, methodName, floorDb],
   );
   // The image of the comparison is always side by side, whatever the window: it is as wide as any other image.
   const exportCompared = useMemo(
-    () => (compared ? () => withCamera(buildMethodCompareFigure({ surfaces: compared.surfaces, selected: method, floorDb, theme: FIGURE_THEMES[theme] }), camera.current) : undefined),
-    [compared, method, floorDb, theme],
+    () =>
+      compared ? () => withCamera(buildMethodCompareFigure({ surfaces: compared.surfaces, selected: method, backHalf, floorDb, theme: FIGURE_THEMES[theme] }), camera.current) : undefined,
+    [compared, method, backHalf, floorDb, theme],
   );
   const sceneCount = compared ? 2 : layout === 'grid' ? series.length : 1;
   // Our own relayout fires plotly_relayout again; skipping a camera we just applied prevents a loop.
@@ -148,18 +159,18 @@ export function Pattern3D({
       {compare ? (
         <>
           <p className="count" data-testid="compare-intro">
-            Both 3D methods for {compared?.label ?? 'the highlighted file'}, reconstructed from the H and V cuts; estimates, not measured data.
+            Both 3D methods for {compared?.label ?? 'the highlighted file'}, reconstructed from the H and V cuts{backHalf ? ', both with the back of the vertical cut' : ''}; estimates, not measured data.
             {shown.total > 1 ? ' One file is compared: the highlighted one, else the first ticked. Highlight another to compare it.' : ''}
             {state}
           </p>
           <p className="count" data-testid="compare-numbers-method">
-            Numbers use: <strong>{METHOD_TITLE[method]}</strong> (the 3D method of the Simulation bar; comparing does not change it).
+            Numbers use: <strong>{methodFull(methodName)}</strong> (the 3D method of the Simulation bar; comparing does not change it).
           </p>
         </>
       ) : (
         <p className="count">
           3D shape reconstructed from the H and V cuts ({method === 'summation' ? 'summation' : 'weighted, Gil et al.'}
-          ); an estimate, not measured data.
+          {backHalf ? ', with the back of the vertical cut' : ''}); an estimate, not measured data.
           {state}
         </p>
       )}
@@ -177,9 +188,9 @@ export function Pattern3D({
         onRelayout={onRelayout}
         testId="plot-3d"
         toolbar="3d"
-        ariaLabel={compared ? compareAriaLabel(method, stacked) : '3D radiation pattern'}
+        ariaLabel={compared ? compareAriaLabel(method, stacked, backHalf) : '3D radiation pattern'}
         labelledExport={{
-          caption: withSimulated(exportCaption, simulated ? simulatedCaption({ ...sim, hCut: undefined }, method, sim.offsetsAmong(ids)) : undefined),
+          caption: withSimulated(exportCaption, simulated ? simulatedCaption({ ...sim, hCut: undefined }, methodName, sim.offsetsAmong(ids)) : undefined),
           filename: pictureName(compared ? 'antenna-pattern-3d-methods' : 'antenna-pattern-3d', simulated, sim.simulatedAmong(ids, false, false)),
           figure: exportCompared,
         }}

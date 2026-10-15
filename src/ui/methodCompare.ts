@@ -1,5 +1,6 @@
 import type { Data, Layout } from 'plotly.js';
 import type { Method3d, Surface3d } from '../core/analysis/pattern3d';
+import { methodFull, methodNameOf } from '../core/analysis/backHalf3d';
 import type { ExportCaption } from './exportFigure';
 import type { Figure, FigureTheme } from './figureTheme';
 import { settingText } from './bwLabel';
@@ -14,6 +15,8 @@ import { gridCell, PHONE_COLORBAR, PHONE_MAX_WIDTH, PHONE_ROW_PX, scenesWidthPx,
 /** The methods in the order they are drawn: left (top on a phone), then right (below). */
 export const COMPARED_METHODS: readonly Method3d[] = ['summation', 'weighted'];
 export const METHOD_TITLE: Record<Method3d, string> = { summation: 'Summation', weighted: 'Weighted' };
+/** A panel's title: the method, and the reconstruction when it reads the back of the vertical cut. */
+const panelTitle = (m: Method3d, backHalf: boolean): string => methodFull(methodNameOf(m, backHalf));
 const USED = 'used for the numbers';
 
 /** The panels are stacked on a phone (the width class of `viewportClass`), side by side elsewhere. */
@@ -35,6 +38,8 @@ export interface MethodCompareOptions {
   surfaces: Record<Method3d, Surface3d>;
   /** The method of the Simulation bar: the one the numbers use. */
   selected: Method3d;
+  /** Both surfaces read the back of the vertical cut (the Simulation bar's choice): the panel titles say so. */
+  backHalf?: boolean;
   floorDb: number;
   theme: FigureTheme;
   /** The window width class in px (see `viewportClass`); undefined: a wide desktop. */
@@ -54,7 +59,7 @@ export function buildMethodCompareFigure(o: MethodCompareOptions): Figure {
   };
   COMPARED_METHODS.forEach((method, k) => {
     const c = toCartesian(o.surfaces[method], o.floorDb);
-    const name = METHOD_TITLE[method];
+    const name = panelTitle(method, o.backHalf ?? false);
     // The side-by-side 3D view's cells for two files (two columns, or one column of two rows when stacked): the
     // same room for the scene, its axis titles and its title.
     const cell = stacked ? gridCell(k, 1, 2) : gridCell(k, 2, 1);
@@ -133,20 +138,20 @@ export const differenceText = (d: MethodDifference, floorDb: number): string =>
   `The methods differ by up to ${dB(d.maxDb)}, ${dB(d.meanDb)} on average over the sphere (levels below the −${settingText(floorDb)} dB floor count as the floor).`;
 
 /** The chart's accessible name: what the two panels are, where each is, and which one the numbers use. */
-export function compareAriaLabel(selected: Method3d, stacked: boolean): string {
+export function compareAriaLabel(selected: Method3d, stacked: boolean, backHalf = false): string {
   const [first, second] = COMPARED_METHODS;
   const place = stacked ? ['on top', 'below'] : ['on the left', 'on the right'];
-  const part = (m: Method3d, where: string) => `${METHOD_TITLE[m]} ${where}${m === selected ? ` (${USED})` : ''}`;
+  const part = (m: Method3d, where: string) => `${panelTitle(m, backHalf)} ${where}${m === selected ? ` (${USED})` : ''}`;
   return `3D radiation pattern, the two methods compared: ${part(first, place[0])}, ${part(second, place[1])}`;
 }
 
 /** The caption of the exported image (always drawn side by side): the file, both methods, which one the numbers use and how far apart they are. */
-export function compareExportCaption(fileLabel: string, selected: Method3d, floorDb: number, d: MethodDifference): ExportCaption {
+export function compareExportCaption(fileLabel: string, selected: Method3d, floorDb: number, d: MethodDifference, backHalf = false): ExportCaption {
   return {
     title: '3D radiation pattern, the two methods compared',
     file: fileLabel,
     items: [
-      `Left: ${METHOD_TITLE.summation}; right: ${METHOD_TITLE.weighted}. The numbers use ${METHOD_TITLE[selected]}`,
+      `Left: ${panelTitle('summation', backHalf)}; right: ${panelTitle('weighted', backHalf)}. The numbers use ${panelTitle(selected, backHalf)}`,
       'Reconstructed from the H and V cuts: an estimate from two cuts, not measured data',
       `Radius and colour: level relative to the peak, one scale for both (0 dB outermost, −${settingText(floorDb)} dB at the centre)`,
     ],

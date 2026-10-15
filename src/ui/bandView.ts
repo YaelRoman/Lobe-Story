@@ -1,5 +1,5 @@
 import { BAND_PARAMS, bandParamLabel, cellOf, cellText, fineDecimals, pairDecimals, simulatedOnly, tiltText, type BandCell, type BandColumn, type BandParam, type BandParamKey } from '../core/analysis/bandParams';
-import type { Method3d } from '../core/analysis/pattern3d';
+import type { MethodName } from '../core/analysis/backHalf3d';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { bandDiff, type BandDiff } from '../core/analysis/bandCompare';
 import type { AnalysisSettings } from '../core/analysis/metrics';
@@ -178,10 +178,10 @@ const GAIN_TILT_KEYS = new Set(['gainMinTilt', 'gainMidTilt', 'gainMaxTilt']);
 export interface BandRowsOf {
   /** The rows the sheets were made with (`bandRows`); the Annex C list by default. */
   rows?: readonly BandParam[];
-  method?: Method3d;
+  method?: MethodName;
 }
 
-function csvLine(label: string, state: string | null, column: BandColumn, p: BandParam, cell: BandCell, settings: AnalysisSettings, method?: Method3d): string[] {
+function csvLine(label: string, state: string | null, column: BandColumn, p: BandParam, cell: BandCell, settings: AnalysisSettings, method?: MethodName): string[] {
   const stat = cell.stat;
   // Two decimals, or the row's own (a lower region ratio of a few thousandths of a percent).
   const f2 = (v: number | undefined): string => (v === undefined ? '' : fixed(v, p.decimals?.csv ?? 2));
@@ -218,7 +218,7 @@ function csvLine(label: string, state: string | null, column: BandColumn, p: Ban
 const TILTED_AT_HORIZON = 'tilted [H cut at the horizon]';
 
 /** A difference line of the band CSV: B − A of each numeric column where both antennas have it; N and the 22 dB count stay empty (the two antenna lines have them). */
-function diffCsvLine(label: string, state: string | null, column: BandColumn, p: BandParam, a: BandCell, b: BandCell, d: BandDiff, settings: AnalysisSettings, method?: Method3d): string[] {
+function diffCsvLine(label: string, state: string | null, column: BandColumn, p: BandParam, a: BandCell, b: BandCell, d: BandDiff, settings: AnalysisSettings, method?: MethodName): string[] {
   // A row with its own decimals: a small difference that is not zero gets as many more as it needs not to read 0.0000.
   const f2 = (v: number | undefined): string => (v === undefined ? '' : fixed(v, p.decimals ? fineDecimals(v, p.decimals.csv) : 2));
   const tilts = GAIN_TILT_KEYS.has(p.key) && a.tiltDeg !== undefined && b.tiltDeg !== undefined

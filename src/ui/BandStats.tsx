@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, type KeyboardEvent } from 'react';
+import { methodNameOf } from '../core/analysis/backHalf3d';
 import { useStore } from '../state/store';
 import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
@@ -70,7 +71,8 @@ export const BandStats = memo(function BandStats({
   // It is kept on its parameter (by key) when rows come or go above it.
   const [stop, setStop] = useState<{ row: number; col: number; key?: BandParamKey }>({ row: 0, col: 0 });
   const theme = useStore((s) => s.view.theme);
-  const method3d = useStore((s) => s.view.method3d);
+  // The 3D method as the numbers are named with it (with the back of the vertical cut when that is used).
+  const method3d = useStore((s) => methodNameOf(s.view.method3d, s.view.back3d));
 
   const datasets = useMemo(() => buildDatasets(tagged, customGroups), [tagged, customGroups]);
   const largest = largestDataset(datasets);

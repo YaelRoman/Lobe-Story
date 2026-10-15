@@ -1,4 +1,5 @@
 import type { HCutMode, SimSettings } from '../core/analysis/tilt';
+import { methodFull, methodOfName, methodWords, type MethodName } from '../core/analysis/backHalf3d';
 
 /** A number with a true minus sign (U+2212), as the marker labels write it. */
 const minus = (v: number): string => String(v).replace('-', '−');
@@ -9,14 +10,14 @@ export function simSummary(
   fileOffsets: number,
   groupOffsets: number,
   /** The 3D method, given only while it changes a number on screen (see `summaryMethod`). */
-  method?: 'summation' | 'weighted',
+  method?: MethodName,
   /** Which horizontal cut the simulated files show, given only while it is not simply the file cut (see `summaryHCut`). */
   hCut?: HCutMode,
 ): string {
   const parts = [`Tilt Δ ${minus(g.electricalDeg)}°`, `Mech ${minus(g.mechanicalDeg)}°`, `Az ${minus(g.azimuthDeg)}°`];
   if (fileOffsets > 0) parts.push(`${fileOffsets} file offset${fileOffsets === 1 ? '' : 's'}`);
   if (groupOffsets > 0) parts.push(`${groupOffsets} group offset${groupOffsets === 1 ? '' : 's'}`);
-  if (method) parts.push(`3D method: ${method === 'weighted' ? 'Weighted' : 'Summation'}`);
+  if (method) parts.push(`3D method: ${methodFull(method)}`);
   if (hCut) parts.push(`H cut: ${H_CUT_WHERE[hCut]}`);
   return parts.join(' · ');
 }
@@ -25,6 +26,10 @@ const H_CUT_WHERE: Record<HCutMode, string> = { beam: 'through the beam peak', h
 
 /** The choice of the simulated horizontal cut in words, as captions and notes name it. */
 export const hCutLabel = (hCut: HCutMode): string => `horizontal cut ${H_CUT_WHERE[hCut]}`;
+
+/** The tooltip of "Use the back of the vertical cut", beside the 3D method (see docs/metrics.md). */
+export const BACK_HALF_TITLE =
+  'Behind the antenna, read the 3D reconstruction from the back half of the vertical cut instead of the azimuth cut alone, and make it one value straight up and straight down. Changes simulated F/B, the back of the 3D view, horizon cuts and the angular regions. Off: the numbers of earlier versions.';
 
 /** Beside the 3D method control while it is disabled: what would enable it. */
 export const METHOD_UNUSED_NOTE = 'Used by the 3D view, a tilt, the horizon cut and the angular regions; none of them is on.';
@@ -68,8 +73,8 @@ export const WEIGHTED_HORIZON_NOTE =
   'Weighted distorts the shape of a horizon cut (an artefact of its interpolation, not of the antenna): read its level, not its width. Summation is the reference for this cut.';
 
 /** The note above, while the horizontal cut is the one at the horizon and the 3D method is Weighted. */
-export const weightedHorizonNote = (hCut: HCutMode | undefined, method: 'summation' | 'weighted'): string | undefined =>
-  hCut === 'horizon' && method === 'weighted' ? WEIGHTED_HORIZON_NOTE : undefined;
+export const weightedHorizonNote = (hCut: HCutMode | undefined, method: MethodName): string | undefined =>
+  hCut === 'horizon' && methodOfName(method) === 'weighted' ? WEIGHTED_HORIZON_NOTE : undefined;
 
 /**
  * The horizontal-cut choice for the collapsed bar's summary: the cut at the horizon always (every file shows it, tilted
@@ -82,7 +87,7 @@ export const summaryHCut = (hCut: HCutMode, tiltActive: boolean): HCutMode | und
  * tilt, for a horizon cut (read from the reconstruction, tilted or not), and while the angular-region estimate
  * (integrated over the reconstruction) is shown or plotted.
  */
-export const summaryMethod = <M extends 'summation' | 'weighted'>(method: M, tiltActive: boolean, angularRegions: boolean, hCut: HCutMode = 'beam'): M | undefined =>
+export const summaryMethod = <M extends MethodName>(method: M, tiltActive: boolean, angularRegions: boolean, hCut: HCutMode = 'beam'): M | undefined =>
   tiltActive || angularRegions || hCut === 'horizon' ? method : undefined;
 
 /**
@@ -155,7 +160,7 @@ export function offsetCountsAmong(
  * A picture that is only turned (an azimuth, no tilt, not the cut at the horizon) is not called simulated:
  * "Turned on the plot: azimuth 20°. The metrics are not affected."
  */
-export function simulatedCaption(s: SimFacts, method: 'summation' | 'weighted', counts?: { files: number; groups: number }): string | undefined {
+export function simulatedCaption(s: SimFacts, method: MethodName, counts?: { files: number; groups: number }): string | undefined {
   if (!simulationActive(s)) return undefined;
   const offsetsText = (): string => {
     const files = counts?.files ?? s.offsetCount;
@@ -166,7 +171,7 @@ export function simulatedCaption(s: SimFacts, method: 'summation' | 'weighted', 
   // With no tilt among the files any offset is an azimuth offset: nothing but the direction of the drawing differs from the file.
   if (!modelled(s)) return `Turned on the plot: azimuth ${minus(s.azimuthDeg)}°${offsetsText()}. The metrics are not affected.`;
   const parts = [`electrical Δ ${minus(s.tilt.electricalDeg)}°`, `mechanical ${minus(s.tilt.mechanicalDeg)}°`, `azimuth ${minus(s.azimuthDeg)}°`];
-  if (modelled(s)) parts.push(`${method} method`);
+  if (modelled(s)) parts.push(methodWords(method));
   if (modelled(s) && s.hCut) parts.push(hCutLabel(s.hCut));
   return `Simulated: ${parts.join(', ')}${offsetsText()}`;
 }

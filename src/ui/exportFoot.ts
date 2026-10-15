@@ -2,12 +2,13 @@ import type { AnalysisSettings } from '../core/analysis/metrics';
 import type { ViewState } from '../state/store';
 import { needsAngularRegions } from './table';
 import { settingText } from './bwLabel';
+import { methodFull, methodNameOf } from '../core/analysis/backHalf3d';
 
 /** The app's name as the page's heading writes it. */
 const APP_NAME = 'Lobe-Story';
 
 /** The part of the view the foot line reads. */
-export type FootView = Pick<ViewState, 'dimension' | 'method3d' | 'tableGroups' | 'freqMetric'> & {
+export type FootView = Pick<ViewState, 'dimension' | 'method3d' | 'tableGroups' | 'freqMetric'> & Partial<Pick<ViewState, 'back3d'>> & {
   simulation: Pick<ViewState['simulation'], 'electricalDeg' | 'mechanicalDeg' | 'azimuthDeg' | 'hCut' | 'offsets' | 'groupOffsets'>;
 };
 
@@ -41,7 +42,7 @@ export function exportFootLine(settings: Pick<AnalysisSettings, 'levelDb' | 'sec
     `Beamwidth level ${settingText(settings.levelDb)} dB`,
     `Sector edge ±${settingText(settings.sectorEdgeDeg)}°`,
     `F/B window ±${settingText(settings.fbWindowDeg)}°`,
-    ...(methodInUse(view) ? [`3D method: ${view.method3d === 'weighted' ? 'Weighted' : 'Summation'}`] : []),
+    ...(methodInUse(view) ? [`3D method: ${methodFull(methodNameOf(view.method3d, view.back3d ?? false))}`] : []),
     `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`,
     APP_NAME,
   ].join(' · ');

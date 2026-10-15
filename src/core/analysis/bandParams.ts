@@ -16,7 +16,7 @@ import {
 import type { AnalysisSettings, PatternMetrics, TaggedPattern } from './metrics';
 import { inSubBand, type SubBand } from './subBands';
 import { fixed, settingText } from '../fixed';
-import type { Method3d } from './pattern3d';
+import { methodFull, type MethodName } from './backHalf3d';
 
 /** The rows of BASTA Annex C: always in the table. */
 export type AnnexParamKey =
@@ -114,8 +114,6 @@ export const isAngularRegion = (key: BandParamKey): boolean => ANGULAR_REGION_KE
 /** A row whose only value is of the simulated horizontal cut (the Horizon level): its cell shows that value alone, not `original → simulated`. */
 export const simulatedOnly = (key: BandParamKey): boolean => key === 'horizonLevel';
 
-const METHOD_NAME: Record<Method3d, string> = { summation: 'Summation', weighted: 'Weighted' };
-
 export const VALIDATION_LABEL: Record<ValidationType, string> = {
   double: 'double-sided: mean ± tolerance',
   max: 'single-sided maximum: 84th percentile',
@@ -130,18 +128,18 @@ export interface BandContext {
 }
 
 /** The label of a row; an angular-region row names its 3D method (it changes the estimate by several points), as the table's exports do. */
-export function bandParamLabel(p: BandParam, settings: AnalysisSettings, method?: Method3d): string {
-  if (isAngularRegion(p.key) && method) return `${p.label} [${METHOD_NAME[method]}]`;
+export function bandParamLabel(p: BandParam, settings: AnalysisSettings, method?: MethodName): string {
+  if (isAngularRegion(p.key) && method) return `${p.label} [${methodFull(method)}]`;
   if (p.key === 'fbWindow') return `F/B ±${settingText(settings.fbWindowDeg)}°`;
   if (p.key === 'usls') return `USLS peak to ${settingText(settings.uslsRangeDeg)}°`;
   if (p.key === 'uslsHorizon') return `USLS horizon to ${settingText(settings.uslsRangeDeg)}°`;
   return p.label;
 }
 
-export function bandParamTitle(p: BandParam, settings: AnalysisSettings, method?: Method3d): string {
+export function bandParamTitle(p: BandParam, settings: AnalysisSettings, method?: MethodName): string {
   const description = p.description.replace('R°', `${settingText(settings.uslsRangeDeg)}°`);
   const how = isAngularRegion(p.key)
-    ? ` (3D method: ${method ? METHOD_NAME[method] : 'as chosen in the Simulation bar'}); not BASTA-compliant, Type A (macro) beams only`
+    ? ` (3D method: ${method ? methodFull(method) : 'as chosen in the Simulation bar'}); not BASTA-compliant, Type A (macro) beams only`
     : '';
   return `${description}${how}${p.basta ? ` (BASTA ${p.basta})` : ''} — ${VALIDATION_LABEL[p.type]}`;
 }

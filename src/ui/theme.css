@@ -455,3 +455,6 @@ tr.hl .copy-cell { background: var(--hl); }
 }
 .metrics tr.ref td { font-weight: 600; box-shadow: inset 0 -1px 0 var(--border), inset 0 1px 0 var(--accent); }
 .metrics tr.ref td:first-child { box-shadow: inset 0 -1px 0 var(--border), inset 0 1px 0 var(--accent), inset 3px 0 0 var(--accent), 1px 0 0 var(--border); }
+
+/* "Use the back of the vertical cut", beside the 3D method in the Simulation bar. */
+.sim-back { display: inline-flex; gap: 4px; align-items: center; }

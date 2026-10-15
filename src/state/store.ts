@@ -86,6 +86,11 @@ export interface ViewState {
   bandCompare: BandCompare | null;
   dimension: Dimension;
   method3d: Method3d;
+  /**
+   * The 3D reconstruction also reads the back half of the vertical cut ("Use the back of the vertical cut", off by
+   * default): see core/analysis/backHalf3d.ts. A preference, like the 3D method, and saved with projects.
+   */
+  back3d: boolean;
   layout3d: Layout3d;
   /** The 3D view shows one file reconstructed with both 3D methods next to each other ("Compare methods"); the numbers keep `method3d`. */
   compare3d: boolean;
@@ -105,7 +110,7 @@ export interface ViewState {
  * the global tilt sliders, the files' and groups' tilt offsets, the horizontal cut, the 3D method, one analysis
  * setting, the user's sub-bands, the ticked-files-only table.
  */
-export type NotDefaultKey = 'tilt' | 'tiltOffsets' | 'hCut' | 'method3d' | `setting:${keyof AnalysisSettings}` | 'subBands' | 'tickedOnly';
+export type NotDefaultKey = 'tilt' | 'tiltOffsets' | 'hCut' | 'method3d' | 'back3d' | `setting:${keyof AnalysisSettings}` | 'subBands' | 'tickedOnly';
 
 export type DialogState =
   | { kind: 'confirm'; message: string; confirmLabel: string }
@@ -278,6 +283,7 @@ export function initialState(): StoreData {
       bandCompare: null,
       dimension: '2d',
       method3d: 'summation',
+      back3d: false,
       layout3d: 'grid',
       compare3d: false,
       // The simulation bar starts folded everywhere (its one-line summary says what is set); it opens by itself with a project whose simulation is active.
@@ -754,6 +760,8 @@ export const useStore = create<State>()((rawSet, get) => {
           return sim.hCut === 'beam' ? s : withSim('Reset the horizontal cut', { hCut: 'beam' });
         case 'method3d':
           return s.view.method3d === 'summation' ? s : { ...undoEntry(s, 'Reset the 3D method'), view: { ...s.view, method3d: 'summation' } };
+        case 'back3d':
+          return s.view.back3d ? { ...undoEntry(s, 'Stop using the back of the vertical cut'), view: { ...s.view, back3d: false } } : s;
         case 'tickedOnly':
           // A display preference (it keeps an offered undo, as its box does): its box puts it back in one click.
           return s.view.tableTickedOnly ? { view: { ...s.view, tableTickedOnly: false } } : s;

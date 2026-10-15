@@ -1,4 +1,5 @@
 import type { ExportCaption } from './exportFigure';
+import { methodWords, type MethodName } from '../core/analysis/backHalf3d';
 import type { Layout3d } from '../state/store';
 import { settingText } from './bwLabel';
 
@@ -31,13 +32,13 @@ export function capNotice(what: string, shown: number, total: number, cap: numbe
  * shows; what the page says above the view (the method, and that the shape is an estimate); and what the radius means.
  * Side by side each surface is coloured by its level; in the overlay each file has one colour.
  */
-export function surfaceExportCaption(layout: Layout3d, shown: number, total: number, method: 'summation' | 'weighted', floorDb: number): ExportCaption {
+export function surfaceExportCaption(layout: Layout3d, shown: number, total: number, method: MethodName, floorDb: number): ExportCaption {
   const scale = `level relative to the peak, 0 dB outermost, the floor of −${settingText(floorDb)} dB at the centre`;
   return {
     title: `3D radiation pattern, ${layout === 'grid' ? 'side by side' : 'overlay'}`,
     file: total > shown ? `Showing ${shown} of ${total} ticked files` : undefined,
     items: [
-      `Reconstructed from the H and V cuts (${method} method): an estimate from two cuts, not measured data`,
+      `Reconstructed from the H and V cuts (${methodWords(method)}): an estimate from two cuts, not measured data`,
       layout === 'grid' ? `Radius and colour: ${scale}` : `Radius: ${scale}; one colour per file`,
     ],
   };

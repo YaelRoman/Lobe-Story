@@ -71,6 +71,7 @@ export function NotDefaultLine() {
   const membership = useStore((s) => s.membership);
   const customGroups = useStore((s) => s.customGroups);
   const method3d = useStore((s) => s.view.method3d);
+  const back3d = useStore((s) => s.view.back3d);
   const angularRegions = useStore((s) => needsAngularRegions(s.view.tableGroups, s.view.freqMetric));
   const settings = useStore((s) => s.settings);
   const subBands = useStore((s) => s.view.subBands.length);
@@ -83,8 +84,8 @@ export function NotDefaultLine() {
   const ids = useMemo(() => instanceIds(files, copies), [files, copies]);
   const groupIds = useMemo(() => customGroups.map((g) => g.id), [customGroups]);
   const live = useMemo(
-    () => notDefaultChips({ simulation, ids, membership, groupIds, method3d, angularRegions, settings, subBands, tickedOnly }),
-    [simulation, ids, membership, groupIds, method3d, angularRegions, settings, subBands, tickedOnly],
+    () => notDefaultChips({ simulation, ids, membership, groupIds, method3d, back3d, angularRegions, settings, subBands, tickedOnly }),
+    [simulation, ids, membership, groupIds, method3d, back3d, angularRegions, settings, subBands, tickedOnly],
   );
   // The chips as they were when a slider was gripped, kept until it is let go (set while rendering, so the line never
   // shows a step of the drag). The grip is known at the press, before the first step.

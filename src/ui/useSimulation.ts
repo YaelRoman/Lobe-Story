@@ -136,6 +136,7 @@ export function useSimulation(
 ): SimulationResult {
   const live = useStore((s) => s.view.simulation);
   const method = useStore((s) => s.view.method3d);
+  const backHalf = useStore((s) => s.view.back3d);
   const membership = useStore((s) => s.membership);
   const customGroups = useStore((s) => s.customGroups);
   // Deferred so dragging a slider stays smooth while tilting/analysing catches up. A settled state already is, and is
@@ -188,12 +189,12 @@ export function useSimulation(
   );
 
   const tiltedItems = useMemo(
-    () => (simActive ? tiltEach(tagged, tiltFor, method, hCut) : tagged),
-    [simActive, tagged, tiltFor, method, hCut],
+    () => (simActive ? tiltEach(tagged, tiltFor, method, hCut, backHalf) : tagged),
+    [simActive, tagged, tiltFor, method, hCut, backHalf],
   );
   const tiltedMetrics = useMemo(
-    () => (simActive ? analyzeTilted(tiltedItems, settings, tiltFor, withAngularRegions ? method : undefined) : metrics),
-    [simActive, tiltedItems, settings, tiltFor, metrics, withAngularRegions, method],
+    () => (simActive ? analyzeTilted(tiltedItems, settings, tiltFor, withAngularRegions ? method : undefined, backHalf) : metrics),
+    [simActive, tiltedItems, settings, tiltFor, metrics, withAngularRegions, method, backHalf],
   );
   const patterns = useMemo(() => new Map(tiltedItems.map((i) => [i.pattern.id, i.pattern])), [tiltedItems]);
   const offsetCount = tagged.reduce((n, i) => n + (fileOffsets[i.pattern.id] ? 1 : 0), 0);

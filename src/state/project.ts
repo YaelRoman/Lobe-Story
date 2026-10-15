@@ -286,6 +286,7 @@ export function sanitizeDisplayView(rawView: Record<string, unknown>, dv: ViewSt
     deltaVsReference: typeof rawView.deltaVsReference === 'boolean' ? rawView.deltaVsReference : dv.deltaVsReference,
     dimension: oneOf(rawView.dimension, ['2d', '3d'] as const, dv.dimension),
     method3d: oneOf(rawView.method3d, ['summation', 'weighted'] as const, dv.method3d),
+    back3d: typeof rawView.back3d === 'boolean' ? rawView.back3d : dv.back3d,
     layout3d: oneOf(rawView.layout3d, ['grid', 'overlay'] as const, dv.layout3d),
     compare3d: typeof rawView.compare3d === 'boolean' ? rawView.compare3d : dv.compare3d,
   };

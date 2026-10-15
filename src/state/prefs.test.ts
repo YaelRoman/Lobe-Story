@@ -84,7 +84,7 @@ describe('applyPrefs', () => {
     expect(JSON.parse(text).view).not.toHaveProperty('simulation');
     expect(Object.keys(JSON.parse(text)).sort()).toEqual(['settings', 'version', 'view']);
     expect(Object.keys(prefsOf(s).view).sort()).toEqual(
-      ['collapsed', 'compare3d', 'cut', 'floorDb', 'freqMetric', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'tableGroups', 'tableTickedOnly', 'theme'],
+      ['back3d', 'collapsed', 'compare3d', 'cut', 'floorDb', 'freqMetric', 'gainUnit', 'layout3d', 'markers', 'method3d', 'mode', 'tableGroups', 'tableTickedOnly', 'theme'],
     );
   });
 

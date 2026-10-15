@@ -13,7 +13,7 @@ export const PREFS_KEY = 'lobe-story:prefs:v1';
 export const PREFS_VERSION = 1;
 
 /** The view fields that are preferences (not the dimension, which starts as 2D, nor the simulation). */
-const VIEW_KEYS = ['theme', 'gainUnit', 'cut', 'mode', 'floorDb', 'markers', 'tableGroups', 'method3d', 'layout3d', 'compare3d', 'collapsed', 'freqMetric', 'tableTickedOnly'] as const;
+const VIEW_KEYS = ['theme', 'gainUnit', 'cut', 'mode', 'floorDb', 'markers', 'tableGroups', 'method3d', 'back3d', 'layout3d', 'compare3d', 'collapsed', 'freqMetric', 'tableTickedOnly'] as const;
 type PrefViewKey = (typeof VIEW_KEYS)[number];
 
 export interface Prefs {
@@ -79,6 +79,7 @@ export function applyPrefs(text: string | null, base: Pick<StoreData, 'settings'
       markers: display.markers,
       tableGroups: display.tableGroups,
       method3d: display.method3d,
+      back3d: display.back3d,
       layout3d: display.layout3d,
       compare3d: display.compare3d,
       collapsed: display.collapsed,

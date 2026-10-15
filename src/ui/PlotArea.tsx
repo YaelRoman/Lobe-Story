@@ -1,4 +1,5 @@
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { methodNameOf } from '../core/analysis/backHalf3d';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore, type CutView, type Dimension, type Layout3d, type MarkerKey, type PlotMode } from '../state/store';
 import type { GroupView } from '../state/selectors';
@@ -210,7 +211,8 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
     if (!pending) settledTarget.current = markerTarget;
   });
   const target = pending ? settledTarget.current : markerTarget;
-  const method3d = useStore((s) => s.view.method3d);
+  // The 3D method as the numbers are named with it (with the back of the vertical cut when that is used).
+  const method3d = useStore((s) => methodNameOf(s.view.method3d, s.view.back3d));
   // The angular regions of the marker target are shaded while their columns are shown (see `regionShading`).
   const regions = useStore((s) => s.view.tableGroups.are);
   // Only a simulation of what is drawn counts: an offset on an unticked file changes neither picture.
