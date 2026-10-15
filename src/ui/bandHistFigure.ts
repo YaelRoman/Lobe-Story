@@ -51,13 +51,16 @@ function marks(stat: BandStat | null): Mark[] {
   }
 }
 
-const fmt = (v: number): string => String(Number(v.toFixed(2)));
+const fmt = (v: number, decimals = 2): string => String(Number(v.toFixed(decimals)));
 
-/** The statistic as text: "mean 65.13 °, P6.7 61.36 °, P93.3 69.4 °" (the lines drawn in the histogram). */
-export function statText(stat: BandStat | null, unit: string): string {
+/**
+ * The statistic as text: "mean 65.13 °, P6.7 61.36 °, P93.3 69.4 °" (the lines drawn in the histogram); two decimals,
+ * or a row's own (`decimals`: the lower region ratio, a few thousandths of a percent).
+ */
+export function statText(stat: BandStat | null, unit: string, decimals = 2): string {
   const lines = marks(stat);
   if (lines.length === 0) return 'none';
-  return lines.map((m) => `${m.text} ${fmt(m.x)}${unit ? ` ${unit}` : ''}`).join(', ');
+  return lines.map((m) => `${m.text} ${fmt(m.x, decimals)}${unit ? ` ${unit}` : ''}`).join(', ');
 }
 
 export interface BandHistCaptionInput {
@@ -67,6 +70,8 @@ export interface BandHistCaptionInput {
   stat: BandStat | null;
   unit: string;
   n: number;
+  /** Decimals of the statistic when not two (see `statText`). */
+  decimals?: number;
   /** The samples are of the tilted (simulated) patterns. */
   tilted?: boolean;
   /** What the simulated samples are called when not "tilted": "horizon cut" while no file is tilted. */
@@ -79,7 +84,7 @@ export function bandHistCaption(c: BandHistCaptionInput): ExportCaption {
   return {
     title: `${c.parameter} — histogram of the band samples`,
     file: `Antenna: ${c.antenna} · Sub-band: ${c.subBand.name}${range.includes(c.subBand.name) || c.subBand.name.includes(range) ? '' : ` (${range})`}`,
-    items: [`Parameter: ${c.parameter}`, `Statistic: ${statText(c.stat, c.unit)}`, `N = ${c.n}${c.state ? ` (${c.state})` : c.tilted ? ' (tilted)' : ''}`],
+    items: [`Parameter: ${c.parameter}`, `Statistic: ${statText(c.stat, c.unit, c.decimals)}`, `N = ${c.n}${c.state ? ` (${c.state})` : c.tilted ? ' (tilted)' : ''}`],
   };
 }
 
@@ -212,6 +217,8 @@ export interface BandCompareCaptionInput {
   unit: string;
   /** The B − A cell as shown. */
   difference: string;
+  /** Decimals of the statistics when not two (see `statText`). */
+  decimals?: number;
   /** What the samples are of under a simulation ("tilted", "horizon cut"). */
   state?: 'tilted' | 'horizon cut';
 }
@@ -225,8 +232,8 @@ export function bandCompareHistCaption(c: BandCompareCaptionInput): ExportCaptio
     file: `A: ${c.a.name} · B: ${c.b.name} · Sub-band: ${c.subBand.name}${range.includes(c.subBand.name) || c.subBand.name.includes(range) ? '' : ` (${range})`}`,
     items: [
       `B − A: ${c.difference}`,
-      `A: ${statText(c.a.stat, c.unit)}, N = ${c.a.n}${state}`,
-      `B: ${statText(c.b.stat, c.unit)}, N = ${c.b.n}${state}`,
+      `A: ${statText(c.a.stat, c.unit, c.decimals)}, N = ${c.a.n}${state}`,
+      `B: ${statText(c.b.stat, c.unit, c.decimals)}, N = ${c.b.n}${state}`,
     ],
   };
 }

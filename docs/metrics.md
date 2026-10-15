@@ -160,8 +160,9 @@ reach in practice: on the 1° grid a beam narrower than about 1° is not resolve
 
 **Where it appears.** In the table and in Copy table while the group is shown; in the CSV only while
 the group is shown; in the frequency chart's Metric menu always; in Δ vs reference and under a tilt
-simulation (original → tilted) like every other column. It is not part of the band statistics. The
-values are computed only while the group is shown or the frequency chart plots one of them.
+simulation (original → tilted) like every other column. While the group is shown the band statistics
+have a row for each of the three (see Band statistics). The values are computed only while the group is
+shown or the frequency chart plots one of them.
 
 **The 3D method is named with the number.** Because the method changes the values by several points,
 it is written wherever they leave the table: the CSV and Copy table headers of the three columns read
@@ -302,7 +303,7 @@ left at the horizon after a down-tilt.
   H-HPBW in the Beam group, is one value per row (a file cut has none), sorts, and follows the
   difference from a reference. It is in the CSV as one comma-free column "Horizon level [horizon
   cut] (dB)", in Copy table as "Horizon level (dB)", and in the frequency chart's Metric menu. It
-  is not a band-statistics row: that table is the fixed list of BASTA Annex C parameters.
+  is a band-statistics row too while the cut is at the horizon (see Band statistics).
 - The read-out under the horizontal plot (and the caption of its image) says the same for the
   highlighted file: "Horizon cut: maximum 10.6 dB below the 3D peak". The dashed
   −3 dB ring is drawn 3 dB under the cut's own maximum; the F/B and H-SLS crosses lie on the trace.
@@ -454,6 +455,21 @@ before.
 | P2P tracking (sector edges) | single-sided max, Exc | 2 per ± pair | 7.8.5, 12.4.5 |
 | Roll-off (both edges) | double-sided, power mean | 2 per file | 7.8.1.4 |
 | AIR | double-sided, power mean | 1 per file | 7.8.1.6 |
+| Horizon level (only with the horizontal cut at the horizon) | double-sided, power mean | 1 per file (its horizon cut) | none (as roll-off) |
+| Sector efficiency est., Spatial efficiency est., Lower region ratio est. (only while the Angular regions group is shown) | double-sided, arithmetic mean | 1 per file with a Type A beam | 7.2.4 (estimate) |
+
+**Rows beyond Annex C.** Two kinds of row are added while the metrics table has their values, and go when
+it no longer has them. The Horizon level (after the azimuth beamwidth) is there while the horizontal cut is
+the one at the horizon; it is a level below the 3D peak in dB like the roll-off, so its mean is taken over
+the linear values as for the roll-off. It has one value per file, of its horizon cut: a cell shows that
+statistic alone (not "original → …"), the band CSV has one line of it (State "horizon cut", or "tilted [H cut
+at the horizon]" under a tilt), and B − A is a difference in dB. The three angular-region rows (last) are
+there while the Angular regions group is shown; they are percentages, so the mean is arithmetic, as
+BASTA 12.4.2 takes it for %, and B − A is a difference in percentage points (written with "%"). Their label
+names the 3D method ("Sector efficiency est. [Summation]"), the lower region ratio keeps three decimals
+(four in the CSV numbers), and a file whose beam is not Type A gives no value. The rows read the values the
+table already holds: the estimate is not worked out again. With one file in a sub-band a cell shows that
+file's table value.
 
 **Special rules.**
 - "Not available" sidelobe windows (no sidelobe in the window, per file "—") count as 22 dB when at most half of the samples are not available (12.5.3); otherwise the cell is "n/a". Other missing values (undefined beamwidth, no gain) are left out and counted as "without a value" in the tooltip.

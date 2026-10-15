@@ -10,6 +10,7 @@ import {
   gainTilts,
   VALIDATION_LABEL,
   type BandParam,
+  type AnnexParamKey,
   type BandParamKey,
 } from './bandParams';
 import { analyzeAll, DEFAULT_SETTINGS, type PatternMetrics, type TaggedPattern } from './metrics';
@@ -88,14 +89,14 @@ describe('gainTilts', () => {
 });
 
 describe('the full sub-band', () => {
-  const near = (key: BandParamKey, text: string, n: number, state = 'ok') => {
+  const near = (key: AnnexParamKey, text: string, n: number, state = 'ok') => {
     const c = col.cells[key];
     expect(c.state).toBe(state);
     expect(c.n).toBe(n);
     expect(c.text).toBe(text);
     return c;
   };
-  const stat = (key: BandParamKey) => col.cells[key].stat as unknown as Record<string, number>;
+  const stat = (key: AnnexParamKey) => col.cells[key].stat as unknown as Record<string, number>;
 
   it('summarises the column', () => {
     expect(col.files).toBe(12);

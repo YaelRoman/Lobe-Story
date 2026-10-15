@@ -1,7 +1,7 @@
 import { bandDiff, type BandDiff } from '../core/analysis/bandCompare';
-import { BAND_PARAMS, bandParamLabel, type BandParamKey } from '../core/analysis/bandParams';
+import { BAND_PARAMS, bandParamLabel, cellOf, simulatedOnly, type AnnexParamKey, type BandParam, type BandParamKey, type ExtraParamKey } from '../core/analysis/bandParams';
 import type { AnalysisSettings } from '../core/analysis/metrics';
-import { cellDisplay, filesText, sameSubBands, type BandSheet } from './bandView';
+import { cellDisplay, filesText, sameSubBands, type BandRowsOf, type BandSheet } from './bandView';
 import type { SubBand } from '../core/analysis/subBands';
 import { AT_HORIZON_TAG, tabSafe, TILT_WORDS, tsvText, type PairWords } from './table';
 
@@ -18,25 +18,39 @@ export function diffDisplay(original: BandDiff, tilted?: BandDiff, words: PairWo
   return { text: `${original.text} → ${tilted.text}`, title: `${words.from}: ${original.title}\n${words.to}: ${tilted.title}`, muted: shown.muted };
 }
 
-/** B − A per sub-band (the two sheets have the same sub-bands, see `compareSubBands`) and parameter. */
-export function compareDiffs(a: BandSheet, b: BandSheet): Record<BandParamKey, DiffPair>[] {
+/** B − A of each row of a sub-band: every row the sheets were made with. */
+export type DiffRow = Record<AnnexParamKey, DiffPair> & Partial<Record<ExtraParamKey, DiffPair>>;
+
+/** The difference pair of a row; the row must be one the sheets were made with. */
+export function diffOf(row: DiffRow, key: BandParamKey): DiffPair {
+  const pair = row[key];
+  if (!pair) throw new Error(`Band comparison made without the row ${key}`);
+  return pair;
+}
+
+/**
+ * B − A per sub-band (the two sheets have the same sub-bands, see `compareSubBands`) and parameter. A row of the
+ * simulated cut alone (the Horizon level) has only the simulated difference, which it shows as its one value.
+ */
+export function compareDiffs(a: BandSheet, b: BandSheet, rows: readonly BandParam[] = BAND_PARAMS): DiffRow[] {
   const names = { a: a.label, b: b.label };
   return a.columns.map((column, i) =>
     Object.fromEntries(
-      BAND_PARAMS.map((p) => {
-        const original = bandDiff(column.cells[p.key], b.columns[i].cells[p.key], names);
-        const tilted = a.tilted && b.tilted ? bandDiff(a.tilted[i].cells[p.key], b.tilted[i].cells[p.key], names) : undefined;
+      rows.map((p) => {
+        const original = bandDiff(cellOf(column, p.key), cellOf(b.columns[i], p.key), names);
+        const tilted = a.tilted && b.tilted ? bandDiff(cellOf(a.tilted[i], p.key), cellOf(b.tilted[i], p.key), names) : undefined;
+        if (tilted && simulatedOnly(p.key)) return [p.key, { original: tilted }];
         return [p.key, tilted ? { original, tilted } : { original }];
       }),
-    ) as Record<BandParamKey, DiffPair>,
+    ) as DiffRow,
   );
 }
 
 /** Shown under the table while some difference is partly of 22 dB substitutes. */
 export const SUBSTITUTED_LEGEND = '† partly of "not available" values counted as 22 dB (BASTA 12.5.3)';
 
-export function anySubstituted(diffs: readonly Record<BandParamKey, DiffPair>[]): boolean {
-  return diffs.some((c) => Object.values(c).some((d) => d.original.substituted || d.tilted?.substituted === true));
+export function anySubstituted(diffs: readonly DiffRow[]): boolean {
+  return diffs.some((c) => Object.values(c).some((d) => d !== undefined && (d.original.substituted || d.tilted?.substituted === true)));
 }
 
 /**
@@ -55,9 +69,9 @@ export function compareNote(aLabel: string, bLabel: string, automatic: boolean, 
  * "B − A") and a line per parameter with the cell texts. The first header cell says which cut the tilted values are of,
  * as `bandTsv` does. Tab-separated.
  */
-export function compareTsv(a: BandSheet, b: BandSheet, settings: AnalysisSettings, horizonCut = false, tiltActive = true): string {
+export function compareTsv(a: BandSheet, b: BandSheet, settings: AnalysisSettings, horizonCut = false, tiltActive = true, { rows = BAND_PARAMS, method }: BandRowsOf = {}): string {
   const tilted = Boolean(a.tilted && b.tilted);
-  const diffs = compareDiffs(a, b);
+  const diffs = compareDiffs(a, b, rows);
   const first = tilted && horizonCut ? (tiltActive ? 'Parameter [tilted: H cut at the horizon]' : `Parameter ${AT_HORIZON_TAG}`) : 'Parameter';
   // The sub-band and antenna names are user text (formula-guarded at the start of the cell); the A and B cells are
   // computed and copied as the band table copies them.
@@ -69,13 +83,13 @@ export function compareTsv(a: BandSheet, b: BandSheet, settings: AnalysisSetting
       tsvText(`${c.subBand.name} B − A`),
     ]),
   ];
-  const lines = BAND_PARAMS.map((p) => [
-    tabSafe(bandParamLabel(p, settings)),
+  const lines = rows.map((p) => [
+    tabSafe(bandParamLabel(p, settings, method)),
     ...a.columns.flatMap((c, i) => [
-      tabSafe(cellDisplay(c.cells[p.key], a.tilted?.[i].cells[p.key]).text),
-      tabSafe(cellDisplay(b.columns[i].cells[p.key], b.tilted?.[i].cells[p.key]).text),
+      tabSafe(cellDisplay(cellOf(c, p.key), a.tilted ? cellOf(a.tilted[i], p.key) : undefined).text),
+      tabSafe(cellDisplay(cellOf(b.columns[i], p.key), b.tilted ? cellOf(b.tilted[i], p.key) : undefined).text),
       // A difference mostly starts with + or -: guarded, or a spreadsheet reads "+5.0° (tol 0.0°)" as a broken formula.
-      tsvText(diffDisplay(diffs[i][p.key].original, diffs[i][p.key].tilted).text),
+      tsvText(diffDisplay(diffOf(diffs[i], p.key).original, diffOf(diffs[i], p.key).tilted).text),
     ]),
   ]);
   return [header, ...lines].map((l) => l.join('\t')).join('\r\n') + '\r\n';

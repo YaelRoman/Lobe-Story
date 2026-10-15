@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BAND_PARAMS, bandTable, type BandCell, type BandColumn } from '../core/analysis/bandParams';
+import { BAND_PARAMS, bandTable, type AnnexParamKey, type BandCell, type BandColumn } from '../core/analysis/bandParams';
 import { analyzeAll, DEFAULT_SETTINGS } from '../core/analysis/metrics';
 import type { SubBand } from '../core/analysis/subBands';
 import { bandItems } from '../test/bandFixture';
@@ -9,7 +9,7 @@ const items = bandItems();
 const metrics = analyzeAll(items, DEFAULT_SETTINGS);
 const ctx = { gainUnit: 'dBi' as const, settings: DEFAULT_SETTINGS };
 const columns = bandTable(items, metrics, [{ name: '1800–1900 MHz', minMHz: 1800, maxMHz: 1900 }], ctx);
-const cell = (key: string): BandCell => columns[0].cells[key as keyof (typeof columns)[0]['cells']];
+const cell = (key: string): BandCell => columns[0].cells[key as AnnexParamKey];
 
 describe('cellDisplay', () => {
   it('shows a single cell and mutes cells that are not ok', () => {

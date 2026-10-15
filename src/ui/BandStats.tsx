@@ -2,11 +2,11 @@ import { memo, useMemo, useState, type KeyboardEvent } from 'react';
 import { useStore } from '../state/store';
 import type { PatternMetrics, TaggedPattern } from '../core/analysis/metrics';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
-import { BAND_PARAMS, bandParamLabel, bandParamTitle, bandTable, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
+import { bandParamLabel, bandParamTitle, bandRows, bandTable, cellOf, columnSummary, type BandParamKey } from '../core/analysis/bandParams';
 import { autoSubBands, buildDatasets, datasetKeyOf, sanitizeSubBands, subBandsFor, type BandDataset } from '../core/analysis/subBands';
 import { compareSubBands } from '../core/analysis/bandCompare';
 import { ADJUSTED_LEGEND, anyAdjusted, bandCsv, bandHistogramMarks, bandStateNote, bandTsv, cellDisplay, defaultDataset, filesText, hintText, largestDataset, levelNote, lobeLimitWarning, subBandsNote, type BandSheet } from './bandView';
-import { anySubstituted, compareDiffs, compareNote, compareTsv, diffDisplay, SUBSTITUTED_LEGEND } from './bandCompareView';
+import { anySubstituted, compareDiffs, compareNote, compareTsv, diffDisplay, diffOf, SUBSTITUTED_LEGEND } from './bandCompareView';
 import { bandCompareHistCaption, bandHistCaption, buildBandCompareHistFigure, buildBandHistFigure } from './bandHistFigure';
 import { hasUsableFrequency } from '../core/gain';
 import { downloadText } from './download';
@@ -89,18 +89,25 @@ export const BandStats = memo(function BandStats({
     [dataset, other, userSubBands],
   );
   const ctx = useMemo(() => ({ gainUnit, settings }), [gainUnit, settings]);
+  // The rows the metrics table has values for beyond Annex C: the angular-region estimate while its columns are shown
+  // (it is computed then, and read here, not worked out again), and the Horizon level while the simulated horizontal
+  // cut is the one at the horizon (of the simulation shown, `sim`, as the table's: not of a slider still held).
+  const angularRegions = useStore((s) => s.view.tableGroups.are);
+  const horizonLevel = sim.hCut === 'horizon';
+  const rows = useMemo(() => bandRows({ angularRegions, horizonLevel }), [angularRegions, horizonLevel]);
+  const rowsOf = useMemo(() => ({ rows, method: method3d }), [rows, method3d]);
   const columns = useMemo(
-    () => (dataset ? bandTable(dataset.items, metrics, subBands, ctx) : []),
-    [dataset, metrics, subBands, ctx],
+    () => (dataset ? bandTable(dataset.items, metrics, subBands, ctx, rows) : []),
+    [dataset, metrics, subBands, ctx, rows],
   );
   const tiltedColumns = useMemo(
-    () => (dataset && sim.simActive ? bandTable(dataset.items, sim.metrics, subBands, ctx) : null),
-    [dataset, sim.simActive, sim.metrics, subBands, ctx],
+    () => (dataset && sim.simActive ? bandTable(dataset.items, sim.metrics, subBands, ctx, rows) : null),
+    [dataset, sim.simActive, sim.metrics, subBands, ctx, rows],
   );
-  const otherColumns = useMemo(() => (other ? bandTable(other.items, metrics, subBands, ctx) : null), [other, metrics, subBands, ctx]);
+  const otherColumns = useMemo(() => (other ? bandTable(other.items, metrics, subBands, ctx, rows) : null), [other, metrics, subBands, ctx, rows]);
   const otherTilted = useMemo(
-    () => (other && sim.simActive ? bandTable(other.items, sim.metrics, subBands, ctx) : null),
-    [other, sim.simActive, sim.metrics, subBands, ctx],
+    () => (other && sim.simActive ? bandTable(other.items, sim.metrics, subBands, ctx, rows) : null),
+    [other, sim.simActive, sim.metrics, subBands, ctx, rows],
   );
   const sheetA = useMemo<BandSheet | null>(
     () => (dataset ? { label: dataset.label, columns, ...(tiltedColumns ? { tilted: tiltedColumns } : {}) } : null),
@@ -110,12 +117,14 @@ export const BandStats = memo(function BandStats({
     () => (other && otherColumns ? { label: other.label, columns: otherColumns, ...(otherTilted ? { tilted: otherTilted } : {}) } : null),
     [other, otherColumns, otherTilted],
   );
-  const diffs = useMemo(() => (sheetA && sheetB ? compareDiffs(sheetA, sheetB) : null), [sheetA, sheetB]);
+  const diffs = useMemo(() => (sheetA && sheetB ? compareDiffs(sheetA, sheetB, rows) : null), [sheetA, sheetB, rows]);
   // A clicked cell belongs to the antenna (or the two antennas) and sub-band it was clicked in.
   const scopeKey = dataset ? (other ? `${dataset.key}\u0001${other.key}` : dataset.key) : '';
 
+  // A clicked row that has gone (its columns hidden, the cut back through the beam peak) is no longer picked.
+  const pickedSpec = picked ? rows.find((p) => p.key === picked.key) : undefined;
   const pickedColumn =
-    picked && dataset && columns[picked.column] && scopeOf(scopeKey, columns[picked.column].subBand) === picked.scope && (picked.side === 'a' || sheetB)
+    picked && pickedSpec && dataset && columns[picked.column] && scopeOf(scopeKey, columns[picked.column].subBand) === picked.scope && (picked.side === 'a' || sheetB)
       ? columns[picked.column]
       : null;
   // With no tilt on any file nothing is "tilted": a pair is file cut → horizon cut.
@@ -125,18 +134,20 @@ export const BandStats = memo(function BandStats({
   /** The value a side's cell shows (the tilted one under a simulation). */
   const shownCell = (side: 'a' | 'b') => {
     const sheet = sheetOf(side);
-    return picked && pickedColumn && sheet ? (sheet.tilted ?? sheet.columns)[picked.column].cells[picked.key] : null;
+    return picked && pickedColumn && sheet ? cellOf((sheet.tilted ?? sheet.columns)[picked.column], picked.key) : null;
   };
   const pickedSide = picked && pickedColumn ? picked.side : null;
   const pickedCell = pickedSide === 'a' || pickedSide === 'b' ? shownCell(pickedSide) : null;
   const pickedPair = pickedSide === 'd' ? { a: shownCell('a'), b: shownCell('b') } : null;
-  const pickedDiff = picked && pickedSide === 'd' && diffs ? diffDisplay(diffs[picked.column][picked.key].original, diffs[picked.column][picked.key].tilted, words) : null;
+  const pickedPairDiff = picked && pickedSide === 'd' && diffs ? diffOf(diffs[picked.column], picked.key) : null;
+  const pickedDiff = pickedPairDiff ? diffDisplay(pickedPairDiff.original, pickedPairDiff.tilted, words) : null;
   let pickedDetail = '';
   if (picked && pickedColumn && (pickedSide === 'a' || pickedSide === 'b')) {
     const sheet = sheetOf(pickedSide)!;
-    pickedDetail = cellDisplay(sheet.columns[picked.column].cells[picked.key], sheet.tilted?.[picked.column].cells[picked.key], words).title;
+    pickedDetail = cellDisplay(cellOf(sheet.columns[picked.column], picked.key), sheet.tilted ? cellOf(sheet.tilted[picked.column], picked.key) : undefined, words).title;
   } else if (pickedDiff) pickedDetail = pickedDiff.title;
-  const pickedSpec = picked ? BAND_PARAMS.find((p) => p.key === picked.key) : undefined;
+  // A row with its own decimals (the lower region ratio) writes its histogram's statistic with as many.
+  const pickedDecimals = pickedSpec?.decimals?.csv;
   // The histogram needs samples; the tilt range row has only the nominal tilts.
   const histogramCell = pickedCell && pickedCell.values.length > 0 && pickedCell.key !== 'tiltRange' ? pickedCell : null;
   // A B − A cell: both antennas' samples, when both have some.
@@ -145,7 +156,7 @@ export const BandStats = memo(function BandStats({
   const histogramPair = pairA && pairB ? { a: pairA, b: pairB } : null;
   const figure = useMemo(() => {
     if (!pickedSpec) return null;
-    const label = bandParamLabel(pickedSpec, settings);
+    const label = bandParamLabel(pickedSpec, settings, method3d);
     if (histogramCell) return buildBandHistFigure({ values: histogramCell.values, stat: histogramCell.stat, label, unit: histogramCell.unit }, FIGURE_THEMES[theme]);
     if (pairA && pairB && dataset && other) {
       return buildBandCompareHistFigure(
@@ -159,7 +170,7 @@ export const BandStats = memo(function BandStats({
       );
     }
     return null;
-  }, [histogramCell, pairA, pairB, dataset, other, pickedSpec, settings, theme]);
+  }, [histogramCell, pairA, pairB, dataset, other, pickedSpec, settings, theme, method3d]);
 
   // The files the histogram is made of: the antenna clicked, or both for a B − A cell.
   const histogramItems = pickedSide === 'b' ? (other?.items ?? []) : pickedSide === 'd' ? [...(dataset?.items ?? []), ...(other?.items ?? [])] : (dataset?.items ?? []);
@@ -170,7 +181,7 @@ export const BandStats = memo(function BandStats({
 
   const exportCaption = (() => {
     if (!pickedSpec || !pickedColumn || !dataset) return null;
-    const parameter = bandParamLabel(pickedSpec, settings);
+    const parameter = bandParamLabel(pickedSpec, settings, method3d);
     if (histogramCell) {
       return bandHistCaption({
         antenna: pickedSide === 'b' && other ? other.label : dataset.label,
@@ -179,6 +190,7 @@ export const BandStats = memo(function BandStats({
         stat: histogramCell.stat,
         unit: histogramCell.unit,
         n: histogramCell.n,
+        ...(pickedDecimals !== undefined ? { decimals: pickedDecimals } : {}),
         tilted: histogramTilted,
         ...(histogramState ? { state: histogramState } : {}),
       });
@@ -191,6 +203,7 @@ export const BandStats = memo(function BandStats({
         parameter,
         unit: histogramPair.a.unit,
         difference: pickedDiff.text,
+        ...(pickedDecimals !== undefined ? { decimals: pickedDecimals } : {}),
         ...(histogramState ? { state: histogramState } : {}),
       });
     }
@@ -208,17 +221,17 @@ export const BandStats = memo(function BandStats({
         const bands = subBandsFor(d.items, userSubBands);
         return {
           label: d.label,
-          columns: bandTable(d.items, metrics, bands, ctx),
-          ...(sim.simActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx) } : {}),
+          columns: bandTable(d.items, metrics, bands, ctx, rows),
+          ...(sim.simActive ? { tilted: bandTable(d.items, sim.metrics, bands, ctx, rows) } : {}),
         };
       });
       const comparison = sheetA && sheetB ? { a: sheetA, b: sheetB } : undefined;
-      downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id)), true, false), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut, sim.tiltActive, comparison), 'text/csv;charset=utf-8');
+      downloadText(exportName('band-statistics', sim.simulatedAmong(datasets.flatMap((d) => d.items.map((i) => i.pattern.id)), true, false), '.csv'), '﻿' + bandCsv(sheets, settings, horizonCut, sim.tiltActive, comparison, rowsOf), 'text/csv;charset=utf-8');
     },
     copyTable: () =>
       void (sheetA && sheetB
-        ? copyAndAnnounce(compareTsv(sheetA, sheetB, settings, horizonCut, sim.tiltActive), `Copied the band statistics of ${sheetB.label} compared with ${sheetA.label}`, setCopyNote)
-        : copyAndAnnounce(bandTsv(columns, tiltedColumns, settings, horizonCut, sim.tiltActive), `Copied the band statistics of ${dataset?.label ?? ''}`, setCopyNote)),
+        ? copyAndAnnounce(compareTsv(sheetA, sheetB, settings, horizonCut, sim.tiltActive, rowsOf), `Copied the band statistics of ${sheetB.label} compared with ${sheetA.label}`, setCopyNote)
+        : copyAndAnnounce(bandTsv(columns, tiltedColumns, settings, horizonCut, sim.tiltActive, rowsOf), `Copied the band statistics of ${dataset?.label ?? ''}`, setCopyNote)),
   });
   const current = () => {
     catchUpSimulation();
@@ -245,14 +258,14 @@ export const BandStats = memo(function BandStats({
   const perBand = sheetB ? SIDES.length : 1;
   const gridCols = columns.length * perBand;
   // The tab stop, kept inside the table as its columns change.
-  const stopAt = { row: Math.min(stop.row, BAND_PARAMS.length - 1), col: Math.min(stop.col, Math.max(gridCols - 1, 0)) };
+  const stopAt = { row: Math.min(stop.row, rows.length - 1), col: Math.min(stop.col, Math.max(gridCols - 1, 0)) };
   const cellAt = (el: HTMLElement): { row: number; col: number } | null => {
     const button = el.closest<HTMLElement>('button[data-row][data-col]');
     return button ? { row: Number(button.dataset.row), col: Number(button.dataset.col) } : null;
   };
   const onCellKeys = (e: KeyboardEvent<HTMLElement>) => {
     const at = cellAt(e.target as HTMLElement);
-    const to = at && gridTarget(e.key, e.ctrlKey || e.metaKey, at, { rows: BAND_PARAMS.length, cols: gridCols });
+    const to = at && gridTarget(e.key, e.ctrlKey || e.metaKey, at, { rows: rows.length, cols: gridCols });
     if (!to) return;
     e.preventDefault();
     const next = e.currentTarget.querySelector<HTMLElement>(`button[data-row="${to.row}"][data-col="${to.col}"]`);
@@ -278,17 +291,17 @@ export const BandStats = memo(function BandStats({
   };
 
   /** One cell button: the antenna shown (or A), B, or B − A of sub-band `i`. */
-  const cell = (p: (typeof BAND_PARAMS)[number], row: number, i: number, side: Side) => {
+  const cell = (p: (typeof rows)[number], row: number, i: number, side: Side) => {
     const col = i * perBand + SIDES.indexOf(side);
     let d: { text: string; title: string; muted: boolean };
     let n = 0;
     if (side === 'd') {
-      const pair = diffs![i][p.key];
+      const pair = diffOf(diffs![i], p.key);
       d = diffDisplay(pair.original, pair.tilted, words);
     } else {
       const sheet = side === 'b' ? sheetB! : sheetA!;
-      const original = sheet.columns[i].cells[p.key];
-      const tilted = sheet.tilted?.[i].cells[p.key];
+      const original = cellOf(sheet.columns[i], p.key);
+      const tilted = sheet.tilted ? cellOf(sheet.tilted[i], p.key) : undefined;
       d = cellDisplay(original, tilted, words);
       n = (tilted ?? original).n;
     }
@@ -440,10 +453,10 @@ export const BandStats = memo(function BandStats({
                 if (at && (at.row !== stopAt.row || at.col !== stopAt.col)) setStop(at);
               }}
             >
-              {BAND_PARAMS.map((p, row) => (
+              {rows.map((p, row) => (
                 <tr key={p.key}>
-                  <th scope="row" title={bandParamTitle(p, settings)}>
-                    {bandParamLabel(p, settings)}
+                  <th scope="row" title={bandParamTitle(p, settings, method3d)}>
+                    {bandParamLabel(p, settings, method3d)}
                   </th>
                   {columns.map((_, i) => SIDES.map((side) => cell(p, row, i, side)))}
                 </tr>
@@ -470,10 +483,10 @@ export const BandStats = memo(function BandStats({
                 if (at && (at.row !== stopAt.row || at.col !== stopAt.col)) setStop(at);
               }}
             >
-              {BAND_PARAMS.map((p, row) => (
+              {rows.map((p, row) => (
                 <tr key={p.key}>
-                  <th scope="row" title={bandParamTitle(p, settings)}>
-                    {bandParamLabel(p, settings)}
+                  <th scope="row" title={bandParamTitle(p, settings, method3d)}>
+                    {bandParamLabel(p, settings, method3d)}
                   </th>
                   {columns.map((_, i) => cell(p, row, i, 'a'))}
                 </tr>
@@ -484,7 +497,7 @@ export const BandStats = memo(function BandStats({
       </div>
       {pickedSpec && pickedColumn && (pickedCell || pickedPair) && (
         <p className="count">
-          {bandParamLabel(pickedSpec, settings)} — {pickedColumn.subBand.name}
+          {bandParamLabel(pickedSpec, settings, method3d)} — {pickedColumn.subBand.name}
           {sheetB && other && pickedSide === 'a' && ` — A: ${dataset.label}`}
           {sheetB && other && pickedSide === 'b' && ` — B: ${other.label}`}
           {pickedCell && ` — N = ${pickedCell.n}`}

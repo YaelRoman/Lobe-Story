@@ -1,4 +1,4 @@
-import { tiltText, type BandCell } from './bandParams';
+import { fineDecimals, tiltText, type BandCell } from './bandParams';
 import { MIN_SAMPLES } from './bandStats';
 import type { TaggedPattern } from './metrics';
 import { autoSubBands, type SubBand } from './subBands';
@@ -22,7 +22,10 @@ export interface BandDiff {
   adjusted: boolean;
   /** An input counts "not available" values as 22 dB (the text ends in `†`). */
   substituted: boolean;
-  /** "°", or "dB" for every dB row and for gain (a difference of two dBi or dBd values is in dB). */
+  /**
+   * "°"; "%" for a percentage row, whose difference is in percentage points; or "dB" for every dB row and for gain (a
+   * difference of two dBi or dBd values is in dB).
+   */
   unit: string;
   numbers: Partial<Record<DiffNumberKey, number>>;
 }
@@ -47,8 +50,11 @@ function signedText(v: number, decimals: number, trim: boolean): string {
 
 const withUnit = (text: string, unit: string): string => text + (unit === '°' ? '' : ' ') + unit;
 
-/** A difference as the band table writes it: signed, one decimal ("+1.2°", "-0.4 dB"); "0.0 dB" where it rounds to zero. */
-export const signedDiff = (v: number, unit: string): string => withUnit(signedText(v, 1, false), unit);
+/**
+ * A difference as the band table writes it: signed, one decimal ("+1.2°", "-0.4 dB"), or the row's own; "0.0 dB" where
+ * it rounds to zero.
+ */
+export const signedDiff = (v: number, unit: string, decimals = 1): string => withUnit(signedText(v, decimals, false), unit);
 
 /** A difference of nominal tilts, written as the tilts are (at most one decimal, none for whole degrees). */
 const signedTilt = (v: number): string => `${signedText(v, 1, true)}°`;
@@ -86,14 +92,17 @@ const whoOf = (side: 'A' | 'B', name?: string): string => (name ? `${side} (${na
 export function bandDiff(a: BandCell, b: BandCell, names: DiffNames = {}): BandDiff {
   const whoA = whoOf('A', names.a);
   const whoB = whoOf('B', names.b);
-  const unit = a.unit === '°' ? '°' : 'dB';
+  const unit = a.unit === '°' || a.unit === '%' ? a.unit : 'dB';
   const reasons = [noStatistic(a, whoA), noStatistic(b, whoB)].filter((r): r is string => r !== null);
   if (reasons.length > 0) {
     return { state: 'none', text: '—', title: `No difference: ${reasons.join('; ')}`, muted: true, adjusted: false, substituted: false, unit, numbers: {} };
   }
 
   /** A number of the detail text: signed, two decimals, with the unit. */
-  const u = (v: number): string => withUnit(signedText(v, 2, false), unit);
+  const u = (v: number): string => withUnit(signedText(v, a.decimals === undefined ? 2 : fineDecimals(v, a.decimals + 1), false), unit);
+  /** A difference in the text: the row's decimals, or (a row with its own) as many more as it takes not to read 0 when it is not. */
+  const shown = (v: number): string => signedDiff(v, unit, a.decimals === undefined ? 1 : fineDecimals(v, a.decimals));
+  const points = unit === '%' ? ' (percentage points)' : '';
   const inputs = [`${whoA}: ${a.text} (N = ${a.n})`, `${whoB}: ${b.text} (N = ${b.n})`];
   const sa = a.stat;
   const sb = b.stat;
@@ -118,11 +127,11 @@ export function bandDiff(a: BandCell, b: BandCell, names: DiffNames = {}): BandD
       numbers.tolerance = sb.tolerance - sa.tolerance;
       numbers.lower = sb.lower - sa.lower;
       numbers.upper = sb.upper - sa.upper;
-      text = `${signedDiff(numbers.mean, unit)} (tol ${signedDiff(numbers.tolerance, unit)})`;
-      what = `B − A of the mean: ${u(numbers.mean)}; in brackets, of the tolerance: ${u(numbers.tolerance)}`;
+      text = `${shown(numbers.mean)} (tol ${shown(numbers.tolerance)})`;
+      what = `B − A of the mean${points}: ${u(numbers.mean)}; in brackets, of the tolerance: ${u(numbers.tolerance)}`;
     } else if (sa.kind === 'mean' && sb.kind === 'mean') {
       numbers.value = numbers.mean = sb.mean - sa.mean;
-      text = signedDiff(numbers.mean, unit);
+      text = shown(numbers.mean);
       what = `B − A of the mean gain: ${u(numbers.mean)}`;
       if (a.tiltDeg !== b.tiltDeg) {
         text += ` (A @ ${tiltText(a.tiltDeg!)}°, B @ ${tiltText(b.tiltDeg!)}°)`;
@@ -131,8 +140,8 @@ export function bandDiff(a: BandCell, b: BandCell, names: DiffNames = {}): BandD
     } else if ((sa.kind === 'min' || sa.kind === 'max') && sb.kind === sa.kind) {
       numbers.value = sb.value - sa.value;
       numbers.percentile = sb.percentile - sa.percentile;
-      text = signedDiff(numbers.value, unit);
-      what = `B − A of the single-sided ${sa.kind === 'min' ? 'minimum (16th percentile)' : 'maximum (84th percentile)'}: ${u(numbers.value)}`;
+      text = shown(numbers.value);
+      what = `B − A${points} of the single-sided ${sa.kind === 'min' ? 'minimum (16th percentile)' : 'maximum (84th percentile)'}: ${u(numbers.value)}`;
     } else {
       // Both cells of one row are always of the same kind; a mismatch has nothing to subtract.
       return { state: 'none', text: '—', title: 'No difference: the two statistics are not of the same kind', muted: true, adjusted: false, substituted: false, unit, numbers: {} };

@@ -129,19 +129,20 @@ export function substituteNotAvailable(
 /** One decimal, without the sign of a zero (the shared `fixed`). */
 export const fix1 = (v: number): string => fixed(v, 1);
 
-export function withUnit(v: number, unit: string): string {
-  return fix1(v) + (unit === '°' ? '' : ' ') + unit;
+/** A value with its unit (no space before "°"); one decimal unless the row has its own (`decimals`). */
+export function withUnit(v: number, unit: string, decimals = 1): string {
+  return fixed(v, decimals) + (unit === '°' ? '' : ' ') + unit;
 }
 
-export function formatStat(stat: BandStat, unit: string, toleranceUnit: string = unit): string {
+export function formatStat(stat: BandStat, unit: string, toleranceUnit: string = unit, decimals = 1): string {
   switch (stat.kind) {
     case 'double':
-      return `${withUnit(stat.mean, unit)} ± ${withUnit(stat.tolerance, toleranceUnit)}`;
+      return `${withUnit(stat.mean, unit, decimals)} ± ${withUnit(stat.tolerance, toleranceUnit, decimals)}`;
     case 'max':
-      return `< ${withUnit(stat.value, unit)}`;
+      return `< ${withUnit(stat.value, unit, decimals)}`;
     case 'min':
-      return `> ${withUnit(stat.value, unit)}`;
+      return `> ${withUnit(stat.value, unit, decimals)}`;
     case 'mean':
-      return withUnit(stat.mean, unit);
+      return withUnit(stat.mean, unit, decimals);
   }
 }

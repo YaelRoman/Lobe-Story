@@ -1,4 +1,5 @@
-import { BAND_PARAMS, bandParamLabel, tiltText, type BandCell, type BandColumn, type BandParamKey } from '../core/analysis/bandParams';
+import { BAND_PARAMS, bandParamLabel, cellOf, cellText, pairDecimals, simulatedOnly, tiltText, type BandCell, type BandColumn, type BandParam, type BandParamKey } from '../core/analysis/bandParams';
+import type { Method3d } from '../core/analysis/pattern3d';
 import { MIN_SAMPLES } from '../core/analysis/bandStats';
 import { bandDiff, type BandDiff } from '../core/analysis/bandCompare';
 import type { AnalysisSettings } from '../core/analysis/metrics';
@@ -11,7 +12,7 @@ import { hCutLabel } from './simSummary';
 import type { HCutMode } from '../core/analysis/tilt';
 
 /** The band parameters read from the horizontal cut: the ones the horizontal cut at the horizon changes. The rest are read from the vertical cut or declared, and are the file's own with no tilt. */
-const BAND_FOLLOWS_H_CUT: ReadonlySet<BandParamKey> = new Set<BandParamKey>(['hHpbw', 'squint', 'fbWindow', 'hSls', 'tracking', 'rollOff', 'air']);
+const BAND_FOLLOWS_H_CUT: ReadonlySet<BandParamKey> = new Set<BandParamKey>(['hHpbw', 'horizonLevel', 'squint', 'fbWindow', 'hSls', 'tracking', 'rollOff', 'air']);
 export const bandFollowsHCut = (key: BandParamKey): boolean => BAND_FOLLOWS_H_CUT.has(key);
 
 /**
@@ -24,13 +25,20 @@ export function bandHistogramMarks(key: BandParamKey | undefined, simulatedAmong
   return { simulated: simulatedAmong(namesHCut), namesHCut };
 }
 
-/** What a table cell shows: `original → tilted` only where the two texts differ. */
+/**
+ * What a table cell shows: `original → tilted` only where the two texts differ. A row with its own decimals writes a
+ * pair with as many more as it takes for neither value to read 0 when it is not (as the metrics table). A row of the
+ * simulated cut alone (the Horizon level) shows its simulated value only, as the metrics table's single column.
+ */
 export function cellDisplay(original: BandCell, tilted?: BandCell, words: PairWords = TILT_WORDS): { text: string; title: string; muted: boolean } {
   const shown = tilted ?? original;
   const muted = shown.state !== 'ok';
+  if (tilted && simulatedOnly(tilted.key)) return { text: tilted.text, title: tilted.title, muted };
   if (!tilted || tilted.text === original.text) return { text: original.text, title: original.title, muted };
+  const decimals = pairDecimals(original, tilted);
+  const [from, to] = decimals === (original.decimals ?? 1) ? [original.text, tilted.text] : [cellText(original, decimals), cellText(tilted, decimals)];
   return {
-    text: `${original.text} → ${tilted.text}`,
+    text: `${from} → ${to}`,
     title: `${words.from}: ${original.title}\n${words.to}: ${tilted.title}`,
     muted,
   };
@@ -46,7 +54,7 @@ export const bandStateNote = (hCut: HCutMode, tiltActive: boolean): string =>
 export const ADJUSTED_LEGEND = '* adjusted by the 3 dB excursion rule (BASTA 12.2)';
 
 export function anyAdjusted(columns: readonly BandColumn[], tilted?: readonly BandColumn[] | null): boolean {
-  return [...columns, ...(tilted ?? [])].some((c) => Object.values(c.cells).some((cell) => cell.adjusted));
+  return [...columns, ...(tilted ?? [])].some((c) => Object.values(c.cells).some((cell) => cell?.adjusted === true));
 }
 
 export function largestDataset(datasets: readonly BandDataset[]): number {
@@ -155,11 +163,19 @@ const TYPE_LABEL = {
 } as const;
 
 const GAIN_TILT_KEYS = new Set(['gainMinTilt', 'gainMidTilt', 'gainMaxTilt']);
-const f2 = (v: number | undefined): string => (v === undefined ? '' : fixed(v, 2));
 
-function csvLine(label: string, state: string | null, column: BandColumn, p: (typeof BAND_PARAMS)[number], cell: BandCell, settings: AnalysisSettings): string[] {
+/** The rows of a band CSV or copied table, and the 3D method an angular-region row names. */
+export interface BandRowsOf {
+  /** The rows the sheets were made with (`bandRows`); the Annex C list by default. */
+  rows?: readonly BandParam[];
+  method?: Method3d;
+}
+
+function csvLine(label: string, state: string | null, column: BandColumn, p: BandParam, cell: BandCell, settings: AnalysisSettings, method?: Method3d): string[] {
   const stat = cell.stat;
-  const parameter = bandParamLabel(p, settings) + (GAIN_TILT_KEYS.has(p.key) && cell.tiltDeg !== undefined ? ` (${tiltText(cell.tiltDeg!)}°)` : '');
+  // Two decimals, or the row's own (a lower region ratio of a few thousandths of a percent).
+  const f2 = (v: number | undefined): string => (v === undefined ? '' : fixed(v, p.decimals?.csv ?? 2));
+  const parameter = bandParamLabel(p, settings, method) + (GAIN_TILT_KEYS.has(p.key) && cell.tiltDeg !== undefined ? ` (${tiltText(cell.tiltDeg!)}°)` : '');
   const value = stat ? (stat.kind === 'double' || stat.kind === 'mean' ? stat.mean : stat.value) : undefined;
   const hasValues = cell.values.length > 0;
   const nameIndex = state === null ? 1 : 2;
@@ -192,7 +208,8 @@ function csvLine(label: string, state: string | null, column: BandColumn, p: (ty
 const TILTED_AT_HORIZON = 'tilted [H cut at the horizon]';
 
 /** A difference line of the band CSV: B − A of each numeric column where both antennas have it; N and the 22 dB count stay empty (the two antenna lines have them). */
-function diffCsvLine(label: string, state: string | null, column: BandColumn, p: (typeof BAND_PARAMS)[number], a: BandCell, b: BandCell, d: BandDiff, settings: AnalysisSettings): string[] {
+function diffCsvLine(label: string, state: string | null, column: BandColumn, p: BandParam, a: BandCell, b: BandCell, d: BandDiff, settings: AnalysisSettings, method?: Method3d): string[] {
+  const f2 = (v: number | undefined): string => (v === undefined ? '' : fixed(v, p.decimals?.csv ?? 2));
   const tilts = GAIN_TILT_KEYS.has(p.key) && a.tiltDeg !== undefined && b.tiltDeg !== undefined
     ? a.tiltDeg === b.tiltDeg ? ` (${tiltText(a.tiltDeg)}°)` : ` (A ${tiltText(a.tiltDeg)}°, B ${tiltText(b.tiltDeg)}°)`
     : '';
@@ -204,7 +221,7 @@ function diffCsvLine(label: string, state: string | null, column: BandColumn, p:
     csvText(column.subBand.name),
     String(column.subBand.minMHz),
     String(column.subBand.maxMHz),
-    bandParamLabel(p, settings) + tilts,
+    bandParamLabel(p, settings, method) + tilts,
     d.unit,
     TYPE_LABEL[p.type],
     '',
@@ -234,7 +251,7 @@ export interface BandCsvComparison {
  * With a comparison, a first column Row says `statistic` on those lines, and one `difference` line (B − A) per sub-band ×
  * parameter (× state) follows them; without one the CSV is as it always was.
  */
-export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings, horizonCut = false, tiltActive = true, compare?: BandCsvComparison): string {
+export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings, horizonCut = false, tiltActive = true, compare?: BandCsvComparison, { rows = BAND_PARAMS, method }: BandRowsOf = {}): string {
   // With no tilt on any file nothing is "tilted": the horizontal rows are of the horizon cut, the others the simulated run's (equal to the file's).
   const second = (key: BandParamKey): string =>
     horizonCut && !tiltActive ? (bandFollowsHCut(key) ? 'horizon cut' : 'simulated') : horizonCut && bandFollowsHCut(key) ? TILTED_AT_HORIZON : 'tilted';
@@ -245,14 +262,15 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
   const write = (sheet: BandSheet, keep: (column: BandColumn) => boolean = () => true) => {
     sheet.columns.forEach((column, i) => {
       if (!keep(column)) return;
-      for (const p of BAND_PARAMS) {
+      for (const p of rows) {
         if (!withState) {
-          lines.push(csvLine(sheet.label, null, column, p, column.cells[p.key], settings));
+          lines.push(csvLine(sheet.label, null, column, p, cellOf(column, p.key), settings, method));
         } else {
           const tilted = (sheet.tilted ?? sheet.columns)[i];
-          lines.push(csvLine(sheet.label, 'original', column, p, column.cells[p.key], settings));
+          // The Horizon level has no original value (a file cut has none): its one line is of the horizon cut.
+          if (!simulatedOnly(p.key)) lines.push(csvLine(sheet.label, 'original', column, p, cellOf(column, p.key), settings, method));
           // Only a parameter read from the horizontal cut is of the cut at the horizon; the others are tilted as in any mode.
-          lines.push(csvLine(sheet.label, second(p.key), tilted, p, tilted.cells[p.key], settings));
+          lines.push(csvLine(sheet.label, second(p.key), tilted, p, cellOf(tilted, p.key), settings, method));
         }
       }
     });
@@ -270,12 +288,12 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
     const names = { a: a.label, b: b.label };
     const out = [['Row', ...lines[0]], ...lines.slice(1).map((l) => ['statistic', ...l])];
     a.columns.forEach((column, i) => {
-      for (const p of BAND_PARAMS) {
+      for (const p of rows) {
         const line = (state: string | null, ca: BandColumn, cb: BandColumn) =>
-          out.push(['difference', ...diffCsvLine(label, state, column, p, ca.cells[p.key], cb.cells[p.key], bandDiff(ca.cells[p.key], cb.cells[p.key], names), settings)]);
+          out.push(['difference', ...diffCsvLine(label, state, column, p, cellOf(ca, p.key), cellOf(cb, p.key), bandDiff(cellOf(ca, p.key), cellOf(cb, p.key), names), settings, method)]);
         if (!withState) line(null, column, b.columns[i]);
         else {
-          line('original', column, b.columns[i]);
+          if (!simulatedOnly(p.key)) line('original', column, b.columns[i]);
           line(second(p.key), (a.tilted ?? a.columns)[i], (b.tilted ?? b.columns)[i]);
         }
       }
@@ -289,12 +307,12 @@ export function bandCsv(sheets: readonly BandSheet[], settings: AnalysisSettings
  * The band statistics table as shown, for a spreadsheet: a header row (Parameter, then each sub-band with its file
  * count) and a line per parameter with the cell text (`original → tilted` under a simulation). Tab-separated.
  */
-export function bandTsv(columns: readonly BandColumn[], tilted: readonly BandColumn[] | null, settings: AnalysisSettings, horizonCut = false, tiltActive = true): string {
+export function bandTsv(columns: readonly BandColumn[], tilted: readonly BandColumn[] | null, settings: AnalysisSettings, horizonCut = false, tiltActive = true, { rows = BAND_PARAMS, method }: BandRowsOf = {}): string {
   // Only the sub-band names are user text (formula-guarded); the labels and cells are computed, so they only lose tabs and line breaks.
   const header = [tilted && horizonCut ? (tiltActive ? 'Parameter [tilted: H cut at the horizon]' : `Parameter ${AT_HORIZON_TAG}`) : 'Parameter', ...columns.map((c) => `${tsvText(c.subBand.name)} (${filesText(c.files)})`)];
-  const lines = BAND_PARAMS.map((p) => [
-    tabSafe(bandParamLabel(p, settings)),
-    ...columns.map((c, i) => tabSafe(cellDisplay(c.cells[p.key], tilted?.[i].cells[p.key]).text)),
+  const lines = rows.map((p) => [
+    tabSafe(bandParamLabel(p, settings, method)),
+    ...columns.map((c, i) => tabSafe(cellDisplay(cellOf(c, p.key), tilted ? cellOf(tilted[i], p.key) : undefined).text)),
   ]);
   return [header, ...lines].map((l) => l.join('\t')).join('\r\n') + '\r\n';
 }
