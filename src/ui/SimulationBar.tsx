@@ -314,33 +314,30 @@ export function SimulationBar({
           onChange={(method3d) => updateView({ method3d })}
           disabled={!methodUsed}
         />
-        {/* The choice and the line about what uses the method go together: on a phone they share one row under the
-            buttons, so the bar is no taller than without the choice. */}
-        <span className="sim-back-slot">
-          {/* Short on the bar, as the table headers write it ("[Sum. + back]"); the full name is the control's own (it
-              starts with what is shown) and the tooltip says what it does. */}
-          <label className="sim-back" title={BACK_HALF_TITLE}>
-            <input
-              type="checkbox"
-              aria-label={BACK_HALF_NAME}
-              checked={back3d}
-              disabled={!methodUsed}
-              onChange={(e) => updateView({ back3d: e.target.checked })}
-              data-testid="sim-back3d"
-            />
-            + back
-          </label>
-          {/* A disabled button cannot be focused or tapped for a tooltip: the reason is written beside it (under it on a
-              phone). The same place says what uses the method once something does: the two lines lie on one another and
-              the reason, the longer one, sets the size, so nothing in the bar moves when a slider's first step enables
-              the control, and no empty band is kept for it. */}
-          <span className="count sim-hint sim-slot">
-            <span className={methodUsed ? 'ghost' : undefined} aria-hidden={methodUsed || undefined} data-testid="sim-method-hint">
-              {METHOD_UNUSED_NOTE}
-            </span>
-            <span className={methodUsed ? undefined : 'ghost'} aria-hidden={!methodUsed || undefined} data-testid="sim-method-use">
-              {methodUsed ? methodUseNote(methodUses) : ''}
-            </span>
+        {/* Short on the bar, as the table headers write it ("[Sum. + back]"), and compact, so on a phone it fits on the row
+            of the method buttons and the bar is no taller: the full name is the control's own (it starts with what is
+            shown) and the tooltip says what it does. */}
+        <label className="sim-back" title={BACK_HALF_TITLE}>
+          <input
+            type="checkbox"
+            aria-label={BACK_HALF_NAME}
+            checked={back3d}
+            disabled={!methodUsed}
+            onChange={(e) => updateView({ back3d: e.target.checked })}
+            data-testid="sim-back3d"
+          />
+          + back
+        </label>
+        {/* A disabled button cannot be focused or tapped for a tooltip: the reason is written beside it (under it on a
+            phone). The same place says what uses the method once something does: the two lines lie on one another and
+            the reason, the longer one, sets the size, so nothing in the bar moves when a slider's first step enables
+            the control, and no empty band is kept for it. */}
+        <span className="count sim-hint sim-slot">
+          <span className={methodUsed ? 'ghost' : undefined} aria-hidden={methodUsed || undefined} data-testid="sim-method-hint">
+            {METHOD_UNUSED_NOTE}
+          </span>
+          <span className={methodUsed ? undefined : 'ghost'} aria-hidden={!methodUsed || undefined} data-testid="sim-method-use">
+            {methodUsed ? methodUseNote(methodUses) : ''}
           </span>
         </span>
       </div>
