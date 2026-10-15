@@ -374,6 +374,8 @@ for (const width of [390, 1440]) {
     // From further down the page: the link brings the plots back into view.
     await page.locator('#metrics-heading').evaluate((h) => h.scrollIntoView({ block: 'start' }));
     await expect(page.getByTestId('plot-h')).not.toBeInViewport();
+    // Tab starts from the top of the document: Firefox otherwise starts from the scrolled-to place, and the link lies behind it.
+    await page.evaluate(() => document.getSelection()?.collapse(document.body, 0));
     await tabTo(page, page.getByRole('link', { name: 'Skip to plots' }));
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'Cut plots' })).toBeFocused();
