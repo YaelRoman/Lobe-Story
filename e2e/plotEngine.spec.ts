@@ -54,19 +54,29 @@ test('a redraw updates the charts in place: ticking and highlighting never plot 
   expect(await plotIds(page, charts)).toEqual(rect);
 });
 
-/** What the horizontal cut plot holds now: per file trace [uid, line width, opacity], the count of the other traces, the title, the shapes. */
+/**
+ * What the horizontal cut plot shows now: per file trace [uid, line width, opacity] in the order the page paints them
+ * (bottom to top), the count of the other traces, the title, the shapes. With many files the markers, title and shapes
+ * are drawn in the plot's marker layer (see src/ui/markerLayer.ts) and are read from there.
+ */
 const cutState = (page: Page, testId = 'plot-h') =>
   page.evaluate((id) => {
-    const gd = document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as {
+    type Gd = HTMLElement & {
       data: { uid?: string; line?: { width?: number }; opacity?: number; name?: string }[];
       layout: { title?: { text?: string }; shapes?: unknown[] };
     };
-    const files = gd.data.filter((t) => typeof t.uid === 'string');
+    const gd = document.querySelector(`[data-testid="${id}"] .js-plotly-plot`) as unknown as Gd;
+    const layer = document.querySelector(`[data-testid="${id}-layer"]`) as unknown as Gd | null;
+    const painted = Array.from(gd.querySelectorAll('.scatterlayer .trace'));
+    const place = (uid: string) => painted.findIndex((el) => el.classList.contains(`trace${uid}`));
+    const files = gd.data.filter((t) => typeof t.uid === 'string').sort((a, b) => place(a.uid!) - place(b.uid!));
+    const own = layer ? layer.data.slice(1) : gd.data.filter((t) => typeof t.uid !== 'string');
+    const layout = (layer ?? gd).layout;
     return {
       files: files.map((t) => [t.uid!, t.line?.width, t.opacity ?? 1] as const),
-      markers: gd.data.filter((t) => typeof t.uid !== 'string').map((t) => t.name ?? ''),
-      title: gd.layout.title?.text ?? '',
-      shapes: gd.layout.shapes?.length ?? 0,
+      markers: own.map((t) => t.name ?? ''),
+      title: layout.title?.text ?? '',
+      shapes: layout.shapes?.length ?? 0,
     };
   }, testId);
 type ArraysByUid = Record<string, unknown>[];
@@ -155,7 +165,7 @@ test('a highlight restyles the traces that are drawn: no trace is built again, a
   expect(problems).toEqual([]);
 });
 
-/** The file traces of a cut plot in the order the charting library holds (and draws) them: [file id, line width, is the reference]. */
+/** The file traces of a cut plot in the order the page paints them: [file id, line width, is the reference]. */
 const drawingOrder = async (page: Page, testId = 'plot-h') =>
   (await cutState(page, testId)).files.map(([uid, width]) => [seriesIdOf(uid), width, isReferenceUid(uid)] as const);
 /** The file ids of the drawn traces, bottom to top, as the SVG has them. */

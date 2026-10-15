@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import Plotly from 'plotly.js-dist-min';
 import type { Config as PlotlyConfig, Data as PlotlyNativeData, Layout as PlotlyNativeLayout } from 'plotly.js-dist-min';
@@ -8,6 +8,7 @@ import { exportFootLine } from './exportFoot';
 import { imageExportHeld, imageExported } from './simCurrent';
 import { PlotBoundary } from './ErrorBoundary';
 import { CHART_PRIVACY, guardedReset, leaveTouchesToThePage, toolbarButtons, touchScrolls, viewReset, type ChartToolbar } from './chartToolbar';
+import { dragView, markerLayerData, markerLayerLayout, reorderMoves, underLayerLayout, withView } from './markerLayer';
 import { useCoarsePointer } from './phoneLayout';
 import { canvasesOf, releaseGlContexts } from './glContexts';
 import { pickedFileId } from './pointPick';
@@ -19,8 +20,41 @@ type RelayoutHandler = (el: HTMLElement, update: Record<string, unknown>) => voi
 
 type PlotlyElement = HTMLDivElement & {
   on?: (event: string, cb: (update: Record<string, unknown>) => void) => void;
+  removeListener?: (event: string, cb: (update: Record<string, unknown>) => void) => void;
   removeAllListeners?: (event: string) => void;
+  /** The layout as the library completed it, with the view a drag is showing now. */
+  _fullLayout?: object;
 };
+
+/** The marker layer has no toolbar and takes no pointer: the chart under it hands it the hover it has none for. */
+const LAYER_CONFIG: Partial<PlotlyConfig> = { displayModeBar: false, responsive: true, doubleClick: false, scrollZoom: false, showTips: false };
+
+const layerFailed = (error: unknown) => console.error('The markers could not be drawn', error);
+
+/** The library's hover calls, which its types leave out. */
+const Fx = (Plotly as unknown as { Fx: { hover: (gd: HTMLElement, evt: MouseEvent, subplot?: string) => void; unhover: (gd: HTMLElement) => void } }).Fx;
+
+/** The uid of the file trace a drawn trace group (`g.trace`) is: the library names it `trace<uid>`. */
+const drawnUid = (node: Element): string | null => {
+  for (const name of Array.from(node.classList)) if (name.startsWith('trace') && name !== 'trace') return name.slice('trace'.length);
+  return null;
+};
+
+/**
+ * Puts the drawn file traces of the chart in `el` in the order of `uids` (the last one on top) by moving their
+ * groups in the page, which the library does not redraw for: see `reorderMoves`. Its next redraw draws them in the
+ * order of its data again.
+ */
+function reorderDrawnTraces(el: HTMLElement, uids: readonly string[]): void {
+  for (const layer of Array.from(el.querySelectorAll('g.scatterlayer'))) {
+    const nodes = new Map<string, Element>();
+    for (const child of Array.from(layer.children)) {
+      const uid = drawnUid(child);
+      if (uid !== null) nodes.set(uid, child);
+    }
+    for (const { id, before } of reorderMoves([...nodes.keys()], uids)) layer.insertBefore(nodes.get(id)!, before === null ? null : nodes.get(before)!);
+  }
+}
 
 interface Props {
   figure: Figure;
@@ -60,6 +94,11 @@ interface Props {
    * when the preview ends. Leave undefined for plots that are not per-file.
    */
   previewBase?: string | null;
+  /**
+   * Draws `overlay` in a chart of its own laid over this one (see `markerLayer`): another overlay then redraws that
+   * layer only, and the highlighted file is moved on top in the page instead of by a redraw. For a cut plot with many files.
+   */
+  overlayLayer?: boolean;
   /** Called when the library has finished drawing `figure` with `overlay` (also when it failed to); not for a restyle. */
   onDrawn?: (figure: Figure, overlay: FigureOverlay | undefined) => void;
 }
@@ -105,7 +144,7 @@ export function PlotlyChart(props: Props) {
   );
 }
 
-function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayout, onPointClick, labelledExport, overlay, previewBase, onDrawn }: Props) {
+function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayout, onPointClick, labelledExport, overlay, previewBase, overlayLayer, onDrawn }: Props) {
   const ref = useRef<PlotlyElement>(null);
   const handler = useRef(onRelayout);
   const clickHandler = useRef(onPointClick);
@@ -143,6 +182,29 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
   const restyledDuringRedraw = useRef(false);
   // Only the latest redraw's completion clears the two flags above (an older one resolving late must not).
   const redrawGate = useRef(createRedrawGate());
+  // The marker layer (see `overlayLayer`): its element while it is on the page, what it was last given, the view it
+  // was last given (the chart's, as JSON), and what the handlers that keep it in step read.
+  const layered = overlay !== undefined && overlayLayer === true;
+  const layerEl = useRef<PlotlyElement | null>(null);
+  const layerDrawn = useRef<{ figure: Figure; overlay: FigureOverlay } | null>(null);
+  const layerView = useRef<string | null>(null);
+  const layerState = useRef({ layered, figure, overlay, toolbar });
+  layerState.current = { layered, figure, overlay, toolbar };
+  // The layer is cleared when it leaves the page (fewer files, or the chart goes).
+  const layerRef = useCallback((node: HTMLDivElement | null) => {
+    layerEl.current = node;
+    if (!node) return;
+    return () => {
+      layerEl.current = null;
+      layerDrawn.current = null;
+      layerView.current = null;
+      try {
+        Plotly.purge(node);
+      } catch {
+        // As for the chart itself (see below).
+      }
+    };
+  }, []);
 
   useEffect(() => {
     handler.current = onRelayout;
@@ -161,14 +223,18 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
       name: 'toImageLabelled',
       title: 'Download plot as a png (with legend and values)',
       icon: Plotly.Icons.camera,
-      click: () => {
+      click: (gd: PlotlyElement) => {
         const cur = exporting.current;
         // A picture of an older simulation than the sliders show is not saved without a word: the reason is said instead.
         if (imageExportHeld(cur.labelledExport?.behind)) return;
         imageExported();
         // Always light colours on white, whatever the screen theme: the image is rebuilt from a copy, the drawn figure is not touched.
         const { view, settings } = useStore.getState();
-        const out = exportFigure(cur.labelledExport?.figure?.() ?? cur.figure, cur.labelledExport?.caption, view.theme, exportFootLine(settings, view, new Date()));
+        const built = cur.labelledExport?.figure?.() ?? cur.figure;
+        // A chart under a marker layer was given a copy of the figure's layout: the view a drag gave it (a zoom, a
+        // turn) is in the chart only, and is taken from there.
+        const shown = layerState.current.layered ? { ...built, layout: withView(built.layout, viewReset(toolbar, gd._fullLayout ?? built.layout)) } : built;
+        const out = exportFigure(shown, cur.labelledExport?.caption, view.theme, exportFootLine(settings, view, new Date()));
         Plotly.downloadImage(
           { data: out.data as unknown as PlotlyNativeData[], layout: out.layout as unknown as Partial<PlotlyNativeLayout> },
           { ...IMAGE_OPTIONS, filename: cur.labelledExport?.filename ?? IMAGE_OPTIONS.filename, width: out.layout.width ?? null, height: out.layout.height ?? null },
@@ -192,6 +258,76 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
       modeBarButtons: toolbarButtons(toolbar, labelled ? labelledDownload : undefined, toolbar === '3d' ? undefined : reset, coarse) as unknown as PlotlyConfig['modeBarButtons'],
     };
   }, [toolbar, labelled, coarse]);
+
+  /**
+   * Draws the current overlay in the marker layer, in the view the chart shows now (the figure's own until the chart
+   * has drawn). Null when there is no layer to draw in.
+   */
+  const drawLayer = (el: PlotlyElement): Promise<unknown> | null => {
+    const node = layerEl.current;
+    const { layered: on, figure: fig, overlay: ov, toolbar: kind } = layerState.current;
+    if (!node || !on || !ov) return null;
+    const view = viewReset(kind, el._fullLayout ?? fig.layout);
+    layerView.current = JSON.stringify(view);
+    layerDrawn.current = { figure: fig, overlay: ov };
+    return Plotly.react(node, markerLayerData(ov.data, fig.layout) as unknown as PlotlyNativeData[], { ...markerLayerLayout(fig.layout, ov.layout, view), autosize: true } as Partial<PlotlyNativeLayout>, LAYER_CONFIG);
+  };
+
+  /** The highlighted file's traces on top of the others in the page (see `drawingOrder`), with the chart drawn as it is. */
+  const reorderDrawn = (el: HTMLElement) => {
+    const data = preview.current.figure.data as unknown as { uid?: unknown }[];
+    const uids = drawingOrder(data, preview.current.base).map((index) => data[index].uid);
+    reorderDrawnTraces(
+      el,
+      uids.filter((uid): uid is string => typeof uid === 'string'),
+    );
+  };
+
+  /**
+   * Keeps the marker layer in step with the chart under it after the chart was drawn or its view changed (a drag, a
+   * reset, a new size): the layer takes the chart's view, and the highlighted file's traces stay on top (a redraw of the
+   * chart puts its traces back in the order of its data). `dragging`: what a drag in progress has drawn so far.
+   */
+  const followChart = (el: PlotlyElement, dragging?: Record<string, unknown>) => {
+    const node = layerEl.current;
+    if (!node || !layerState.current.layered || !layerDrawn.current || redrawing.current || layerDrawn.current.figure !== preview.current.figure) return;
+    reorderDrawn(el);
+    const laidOut = viewReset(layerState.current.toolbar, el._fullLayout ?? {});
+    const view = dragging ? dragView(laidOut, dragging) : laidOut;
+    const key = JSON.stringify(view);
+    if (view === null || key === layerView.current) return;
+    layerView.current = key;
+    Plotly.relayout(node, view as Partial<PlotlyNativeLayout>).catch((error: unknown) => console.error('The markers could not follow the plot', error));
+  };
+  // What the chart's events call: the same function for every draw, so that it can be taken off again.
+  const following = useRef(followChart);
+  following.current = followChart;
+  const follow = useRef(() => {
+    if (ref.current) following.current(ref.current);
+  });
+  const followDrag = useRef((update: Record<string, unknown>) => {
+    if (ref.current) following.current(ref.current, update);
+  });
+  // Whether the chart under the layer shows a hover label now (its `plotly_hover` and `plotly_unhover`).
+  const chartHovers = useRef(false);
+  const lastPointer = useRef<MouseEvent | null>(null);
+  /**
+   * The layer's hover, where the chart has none: the pointer over the plot area of a polar chart (the layer's markers
+   * have hover names there; the rectangular plot's have none) and no trace of the chart close enough to name.
+   */
+  const layerHover = useRef(() => {
+    const node = layerEl.current;
+    const pointer = lastPointer.current;
+    if (!node || !layerDrawn.current) return;
+    if (chartHovers.current || !pointer) Fx.unhover(node);
+    else Fx.hover(node, pointer, 'polar');
+  });
+  const chartHover = useRef((hovers: boolean) => {
+    chartHovers.current = hovers;
+    layerHover.current();
+  });
+  const onChartHover = useRef(() => chartHover.current(true));
+  const onChartUnhover = useRef(() => chartHover.current(false));
 
   /** Brings the drawn traces to the current preview, restyling only those whose look changes. */
   const restylePreview = (el: HTMLElement) => {
@@ -250,12 +386,16 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
       lastDraw.current = { figure, config };
       // The 3D scenes this redraw drops (another 3D layout, fewer files) leave their WebGL contexts behind: release them.
       const scenes = canvasesOf(el);
+      // Over a marker layer the chart draws the figure without the overlay, and without what the layer draws over its
+      // traces (see `markerLayer`).
       void Plotly.react(
         el,
-        [...order.map((index) => traces[index]), ...(overlay?.data ?? [])] as unknown as PlotlyNativeData[],
-        { ...figure.layout, ...overlay?.layout, autosize: true } as Partial<PlotlyNativeLayout>,
+        [...order.map((index) => traces[index]), ...(layered ? [] : (overlay?.data ?? []))] as unknown as PlotlyNativeData[],
+        { ...(layered ? underLayerLayout(figure.layout) : { ...figure.layout, ...overlay?.layout }), autosize: true } as Partial<PlotlyNativeLayout>,
         config,
       )
+        // The layer after the chart, in its view (a failed layer leaves the chart as it is: its own message is logged).
+        .then(() => (layered && redrawGate.current.isLatest(generation) ? drawLayer(el)?.catch(layerFailed) : undefined))
         .then(() => {
           releaseGlContexts(scenes);
           if (!redrawGate.current.isLatest(generation)) return;
@@ -267,7 +407,20 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
           restyledDuringRedraw.current = false;
           if (previewing) void restylePreview(el);
           el.removeAllListeners?.('plotly_relayout');
-          el.on?.('plotly_relayout', (update) => handler.current?.(el, update));
+          el.on?.('plotly_relayout', (update) => {
+            handler.current?.(el, update);
+            follow.current();
+          });
+          // A drag shows its view while it lasts, and any redraw of the chart (a new size, a view) puts its traces
+          // back in the order of its data: the marker layer follows both.
+          el.removeListener?.('plotly_afterplot', follow.current);
+          el.on?.('plotly_afterplot', follow.current);
+          el.removeListener?.('plotly_relayouting', followDrag.current);
+          el.on?.('plotly_relayouting', followDrag.current);
+          el.removeListener?.('plotly_hover', onChartHover.current);
+          el.on?.('plotly_hover', onChartHover.current);
+          el.removeListener?.('plotly_unhover', onChartUnhover.current);
+          el.on?.('plotly_unhover', onChartUnhover.current);
           el.removeAllListeners?.('plotly_click');
           el.on?.('plotly_click', (event) => {
             const id = pickedFileId(event as Parameters<typeof pickedFileId>[0]);
@@ -277,7 +430,8 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
           // and does so right after this event, to the first figure's view: ours follows it within the same task.
           el.removeAllListeners?.('plotly_doubleclick');
           el.on?.('plotly_doubleclick', () => queueMicrotask(() => resetView(el, builtView.current, fail)));
-          drawnHandler.current?.(figure, overlay);
+          // The overlay drawn is the one of now in the layer (an overlay that came while the chart was drawn waited for it).
+          drawnHandler.current?.(figure, layered ? layerState.current.overlay : overlay);
         })
         .catch((error: unknown) => {
           // React cannot catch this one (it is not thrown while rendering): say why in the console, WebGL or not.
@@ -297,6 +451,15 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
     };
     if (lastDraw.current?.figure !== figure || lastDraw.current.config !== config) {
       draw();
+      return;
+    }
+    if (layered) {
+      // Only the overlay is new: the layer is redrawn, and the chart's traces are restyled and moved (below). A redraw
+      // of the chart that is still pending draws the layer when it is done, with this overlay.
+      if (redrawing.current) return;
+      void (drawLayer(el) ?? Promise.resolve())
+        .catch(layerFailed)
+        .then(() => drawnHandler.current?.(figure, overlay));
       return;
     }
     // Only the overlay is new (another highlighted file's markers and title). The library still redraws the whole
@@ -319,19 +482,47 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
       cancelAnimationFrame(frame);
       window.clearTimeout(timer);
     };
-  }, [figure, overlay, config, previewing]);
+  }, [figure, overlay, config, previewing, layered]);
 
   // The emphasised file changed (a highlight): restyle the drawn traces, as the hover preview does. After the draw
   // effect, which has already put a new figure's traces in this look.
+  // Over a marker layer the highlighted file's traces are also moved on top here: no redraw of the chart brings them.
   useEffect(() => {
     const el = ref.current;
     if (el && previewing) void restylePreview(el);
+    const now = layerState.current;
+    if (el && now.layered && !redrawing.current && lastDraw.current?.figure === now.figure) reorderDrawn(el);
   }, [previewBase, previewing]);
 
   useEffect(() => {
     const el = ref.current;
     if (el && touchScrolls(toolbar, coarse)) return leaveTouchesToThePage(el);
   }, [toolbar, coarse]);
+
+  // The pointer over a polar chart under a marker layer: the layer names its markers where the chart names no trace.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !layered || toolbar !== 'polar') return;
+    const move = (event: MouseEvent) => {
+      // Only over the plot area (the element the chart hovers from): its box is the one the hover is measured in.
+      const over = event.target instanceof Element && event.target.classList.contains('maindrag');
+      lastPointer.current = over && event.buttons === 0 ? event : null;
+      layerHover.current();
+    };
+    const leave = () => {
+      lastPointer.current = null;
+      layerHover.current();
+    };
+    el.addEventListener('mousemove', move);
+    el.addEventListener('mousedown', leave);
+    el.addEventListener('mouseleave', leave);
+    return () => {
+      el.removeEventListener('mousemove', move);
+      el.removeEventListener('mousedown', leave);
+      el.removeEventListener('mouseleave', leave);
+      leave();
+    };
+  }, [layered, toolbar]);
 
   useEffect(() => {
     const el = ref.current;
@@ -350,7 +541,8 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
 
   return (
     <div className={className} data-testid={testId} role={ariaLabel ? 'group' : undefined} aria-label={ariaLabel} style={{ position: 'relative', ...(height !== undefined ? { height } : {}) }}>
-      <div ref={ref} style={{ width: '100%', height: '100%' }} />
+      <div ref={ref} className={layered ? 'chart-under-layer' : undefined} style={{ width: '100%', height: '100%' }} />
+      {layered && <div ref={layerRef} className="marker-layer" aria-hidden="true" data-testid={testId ? `${testId}-layer` : undefined} />}
       {error && (
         <p className="plot-error" role="status">
           {error}

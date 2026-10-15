@@ -94,6 +94,8 @@ export function usePaintFirst<T>(value: T, hold: boolean): T {
 export interface TimedUpdate {
   started: number;
   hidden: boolean;
+  /** The traces were redrawn at some moment of it (see `useUpdateCost`). */
+  redrewTraces?: boolean;
 }
 
 /**
@@ -107,9 +109,11 @@ export function timedCost(run: TimedUpdate, endedAt: number, traces: number): Up
 
 /**
  * Times the redraws of the cut plots: while `updating` is set a redraw runs, and when it ends its cost (of `traces`
- * drawn traces) is noted in `cost`, which the next redraw's hint goes by (see `showsUpdateHint`).
+ * drawn traces) is noted in `cost`, which the next redraw's hint goes by (see `showsUpdateHint`). Only an update during
+ * which `redrawsTraces` was set at some moment is timed: a highlight drawn in the marker layers (see `markerLayer`)
+ * redraws no trace, and its few milliseconds would make the next real redraw look quick.
  */
-export function useUpdateCost(cost: RefObject<UpdateCost | null>, updating: boolean, traces: number): void {
+export function useUpdateCost(cost: RefObject<UpdateCost | null>, updating: boolean, traces: number, redrawsTraces = true): void {
   const run = useRef<TimedUpdate | null>(null);
   useEffect(() => {
     const noteHidden = () => {
@@ -119,11 +123,13 @@ export function useUpdateCost(cost: RefObject<UpdateCost | null>, updating: bool
     return () => document.removeEventListener('visibilitychange', noteHidden);
   }, []);
   useEffect(() => {
-    if (updating) run.current ??= { started: performance.now(), hidden: document.visibilityState !== 'visible' };
-    else if (run.current !== null) {
+    if (updating) {
+      run.current ??= { started: performance.now(), hidden: document.visibilityState !== 'visible' };
+      if (redrawsTraces) run.current.redrewTraces = true;
+    } else if (run.current !== null) {
       const timed = timedCost({ ...run.current, hidden: run.current.hidden || document.visibilityState !== 'visible' }, performance.now(), traces);
-      if (timed) cost.current = timed;
+      if (timed && run.current.redrewTraces) cost.current = timed;
       run.current = null;
     }
-  }, [cost, updating, traces]);
+  }, [cost, updating, traces, redrawsTraces]);
 }

@@ -12,11 +12,11 @@ let now = 0;
 let visibility: DocumentVisibilityState = 'visible';
 const cost: RefObject<UpdateCost | null> = createRef<UpdateCost | null>() as RefObject<UpdateCost | null>;
 
-function Probe({ updating, traces }: { updating: boolean; traces: number }) {
-  useUpdateCost(cost, updating, traces);
+function Probe({ updating, traces, redrawsTraces }: { updating: boolean; traces: number; redrawsTraces?: boolean }) {
+  useUpdateCost(cost, updating, traces, redrawsTraces);
   return null;
 }
-const render = (updating: boolean, traces = 100) => act(() => root.render(createElement(Probe, { updating, traces })));
+const render = (updating: boolean, traces = 100, redrawsTraces?: boolean) => act(() => root.render(createElement(Probe, { updating, traces, redrawsTraces })));
 const hide = () => {
   visibility = 'hidden';
   act(() => {
@@ -84,5 +84,22 @@ describe('useUpdateCost', () => {
     now = 50_200;
     render(false, 80);
     expect(cost.current).toEqual({ ms: 200, traces: 80 });
+  });
+
+  it('times only an update that redraws the traces: a highlight drawn in the marker layers says nothing of a redraw', () => {
+    render(false);
+    render(true, 192, false);
+    now = 1030;
+    render(false, 192, false);
+    expect(cost.current).toBeNull();
+
+    // Traces redrawn at any moment of the update: timed.
+    now = 2000;
+    render(true, 192, false);
+    render(true, 192, true);
+    render(true, 192, false);
+    now = 2600;
+    render(false, 192, false);
+    expect(cost.current).toEqual({ ms: 600, traces: 192 });
   });
 });

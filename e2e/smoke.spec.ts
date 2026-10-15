@@ -323,9 +323,10 @@ test('polar plot stays large with many files and the read-out lists the marker v
   await page.getByTestId('file-input').setInputFiles(files);
   await page.getByRole('checkbox', { name: /Show all in/ }).first().check();
   const plot = page.getByTestId('plot-h');
-  await expect(plot.locator('.polarlayer .plotbg')).toBeVisible();
+  // The chart's own (with this many files a marker layer lies over it, see src/ui/markerLayer.ts).
+  await expect(plot.locator('.polarlayer .plotbg').first()).toBeVisible();
   await expect(plot.locator('.legend')).toHaveCount(0);
-  const across = await plot.locator('.polarlayer .plotbg').evaluate((e) => e.getBoundingClientRect().width);
+  const across = await plot.locator('.polarlayer .plotbg').first().evaluate((e) => e.getBoundingClientRect().width);
   expect(across).toBeGreaterThanOrEqual(300);
 
   // The first file is highlighted: its HPBW and squint are text under each plot.

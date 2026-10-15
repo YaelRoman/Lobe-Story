@@ -10,6 +10,7 @@ import { bwMarkerLabel } from './bwLabel';
 import { buildCutSeries, farBelowPeakNote, withReference } from './cutSeries';
 import { FIGURE_THEMES, type Figure } from './figureTheme';
 import { showFileLegend, traceNote } from './legend';
+import { usesMarkerLayer } from './markerLayer';
 import { PlotlyChart, type FigureOverlay } from './PlotlyChart';
 import { PlotBoundary } from './ErrorBoundary';
 import { expectedTraceCount, lagNote, showsUpdateHint, usePaintFirst, useUpdateCost, WAITING_NOTE, type SimLag, type UpdateCost } from './updateHint';
@@ -116,6 +117,7 @@ function CutPlot({ id, figure, overlay, exportFigure, onDrawn, readout, target, 
           behind: exportBehind,
         }}
         previewBase={emphasised}
+        overlayLayer={usesMarkerLayer(traces)}
       />
       <div className="readout" data-testid={`readout-${id}`}>
         {readout.length > 0 && (
@@ -254,7 +256,12 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
   const drawing = (view.cut !== 'V' && behind(finished.h, figures.h)) || (view.cut !== 'H' && behind(finished.v, figures.v));
   const updating = pending || drawing;
   const drawnTraces = (view.cut !== 'V' ? figures.h.traces : 0) + (view.cut !== 'H' ? figures.v.traces : 0);
-  useUpdateCost(cost, updating, drawnTraces);
+  // A highlight over the marker layers redraws no trace and takes a few milliseconds: it neither shows the hint nor is
+  // timed for it (see `markerLayer`).
+  const figureBehind = (view.cut !== 'V' && finished.h?.figure !== figures.h.figure) || (view.cut !== 'H' && finished.v?.figure !== figures.v.figure);
+  const layersOnly = (view.cut === 'V' || usesMarkerLayer(figures.h.traces)) && (view.cut === 'H' || usesMarkerLayer(figures.v.traces));
+  const redrawsTraces = pending || figureBehind || !layersOnly;
+  useUpdateCost(cost, updating, drawnTraces, redrawsTraces);
   // The simulation the plots have finished drawing: until it is the page's, an image of them would be of the older one.
   const [simDrawn, setSimDrawn] = useState(sim);
   useEffect(() => {
@@ -293,7 +300,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
       <div className="plots-area">
         {/* While a dragged slider is waited for, the line says so whatever the redraw will cost. After that it is the
             hint, from the moment the sliders are ahead of the plots (the simulation is worked out before the redraw). */}
-        {(simLag === 'waiting' || ((updating || simLag === 'behind') && hint)) && (
+        {(simLag === 'waiting' || (((updating && redrawsTraces) || simLag === 'behind') && hint)) && (
           <p className="count updating" data-testid="updating-2d">
             {simLag === 'waiting' ? WAITING_NOTE : 'Updating the plots…'}
           </p>

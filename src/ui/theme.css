@@ -73,6 +73,12 @@ main { flex: 1; min-width: 0; overflow: auto; padding: 12px; display: flex; flex
 .readout { font-size: 12px; min-height: 4.2em; }
 .readout p { margin: 0; }
 .plot { height: 460px; border: 1px solid var(--border); border-radius: 8px; }
+/* The marker layer of a cut plot with many files (see markerLayer.ts) lies over the chart and takes no pointer. What
+   that chart draws over everything (hover labels, the zoom box, annotations) and its toolbar stay above the layer. */
+.marker-layer { position: absolute; inset: 0; pointer-events: none; }
+.marker-layer * { pointer-events: none !important; }
+.chart-under-layer .svg-container > .main-svg ~ .main-svg, .chart-under-layer .modebar-container { z-index: 1; }
+.marker-layer .svg-container > .main-svg:last-child { z-index: 2; }
 .plot-error { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); max-width: 80%; margin: 0; text-align: center; color: var(--danger); font-size: 13px; }
 .plot-failed { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; text-align: center; }
 .plot-failed p { margin: 0; }
