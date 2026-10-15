@@ -137,10 +137,12 @@ test('48 files, polar: the marker layer follows a turn, a zoom and a reset of th
   // In the beam's sector, halfway out: inside the beamwidth wedge, far from every trace.
   await page.mouse.move(centre.x, centre.y - box.height * 0.22);
   await expect(page.getByTestId('plot-h-layer').locator('.hovertext')).toContainText(/HPBW \d/);
-  // On the beam: a file trace is named by the chart, and the layer names nothing.
+  // At the beam's peak a file trace and the end of the squint ray meet: the chart and the layer both have a label, and
+  // one only is shown (which one, as in one chart, is the test "…from any direction" below).
   await page.mouse.move(centre.x, box.y + 4);
   await expect(plot.locator('.chart-under-layer .hovertext')).toHaveCount(1);
-  await expect(page.getByTestId('plot-h-layer').locator('.hovertext')).toHaveCount(0);
+  await expect.poll(() => shownHoverText(page)).not.toBe('');
+  await expect.poll(() => shownHoverText(page)).not.toContain('|');
 
   // A turn by the rim: the layer turns along while the pointer moves, and keeps the chart's turn when it is let go.
   const rim = (deg: number) => ({ x: centre.x + (box.width / 2 + 15) * Math.cos((deg * Math.PI) / 180), y: centre.y - (box.width / 2 + 15) * Math.sin((deg * Math.PI) / 180) });
@@ -167,49 +169,96 @@ test('48 files, polar: the marker layer follows a turn, a zoom and a reset of th
   await expect.poll(async () => (await drawn(page)).view).toEqual([90, [-40, 0]]);
 });
 
-/** The hover text shown over the horizontal plot now (the chart's or the layer's), or '' for none. */
-const hoverText = (page: Page) =>
-  page.evaluate(() => Array.from(document.querySelectorAll('[data-testid="plot-h"] .hovertext')).map((el) => el.textContent ?? '').join(' | '));
+/** The hover text shown over the horizontal plot now, the visible label only (the chart's or the layer's), or '' for none. */
+const shownHoverText = (page: Page) =>
+  page.evaluate(() =>
+    Array.from(document.querySelectorAll('[data-testid="plot-h"] .hovertext'))
+      .filter((el) => getComputedStyle(el).visibility !== 'hidden')
+      .map((el) => el.textContent ?? '')
+      .join(' | '),
+  );
 
-/** Hover texts along the beam (the 0° ray of the horizontal polar plot), from the centre out to beyond the peak. */
-async function beamSweep(page: Page): Promise<string[]> {
+/**
+ * Hover texts along the beam (the 0° ray of the horizontal polar plot) at `fractions` of the plot height from the
+ * centre (negative: below it), visited in that order, the pointer moving in small steps from one to the next.
+ */
+async function beamSweep(page: Page, fractions: number[]): Promise<string[]> {
   const plot = page.getByTestId('plot-h');
   await plot.scrollIntoViewIfNeeded();
-  const box = (await plot.locator('.js-plotly-plot .maindrag').first().boundingBox())!;
-  const x = box.x + box.width / 2;
-  const centre = box.y + box.height / 2;
+  // Measured at every step: the page must not have moved under the pointer.
+  const at = async (f: number) => {
+    const box = (await plot.locator('.js-plotly-plot .maindrag').first().boundingBox())!;
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 - box.height * f };
+  };
   const out: string[] = [];
-  await page.mouse.move(x, centre + 30);
-  for (const f of [0.01, 0.03, 0.1, 0.2, 0.3, 0.4, 0.43, 0.46, 0.48, 0.5]) {
-    await page.mouse.move(x, centre - box.height * f, { steps: 3 });
+  await page.mouse.move(2, 2);
+  const start = await at(fractions[0]);
+  await page.mouse.move(start.x, start.y);
+  for (const f of fractions) {
+    const p = await at(f);
+    await page.mouse.move(p.x, p.y, { steps: 3 });
     await page.waitForTimeout(250);
-    out.push(await hoverText(page));
+    out.push(await shownHoverText(page));
   }
   await page.mouse.move(2, 2);
+  await page.waitForTimeout(150);
   return out;
 }
 
-test('polar hover over the marker layer names the markers that lie on the highlighted trace, as one chart does', async ({ page }) => {
+/** The hover text after the pointer rests on the beam at `f` and then leaves the plot area for the chart's margin. */
+async function leaveFrom(page: Page, f: number): Promise<string> {
+  const box = (await page.getByTestId('plot-h').locator('.js-plotly-plot .maindrag').first().boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - box.height * f, { steps: 3 });
+  await page.waitForTimeout(250);
+  await page.mouse.move(box.x + box.width + 8, box.y + 5, { steps: 4 });
+  await page.waitForTimeout(250);
+  const text = await shownHoverText(page);
+  await page.mouse.move(2, 2);
+  return text;
+}
+
+const OUTWARD = [0.01, 0.03, 0.1, 0.2, 0.3, 0.4, 0.43, 0.46, 0.48, 0.5];
+const INWARD = [0.5, 0.46, 0.43, 0.3, 0.2, 0.08, 0.03, 0.01];
+const FROM_BELOW = [-0.1, -0.05, -0.02, 0.01, 0.03];
+const FROM_WEDGE = [0.2, 0.08, 0.03];
+
+test('polar hover over the marker layer names the markers that lie on the highlighted trace, as one chart does, from any direction', async ({ page }) => {
   await loadMany(page, 25);
   await clickRow(page, 5);
   const target = await rowId(page, 5);
   await expect(page.locator(`tr.hl[data-row-id="${target}"]`)).toHaveCount(1);
+  const sweeps = async () => ({
+    outward: await beamSweep(page, OUTWARD),
+    inward: await beamSweep(page, INWARD),
+    below: await beamSweep(page, FROM_BELOW),
+    wedge: await beamSweep(page, FROM_WEDGE),
+    // Off the plot area into the margin, from a marker on the trace and from the wedge.
+    leave: [await leaveFrom(page, 0.46), await leaveFrom(page, 0.2)],
+  });
   // Another file unticked: 24 traces, one chart with the markers among its traces.
   const other = page.locator('.panel li').filter({ hasNotText: target }).last().locator('input[type="checkbox"]');
   await other.uncheck();
   await expect(page.getByTestId('plot-h-layer')).toHaveCount(0);
   await settledState2d(page);
-  const single = await beamSweep(page);
+  const single = await sweeps();
   // Ticked again: 25 traces, markers in the layer.
   await other.check();
   await expect(page.getByTestId('plot-h-layer')).toHaveCount(1);
   await settledState2d(page);
-  const layered = await beamSweep(page);
-  // Where one chart names a marker (not a file's trace), the layered plot names the same marker.
-  const markerAt = single.map((text, k) => [k, text] as const).filter(([, text]) => text !== '' && !text.includes('.msi'));
-  expect(markerAt.map(([, text]) => text).join(' ')).toMatch(/Squint/);
-  expect(markerAt.map(([, text]) => text).join(' ')).toMatch(/−3 dB/);
-  for (const [k, text] of markerAt) expect(layered[k], `position ${k}`).toBe(text);
+  const layered = await sweeps();
+  const all = Object.values(single).flat().join(' ');
+  expect(all).toMatch(/Squint/);
+  expect(all).toMatch(/−3 dB/);
+  expect(all).toMatch(/HPBW \d/);
+  // Where one chart names a marker, the layered plot names the same; where it names a file's trace (one file fewer
+  // there, so not necessarily the same one), the layered plot names a trace too; where nothing, nothing.
+  for (const sweep of ['outward', 'inward', 'below', 'wedge', 'leave'] as const) {
+    single[sweep].forEach((text, k) => {
+      const what = `${sweep} ${k}: one chart "${text}", layered "${layered[sweep][k]}"`;
+      if (text.includes('.msi')) expect(layered[sweep][k], what).toContain('.msi');
+      else expect(layered[sweep][k], what).toBe(text);
+    });
+  }
 });
 
 /** The plots have settled after a change of the drawn files. */

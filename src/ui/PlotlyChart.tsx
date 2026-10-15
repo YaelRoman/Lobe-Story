@@ -8,7 +8,8 @@ import { exportFootLine } from './exportFoot';
 import { imageExportHeld, imageExported } from './simCurrent';
 import { PlotBoundary } from './ErrorBoundary';
 import { CHART_PRIVACY, guardedReset, leaveTouchesToThePage, toolbarButtons, touchScrolls, viewReset, type ChartToolbar } from './chartToolbar';
-import { dragView, markerLayerData, markerLayerLayout, reorderMoves, underLayerLayout, withView } from './markerLayer';
+import { dragView, hoverWinner, markerLayerData, markerLayerLayout, reorderMoves, underLayerLayout, withView } from './markerLayer';
+import type { HoverPoint } from './markerLayer';
 import { useCoarsePointer } from './phoneLayout';
 import { canvasesOf, releaseGlContexts } from './glContexts';
 import { pickedFileId } from './pointPick';
@@ -31,13 +32,26 @@ const LAYER_CONFIG: Partial<PlotlyConfig> = { displayModeBar: false, responsive:
 
 /** The library's hover calls, which its types leave out (without them the layer names nothing on hover). */
 const Fx = (Plotly as unknown as { Fx?: { hover?: (gd: HTMLElement, evt: MouseEvent, subplot?: string) => void; unhover?: (gd: HTMLElement) => void } }).Fx;
+/** After this long the library has answered the latest hover asked of a chart (it answers at most every 50 ms). */
+const HOVER_ANSWERED_MS = 70;
 const hoverAt = (gd: HTMLElement, pointer: MouseEvent) => Fx?.hover?.(gd, pointer, 'polar');
 const unhover = (gd: HTMLElement) => Fx?.unhover?.(gd);
 
-/** What a hover of the marker layer names: a marker's point (a ring, a ray, a cross), or only a filled area (a wedge). */
-type LayerHover = 'none' | 'point' | 'fill';
-const layerHoverKind = (event: { points?: { data?: { fill?: string } }[] }): LayerHover =>
-  (event.points ?? []).some((p) => p.data?.fill !== 'toself') ? 'point' : (event.points ?? []).length > 0 ? 'fill' : 'none';
+/**
+ * The hover label a chart shows now, as one chart weighs it (see `hoverWinner`): the library's own distance of its
+ * point from the pointer (the library binds the hovered point to the label, and draws the label anew, with the
+ * distance, at every hover), and whether it names a filled area. Null: no label.
+ */
+function shownHover(gd: HTMLElement): HoverPoint | null {
+  const label = gd.querySelector('.hoverlayer .hovertext') as (Element & { __data__?: HoverDatum }) | null;
+  const d = label?.__data__;
+  if (!d || typeof d.distance !== 'number') return null;
+  return { distance: d.distance, fill: d.trace?.fill === 'toself' };
+}
+interface HoverDatum {
+  distance?: number;
+  trace?: { fill?: string };
+}
 
 /** The uid of the file trace a drawn trace group (`g.trace`) is: the library names it `trace<uid>`. */
 const drawnUid = (node: Element): string | null => {
@@ -284,10 +298,10 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
     try {
       const drawn = Plotly.react(node, markerLayerData(ov.data, fig.layout) as unknown as PlotlyNativeData[], { ...markerLayerLayout(fig.layout, ov.layout, view), autosize: true } as Partial<PlotlyNativeLayout>, LAYER_CONFIG);
       const layer = node as PlotlyElement;
-      layer.removeListener?.('plotly_hover', onLayerHover.current);
-      layer.on?.('plotly_hover', onLayerHover.current);
-      layer.removeListener?.('plotly_unhover', onLayerUnhover.current);
-      layer.on?.('plotly_unhover', onLayerUnhover.current);
+      for (const event of ['plotly_hover', 'plotly_unhover']) {
+        layer.removeListener?.(event, settleHover.current);
+        layer.on?.(event, settleHover.current);
+      }
       return drawn;
     } catch (error) {
       // A throw as a failed draw: either way the layer is given up (see `layerFailed`).
@@ -331,58 +345,34 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
     if (ref.current) following.current(ref.current, update);
   });
   /*
-   * Hover over a polar chart under a marker layer, as in one chart: both are asked at every move of the pointer. A
-   * marker's point within reach (a −3 dB point, the squint, a sidelobe cross: most lie on the highlighted trace) is
-   * named rather than the trace; a filled area (the beamwidth wedge) only where the chart names no trace.
+   * Hover over a polar chart under a marker layer, as in one chart: both are asked at every move of the pointer, each
+   * by the library (which answers at most every 50 ms, in either order, and says so by an event only when the point
+   * named changes). One decision is taken from both labels shown (`hoverWinner`) at every move, at every such event and
+   * once more when the library's late answers are in: the losing label is hidden, not taken off, so neither chart is
+   * asked again for it. A marker's point is named where it is nearer than a trace (the −3 dB points, the
+   * squint, sidelobe crosses lie on the highlighted trace); the beamwidth wedge only where the chart names no point.
    */
-  const chartHovers = useRef(false);
-  const layerHovers = useRef<LayerHover>('none');
-  // The chart's label was taken off for a marker's: it is asked again when the marker is no longer under the pointer.
-  const chartSilenced = useRef(false);
   const lastPointer = useRef<MouseEvent | null>(null);
   const settleHover = useRef(() => {
     const el = ref.current;
     const node = layerEl.current;
-    if (!el || !node) return;
-    // (What is taken off is noted here: the library does not always say so with an unhover event.)
-    if (layerHovers.current === 'point' && chartHovers.current) {
-      chartSilenced.current = true;
-      chartHovers.current = false;
-      unhover(el);
-    } else if (layerHovers.current === 'fill' && chartHovers.current) {
-      layerHovers.current = 'none';
-      unhover(node);
-    } else if (layerHovers.current !== 'point' && chartSilenced.current) {
-      chartSilenced.current = false;
-      if (lastPointer.current) hoverAt(el, lastPointer.current);
-    }
-  });
-  const onChartHover = useRef(() => {
-    chartHovers.current = true;
-    settleHover.current();
-  });
-  const onChartUnhover = useRef(() => {
-    chartHovers.current = false;
-    settleHover.current();
-  });
-  const onLayerHover = useRef((event: Record<string, unknown>) => {
-    layerHovers.current = layerHoverKind(event as Parameters<typeof layerHoverKind>[0]);
-    settleHover.current();
-  });
-  const onLayerUnhover = useRef(() => {
-    layerHovers.current = 'none';
-    settleHover.current();
+    if (!el) return;
+    const pointer = lastPointer.current;
+    const winner = pointer && node ? hoverWinner(shownHover(el), shownHover(node)) : 'chart';
+    el.classList.toggle('hover-hidden', winner === 'layer');
+    node?.classList.toggle('hover-hidden', winner !== 'layer');
   });
   /** Asks the layer for its hover at the pointer (none: the pointer left the plot area). */
+  const lateSettle = useRef(0);
   const layerHover = useRef(() => {
     const node = layerEl.current;
     const pointer = lastPointer.current;
     if (!node || !layerDrawn.current) return;
     if (pointer) hoverAt(node, pointer);
-    else {
-      unhover(node);
-      chartSilenced.current = false;
-    }
+    else unhover(node);
+    settleHover.current();
+    window.clearTimeout(lateSettle.current);
+    lateSettle.current = window.setTimeout(() => settleHover.current(), HOVER_ANSWERED_MS);
   });
 
   /** Brings the drawn traces to the current preview, restyling only those whose look changes. */
@@ -475,12 +465,14 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
           el.on?.('plotly_afterplot', follow.current);
           el.removeListener?.('plotly_relayouting', followDrag.current);
           el.on?.('plotly_relayouting', followDrag.current);
-          el.removeListener?.('plotly_hover', onChartHover.current);
-          el.on?.('plotly_hover', onChartHover.current);
-          el.removeListener?.('plotly_unhover', onChartUnhover.current);
-          el.on?.('plotly_unhover', onChartUnhover.current);
+          for (const event of ['plotly_hover', 'plotly_unhover']) {
+            el.removeListener?.(event, settleHover.current);
+            el.on?.(event, settleHover.current);
+          }
           el.removeAllListeners?.('plotly_click');
           el.on?.('plotly_click', (event) => {
+            // A click where the layer's marker is named (the chart's label hidden) picks no file, as in one chart.
+            if (el.classList.contains('hover-hidden')) return;
             const id = pickedFileId(event as Parameters<typeof pickedFileId>[0]);
             if (id !== null) clickHandler.current?.(id);
           });
@@ -563,9 +555,22 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
     const el = ref.current;
     if (!el || !layered || toolbar !== 'polar') return;
     const move = (event: MouseEvent) => {
-      // Only over the plot area (the element the chart hovers from): its box is the one the hover is measured in.
-      const over = event.target instanceof Element && event.target.classList.contains('maindrag');
-      lastPointer.current = over && event.buttons === 0 ? event : null;
+      if (event.buttons !== 0) return;
+      // Only over the plot area (the element the chart hovers from: its box is the one the hover is measured in). Over
+      // a drag handle of an axis the chart keeps its label as it is, and so does the layer; anywhere else it has none.
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.classList.contains('maindrag')) lastPointer.current = event;
+      else if (target?.classList.contains('drag')) {
+        // The chart may keep its label there or take it off (browsers differ): the layer does as the chart did.
+        window.clearTimeout(lateSettle.current);
+        lateSettle.current = window.setTimeout(() => {
+          if ((el as { _hoverdata?: unknown[] })._hoverdata?.length || lastPointer.current === null) return;
+          lastPointer.current = null;
+          layerHover.current();
+        }, HOVER_ANSWERED_MS);
+        return;
+      } else if (lastPointer.current === null) return;
+      else lastPointer.current = null;
       layerHover.current();
     };
     const leave = () => {
@@ -575,7 +580,9 @@ function Chart({ figure, className, height, testId, ariaLabel, toolbar, onRelayo
     el.addEventListener('mousemove', move);
     el.addEventListener('mousedown', leave);
     el.addEventListener('mouseleave', leave);
+    const late = lateSettle;
     return () => {
+      window.clearTimeout(late.current);
       el.removeEventListener('mousemove', move);
       el.removeEventListener('mousedown', leave);
       el.removeEventListener('mouseleave', leave);

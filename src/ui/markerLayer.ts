@@ -131,6 +131,24 @@ export function dragView(view: Record<string, unknown> | null, update: Record<st
   return out;
 }
 
+/** A hover label a chart shows: how far its point is from the pointer (px), and whether it names a filled area. */
+export interface HoverPoint {
+  distance: number;
+  fill: boolean;
+}
+
+/**
+ * Which of the two charts' hover labels is shown, as one chart decides: the nearer point, on a tie the layer's (in one
+ * chart the markers come after the file traces, and of two points as near the later one is named: the squint and a
+ * trace both at the centre give the squint); a filled area (the beamwidth wedge) only where the chart names no point.
+ * Null: none.
+ */
+export function hoverWinner(chart: HoverPoint | null, layer: HoverPoint | null): 'chart' | 'layer' | null {
+  if (!layer) return chart ? 'chart' : null;
+  if (!chart) return 'layer';
+  return !layer.fill && layer.distance <= chart.distance ? 'layer' : 'chart';
+}
+
 /**
  * The moves that put the drawn traces (`current`, by id, in drawing order) in the `desired` order: each takes trace
  * `id` out and puts it back before trace `before` (null: last). Ids drawn but not desired keep their places among

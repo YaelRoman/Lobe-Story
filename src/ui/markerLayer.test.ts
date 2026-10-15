@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Layout } from 'plotly.js';
-import { CLEAR, dragView, MARKER_LAYER_FROM, markerLayerData, markerLayerLayout, reorderMoves, underLayerLayout, usesMarkerLayer, withView } from './markerLayer';
+import { CLEAR, dragView, hoverWinner, MARKER_LAYER_FROM, markerLayerData, markerLayerLayout, reorderMoves, underLayerLayout, usesMarkerLayer, withView } from './markerLayer';
 import { buildCutBase, buildCutOverlay, type CutFigureOptions, type PlotSeries } from './cutFigure';
 import { FIGURE_THEMES } from './figureTheme';
 import { analyzePattern } from '../core/analysis/metrics';
@@ -201,6 +201,28 @@ describe('dragView', () => {
     const rect = { 'xaxis.range': [-90, 90], 'yaxis.range': [-40, 0] };
     expect(dragView(rect, { 'xaxis.range[0]': -30, 'xaxis.range[1]': 30 })).toBe(rect);
     expect(dragView(null, { 'xaxis.range[0]': -30 })).toBeNull();
+  });
+});
+
+describe('hoverWinner', () => {
+  const point = (distance: number) => ({ distance, fill: false });
+  const fill = { distance: 0, fill: true };
+
+  it('shows the nearer point of the two, the layer\'s on a tie (the later trace in one chart)', () => {
+    expect(hoverWinner(point(6), point(2))).toBe('layer');
+    expect(hoverWinner(point(2), point(6))).toBe('chart');
+    expect(hoverWinner(point(3), point(3))).toBe('layer');
+  });
+
+  it('shows a filled area only where the chart names nothing', () => {
+    expect(hoverWinner(point(19), fill)).toBe('chart');
+    expect(hoverWinner(null, fill)).toBe('layer');
+  });
+
+  it('shows whichever there is, or none', () => {
+    expect(hoverWinner(point(5), null)).toBe('chart');
+    expect(hoverWinner(null, point(5))).toBe('layer');
+    expect(hoverWinner(null, null)).toBeNull();
   });
 });
 
