@@ -41,8 +41,10 @@ export const MetricsTable = memo(function MetricsTable({
   metrics,
   sim,
   onHelp,
+  onEncyclopedia,
 }: {
   onHelp: OpenHelp;
+  onEncyclopedia?: () => void;
   groups: GroupView[];
   metrics: Map<string, PatternMetrics>;
   colors: Map<string, string>;
@@ -373,6 +375,11 @@ export const MetricsTable = memo(function MetricsTable({
           </span>
         )}
         <DefinitionsButton onHelp={onHelp} />
+        {onEncyclopedia && (
+          <button type="button" aria-haspopup="dialog" title="Metric Encyclopedia: book and table views" onClick={onEncyclopedia}>
+            Encyclopedia
+          </button>
+        )}
         <span className="count">Columns</span>
         {COLUMN_GROUPS.map(({ key, label }) => (
           <label key={key} title={columnGroupTitle(key)}>

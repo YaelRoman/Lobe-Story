@@ -11,7 +11,7 @@ import type { OpenHelp } from './HelpDialog';
 import { undoWording } from './undoKeys';
 import { isTouchOnly } from './phoneLayout';
 
-export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
+export function Toolbar({ onHelp, onEncyclopedia }: { onHelp: OpenHelp; onEncyclopedia: () => void }) {
   const clear = useStore((s) => s.clear);
   const gainUnit = useStore((s) => s.view.gainUnit);
   const theme = useStore((s) => s.view.theme);
@@ -133,6 +133,9 @@ export function Toolbar({ onHelp }: { onHelp: OpenHelp }) {
       </button>
       <button onClick={onHelp} aria-haspopup="dialog">
         Help
+      </button>
+      <button onClick={onEncyclopedia} aria-haspopup="dialog" title="Metric Encyclopedia: definitions, examples and comparisons for every metric">
+        Encyclopedia
       </button>
       {hasSessionState && <button onClick={() => void onClear()}>Clear</button>}
       {showSettings && <SettingsPanel onClose={closeSettings} opener={settingsButton} />}

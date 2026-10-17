@@ -19,6 +19,7 @@ import { StatusArea } from './ui/StatusArea';
 import { useUnsavedGuard } from './ui/useUnsavedGuard';
 import { EmptyState } from './ui/EmptyState';
 import { HelpDialog, type OpenHelp } from './ui/HelpDialog';
+import { MetricEncyclopedia } from './ui/MetricEncyclopedia';
 import { useEscapeClear } from './ui/useEscapeClear';
 import { useFirstFilesFocus } from './ui/useFirstFilesFocus';
 import { PlotBoundary } from './ui/ErrorBoundary';
@@ -98,6 +99,16 @@ export default function App() {
     setHelpOpen(true);
   }, []);
 
+  // Encyclopedia dialog state
+  const [encycOpen, setEncycOpen] = useState(false);
+  const [encycOpener, setEncycOpener] = useState<HTMLElement | null>(null);
+  const [encycInitialIndex, setEncycInitialIndex] = useState<number | undefined>(undefined);
+  const openEncyclopedia = useCallback((e?: React.MouseEvent, index?: number) => {
+    setEncycOpener(e?.currentTarget instanceof HTMLElement ? e.currentTarget : null);
+    setEncycInitialIndex(index);
+    setEncycOpen(true);
+  }, []);
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
@@ -105,7 +116,7 @@ export default function App() {
   return (
     <div className="app">
       {tagged.length > 0 && <SkipLinks />}
-      <Toolbar onHelp={openHelp} />
+      <Toolbar onHelp={openHelp} onEncyclopedia={() => openEncyclopedia()} />
       {/* What is not at its default and changes the numbers, each with a click to put it back (none: no line, no room). */}
       <NotDefaultLine />
       <StatusArea hasErrors={errors.length > 0} beforeShowErrors={() => setFilesOpen(true)} />
@@ -153,7 +164,7 @@ export default function App() {
                 <PlotBoundary className="plot wide">
                   <HpbwChart groups={groups} metrics={metrics} colors={colors} sim={sim} />
                 </PlotBoundary>
-                <MetricsTable groups={groups} metrics={metrics} colors={colors} sim={sim} onHelp={openHelp} />
+                <MetricsTable groups={groups} metrics={metrics} colors={colors} sim={sim} onHelp={openHelp} onEncyclopedia={() => openEncyclopedia()} />
                 <BandStats tagged={tagged} metrics={metrics} sim={sim} onHelp={openHelp} />
               </div>
             </>
@@ -163,6 +174,13 @@ export default function App() {
       {dragging && <div className="drop-overlay">Drop pattern files or folders</div>}
       <Dialog />
       {helpOpen && <HelpDialog opener={helpOpener} term={helpTerm} onClose={() => setHelpOpen(false)} />}
+      {encycOpen && (
+        <MetricEncyclopedia
+          opener={encycOpener}
+          initialMetricIndex={encycInitialIndex}
+          onClose={() => setEncycOpen(false)}
+        />
+      )}
     </div>
   );
 }
