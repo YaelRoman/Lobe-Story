@@ -468,9 +468,14 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
           x0: 0, x1: 1, y0: -18, y1: -18,
           line: { color: '#cf222e', dash: 'dash', width: 1.5 },
         });
+        shapes.push({
+          type: 'line', xref: 'x', yref: 'paper',
+          x0: -9, x1: -9, y0: 0, y1: 1,
+          line: { color: '#cf222e', dash: 'dot', width: 1.5 },
+        });
         annotations.push({
           x: -9, y: -18, xref: 'x', yref: 'y',
-          text: '<b>First USLS: 18.0 dB below peak</b>',
+          text: '<b>First USLS: 18.0 dB below peak (−9°)</b>',
           showarrow: true,
           arrowhead: 2,
           arrowcolor: '#cf222e',
@@ -527,7 +532,7 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
           theta: [180],
           r: [-28],
           marker: { color: '#cf222e', size: 10, symbol: 'x' },
-          text: ['<b>F/B ±30°: 28 dB</b>'],
+          text: ['<b>F/B ±30°: 28.0 dB (at 180°)</b>'],
           textposition: 'bottom center',
           textfont: { color: '#cf222e', size: 11 },
           hoverinfo: 'none',
@@ -553,7 +558,7 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
         });
         annotations.push({
           x: 180, y: -28, xref: 'x', yref: 'y',
-          text: '<b>F/B ±30°: 28 dB</b>',
+          text: '<b>F/B ±30°: 28.0 dB (at 180°)</b>',
           showarrow: true,
           arrowhead: 2,
           arrowcolor: '#cf222e',
@@ -589,6 +594,18 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
             showlegend: false,
           } as unknown as PlotlyNativeData);
         });
+        traces.push({
+          type: 'scatterpolar',
+          mode: 'markers+text',
+          theta: [40],
+          r: [-12],
+          marker: { color: '#cf222e', size: 10, symbol: 'x' },
+          text: ['<b>Max P2P diff: 1.8 dB (+40°)</b>'],
+          textposition: 'top right',
+          textfont: { color: '#cf222e', size: 11 },
+          hoverinfo: 'none',
+          showlegend: false,
+        } as unknown as PlotlyNativeData);
       } else {
         traces.push({
           type: 'scatter',
@@ -607,11 +624,15 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
           });
         });
         annotations.push({
-          x: 0, y: -1, xref: 'x', yref: 'y',
-          text: '<b>Tracking difference across ±60° sector</b>',
-          showarrow: false,
-          font: { color: ft.fg, size: 11 },
+          x: 40, y: -12, xref: 'x', yref: 'y',
+          text: '<b>Max P2P tracking distortion: 1.8 dB (at +40°)</b>',
+          showarrow: true,
+          arrowhead: 2,
+          arrowcolor: '#cf222e',
+          font: { color: '#cf222e', size: 11 },
           bgcolor: ft.bg,
+          bordercolor: '#cf222e',
+          borderwidth: 1,
         });
       }
     }
@@ -691,16 +712,26 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
           theta: [18.2],
           r: [-24],
           marker: { color: '#cf222e', size: 10, symbol: 'x' },
-          text: ['<b>1st null below beam: 24 dB (+18.2°)</b>'],
+          text: ['<b>1st null below beam: 24.0 dB (+18.2°)</b>'],
           textposition: 'bottom right',
           textfont: { color: '#cf222e', size: 11 },
           hoverinfo: 'none',
           showlegend: false,
         } as unknown as PlotlyNativeData);
       } else {
+        shapes.push({
+          type: 'line', xref: 'paper', yref: 'y',
+          x0: 0, x1: 1, y0: -24, y1: -24,
+          line: { color: '#cf222e', dash: 'dash', width: 1.5 },
+        });
+        shapes.push({
+          type: 'line', xref: 'x', yref: 'paper',
+          x0: 18.2, x1: 18.2, y0: 0, y1: 1,
+          line: { color: '#cf222e', dash: 'dot', width: 1.5 },
+        });
         annotations.push({
           x: 18.2, y: -24, xref: 'x', yref: 'y',
-          text: '<b>First null below beam: 24 dB</b>',
+          text: '<b>First null below beam: 24.0 dB (+18.2°)</b>',
           showarrow: true,
           arrowhead: 2,
           arrowcolor: '#cf222e',
@@ -857,6 +888,18 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
             showlegend: false,
           } as unknown as PlotlyNativeData);
         });
+        traces.push({
+          type: 'scatterpolar',
+          mode: 'markers+text',
+          theta: [45],
+          r: [-18.5],
+          marker: { color: '#cf222e', size: 10, symbol: 'x' },
+          text: ['<b>H-SLS: 18.5 dB (+45°)</b>'],
+          textposition: 'top right',
+          textfont: { color: '#cf222e', size: 11 },
+          hoverinfo: 'none',
+          showlegend: false,
+        } as unknown as PlotlyNativeData);
       } else {
         [-60, 60].forEach(deg => {
           shapes.push({
@@ -865,12 +908,21 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
             line: { color: '#8a5a00', dash: 'dash', width: 1.5 },
           });
         });
+        shapes.push({
+          type: 'line', xref: 'paper', yref: 'y',
+          x0: 0, x1: 1, y0: -18.5, y1: -18.5,
+          line: { color: '#cf222e', dash: 'dash', width: 1.5 },
+        });
         annotations.push({
-          x: 0, y: 0.94, xref: 'x', yref: 'paper',
-          text: '<b>H-SLS: Checked within ±60° sector</b>',
-          showarrow: false,
-          font: { color: ft.fg, size: 11 },
+          x: 45, y: -18.5, xref: 'x', yref: 'y',
+          text: '<b>H-SLS: 18.5 dB (at +45°)</b>',
+          showarrow: true,
+          arrowhead: 2,
+          arrowcolor: '#cf222e',
+          font: { color: '#cf222e', size: 11 },
           bgcolor: ft.bg,
+          bordercolor: '#cf222e',
+          borderwidth: 1,
         });
       }
     }

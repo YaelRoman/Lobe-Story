@@ -131,8 +131,8 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
     const edgeDb = -(offset + o.levelDb);
     spec.rings.push({ db: edgeDb, label: `−${settingText(o.levelDb)} dB` });
     spec.sectors.push({ from: beam.edges[0] + rot, to: beam.edges[1] + rot, label: `V-${bwName(o.levelDb)} ${beam.hpbw.value.toFixed(1)}°`, opacity: 0.15 });
-    spec.points.push({ angle: leftAngle, db: edgeDb, label: `V-−${settingText(o.levelDb)} dB edge: ${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}°`, readout: false });
-    spec.points.push({ angle: rightAngle, db: edgeDb, label: `V-−${settingText(o.levelDb)} dB edge: ${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}°`, readout: false });
+    spec.points.push({ angle: leftAngle, db: edgeDb, label: `V-−${settingText(o.levelDb)} dB left edge: ${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}°`, readout: false });
+    spec.points.push({ angle: rightAngle, db: edgeDb, label: `V-−${settingText(o.levelDb)} dB right edge: ${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}°`, readout: false });
     spec.rays.push({ angle: leftAngle, label: `${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}° (−${settingText(o.levelDb)} dB)`, dash: 'dot', readout: false });
     spec.rays.push({ angle: rightAngle, label: `${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}° (−${settingText(o.levelDb)} dB)`, dash: 'dot', readout: false });
     spec.notes.push(`−${settingText(o.levelDb)} dB edges: [${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}°, ${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}°]`);
@@ -268,10 +268,16 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
     });
   }
   for (const p of spec.points) {
+    const showText = Boolean(o.focusedMetric || (o.activeMetrics && Object.values(o.activeMetrics).some(Boolean)));
     out.push({
       type: 'scatterpolar',
-      mode: 'markers',
+      mode: showText ? 'text+markers' : 'markers',
       name: p.label,
+      ...(showText ? {
+        text: [p.label],
+        textposition: p.angle >= 0 ? 'top right' : 'top left',
+        textfont: { color: o.theme.accent, size: 11 },
+      } : {}),
       theta: [p.angle],
       r: [Math.max(p.db, floor)],
       marker: { color: o.theme.accent, size: 10, symbol: 'x' },
@@ -366,10 +372,16 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
     shapes.push({ type: 'line', xref: 'x', yref: 'paper', x0: ray.angle, x1: ray.angle, y0: 0, y1: 1, line: { color: o.theme.accent, dash: ray.dash ?? 'dot', width: 1.5 } });
   }
   for (const p of spec.points) {
+    const showText = Boolean(o.focusedMetric || (o.activeMetrics && Object.values(o.activeMetrics).some(Boolean)));
     traces.push({
       type: 'scatter',
-      mode: 'markers',
+      mode: showText ? 'text+markers' : 'markers',
       name: p.label,
+      ...(showText ? {
+        text: [p.label],
+        textposition: 'top center',
+        textfont: { color: o.theme.accent, size: 11 },
+      } : {}),
       x: [p.angle],
       y: [Math.max(p.db, -o.floorDb)],
       marker: { color: o.theme.accent, size: 10, symbol: 'x' },

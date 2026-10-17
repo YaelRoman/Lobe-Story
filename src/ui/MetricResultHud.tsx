@@ -55,7 +55,7 @@ export function MetricResultHud({
     }
     case 'rolloff':
       primaryValue = m.rollOff.value !== null ? m.rollOff.value.toFixed(1) : '—';
-      detailLine = `Worst edge at ±${sectorEdgeDeg}° · −${sectorEdgeDeg}°: ${m.rollOffEdges[0]?.toFixed(1) ?? '—'} dB, +${sectorEdgeDeg}°: ${m.rollOffEdges[1]?.toFixed(1) ?? '—'} dB`;
+      detailLine = `Worst edge at ±${sectorEdgeDeg}°: ${primaryValue} dB · −${sectorEdgeDeg}°: ${m.rollOffEdges[0]?.toFixed(1) ?? '—'} dB, +${sectorEdgeDeg}°: ${m.rollOffEdges[1]?.toFixed(1) ?? '—'} dB`;
       break;
     case 'vhpbw': {
       primaryValue = m.v.hpbw.value !== null ? m.v.hpbw.value.toFixed(1) : '—';
@@ -65,38 +65,52 @@ export function MetricResultHud({
       detailLine = `−3 dB Edges: ${edges} · 10 dB BW: ${m.vBw10.value !== null ? `${m.vBw10.value.toFixed(1)}°` : '—'} · Tilt: ${m.tilt.value !== null ? `${m.tilt.value.toFixed(1)}°` : '—'}`;
       break;
     }
-    case 'usls':
+    case 'usls': {
       primaryValue = m.firstUsls.value !== null ? m.firstUsls.value.toFixed(1) : '—';
-      detailLine = `First USLS · Peak to ${uslsRangeDeg}°: ${m.usls.value !== null ? `${m.usls.value.toFixed(1)} dB` : '—'} · Horizon: ${m.uslsHorizon.value !== null ? `${m.uslsHorizon.value.toFixed(1)} dB` : '—'}`;
+      const angleStr = m.firstUsls.angle !== undefined ? ` (at ${m.firstUsls.angle > 0 ? '+' : ''}${m.firstUsls.angle.toFixed(1)}°)` : '';
+      detailLine = `First USLS: ${primaryValue} dB${angleStr} · Peak to ${uslsRangeDeg}°: ${m.usls.value !== null ? `${m.usls.value.toFixed(1)} dB` : '—'} · Horizon to ${uslsRangeDeg}°: ${m.uslsHorizon.value !== null ? `${m.uslsHorizon.value.toFixed(1)} dB` : '—'}`;
       break;
-    case 'fb':
+    }
+    case 'fb': {
       primaryValue = m.fbWindow.value !== null ? m.fbWindow.value.toFixed(1) : '—';
-      detailLine = `F/B window ±${fbWindowDeg}° · 180°: ${m.fb180.value !== null ? `${m.fb180.value.toFixed(1)} dB` : '—'}`;
+      const angleStr = m.fbWindow.angle !== undefined ? ` (at ${m.fbWindow.angle > 0 ? '+' : ''}${m.fbWindow.angle.toFixed(1)}°)` : '';
+      detailLine = `F/B window ±${fbWindowDeg}°: ${primaryValue} dB${angleStr} · 180°: ${m.fb180.value !== null ? `${m.fb180.value.toFixed(1)} dB` : '—'}`;
       break;
-    case 'tracking':
+    }
+    case 'tracking': {
       primaryValue = m.beamTracking.value !== null ? m.beamTracking.value.toFixed(1) : '—';
-      detailLine = `Port-to-port tracking distortion within sector`;
+      const edgeVals = m.trackingEdges?.values
+        ? ` · Edges [−${sectorEdgeDeg}°, +${sectorEdgeDeg}°]: [${m.trackingEdges.values[0].toFixed(1)} dB, ${m.trackingEdges.values[1].toFixed(1)} dB]`
+        : '';
+      detailLine = `Max P2P tracking distortion: ${primaryValue} dB within ±${sectorEdgeDeg}° sector${edgeVals}`;
       break;
-    case 'squint':
+    }
+    case 'squint': {
       primaryValue = m.squint.value !== null ? m.squint.value.toFixed(1) : '—';
-      detailLine = `Beam direction offset from 0° mechanical boresight`;
+      detailLine = `Squint offset: ${primaryValue}° from boresight · Peak azimuth: ${m.hPeak.value !== null ? `${m.hPeak.value.toFixed(1)}°` : '—'}`;
       break;
-    case 'nullfill':
+    }
+    case 'nullfill': {
       primaryValue = m.nullFill.value !== null ? m.nullFill.value.toFixed(1) : '—';
-      detailLine = `First null below main beam · First LSLS: ${m.firstLsls.value !== null ? `${m.firstLsls.value.toFixed(1)} dB` : '—'}`;
+      const nfAngle = m.nullFill.angle !== undefined ? ` (at ${m.nullFill.angle > 0 ? '+' : ''}${m.nullFill.angle.toFixed(1)}°)` : '';
+      const lslsAngle = m.firstLsls.angle !== undefined ? ` (at ${m.firstLsls.angle > 0 ? '+' : ''}${m.firstLsls.angle.toFixed(1)}°)` : '';
+      detailLine = `First null: ${primaryValue} dB${nfAngle} · First LSLS: ${m.firstLsls.value !== null ? `${m.firstLsls.value.toFixed(1)} dB${lslsAngle}` : '—'}`;
       break;
+    }
     case 'du':
       primaryValue = m.du.qam16.value !== null ? `${m.du.qam16.value.toFixed(1)}°` : '—';
       unit = '';
       detailLine = `16QAM: ${m.du.qam16.value !== null ? `${m.du.qam16.value.toFixed(1)}°` : '—'} · 64QAM: ${m.du.qam64.value !== null ? `${m.du.qam64.value.toFixed(1)}°` : '—'} · 256QAM: ${m.du.qam256.value !== null ? `${m.du.qam256.value.toFixed(1)}°` : '—'}`;
       break;
-    case 'hsls':
+    case 'hsls': {
       primaryValue = m.hSls.value !== null ? m.hSls.value.toFixed(1) : '—';
-      detailLine = `Highest sidelobe within azimuth sector`;
+      const hslsAngle = m.hSls.angle !== undefined ? ` (at ${m.hSls.angle > 0 ? '+' : ''}${m.hSls.angle.toFixed(1)}°)` : '';
+      detailLine = `Highest sidelobe within ±${sectorEdgeDeg}° sector: ${primaryValue} dB${hslsAngle}`;
       break;
+    }
     case 'spr':
       primaryValue = m.spr.value !== null ? m.spr.value.toFixed(1) : '—';
-      detailLine = `Sector Power Ratio · AIR: ${m.air.value !== null ? `${m.air.value.toFixed(1)} dB` : '—'}`;
+      detailLine = `Sector Power Ratio: ${primaryValue} % · AIR: ${m.air.value !== null ? `${m.air.value.toFixed(1)} dB` : '—'}`;
       break;
   }
 
