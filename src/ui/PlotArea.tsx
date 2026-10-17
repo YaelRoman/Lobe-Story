@@ -25,6 +25,7 @@ import type { SimulationResult } from './useSimulation';
 import { noteSimulationDrawn } from './passCost';
 import type { OpenHelp } from './HelpDialog';
 import { MetricInspector } from './MetricInspector';
+import { MetricResultHud } from './MetricResultHud';
 import { useMetricInspectorStore } from './metricInspectorState';
 
 interface Props {
@@ -353,7 +354,15 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
           {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={pictureName('horizontal-cut', simulatedH, sim.simulatedAmong(drawnIds, true, false))} farBelowNote={farBelow} onShowRectangular={showRectangular} />}
           {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineV} exportBase={exportName('vertical-cut', simulatedV)} />}
         </div>
-        <MetricInspector onOpenEncyclopedia={onEncyclopedia} />
+        <MetricResultHud
+          targetId={markerTarget}
+          targetName={drawnItems.find((i) => i.pattern.id === markerTarget)?.pattern.name}
+          metrics={metrics}
+          sectorEdgeDeg={drawn.settings.sectorEdgeDeg}
+          fbWindowDeg={drawn.settings.fbWindowDeg}
+          uslsRangeDeg={drawn.settings.uslsRangeDeg}
+          onOpenEncyclopedia={onEncyclopedia}
+        />
       </div>
     </>
   );
@@ -471,6 +480,9 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
             </div>
           </>
         )}
+        <div className="inspector-controls-wrap">
+          <MetricInspector onOpenEncyclopedia={onEncyclopedia} />
+        </div>
       </div>
       {(is3d ? items.length === 0 : drawnItems.length === 0) ? (
         <p className="empty">Tick files in the left panel to plot them.</p>

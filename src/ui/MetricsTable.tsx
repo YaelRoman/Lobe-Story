@@ -40,6 +40,7 @@ export const HORIZON_CUT_NOTE =
 export const MetricsTable = memo(function MetricsTable({
   groups,
   metrics,
+  colors,
   sim,
   onHelp,
   onEncyclopedia,
@@ -78,7 +79,10 @@ export const MetricsTable = memo(function MetricsTable({
   const hoveredMetric = useMetricInspectorStore((s) => s.hoveredMetric);
   const setFocusedMetric = useMetricInspectorStore((s) => s.setFocusedMetric);
   const setHoveredMetric = useMetricInspectorStore((s) => s.setHoveredMetric);
-  const activeHighlightMetric = hoveredMetric || focusedMetric;
+
+  const tickedItems = useMemo(() => groups.flatMap((g) => g.items).filter((i) => visible[i.pattern.id]), [groups, visible]);
+  const currentViewingId =
+    highlighted && visible[highlighted] ? highlighted : tickedItems.length === 1 ? tickedItems[0].pattern.id : highlighted ?? null;
 
   // Sorting is a view of this table only (not saved in projects); the CSV export follows it.
   const [chosenSort, setSort] = useState<SortState | null>(null);
@@ -295,11 +299,13 @@ export const MetricsTable = memo(function MetricsTable({
   };
   const header = (key: SortKey, content: ReactNode, title?: string, className?: string) => {
     const metricId = COLUMN_TO_METRIC[key];
-    const isHighlighted = !!metricId && activeHighlightMetric === metricId;
+    const isFocused = !!metricId && focusedMetric === metricId;
+    const isHovered = !!metricId && hoveredMetric === metricId && !isFocused;
     const colorDef = metricId ? METRIC_COLORS[metricId] : undefined;
     const headerCls = [
       className,
-      isHighlighted ? 'metric-highlight-th' : '',
+      isFocused ? 'metric-highlight-th' : '',
+      isHovered ? 'metric-hover-th' : '',
     ].filter(Boolean).join(' ') || undefined;
 
     return (
@@ -308,7 +314,13 @@ export const MetricsTable = memo(function MetricsTable({
         scope="col"
         title={metricId ? `${title ? `${title}\n` : ''}Double-click to isolate on plot` : title}
         className={headerCls}
-        style={isHighlighted && colorDef ? { backgroundColor: colorDef.bg, borderTop: `3px solid ${colorDef.accent}` } : undefined}
+        style={
+          isFocused && colorDef
+            ? { backgroundColor: colorDef.bg, borderTop: `3px solid ${colorDef.accent}` }
+            : isHovered && colorDef
+            ? { backgroundColor: colorDef.bg, borderTop: `2px dashed ${colorDef.accent}` }
+            : undefined
+        }
         aria-sort={ariaSort(sort, key)}
         onPointerEnter={() => { if (metricId) setHoveredMetric(metricId); }}
         onPointerLeave={() => { if (metricId) setHoveredMetric(null); }}
@@ -501,80 +513,109 @@ export const MetricsTable = memo(function MetricsTable({
               if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusedCell(null);
             }}
           >
-            {rows.map((r) => (
-              <tr
-                key={r.id}
-                data-row-id={r.id}
-                className={[r.id === highlighted ? 'hl' : '', r.isReference ? 'ref' : ''].filter(Boolean).join(' ') || undefined}
-                onClick={() => pickFile(r.id)}
-                onPointerEnter={(e) => hoverPreviews(e) && setHoverId(r.id)}
-                onPointerLeave={() => setHoverId(null)}
-                onFocus={(e) => focusPreviews(e.target) && setHoverId(r.id)}
-                onBlur={() => setHoverId(null)}
-              >
-                <td>
-                  <div className="file-line">
-                  <button
-                    type="button"
-                    className="row-main file-cell"
-                    data-nav
-                    tabIndex={stop === r.id ? 0 : -1}
-                    aria-current={r.id === highlighted || undefined}
-                    // The name is drawn in two pieces (see MidName), which would put a space inside it: say it whole.
-                    aria-label={(r.isReference ? 'Reference file ' : '') + r.file}
-                    title={
-                      (r.file.length > FILE_NAME_MAX ? `${r.file}\n${r.id}` : r.id) +
-                      (r.isReference ? '\nReference file' : '') + '\nEnter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row'
-                    }
-                    {...onSpace(() => toggleRow(r.id))}
-                  >
-                    <span className="file-name">
-                      {r.isReference && <PinMark />}
-                      <MidName text={middleEllipsis(r.file, FILE_NAME_MAX)} />
-                    </span>
-                    {/* On a phone the Group and MHz columns scroll away: the sticky name column says them under the name. */}
-                    <span className="file-sub">{r.freq} MHz · {r.group}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="copy-row"
-                    tabIndex={stop === r.id ? 0 : -1}
-                    aria-label={`Copy row ${r.file}`}
-                    title="Copy this row (tab-separated). Ctrl/Cmd+C on the file name does the same; Right arrow moves into the cells."
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      copyRow(r.id);
-                    }}
-                  >
-                    <span aria-hidden="true">⧉</span>
-                  </button>
-                  {r.isReference && deltaOn && <span className="ref-tag">reference</span>}
-                  </div>
-                </td>
-                <td>{r.group}</td>
-                <td>{r.freq}</td>
-                <td>{gainText(r)}</td>
-                {columns.map((c) => {
-                  const cell = rowCell(r, c.key, words);
-                  const metricId = COLUMN_TO_METRIC[c.key];
-                  const isHighlighted = !!metricId && activeHighlightMetric === metricId;
-                  const colorDef = metricId ? METRIC_COLORS[metricId] : undefined;
-                  const tdCls = [
-                    cell.title && !cell.equal ? 'has-reason' : '',
-                    isHighlighted ? 'metric-highlight-td' : '',
-                  ].filter(Boolean).join(' ') || undefined;
-
-                  return (
-                    <td
-                      key={c.key}
-                      data-col={c.key}
-                      tabIndex={-1}
-                      title={cell.title}
-                      className={tdCls}
-                      style={isHighlighted && colorDef ? { backgroundColor: colorDef.bg } : undefined}
-                      onPointerEnter={() => { if (metricId) setHoveredMetric(metricId); }}
-                      onPointerLeave={() => { if (metricId) setHoveredMetric(null); }}
+            {rows.map((r) => {
+              const isViewing = r.id === currentViewingId || r.id === highlighted;
+              const fileColor = colors.get(r.id);
+              return (
+                <tr
+                  key={r.id}
+                  data-row-id={r.id}
+                  className={[
+                    r.id === highlighted ? 'hl' : '',
+                    isViewing ? 'viewing' : '',
+                    r.isReference ? 'ref' : '',
+                  ].filter(Boolean).join(' ') || undefined}
+                  onClick={() => pickFile(r.id)}
+                  onPointerEnter={(e) => hoverPreviews(e) && setHoverId(r.id)}
+                  onPointerLeave={() => setHoverId(null)}
+                  onFocus={(e) => focusPreviews(e.target) && setHoverId(r.id)}
+                  onBlur={() => setHoverId(null)}
+                >
+                  <td>
+                    <div className="file-line">
+                    <button
+                      type="button"
+                      className="row-main file-cell"
+                      data-nav
+                      tabIndex={stop === r.id ? 0 : -1}
+                      aria-current={r.id === highlighted || undefined}
+                      // The name is drawn in two pieces (see MidName), which would put a space inside it: say it whole.
+                      aria-label={(isViewing ? 'Viewing on graph ' : '') + (r.isReference ? 'Reference file ' : '') + r.file}
+                      title={
+                        (isViewing ? 'Currently viewing on graph\n' : '') +
+                        (r.file.length > FILE_NAME_MAX ? `${r.file}\n${r.id}` : r.id) +
+                        (r.isReference ? '\nReference file' : '') + '\nEnter: show and highlight (again: clear) · Space: show or hide · Up/Down: next row'
+                      }
+                      {...onSpace(() => toggleRow(r.id))}
                     >
+                      <span className="file-name">
+                        {r.isReference && <PinMark />}
+                        {isViewing && (
+                          <span
+                            className="viewing-indicator"
+                            title="Currently viewing this antenna on the graph"
+                            aria-label="Viewing on graph"
+                          >
+                            <span
+                              className="viewing-dot"
+                              style={{ backgroundColor: fileColor || 'var(--accent)' }}
+                            />
+                            <span className="viewing-text">Viewing</span>
+                          </span>
+                        )}
+                        <MidName text={middleEllipsis(r.file, FILE_NAME_MAX)} />
+                      </span>
+                      {/* On a phone the Group and MHz columns scroll away: the sticky name column says them under the name. */}
+                      <span className="file-sub">{r.freq} MHz · {r.group}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="copy-row"
+                      tabIndex={stop === r.id ? 0 : -1}
+                      aria-label={`Copy row ${r.file}`}
+                      title="Copy this row (tab-separated). Ctrl/Cmd+C on the file name does the same; Right arrow moves into the cells."
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyRow(r.id);
+                      }}
+                    >
+                      <span aria-hidden="true">⧉</span>
+                    </button>
+                    {r.isReference && deltaOn && <span className="ref-tag">reference</span>}
+                    </div>
+                  </td>
+                  <td>{r.group}</td>
+                  <td>{r.freq}</td>
+                  <td>{gainText(r)}</td>
+                  {columns.map((c) => {
+                    const cell = rowCell(r, c.key, words);
+                    const metricId = COLUMN_TO_METRIC[c.key];
+                    const isFocused = !!metricId && focusedMetric === metricId;
+                    const isHovered = !!metricId && hoveredMetric === metricId && !isFocused;
+                    const colorDef = metricId ? METRIC_COLORS[metricId] : undefined;
+                    const tdCls = [
+                      cell.title && !cell.equal ? 'has-reason' : '',
+                      isFocused ? 'metric-highlight-td' : '',
+                      isHovered ? 'metric-hover-td' : '',
+                    ].filter(Boolean).join(' ') || undefined;
+
+                    return (
+                      <td
+                        key={c.key}
+                        data-col={c.key}
+                        tabIndex={-1}
+                        title={cell.title}
+                        className={tdCls}
+                        style={
+                          isFocused && colorDef
+                            ? { backgroundColor: colorDef.bg }
+                            : isHovered && colorDef
+                            ? { backgroundColor: colorDef.bg }
+                            : undefined
+                        }
+                        onPointerEnter={() => { if (metricId) setHoveredMetric(metricId); }}
+                        onPointerLeave={() => { if (metricId) setHoveredMetric(null); }}
+                      >
                       {cell.text}
                       {focusedCell?.id === r.id && focusedCell.col === c.key && (
                         <button
@@ -596,7 +637,8 @@ export const MetricsTable = memo(function MetricsTable({
                   );
                 })}
               </tr>
-            ))}
+            );
+          })}
           </tbody>
         </table>
       </div>

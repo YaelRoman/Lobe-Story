@@ -55,7 +55,7 @@ export function MetricInspector({ onOpenEncyclopedia }: MetricInspectorProps) {
               {activeFocus.name.split(' ')[0]}
             </span>
           )}
-          <span className="pill-arrow" aria-hidden="true">◂</span>
+          <span className="pill-arrow" aria-hidden="true">▾</span>
         </button>
       )}
 

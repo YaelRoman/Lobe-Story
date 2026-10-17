@@ -1,0 +1,185 @@
+import { useState } from 'react';
+import type { PatternMetrics } from '../core/analysis/metrics';
+import { ENCYC_METRICS } from './metricEncycData';
+import { METRIC_COLORS, useMetricInspectorStore } from './metricInspectorState';
+import { middleEllipsis } from './legend';
+
+interface MetricResultHudProps {
+  targetId: string | null;
+  targetName?: string | null;
+  metrics: Map<string, PatternMetrics>;
+  sectorEdgeDeg: number;
+  fbWindowDeg: number;
+  uslsRangeDeg: number;
+  onOpenEncyclopedia?: (index: number) => void;
+}
+
+/**
+ * Floating Live Result HUD displayed on the graph area when a metric is focused.
+ * Shows the exact real-time calculated value, measurement context, and quick links.
+ */
+export function MetricResultHud({
+  targetId,
+  targetName,
+  metrics,
+  sectorEdgeDeg,
+  fbWindowDeg,
+  uslsRangeDeg,
+  onOpenEncyclopedia,
+}: MetricResultHudProps) {
+  const focusedMetric = useMetricInspectorStore((s) => s.focusedMetric);
+  const setFocusedMetric = useMetricInspectorStore((s) => s.setFocusedMetric);
+  const [minimized, setMinimized] = useState(false);
+
+  if (!focusedMetric || !targetId) return null;
+
+  const m = metrics.get(targetId);
+  if (!m) return null;
+
+  const metricDef = ENCYC_METRICS.find((x) => x.id === focusedMetric);
+  const colorDef = METRIC_COLORS[focusedMetric];
+  const metricIndex = ENCYC_METRICS.findIndex((x) => x.id === focusedMetric);
+
+  let primaryValue = '—';
+  let unit = metricDef?.unit ?? '';
+  let detailLine = '';
+
+  switch (focusedMetric) {
+    case 'hpbw':
+      primaryValue = m.h.hpbw.value !== null ? m.h.hpbw.value.toFixed(1) : '—';
+      detailLine = `10 dB BW: ${m.hBw10.value !== null ? `${m.hBw10.value.toFixed(1)}°` : '—'} · Azimuth Peak: ${m.hPeak.value !== null ? `${m.hPeak.value.toFixed(1)}°` : '—'}`;
+      break;
+    case 'rolloff':
+      primaryValue = m.rollOff.value !== null ? m.rollOff.value.toFixed(1) : '—';
+      detailLine = `Worst edge at ±${sectorEdgeDeg}° · −${sectorEdgeDeg}°: ${m.rollOffEdges[0]?.toFixed(1) ?? '—'} dB, +${sectorEdgeDeg}°: ${m.rollOffEdges[1]?.toFixed(1) ?? '—'} dB`;
+      break;
+    case 'vhpbw':
+      primaryValue = m.v.hpbw.value !== null ? m.v.hpbw.value.toFixed(1) : '—';
+      detailLine = `10 dB BW: ${m.vBw10.value !== null ? `${m.vBw10.value.toFixed(1)}°` : '—'} · Tilt: ${m.tilt.value !== null ? `${m.tilt.value.toFixed(1)}°` : '—'}`;
+      break;
+    case 'usls':
+      primaryValue = m.firstUsls.value !== null ? m.firstUsls.value.toFixed(1) : '—';
+      detailLine = `First USLS · Peak to ${uslsRangeDeg}°: ${m.usls.value !== null ? `${m.usls.value.toFixed(1)} dB` : '—'} · Horizon: ${m.uslsHorizon.value !== null ? `${m.uslsHorizon.value.toFixed(1)} dB` : '—'}`;
+      break;
+    case 'fb':
+      primaryValue = m.fbWindow.value !== null ? m.fbWindow.value.toFixed(1) : '—';
+      detailLine = `F/B window ±${fbWindowDeg}° · 180°: ${m.fb180.value !== null ? `${m.fb180.value.toFixed(1)} dB` : '—'}`;
+      break;
+    case 'tracking':
+      primaryValue = m.beamTracking.value !== null ? m.beamTracking.value.toFixed(1) : '—';
+      detailLine = `Port-to-port tracking distortion within sector`;
+      break;
+    case 'squint':
+      primaryValue = m.squint.value !== null ? m.squint.value.toFixed(1) : '—';
+      detailLine = `Beam direction offset from 0° mechanical boresight`;
+      break;
+    case 'nullfill':
+      primaryValue = m.nullFill.value !== null ? m.nullFill.value.toFixed(1) : '—';
+      detailLine = `First null below main beam · First LSLS: ${m.firstLsls.value !== null ? `${m.firstLsls.value.toFixed(1)} dB` : '—'}`;
+      break;
+    case 'du':
+      primaryValue = m.du.qam16.value !== null ? `${m.du.qam16.value.toFixed(1)}°` : '—';
+      unit = '';
+      detailLine = `16QAM: ${m.du.qam16.value !== null ? `${m.du.qam16.value.toFixed(1)}°` : '—'} · 64QAM: ${m.du.qam64.value !== null ? `${m.du.qam64.value.toFixed(1)}°` : '—'} · 256QAM: ${m.du.qam256.value !== null ? `${m.du.qam256.value.toFixed(1)}°` : '—'}`;
+      break;
+    case 'hsls':
+      primaryValue = m.hSls.value !== null ? m.hSls.value.toFixed(1) : '—';
+      detailLine = `Highest sidelobe within azimuth sector`;
+      break;
+    case 'spr':
+      primaryValue = m.spr.value !== null ? m.spr.value.toFixed(1) : '—';
+      detailLine = `Sector Power Ratio · AIR: ${m.air.value !== null ? `${m.air.value.toFixed(1)} dB` : '—'}`;
+      break;
+  }
+
+  const displayName = targetName ? middleEllipsis(targetName, 24) : targetId;
+
+  if (minimized) {
+    return (
+      <div
+        className="metric-hud-minimized"
+        onClick={() => setMinimized(false)}
+        title="Click to expand metric results HUD"
+        style={{ borderColor: colorDef?.accent }}
+      >
+        <span className="hud-dot" style={{ backgroundColor: colorDef?.accent }} />
+        <span className="hud-mini-name">{metricDef?.name ?? focusedMetric}:</span>
+        <span className="hud-mini-val">
+          {primaryValue} {unit}
+        </span>
+        <span className="hud-mini-expand">▾</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="metric-result-hud"
+      role="region"
+      aria-label="Metric calculation result"
+      style={{ borderLeft: `4px solid ${colorDef?.accent ?? 'var(--accent)'}` }}
+    >
+      <div className="hud-header">
+        <div className="hud-tag">
+          <span className="hud-dot" style={{ backgroundColor: colorDef?.accent ?? 'var(--accent)' }} />
+          <span className="hud-title">{metricDef?.name ?? focusedMetric}</span>
+          <span className="hud-cut-badge">{metricDef?.cut === 'H' ? 'H-Cut' : 'V-Cut'}</span>
+        </div>
+        <div className="hud-window-controls">
+          <button
+            type="button"
+            className="hud-ctrl-btn"
+            onClick={() => setMinimized(true)}
+            title="Minimize HUD card"
+            aria-label="Minimize HUD card"
+          >
+            –
+          </button>
+          <button
+            type="button"
+            className="hud-ctrl-btn"
+            onClick={() => setFocusedMetric(null)}
+            title="Dismiss focus"
+            aria-label="Dismiss focus"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <div className="hud-file-target" title={targetName ?? targetId}>
+        Antenna: <strong>{displayName}</strong>
+      </div>
+
+      <div className="hud-value-row">
+        <span className="hud-value" style={{ color: colorDef?.accent ?? 'var(--fg)' }}>
+          {primaryValue}
+        </span>
+        {unit && <span className="hud-unit">{unit}</span>}
+      </div>
+
+      {detailLine && <div className="hud-detail">{detailLine}</div>}
+
+      <div className="hud-footer">
+        {onOpenEncyclopedia && metricIndex >= 0 && (
+          <button
+            type="button"
+            className="hud-book-btn"
+            onClick={() => onOpenEncyclopedia(metricIndex)}
+            title="Open metric definition and visual guide in Encyclopedia"
+          >
+            📖 Encyclopedia Guide
+          </button>
+        )}
+        <button
+          type="button"
+          className="hud-clear-btn"
+          onClick={() => setFocusedMetric(null)}
+          title="Clear metric graph focus"
+        >
+          Clear focus
+        </button>
+      </div>
+    </div>
+  );
+}
