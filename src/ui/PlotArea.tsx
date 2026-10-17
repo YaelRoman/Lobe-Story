@@ -185,14 +185,13 @@ interface CutPlotsProps {
   highlighted: boolean;
   /** The marker target is the highlighted file (and not just the only ticked one). */
   targetHighlighted: boolean;
-  onEncyclopedia?: (index?: number) => void;
 }
 
 /**
  * The two cut plots. The figures are built here, inside the plot area's error boundary, so a figure that cannot be
  * built leaves the controls above it in place.
  */
-function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference, markerTarget, highlighted, targetHighlighted, onEncyclopedia }: CutPlotsProps) {
+function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference, markerTarget, highlighted, targetHighlighted }: CutPlotsProps) {
   const view = useStore(useShallow((s) => ({ cut: s.view.cut, mode: s.view.mode, floorDb: s.view.floorDb, markers: s.view.markers, theme: s.view.theme })));
   const settings = useStore((s) => s.settings);
   const focusedMetric = useMetricInspectorStore((s) => s.focusedMetric);
@@ -354,15 +353,6 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
           {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={pictureName('horizontal-cut', simulatedH, sim.simulatedAmong(drawnIds, true, false))} farBelowNote={farBelow} onShowRectangular={showRectangular} />}
           {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineV} exportBase={exportName('vertical-cut', simulatedV)} />}
         </div>
-        <MetricResultHud
-          targetId={markerTarget}
-          targetName={drawnItems.find((i) => i.pattern.id === markerTarget)?.pattern.name}
-          metrics={metrics}
-          sectorEdgeDeg={drawn.settings.sectorEdgeDeg}
-          fbWindowDeg={drawn.settings.fbWindowDeg}
-          uslsRangeDeg={drawn.settings.uslsRangeDeg}
-          onOpenEncyclopedia={onEncyclopedia}
-        />
       </div>
     </>
   );
@@ -484,6 +474,15 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
           <MetricInspector onOpenEncyclopedia={onEncyclopedia} />
         </div>
       </div>
+      <MetricResultHud
+        targetId={markerTarget}
+        targetName={drawnItems.find((i) => i.pattern.id === markerTarget)?.pattern.name}
+        metrics={metrics}
+        sectorEdgeDeg={settings.sectorEdgeDeg}
+        fbWindowDeg={settings.fbWindowDeg}
+        uslsRangeDeg={settings.uslsRangeDeg}
+        onOpenEncyclopedia={onEncyclopedia}
+      />
       {(is3d ? items.length === 0 : drawnItems.length === 0) ? (
         <p className="empty">Tick files in the left panel to plot them.</p>
       ) : (
@@ -496,7 +495,7 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
           {is3d ? (
             <Pattern3D items={items} colors={colors} sim={sim} waiting={simLag === 'waiting'} />
           ) : (
-            <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} targetHighlighted={markerTarget !== null && markerTarget === highlighted} onEncyclopedia={onEncyclopedia} />
+            <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} targetHighlighted={markerTarget !== null && markerTarget === highlighted} />
           )}
         </PlotBoundary>
       )}

@@ -114,72 +114,57 @@ export function MetricResultHud({
 
   return (
     <div
-      className="metric-result-hud"
+      className="metric-result-bar"
       role="region"
       aria-label="Metric calculation result"
-      style={{ borderLeft: `4px solid ${colorDef?.accent ?? 'var(--accent)'}` }}
+      style={{
+        borderLeft: `4px solid ${colorDef?.accent ?? 'var(--accent)'}`,
+        backgroundColor: colorDef?.bg ?? 'var(--panel)',
+      }}
     >
-      <div className="hud-header">
-        <div className="hud-tag">
+      <div className="bar-main-row">
+        <div className="bar-tag-info">
           <span className="hud-dot" style={{ backgroundColor: colorDef?.accent ?? 'var(--accent)' }} />
           <span className="hud-title">{metricDef?.name ?? focusedMetric}</span>
           <span className="hud-cut-badge">{metricDef?.cut === 'H' ? 'H-Cut' : 'V-Cut'}</span>
+          <span className="bar-sep">·</span>
+          <span className="hud-file-target" title={targetName ?? targetId}>
+            Antenna: <strong>{displayName}</strong>
+          </span>
         </div>
-        <div className="hud-window-controls">
-          <button
-            type="button"
-            className="hud-ctrl-btn"
-            onClick={() => setMinimized(true)}
-            title="Minimize HUD card"
-            aria-label="Minimize HUD card"
-          >
-            –
-          </button>
+
+        <div className="bar-value-block">
+          <span className="bar-val-label">Result:</span>
+          <span className="hud-value" style={{ color: colorDef?.accent ?? 'var(--fg)' }}>
+            {primaryValue}
+          </span>
+          {unit && <span className="hud-unit">{unit}</span>}
+        </div>
+
+        <div className="bar-actions">
+          {onOpenEncyclopedia && metricIndex >= 0 && (
+            <button
+              type="button"
+              className="hud-book-btn"
+              onClick={() => onOpenEncyclopedia(metricIndex)}
+              title="Open metric definition and visual guide in Encyclopedia"
+            >
+              📖 Encyclopedia
+            </button>
+          )}
           <button
             type="button"
             className="hud-ctrl-btn"
             onClick={() => setFocusedMetric(null)}
-            title="Dismiss focus"
-            aria-label="Dismiss focus"
+            title="Clear metric focus"
+            aria-label="Clear metric focus"
           >
             ✕
           </button>
         </div>
       </div>
 
-      <div className="hud-file-target" title={targetName ?? targetId}>
-        Antenna: <strong>{displayName}</strong>
-      </div>
-
-      <div className="hud-value-row">
-        <span className="hud-value" style={{ color: colorDef?.accent ?? 'var(--fg)' }}>
-          {primaryValue}
-        </span>
-        {unit && <span className="hud-unit">{unit}</span>}
-      </div>
-
       {detailLine && <div className="hud-detail">{detailLine}</div>}
-
-      <div className="hud-footer">
-        {onOpenEncyclopedia && metricIndex >= 0 && (
-          <button
-            type="button"
-            className="hud-book-btn"
-            onClick={() => onOpenEncyclopedia(metricIndex)}
-            title="Open metric definition and visual guide in Encyclopedia"
-          >
-            📖 Encyclopedia Guide
-          </button>
-        )}
-        <button
-          type="button"
-          className="hud-clear-btn"
-          onClick={() => setFocusedMetric(null)}
-          title="Clear metric graph focus"
-        >
-          Clear focus
-        </button>
-      </div>
     </div>
   );
 }

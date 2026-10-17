@@ -66,7 +66,7 @@ interface Point { angle: number; db: number; label: string }
 /** `readout: false`: the ray is drawn but the read-out says it in one item of its own (see `notes`). */
 interface Ray { angle: number; label: string; dash?: 'dot' | 'dashdot'; readout?: boolean }
 /** A band drawn along the outer radius (polar) or near the top (rectangular); `slot` stacks several. */
-interface Arc { from: number; to: number; slot: number; label: string }
+interface Arc { from: number; to: number; slot: number; label: string; color?: string; db?: number }
 /** `notes`: read-out items that belong to no single mark. */
 interface MarkerSpec { sectors: Sector[]; rings: Ring[]; points: Point[]; rays: Ray[]; arcs: Arc[]; notes: string[] }
 
@@ -183,6 +183,11 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
 
   // 7. D/U Apertures
   if (o.cut === 'H' && wants('du', 'sector')) {
+    const duColors: Record<string, string> = {
+      qam16: '#1f883d',
+      qam64: '#0969da',
+      qam256: '#8250df',
+    };
     DU_LEVELS.forEach((l, slot) => {
       const r = m.du[l.key];
       if (r.value === null || !r.edges) return;
@@ -191,6 +196,8 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
         to: r.edges[1] + rot,
         slot,
         label: `D/U ${l.label} (≥ ${l.db} dB): ${r.value.toFixed(1)}°`,
+        color: duColors[l.key],
+        db: l.db,
       });
     });
   }
@@ -270,14 +277,43 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
   }
   for (const a of spec.arcs) {
     const theta = arc(a.from, Math.min(a.to, a.from + 360));
+    const arcColor = a.color ?? o.theme.accent;
+
+    // When D/U is isolated/focused or active, draw the shaded aperture wedge and boundary edge rays
+    if (o.focusedMetric === 'du') {
+      out.push({
+        type: 'scatterpolar',
+        mode: 'lines',
+        name: `${a.label} wedge`,
+        theta: [a.from, ...theta, a.to],
+        r: [floor, ...theta.map(() => 0), floor],
+        fill: 'toself',
+        fillcolor: `${arcColor}20`,
+        line: { width: 0 },
+        hoverinfo: 'none',
+        showlegend: false,
+      });
+      for (const edgeAngle of [a.from, a.to]) {
+        out.push({
+          type: 'scatterpolar',
+          mode: 'lines',
+          theta: [edgeAngle, edgeAngle],
+          r: [floor, 0],
+          line: { color: arcColor, dash: 'dash', width: 1.5 },
+          hoverinfo: 'none',
+          showlegend: false,
+        });
+      }
+    }
+
     out.push({
       type: 'scatterpolar',
       mode: 'lines',
       name: a.label,
       theta,
       r: theta.map(() => floor * 0.03 * (a.slot + 1)),
-      line: { color: o.theme.accent, width: 5 },
-      opacity: 0.6,
+      line: { color: arcColor, width: 5 },
+      opacity: 0.9,
       hoverinfo: 'name',
       showlegend: false,
     });
@@ -326,6 +362,7 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
     });
   }
   for (const a of spec.arcs) {
+    const arcColor = a.color ?? o.theme.accent;
     const x: (number | null)[] = [];
     for (const t of arc(a.from, Math.min(a.to, a.from + 360))) {
       // +180 and -180 coincide: begin at -180 so a full-circle bar has no isolated start point.
@@ -333,14 +370,50 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
       if (x.length && v < (x[x.length - 1] ?? v) - 180) x.push(null);
       x.push(v);
     }
+
+    if (o.focusedMetric === 'du') {
+      shapes.push({
+        type: 'rect',
+        xref: 'x',
+        yref: 'paper',
+        x0: a.from,
+        x1: a.to,
+        y0: 0,
+        y1: 1,
+        fillcolor: arcColor,
+        opacity: 0.12,
+        line: { width: 0 },
+      });
+      shapes.push({
+        type: 'line',
+        xref: 'x',
+        yref: 'paper',
+        x0: a.from,
+        x1: a.from,
+        y0: 0,
+        y1: 1,
+        line: { color: arcColor, dash: 'dash', width: 1.5 },
+      });
+      shapes.push({
+        type: 'line',
+        xref: 'x',
+        yref: 'paper',
+        x0: a.to,
+        x1: a.to,
+        y0: 0,
+        y1: 1,
+        line: { color: arcColor, dash: 'dash', width: 1.5 },
+      });
+    }
+
     traces.push({
       type: 'scatter',
       mode: 'lines',
       name: a.label,
       x,
       y: x.map(() => -o.floorDb * 0.03 * (a.slot + 1)),
-      line: { color: o.theme.accent, width: 5 },
-      opacity: 0.6,
+      line: { color: arcColor, width: 5 },
+      opacity: 0.9,
       hoverinfo: 'skip',
       showlegend: false,
     });

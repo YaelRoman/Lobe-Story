@@ -81,8 +81,14 @@ export const MetricsTable = memo(function MetricsTable({
   const setHoveredMetric = useMetricInspectorStore((s) => s.setHoveredMetric);
 
   const tickedItems = useMemo(() => groups.flatMap((g) => g.items).filter((i) => visible[i.pattern.id]), [groups, visible]);
-  const currentViewingId =
-    highlighted && visible[highlighted] ? highlighted : tickedItems.length === 1 ? tickedItems[0].pattern.id : highlighted ?? null;
+  const hasDrawnGraph = tickedItems.length > 0 || reference !== null;
+  const currentViewingId = hasDrawnGraph
+    ? (highlighted && (visible[highlighted] || highlighted === reference)
+        ? highlighted
+        : tickedItems.length === 1
+        ? tickedItems[0].pattern.id
+        : null)
+    : null;
 
   // Sorting is a view of this table only (not saved in projects); the CSV export follows it.
   const [chosenSort, setSort] = useState<SortState | null>(null);
@@ -514,7 +520,7 @@ export const MetricsTable = memo(function MetricsTable({
             }}
           >
             {rows.map((r) => {
-              const isViewing = r.id === currentViewingId || r.id === highlighted;
+              const isViewing = currentViewingId !== null && r.id === currentViewingId;
               const fileColor = colors.get(r.id);
               return (
                 <tr
