@@ -269,23 +269,38 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
   }
   for (const p of spec.points) {
     const showText = Boolean(o.focusedMetric || (o.activeMetrics && Object.values(o.activeMetrics).some(Boolean)));
+    const angleStr = `${p.angle > 0 ? '+' : ''}${p.angle.toFixed(1)}°`;
+    const dbStr = `${p.db.toFixed(1)} dB`;
+    const shortText = p.label.length > 25 && p.label.includes(' = ')
+      ? `${p.label.split(' = ')[0]} ${p.label.split(' ').slice(-2).join(' ')}`
+      : p.label;
+    const pos = p.angle > 90 || p.angle < -90 ? (p.angle > 0 ? 'bottom right' : 'bottom left') : (p.angle >= 0 ? 'top right' : 'top left');
     out.push({
       type: 'scatterpolar',
       mode: showText ? 'text+markers' : 'markers',
       name: p.label,
       ...(showText ? {
-        text: [p.label],
-        textposition: p.angle >= 0 ? 'top right' : 'top left',
+        text: [shortText],
+        textposition: pos,
         textfont: { color: o.theme.accent, size: 11 },
       } : {}),
       theta: [p.angle],
       r: [Math.max(p.db, floor)],
       marker: { color: o.theme.accent, size: 10, symbol: 'x' },
-      hoverinfo: 'name',
+      hoverinfo: showText ? undefined : 'name',
+      ...(showText ? {
+        hovertemplate: `<b>${p.label}</b><br>Angle: ${angleStr} · Level: ${dbStr}<extra></extra>`,
+        hoverlabel: {
+          bgcolor: o.theme.bg,
+          bordercolor: o.theme.accent,
+          font: { color: o.theme.fg, size: 12 },
+        },
+      } : {}),
       showlegend: false,
     });
   }
   for (const ray of spec.rays) {
+    const showText = Boolean(o.focusedMetric || (o.activeMetrics && Object.values(o.activeMetrics).some(Boolean)));
     out.push({
       type: 'scatterpolar',
       mode: 'lines',
@@ -293,7 +308,15 @@ function polarMarkers(spec: MarkerSpec, o: CutFigureOptions): Partial<PlotData>[
       theta: [ray.angle, ray.angle],
       r: [floor, 0],
       line: { color: o.theme.accent, dash: ray.dash ?? 'dot', width: 1.5 },
-      hoverinfo: 'name',
+      hoverinfo: showText ? undefined : 'name',
+      ...(showText ? {
+        hovertemplate: `<b>${ray.label}</b><extra></extra>`,
+        hoverlabel: {
+          bgcolor: o.theme.bg,
+          bordercolor: o.theme.accent,
+          font: { color: o.theme.fg, size: 12 },
+        },
+      } : {}),
       showlegend: false,
     });
   }
@@ -369,23 +392,61 @@ function rectMarkers(spec: MarkerSpec, o: CutFigureOptions): { traces: Partial<P
     shapes.push({ type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: ring.db, y1: ring.db, line: { color: o.theme.accent, dash: 'dash', width: 1 } });
   }
   for (const ray of spec.rays) {
-    shapes.push({ type: 'line', xref: 'x', yref: 'paper', x0: ray.angle, x1: ray.angle, y0: 0, y1: 1, line: { color: o.theme.accent, dash: ray.dash ?? 'dot', width: 1.5 } });
+    const showText = Boolean(o.focusedMetric || (o.activeMetrics && Object.values(o.activeMetrics).some(Boolean)));
+    shapes.push({
+      type: 'line',
+      xref: 'x',
+      yref: 'paper',
+      x0: ray.angle,
+      x1: ray.angle,
+      y0: 0,
+      y1: 1,
+      line: { color: o.theme.accent, dash: ray.dash ?? 'dot', width: 1.5 },
+      ...(showText ? {
+        label: {
+          text: ray.label,
+          textposition: 'start',
+          font: { color: o.theme.accent, size: 11 },
+        },
+      } : {}),
+    });
   }
   for (const p of spec.points) {
     const showText = Boolean(o.focusedMetric || (o.activeMetrics && Object.values(o.activeMetrics).some(Boolean)));
+    const angleStr = `${p.angle > 0 ? '+' : ''}${p.angle.toFixed(1)}°`;
+    const dbStr = `${p.db.toFixed(1)} dB`;
+    const shortText = p.label.length > 25 && p.label.includes(' = ')
+      ? `${p.label.split(' = ')[0]} ${p.label.split(' ').slice(-2).join(' ')}`
+      : p.label;
+    let pos: PlotData['textposition'] = 'top center';
+    if (p.db > -8) {
+      pos = p.angle > 120 ? 'bottom left' : p.angle < -120 ? 'bottom right' : 'bottom center';
+    } else if (p.angle > 130) {
+      pos = 'top left';
+    } else if (p.angle < -130) {
+      pos = 'top right';
+    }
     traces.push({
       type: 'scatter',
       mode: showText ? 'text+markers' : 'markers',
       name: p.label,
       ...(showText ? {
-        text: [p.label],
-        textposition: 'top center',
+        text: [shortText],
+        textposition: pos,
         textfont: { color: o.theme.accent, size: 11 },
       } : {}),
       x: [p.angle],
       y: [Math.max(p.db, -o.floorDb)],
       marker: { color: o.theme.accent, size: 10, symbol: 'x' },
-      hoverinfo: 'skip',
+      hoverinfo: showText ? undefined : 'skip',
+      ...(showText ? {
+        hovertemplate: `<b>${p.label}</b><br>Angle: ${angleStr} · Level: ${dbStr}<extra></extra>`,
+        hoverlabel: {
+          bgcolor: o.theme.bg,
+          bordercolor: o.theme.accent,
+          font: { color: o.theme.fg, size: 12 },
+        },
+      } : {}),
       showlegend: false,
     });
   }
