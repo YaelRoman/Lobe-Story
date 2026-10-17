@@ -62,7 +62,7 @@ export interface CutFigureOptions {
 /** `readout: false` marks a band that only shades the plot and carries no value of its own. */
 interface Sector { from: number; to: number; label: string; opacity: number; readout?: boolean }
 interface Ring { db: number; label: string }
-interface Point { angle: number; db: number; label: string }
+interface Point { angle: number; db: number; label: string; readout?: boolean }
 /** `readout: false`: the ray is drawn but the read-out says it in one item of its own (see `notes`). */
 interface Ray { angle: number; label: string; dash?: 'dot' | 'dashdot'; readout?: boolean }
 /** A band drawn along the outer radius (polar) or near the top (rectangular); `slot` stacks several. */
@@ -114,12 +114,28 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
 
   // 1. HPBW / V-HPBW
   if (o.cut === 'H' && wants('hpbw', 'hpbw') && beam.edges && beam.hpbw.value !== null) {
-    spec.rings.push({ db: -(offset + o.levelDb), label: `−${settingText(o.levelDb)} dB` });
+    const leftAngle = signed(beam.edges[0] + rot);
+    const rightAngle = signed(beam.edges[1] + rot);
+    const edgeDb = -(offset + o.levelDb);
+    spec.rings.push({ db: edgeDb, label: `−${settingText(o.levelDb)} dB` });
     spec.sectors.push({ from: beam.edges[0] + rot, to: beam.edges[1] + rot, label: `${bwName(o.levelDb)} ${beam.hpbw.value.toFixed(1)}°`, opacity: 0.15 });
+    spec.points.push({ angle: leftAngle, db: edgeDb, label: `−${settingText(o.levelDb)} dB left edge: ${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}°`, readout: false });
+    spec.points.push({ angle: rightAngle, db: edgeDb, label: `−${settingText(o.levelDb)} dB right edge: ${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}°`, readout: false });
+    spec.rays.push({ angle: leftAngle, label: `${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}° (−${settingText(o.levelDb)} dB)`, dash: 'dot', readout: false });
+    spec.rays.push({ angle: rightAngle, label: `${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}° (−${settingText(o.levelDb)} dB)`, dash: 'dot', readout: false });
+    spec.notes.push(`−${settingText(o.levelDb)} dB edges: [${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}°, ${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}°]`);
   }
   if (o.cut === 'V' && wants('vhpbw', 'hpbw') && beam.edges && beam.hpbw.value !== null) {
-    spec.rings.push({ db: -(offset + o.levelDb), label: `−${settingText(o.levelDb)} dB` });
+    const leftAngle = signed(beam.edges[0] + rot);
+    const rightAngle = signed(beam.edges[1] + rot);
+    const edgeDb = -(offset + o.levelDb);
+    spec.rings.push({ db: edgeDb, label: `−${settingText(o.levelDb)} dB` });
     spec.sectors.push({ from: beam.edges[0] + rot, to: beam.edges[1] + rot, label: `V-${bwName(o.levelDb)} ${beam.hpbw.value.toFixed(1)}°`, opacity: 0.15 });
+    spec.points.push({ angle: leftAngle, db: edgeDb, label: `V-−${settingText(o.levelDb)} dB edge: ${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}°`, readout: false });
+    spec.points.push({ angle: rightAngle, db: edgeDb, label: `V-−${settingText(o.levelDb)} dB edge: ${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}°`, readout: false });
+    spec.rays.push({ angle: leftAngle, label: `${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}° (−${settingText(o.levelDb)} dB)`, dash: 'dot', readout: false });
+    spec.rays.push({ angle: rightAngle, label: `${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}° (−${settingText(o.levelDb)} dB)`, dash: 'dot', readout: false });
+    spec.notes.push(`−${settingText(o.levelDb)} dB edges: [${leftAngle > 0 ? '+' : ''}${leftAngle.toFixed(1)}°, ${rightAngle > 0 ? '+' : ''}${rightAngle.toFixed(1)}°]`);
   }
 
   // 2. F/B (Front-to-Back)
@@ -431,7 +447,7 @@ export function markerReadout(o: CutFigureOptions): string[] {
   const spec = markerSpec(target, o);
   return [
     ...spec.sectors.filter((s) => s.readout !== false).map((s) => s.label),
-    ...spec.points.map((p) => p.label),
+    ...spec.points.filter((p) => p.readout !== false).map((p) => p.label),
     ...spec.rays.filter((r) => r.readout !== false).map((r) => r.label),
     ...spec.notes,
     ...spec.arcs.map((a) => a.label),

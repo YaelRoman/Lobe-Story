@@ -234,7 +234,7 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
           theta: [-33, 33],
           r: [-3, -3],
           marker: { color: '#cf222e', size: 8, symbol: 'circle' },
-          text: ['−33°', '+33° · HPBW = 66°'],
+          text: ['−33° (−3 dB)', '+33° (−3 dB) · HPBW = 66°'],
           textposition: ['top left', 'top right'],
           textfont: { color: '#cf222e', size: 11 },
           hoverinfo: 'none',
@@ -260,11 +260,31 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
           line: { width: 0 },
         });
         annotations.push({
-          x: 0, y: -3, xref: 'x', yref: 'y',
-          text: '<b>−3 dB (HPBW = 66°)</b>',
+          x: -33, y: -3, xref: 'x', yref: 'y',
+          text: '<b>−33° (−3 dB)</b>',
           showarrow: true,
           arrowhead: 2,
           arrowcolor: '#cf222e',
+          font: { color: '#cf222e', size: 11 },
+          bgcolor: ft.bg,
+          bordercolor: '#cf222e',
+          borderwidth: 1,
+        });
+        annotations.push({
+          x: 33, y: -3, xref: 'x', yref: 'y',
+          text: '<b>+33° (−3 dB)</b>',
+          showarrow: true,
+          arrowhead: 2,
+          arrowcolor: '#cf222e',
+          font: { color: '#cf222e', size: 11 },
+          bgcolor: ft.bg,
+          bordercolor: '#cf222e',
+          borderwidth: 1,
+        });
+        annotations.push({
+          x: 0, y: -3, xref: 'x', yref: 'y',
+          text: '<b>HPBW = 66° (span)</b>',
+          showarrow: false,
           font: { color: '#cf222e', size: 11 },
           bgcolor: ft.bg,
         });
@@ -318,6 +338,19 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
           hoverinfo: 'none',
           showlegend: false,
         } as unknown as PlotlyNativeData);
+        // -3 dB boundary markers
+        traces.push({
+          type: 'scatterpolar',
+          mode: 'markers+text',
+          theta: [0.7, 9.3],
+          r: [-3, -3],
+          marker: { color: '#cf222e', size: 8, symbol: 'circle' },
+          text: ['+0.7° (−3 dB)', '+9.3° (−3 dB)'],
+          textposition: ['top left', 'top right'],
+          textfont: { color: '#cf222e', size: 11 },
+          hoverinfo: 'none',
+          showlegend: false,
+        } as unknown as PlotlyNativeData);
         // Peak marker
         traces.push({
           type: 'scatterpolar',
@@ -337,6 +370,13 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
           x0: 0, x1: 1, y0: -3, y1: -3,
           line: { color: '#cf222e', dash: 'dash', width: 1.5 },
         });
+        [0.7, 9.3].forEach(deg => {
+          shapes.push({
+            type: 'line', xref: 'x', yref: 'paper',
+            x0: deg, x1: deg, y0: 0, y1: 1,
+            line: { color: '#cf222e', dash: 'dot', width: 1.5 },
+          });
+        });
         shapes.push({
           type: 'rect', xref: 'x', yref: 'paper',
           x0: 0.7, x1: 9.3, y0: 0, y1: 1,
@@ -344,11 +384,31 @@ export function MiniChart({ metric, mode: propMode, duKey }: MiniChartProps) {
           line: { width: 0 },
         });
         annotations.push({
-          x: 5, y: -3, xref: 'x', yref: 'y',
-          text: '<b>V-HPBW = 8.6° (at tilt 5°)</b>',
+          x: 0.7, y: -3, xref: 'x', yref: 'y',
+          text: '<b>+0.7° (−3 dB)</b>',
           showarrow: true,
           arrowhead: 2,
           arrowcolor: '#cf222e',
+          font: { color: '#cf222e', size: 11 },
+          bgcolor: ft.bg,
+          bordercolor: '#cf222e',
+          borderwidth: 1,
+        });
+        annotations.push({
+          x: 9.3, y: -3, xref: 'x', yref: 'y',
+          text: '<b>+9.3° (−3 dB)</b>',
+          showarrow: true,
+          arrowhead: 2,
+          arrowcolor: '#cf222e',
+          font: { color: '#cf222e', size: 11 },
+          bgcolor: ft.bg,
+          bordercolor: '#cf222e',
+          borderwidth: 1,
+        });
+        annotations.push({
+          x: 5, y: -3, xref: 'x', yref: 'y',
+          text: '<b>V-HPBW = 8.6° (at tilt 5°)</b>',
+          showarrow: false,
           font: { color: '#cf222e', size: 11 },
           bgcolor: ft.bg,
         });

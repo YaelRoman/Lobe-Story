@@ -45,18 +45,26 @@ export function MetricResultHud({
   let detailLine = '';
 
   switch (focusedMetric) {
-    case 'hpbw':
+    case 'hpbw': {
       primaryValue = m.h.hpbw.value !== null ? m.h.hpbw.value.toFixed(1) : '—';
-      detailLine = `10 dB BW: ${m.hBw10.value !== null ? `${m.hBw10.value.toFixed(1)}°` : '—'} · Azimuth Peak: ${m.hPeak.value !== null ? `${m.hPeak.value.toFixed(1)}°` : '—'}`;
+      const edges = m.h.edges
+        ? `[${m.h.edges[0] > 0 ? '+' : ''}${m.h.edges[0].toFixed(1)}°, ${m.h.edges[1] > 0 ? '+' : ''}${m.h.edges[1].toFixed(1)}°]`
+        : '—';
+      detailLine = `−3 dB Edges: ${edges} · 10 dB BW: ${m.hBw10.value !== null ? `${m.hBw10.value.toFixed(1)}°` : '—'} · Azimuth Peak: ${m.hPeak.value !== null ? `${m.hPeak.value.toFixed(1)}°` : '—'}`;
       break;
+    }
     case 'rolloff':
       primaryValue = m.rollOff.value !== null ? m.rollOff.value.toFixed(1) : '—';
       detailLine = `Worst edge at ±${sectorEdgeDeg}° · −${sectorEdgeDeg}°: ${m.rollOffEdges[0]?.toFixed(1) ?? '—'} dB, +${sectorEdgeDeg}°: ${m.rollOffEdges[1]?.toFixed(1) ?? '—'} dB`;
       break;
-    case 'vhpbw':
+    case 'vhpbw': {
       primaryValue = m.v.hpbw.value !== null ? m.v.hpbw.value.toFixed(1) : '—';
-      detailLine = `10 dB BW: ${m.vBw10.value !== null ? `${m.vBw10.value.toFixed(1)}°` : '—'} · Tilt: ${m.tilt.value !== null ? `${m.tilt.value.toFixed(1)}°` : '—'}`;
+      const edges = m.v.edges
+        ? `[${m.v.edges[0] > 0 ? '+' : ''}${m.v.edges[0].toFixed(1)}°, ${m.v.edges[1] > 0 ? '+' : ''}${m.v.edges[1].toFixed(1)}°]`
+        : '—';
+      detailLine = `−3 dB Edges: ${edges} · 10 dB BW: ${m.vBw10.value !== null ? `${m.vBw10.value.toFixed(1)}°` : '—'} · Tilt: ${m.tilt.value !== null ? `${m.tilt.value.toFixed(1)}°` : '—'}`;
       break;
+    }
     case 'usls':
       primaryValue = m.firstUsls.value !== null ? m.firstUsls.value.toFixed(1) : '—';
       detailLine = `First USLS · Peak to ${uslsRangeDeg}°: ${m.usls.value !== null ? `${m.usls.value.toFixed(1)} dB` : '—'} · Horizon: ${m.uslsHorizon.value !== null ? `${m.uslsHorizon.value.toFixed(1)} dB` : '—'}`;

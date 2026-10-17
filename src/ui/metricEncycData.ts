@@ -50,7 +50,7 @@ export const ENCYC_METRICS: readonly EncycMetric[] = [
     unit: '° (degrees)',
     cut: 'H',
     mode: 'polar',
-    annotations: { hline: [-3] },
+    annotations: { hline: [-3], vline: [-33, 33], vlineLabels: ['−33° (−3 dB)', '+33° (−3 dB)'] },
   },
 
   // ── 2. Roll-off ───────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ export const ENCYC_METRICS: readonly EncycMetric[] = [
     unit: '° (degrees)',
     cut: 'V',
     mode: 'polar',
-    annotations: { hline: [-3] },
+    annotations: { hline: [-3], vline: [0.7, 9.3], vlineLabels: ['+0.7° (−3 dB)', '+9.3° (−3 dB)'] },
   },
 
   // ── 4. Upper Sidelobe Suppression ─────────────────────────────────────────
