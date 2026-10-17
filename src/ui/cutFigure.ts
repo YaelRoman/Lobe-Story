@@ -53,6 +53,10 @@ export interface CutFigureOptions {
    * `regionShading`): while the angular-region columns are shown.
    */
   regions?: boolean;
+  /** Granular isolated metric focus from Metric Inspector */
+  focusedMetric?: string | null;
+  /** Granular active metrics when multi-selecting */
+  activeMetrics?: Record<string, boolean>;
 }
 
 /** `readout: false` marks a band that only shades the plot and carries no value of its own. */
@@ -97,17 +101,37 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
       spec.points.push({ angle: signed(r.angle + rot), db: -((o.cut === 'H' ? levelOffset : offset) + r.value), label: label(r.value) });
     }
   };
-  // So that a cut far down the scale is not taken for an error.
-  if (below !== undefined) spec.notes.push(`Horizon cut: maximum ${below.toFixed(1)} dB below the 3D peak`);
 
-  if (o.markers.hpbw && beam.edges && beam.hpbw.value !== null) {
+  const isSolo = !!o.focusedMetric;
+  const wants = (key: string, legacyKey: MarkerKey) => {
+    if (isSolo) return o.focusedMetric === key;
+    if (o.activeMetrics && o.activeMetrics[key] !== undefined) return o.activeMetrics[key];
+    return o.markers[legacyKey];
+  };
+
+  // So that a cut far down the scale is not taken for an error.
+  if (below !== undefined && !isSolo) spec.notes.push(`Horizon cut: maximum ${below.toFixed(1)} dB below the 3D peak`);
+
+  // 1. HPBW / V-HPBW
+  if (o.cut === 'H' && wants('hpbw', 'hpbw') && beam.edges && beam.hpbw.value !== null) {
     spec.rings.push({ db: -(offset + o.levelDb), label: `−${settingText(o.levelDb)} dB` });
     spec.sectors.push({ from: beam.edges[0] + rot, to: beam.edges[1] + rot, label: `${bwName(o.levelDb)} ${beam.hpbw.value.toFixed(1)}°`, opacity: 0.15 });
   }
-  if (o.markers.fb && o.cut === 'H') {
+  if (o.cut === 'V' && wants('vhpbw', 'hpbw') && beam.edges && beam.hpbw.value !== null) {
+    spec.rings.push({ db: -(offset + o.levelDb), label: `−${settingText(o.levelDb)} dB` });
+    spec.sectors.push({ from: beam.edges[0] + rot, to: beam.edges[1] + rot, label: `V-${bwName(o.levelDb)} ${beam.hpbw.value.toFixed(1)}°`, opacity: 0.15 });
+  }
+
+  // 2. F/B (Front-to-Back)
+  if (o.cut === 'H' && wants('fb', 'fb')) {
     spec.sectors.push({ from: 180 - o.fbWindowDeg + rot, to: 180 + o.fbWindowDeg + rot, label: `F/B window ±${settingText(o.fbWindowDeg)}°`, opacity: 0.08, readout: false });
     point(m.fbWindow, (v) => `F/B ±${settingText(o.fbWindowDeg)}° ${v.toFixed(1)} dB`);
+    if (m.fb180.value !== null) {
+      point(m.fb180, (v) => `F/B 180° ${v.toFixed(1)} dB`);
+    }
   }
+
+  // 3. Sidelobes (USLS on V, H-SLS on H)
   const lobeMarkers = (items: { label: string; r: LobeResult }[]) => {
     const groups: { angle: number; value: number; labels: string[] }[] = [];
     for (const { label, r } of items) {
@@ -119,34 +143,46 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
     }
     for (const g of groups) point({ value: g.value, angle: g.angle }, (v) => `${g.labels.join(' = ')} ${v.toFixed(1)} dB`);
   };
-  if (o.markers.usls && o.cut === 'V') {
+
+  if (o.cut === 'V' && wants('usls', 'usls')) {
     lobeMarkers([
       { label: 'First USLS', r: m.firstUsls },
       { label: `USLS peak to ${settingText(o.uslsRangeDeg)}°`, r: m.usls },
       { label: `USLS horizon to ${settingText(o.uslsRangeDeg)}°`, r: m.uslsHorizon },
     ]);
   }
-  if (o.markers.usls && o.cut === 'H') lobeMarkers([{ label: 'H-SLS', r: m.hSls }]);
-  if (o.markers.null && o.cut === 'V') {
+  if (o.cut === 'H' && wants('hsls', 'usls')) {
+    lobeMarkers([{ label: 'H-SLS', r: m.hSls }]);
+  }
+
+  // 4. Null filling & lower sidelobes
+  if (o.cut === 'V' && wants('nullfill', 'null')) {
     lobeMarkers([
       { label: 'Null fill', r: m.nullFill },
       { label: 'First LSLS', r: m.firstLsls },
     ]);
   }
-  if (o.markers.peak && beam.direction.value !== null) {
-    const name = o.cut === 'H' ? 'Squint' : 'Tilt';
-    // A turned horizontal cut (an azimuth) draws the ray away from where the squint says: the squint is the antenna's
-    // own, against its boresight, and the plot points the boresight to the azimuth.
-    const turned = o.cut === 'H' && rot !== 0 ? ` (antenna) · pointing ${String(rot).replace('-', '−')}°` : '';
-    spec.rays.push({ angle: signed(beam.direction.value + rot), label: `${name} ${beam.direction.value.toFixed(1)}°${turned}` });
+
+  // 5. Squint (H) & Tilt (V)
+  if (o.cut === 'H' && wants('squint', 'peak') && beam.direction.value !== null) {
+    const turned = rot !== 0 ? ` (antenna) · pointing ${String(rot).replace('-', '−')}°` : '';
+    spec.rays.push({ angle: signed(beam.direction.value + rot), label: `Squint ${beam.direction.value.toFixed(1)}°${turned}` });
   }
-  if (o.markers.sector && o.cut === 'H') {
+  if (o.cut === 'V' && (wants('vhpbw', 'peak') || wants('peak', 'peak')) && beam.direction.value !== null) {
+    spec.rays.push({ angle: signed(beam.direction.value + rot), label: `Tilt ${beam.direction.value.toFixed(1)}°` });
+  }
+
+  // 6. Roll-off
+  if (o.cut === 'H' && wants('rolloff', 'sector')) {
     for (const sign of [1, -1]) {
       const angle = signed(sign * o.sectorEdgeDeg + rot);
       spec.rays.push({ angle, label: `Sector edge ${sign > 0 ? '+' : '−'}${settingText(o.sectorEdgeDeg)}°`, dash: 'dashdot', readout: false });
     }
-    // The edges carry the roll-off value of the table (the worse of the two edges): one item says it.
     if (m.rollOff.value !== null) spec.notes.push(`Roll-off at ±${settingText(o.sectorEdgeDeg)}°: ${m.rollOff.value.toFixed(1)} dB`);
+  }
+
+  // 7. D/U Apertures
+  if (o.cut === 'H' && wants('du', 'sector')) {
     DU_LEVELS.forEach((l, slot) => {
       const r = m.du[l.key];
       if (r.value === null || !r.edges) return;
@@ -158,6 +194,21 @@ function markerSpec(target: PlotSeries, o: CutFigureOptions): MarkerSpec {
       });
     });
   }
+
+  // 8. Tracking
+  if (o.cut === 'H' && wants('tracking', 'sector')) {
+    if (m.beamTracking.value !== null) {
+      spec.notes.push(`Tracking distortion: ${m.beamTracking.value.toFixed(1)} dB`);
+    }
+  }
+
+  // 9. SPR / AIR
+  if (o.cut === 'H' && wants('spr', 'sector')) {
+    if (m.spr.value !== null) {
+      spec.notes.push(`SPR: ${m.spr.value.toFixed(1)} % · AIR: ${m.air.value !== null ? `${m.air.value.toFixed(1)} dB` : '—'}`);
+    }
+  }
+
   return spec;
 }
 

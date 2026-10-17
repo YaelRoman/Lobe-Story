@@ -24,6 +24,8 @@ import { PER_FILE_COLOURS, type FileStyle } from './colors';
 import type { SimulationResult } from './useSimulation';
 import { noteSimulationDrawn } from './passCost';
 import type { OpenHelp } from './HelpDialog';
+import { MetricInspector } from './MetricInspector';
+import { useMetricInspectorStore } from './metricInspectorState';
 
 interface Props {
   groups: GroupView[];
@@ -37,6 +39,7 @@ interface Props {
   /** The lag is one to tell the user about: the page does not follow a drag (see `followsDrag`), so it lasts. */
   simStale: boolean;
   onHelp: OpenHelp;
+  onEncyclopedia?: (index?: number) => void;
 }
 
 /** The marker names in display order; the first follows the beamwidth level of the settings. */
@@ -181,15 +184,22 @@ interface CutPlotsProps {
   highlighted: boolean;
   /** The marker target is the highlighted file (and not just the only ticked one). */
   targetHighlighted: boolean;
+  onEncyclopedia?: (index?: number) => void;
 }
 
 /**
  * The two cut plots. The figures are built here, inside the plot area's error boundary, so a figure that cannot be
  * built leaves the controls above it in place.
  */
-function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference, markerTarget, highlighted, targetHighlighted }: CutPlotsProps) {
+function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference, markerTarget, highlighted, targetHighlighted, onEncyclopedia }: CutPlotsProps) {
   const view = useStore(useShallow((s) => ({ cut: s.view.cut, mode: s.view.mode, floorDb: s.view.floorDb, markers: s.view.markers, theme: s.view.theme })));
   const settings = useStore((s) => s.settings);
+  const focusedMetric = useMetricInspectorStore((s) => s.focusedMetric);
+  const hoveredMetric = useMetricInspectorStore((s) => s.hoveredMetric);
+  const inspectorMode = useMetricInspectorStore((s) => s.mode);
+  const activeMetrics = useMetricInspectorStore((s) => s.activeMetrics);
+  const activeFocus = hoveredMetric || (inspectorMode === 'solo' ? focusedMetric : null);
+
   // Everything that decides which traces are drawn and how the figure looks (colours, plot type, floor, theme,
   // analysis settings) moves to the figure together, a moment after a click: a checkbox or a button is answered
   // first, and the plots never show old traces with new colours. The highlighted file and the markers are not among
@@ -251,7 +261,14 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
   // The highlighted file's part: its markers, the title, the read-out. The traces themselves are restyled (`emphasised`).
   const figures = useMemo(() => {
     const make = ({ options: base, figure }: (typeof bases)['h']) => {
-      const options = { ...base, markers: view.markers, markerTarget: target, regions };
+      const options = {
+        ...base,
+        markers: view.markers,
+        markerTarget: target,
+        regions,
+        focusedMetric: activeFocus,
+        activeMetrics: inspectorMode === 'multi' ? activeMetrics : undefined,
+      };
       const shown = options.series.find((x) => x.id === target);
       const overlay = buildCutOverlay(options);
       return {
@@ -272,7 +289,7 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
       };
     };
     return { h: make(bases.h), v: make(bases.v) };
-  }, [bases, target, targetHighlighted, view.markers, regions, drawn.sim.tiltActive]);
+  }, [bases, target, targetHighlighted, view.markers, regions, drawn.sim.tiltActive, activeFocus, inspectorMode, activeMetrics]);
 
   // What each cut plot has finished drawing: until the shown ones have caught up (new traces, or another highlighted
   // file's markers, which the charting library also redraws the whole plot for), the redraw is still running.
@@ -336,12 +353,13 @@ function CutPlots({ drawnItems, metrics, colors, styles, sim, simLag, reference,
           {view.cut !== 'V' && <CutPlot id="h" {...figures.h} onDrawn={onDrawnH} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineH} exportNote={weightedHorizonNote(sim.hCut, method3d)} exportBase={pictureName('horizontal-cut', simulatedH, sim.simulatedAmong(drawnIds, true, false))} farBelowNote={farBelow} onShowRectangular={showRectangular} />}
           {view.cut !== 'H' && <CutPlot id="v" {...figures.v} onDrawn={onDrawnV} byGroup={byGroup} exportBehind={exportBehind} simulatedLine={simulatedLineV} exportBase={exportName('vertical-cut', simulatedV)} />}
         </div>
+        <MetricInspector onOpenEncyclopedia={onEncyclopedia} />
       </div>
     </>
   );
 }
 
-export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles, sim, simLag, simStale, onHelp }: Props) {
+export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles, sim, simLag, simStale, onHelp, onEncyclopedia }: Props) {
   // Only the fields used here: subscribing to the whole view would re-render on every slider tick.
   const view = useStore(
     useShallow((s) => ({
@@ -361,6 +379,12 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
   const highlighted = useStore((s) => s.highlighted);
   const reference = useStore((s) => s.reference);
   const settings = useStore((s) => s.settings);
+
+  const focusedMetric = useMetricInspectorStore((s) => s.focusedMetric);
+  const hoveredMetric = useMetricInspectorStore((s) => s.hoveredMetric);
+  const inspectorMode = useMetricInspectorStore((s) => s.mode);
+  const activeMetrics = useMetricInspectorStore((s) => s.activeMetrics);
+  const activeFocus = hoveredMetric || (inspectorMode === 'solo' ? focusedMetric : null);
 
   const items = useMemo(() => groups.flatMap((g) => g.items).filter((i) => visible[i.pattern.id]), [groups, visible]);
   // The reference file is drawn whenever one is pinned, ticked or not, also when nothing else is ticked.
@@ -455,12 +479,12 @@ export const PlotArea = memo(function PlotArea({ groups, metrics, colors, styles
         // when anything the figure is made from changes.
         <PlotBoundary
           className="plot"
-          resetKeys={[is3d, items, drawnItems, metrics, colors, styles, sim, reference, markerTarget, settings, view.layout3d, view.compare3d, view.cut, view.mode, view.floorDb, view.markers, view.theme]}
+          resetKeys={[is3d, items, drawnItems, metrics, colors, styles, sim, reference, markerTarget, settings, view.layout3d, view.compare3d, view.cut, view.mode, view.floorDb, view.markers, view.theme, activeFocus, inspectorMode, activeMetrics]}
         >
           {is3d ? (
             <Pattern3D items={items} colors={colors} sim={sim} waiting={simLag === 'waiting'} />
           ) : (
-            <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} targetHighlighted={markerTarget !== null && markerTarget === highlighted} />
+            <CutPlots drawnItems={drawnItems} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} reference={reference} markerTarget={markerTarget} highlighted={highlighted !== null} targetHighlighted={markerTarget !== null && markerTarget === highlighted} onEncyclopedia={onEncyclopedia} />
           )}
         </PlotBoundary>
       )}

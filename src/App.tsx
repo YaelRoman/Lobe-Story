@@ -144,7 +144,7 @@ export default function App() {
             <>
               {/* A figure that cannot be built or drawn fails inside its own box, below the controls (see PlotArea, HpbwChart and PlotlyChart). These are the last line for anything else in the two regions. */}
               <PlotBoundary className="plot">
-                <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} simStale={simStale} onHelp={openHelp} />
+                <PlotArea groups={groups} metrics={metrics} colors={colors} styles={styles} sim={sim} simLag={simLag} simStale={simStale} onHelp={openHelp} onEncyclopedia={(idx) => openEncyclopedia(undefined, idx)} />
               </PlotBoundary>
               {/* What is made from the simulation and is not the cut plots (they have their own line): marked, for the eye
                   and for a screen reader, while it shows an older simulation than the sliders. One box around the three,

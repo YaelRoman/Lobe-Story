@@ -26,6 +26,7 @@ import type { TableColumn } from './table';
 import type { SimulationResult } from './useSimulation';
 import { SelectedCellLine } from './SelectedCellLine';
 import { cellLineParts, selectCell, type CellLineParts, type SelectedCell } from './selectedCell';
+import { useMetricInspectorStore, COLUMN_TO_METRIC, METRIC_COLORS } from './metricInspectorState';
 
 const FILE_NAME_MAX = 28;
 /** Why a simulated cell can be blank; the examples hold for both horizontal cuts (no cell is blanked for where a cut runs). */
@@ -73,6 +74,11 @@ export const MetricsTable = memo(function MetricsTable({
   const deltaChosen = useStore((s) => s.view.deltaVsReference);
   const tickedOnly = useStore((s) => s.view.tableTickedOnly);
   const visible = useStore((s) => s.visible);
+  const focusedMetric = useMetricInspectorStore((s) => s.focusedMetric);
+  const hoveredMetric = useMetricInspectorStore((s) => s.hoveredMetric);
+  const setFocusedMetric = useMetricInspectorStore((s) => s.setFocusedMetric);
+  const setHoveredMetric = useMetricInspectorStore((s) => s.setHoveredMetric);
+  const activeHighlightMetric = hoveredMetric || focusedMetric;
 
   // Sorting is a view of this table only (not saved in projects); the CSV export follows it.
   const [chosenSort, setSort] = useState<SortState | null>(null);
@@ -287,16 +293,47 @@ export const MetricsTable = memo(function MetricsTable({
     const hidden = first.getBoundingClientRect().right - th.getBoundingClientRect().left;
     if (hidden > 0) wrap.scrollLeft -= hidden;
   };
-  const header = (key: SortKey, content: ReactNode, title?: string, className?: string) => (
-    <th key={key} scope="col" title={title} className={className} aria-sort={ariaSort(sort, key)}>
-      <button type="button" className="sort-btn" data-head={key} tabIndex={headStop === key ? 0 : -1} onClick={() => setSort((cur) => nextSort(cur, key))}>
-        {content}
-        <span className="sort-arrow" aria-hidden="true">
-          {sort?.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
-        </span>
-      </button>
-    </th>
-  );
+  const header = (key: SortKey, content: ReactNode, title?: string, className?: string) => {
+    const metricId = COLUMN_TO_METRIC[key];
+    const isHighlighted = !!metricId && activeHighlightMetric === metricId;
+    const colorDef = metricId ? METRIC_COLORS[metricId] : undefined;
+    const headerCls = [
+      className,
+      isHighlighted ? 'metric-highlight-th' : '',
+    ].filter(Boolean).join(' ') || undefined;
+
+    return (
+      <th
+        key={key}
+        scope="col"
+        title={metricId ? `${title ? `${title}\n` : ''}Double-click to isolate on plot` : title}
+        className={headerCls}
+        style={isHighlighted && colorDef ? { backgroundColor: colorDef.bg, borderTop: `3px solid ${colorDef.accent}` } : undefined}
+        aria-sort={ariaSort(sort, key)}
+        onPointerEnter={() => { if (metricId) setHoveredMetric(metricId); }}
+        onPointerLeave={() => { if (metricId) setHoveredMetric(null); }}
+      >
+        <button
+          type="button"
+          className="sort-btn"
+          data-head={key}
+          tabIndex={headStop === key ? 0 : -1}
+          onClick={() => setSort((cur) => nextSort(cur, key))}
+          onDoubleClick={(e) => {
+            if (metricId) {
+              e.stopPropagation();
+              setFocusedMetric(focusedMetric === metricId ? null : metricId);
+            }
+          }}
+        >
+          {content}
+          <span className="sort-arrow" aria-hidden="true">
+            {sort?.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
+          </span>
+        </button>
+      </th>
+    );
+  };
 
   // The exports of the whole table are of the sliders as they stand: a simulation that is behind them (a slider is
   // held and waited for, or the last change is still being worked out) is first brought up, and the export is then
@@ -379,6 +416,29 @@ export const MetricsTable = memo(function MetricsTable({
           <button type="button" aria-haspopup="dialog" title="Metric Encyclopedia: book and table views" onClick={onEncyclopedia}>
             Encyclopedia
           </button>
+        )}
+        {focusedMetric && (
+          <span
+            className="count metric-active-indicator"
+            style={{
+              borderColor: METRIC_COLORS[focusedMetric]?.accent,
+              backgroundColor: METRIC_COLORS[focusedMetric]?.bg,
+            }}
+          >
+            <span
+              className="metric-dot"
+              style={{ backgroundColor: METRIC_COLORS[focusedMetric]?.accent }}
+            />
+            <span>Focus: {METRIC_COLORS[focusedMetric]?.label ?? focusedMetric}</span>
+            <button
+              type="button"
+              className="clear-metric-focus"
+              title="Clear metric graph focus"
+              onClick={() => setFocusedMetric(null)}
+            >
+              ✕
+            </button>
+          </span>
         )}
         <span className="count">Columns</span>
         {COLUMN_GROUPS.map(({ key, label }) => (
@@ -496,8 +556,25 @@ export const MetricsTable = memo(function MetricsTable({
                 <td>{gainText(r)}</td>
                 {columns.map((c) => {
                   const cell = rowCell(r, c.key, words);
+                  const metricId = COLUMN_TO_METRIC[c.key];
+                  const isHighlighted = !!metricId && activeHighlightMetric === metricId;
+                  const colorDef = metricId ? METRIC_COLORS[metricId] : undefined;
+                  const tdCls = [
+                    cell.title && !cell.equal ? 'has-reason' : '',
+                    isHighlighted ? 'metric-highlight-td' : '',
+                  ].filter(Boolean).join(' ') || undefined;
+
                   return (
-                    <td key={c.key} data-col={c.key} tabIndex={-1} title={cell.title} className={cell.title && !cell.equal ? 'has-reason' : undefined}>
+                    <td
+                      key={c.key}
+                      data-col={c.key}
+                      tabIndex={-1}
+                      title={cell.title}
+                      className={tdCls}
+                      style={isHighlighted && colorDef ? { backgroundColor: colorDef.bg } : undefined}
+                      onPointerEnter={() => { if (metricId) setHoveredMetric(metricId); }}
+                      onPointerLeave={() => { if (metricId) setHoveredMetric(null); }}
+                    >
                       {cell.text}
                       {focusedCell?.id === r.id && focusedCell.col === c.key && (
                         <button
